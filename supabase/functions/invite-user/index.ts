@@ -106,6 +106,16 @@ Deno.serve(async (req) => {
       metadata: { email, full_name, role: role || "employee" },
     });
 
+    // Send invite email
+    const callerProfile = await adminClient.from("users").select("full_name").eq("id", callerId!).single();
+    await adminClient.functions.invoke("send-invite", {
+      body: {
+        user_email: email,
+        user_name: full_name,
+        inviter_name: callerProfile.data?.full_name || "Admin",
+      },
+    });
+
     return new Response(
       JSON.stringify({ user_id: userId, email }),
       {

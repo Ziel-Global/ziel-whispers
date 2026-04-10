@@ -16,11 +16,20 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
       toast.error(error.message);
     } else {
+      // Write audit log for login
+      if (data.user) {
+        await supabase.from("audit_logs").insert({
+          actor_id: data.user.id,
+          action: "session.login",
+          target_entity: "users",
+          target_id: data.user.id,
+        });
+      }
       navigate("/", { replace: true });
     }
   };

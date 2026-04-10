@@ -1,0 +1,195 @@
+import { useState, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Download, Search, Shield, FileText } from "lucide-react";
+import { format, formatDistanceToNow } from "date-fns";
+
+const ACTION_LABELS: Record<string, string> = {
+  "user.created": "User Created",
+  "user.updated": "User Updated",
+  "user.deactivated": "User Deactivated",
+  "user.reactivated": "User Reactivated",
+  "user.invited": "User Invited",
+  "client.created": "Client Created",
+  "client.updated": "Client Updated",
+  "client.archived": "Client Archived",
+  "project.created": "Project Created",
+  "project.updated": "Project Updated",
+  "project.status_changed": "Project Status Changed",
+  "project.member_added": "Member Added to Project",
+  "project.member_removed": "Member Removed from Project",
+  "log.submitted": "Log Submitted",
+  "log.edited": "Log Edited",
+  "log.admin_flagged": "Log Flagged",
+  "log.locked": "Log Locked",
+  "attendance.clocked_in": "Clocked In",
+  "attendance.clocked_out": "Clocked Out",
+  "attendance.edited": "Attendance Edited",
+  "leave.requested": "Leave Requested",
+  "leave.approved": "Leave Approved",
+  "leave.rejected": "Leave Rejected",
+  "leave.cancelled": "Leave Cancelled",
+  "announcement.created": "Announcement Created",
+  "announcement.updated": "Announcement Updated",
+  "announcement.deleted": "Announcement Deleted",
+  "settings.updated": "Settings Updated",
+  "session.login": "User Logged In",
+  "session.logout": "User Logged Out",
+  "impersonation.started": "Impersonation Started",
+  "impersonation.ended": "Impersonation Ended",
+};
+
+const PAGE_SIZE = 25;
+
+export default function AuditLogPage() {
+  const { profile } = useAuth();
+  const [search, setSearch] = useState("");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [page, setPage] = useState(0);
+
+  const { data: logs, isLoading } = useQuery({
+    queryKey: ["audit-logs", page],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("*, users:actor_id(full_name, avatar_url)")
+        .order("created_at", { ascending: false })
+        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  const filtered = useMemo(() => {
+    if (!logs) return [];
+    return logs.filter((l) => {
+      const q = search.toLowerCase();
+      const actorName = ((l as any).users?.full_name || "System").toLowerCase();
+      const actionLabel = (ACTION_LABELS[l.action] || l.action).toLowerCase();
+      const matchSearch = !q || actorName.includes(q) || actionLabel.includes(q) || l.action.includes(q);
+      const matchAction = actionFilter === "all" || l.action === actionFilter;
+      return matchSearch && matchAction;
+    });
+  }, [logs, search, actionFilter]);
+
+  const actionTypes = useMemo(() => {
+    if (!logs) return [];
+    return [...new Set(logs.map((l) => l.action))].sort();
+  }, [logs]);
+
+  const exportCSV = () => {
+    const rows = filtered.map((l) => ({
+      Timestamp: format(new Date(l.created_at), "yyyy-MM-dd HH:mm:ss"),
+      Actor: (l as any).users?.full_name || "System",
+      Action: ACTION_LABELS[l.action] || l.action,
+      Target: l.target_entity || "",
+      Details: JSON.stringify(l.metadata || {}),
+    }));
+    if (!rows.length) return;
+    const keys = Object.keys(rows[0]);
+    const csv = [keys.join(","), ...rows.map((r) => keys.map((k) => `"${String((r as any)[k]).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "audit-logs.csv"; a.click();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Audit Log</h1>
+          <p className="text-muted-foreground mt-1">Immutable record of all system events</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={exportCSV}>
+          <Download className="h-4 w-4 mr-1" />Export CSV
+        </Button>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by actor or action…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+        </div>
+        <Select value={actionFilter} onValueChange={setActionFilter}>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Actions" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Actions</SelectItem>
+            {actionTypes.map((a) => <SelectItem key={a} value={a}>{ACTION_LABELS[a] || a}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <Card>
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Timestamp</TableHead>
+              <TableHead>Actor</TableHead>
+              <TableHead>Action</TableHead>
+              <TableHead>Target</TableHead>
+              <TableHead>Details</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {isLoading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <TableRow key={i}>
+                  {Array.from({ length: 5 }).map((_, j) => (
+                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                  ))}
+                </TableRow>
+              ))
+            ) : filtered.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={5} className="text-center py-12">
+                  <Shield className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+                  <p className="font-medium">No audit logs found</p>
+                  <p className="text-sm text-muted-foreground">System events will appear here</p>
+                </TableCell>
+              </TableRow>
+            ) : (
+              filtered.map((l) => (
+                <TableRow key={l.id}>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    <div>{format(new Date(l.created_at), "MMM d, yyyy")}</div>
+                    <div className="text-xs text-muted-foreground">{format(new Date(l.created_at), "h:mm:ss a")}</div>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      <Avatar className="h-6 w-6">
+                        <AvatarFallback className="text-[10px]">{((l as any).users?.full_name || "S")[0]}</AvatarFallback>
+                      </Avatar>
+                      <span className="text-sm font-medium">{(l as any).users?.full_name || "System"}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant="outline" className="text-xs font-normal">
+                      {ACTION_LABELS[l.action] || l.action}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{l.target_entity || "—"}</TableCell>
+                  <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
+                    {l.metadata ? JSON.stringify(l.metadata) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableBody>
+        </Table>
+      </Card>
+
+      <div className="flex justify-center gap-2">
+        {page > 0 && <Button variant="outline" size="sm" onClick={() => setPage(page - 1)}>Previous</Button>}
+        {logs && logs.length === PAGE_SIZE && <Button variant="outline" size="sm" onClick={() => setPage(page + 1)}>Next</Button>}
+      </div>
+    </div>
+  );
+}

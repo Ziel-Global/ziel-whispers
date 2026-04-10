@@ -12,6 +12,7 @@ import {
   Briefcase,
   Send,
   CalendarCheck,
+  Shield,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -41,6 +42,7 @@ const adminNav = [
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
+  { title: "Audit Log", url: "/audit", icon: Shield },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -63,11 +65,9 @@ export function AppSidebar() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const items = isAdmin ? adminNav : employeeNav;
 
-  // Unread announcements count
   const { data: unreadCount } = useQuery({
     queryKey: ["unread-announcements", user?.id],
     queryFn: async () => {
-      // Get all announcements visible to user
       const { data: announcements } = await supabase
         .from("announcements")
         .select("id")

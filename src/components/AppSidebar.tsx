@@ -14,8 +14,10 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/integrations/supabase/client";
 import {
   Sidebar,
   SidebarContent,
@@ -53,13 +55,36 @@ const employeeNav = [
 ];
 
 export function AppSidebar() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
 
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const items = isAdmin ? adminNav : employeeNav;
+
+  // Unread announcements count
+  const { data: unreadCount } = useQuery({
+    queryKey: ["unread-announcements", user?.id],
+    queryFn: async () => {
+      // Get all announcements visible to user
+      const { data: announcements } = await supabase
+        .from("announcements")
+        .select("id")
+        .lte("publish_at", new Date().toISOString());
+      if (!announcements?.length) return 0;
+
+      const { data: reads } = await supabase
+        .from("announcement_reads")
+        .select("announcement_id")
+        .eq("user_id", user!.id);
+
+      const readIds = new Set(reads?.map((r) => r.announcement_id) || []);
+      return announcements.filter((a) => !readIds.has(a.id)).length;
+    },
+    enabled: !!user?.id,
+    refetchInterval: 60000,
+  });
 
   return (
     <Sidebar collapsible="icon" className="border-r-0">
@@ -79,6 +104,7 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => {
                 const isActive = item.url === "/" ? location.pathname === "/" : location.pathname.startsWith(item.url);
+                const showBadge = item.title === "Announcements" && (unreadCount || 0) > 0;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive}>
@@ -89,7 +115,16 @@ export function AppSidebar() {
                         activeClassName="!bg-sidebar-accent !text-sidebar-primary font-medium"
                       >
                         <item.icon className="h-4 w-4 shrink-0" />
-                        {!collapsed && <span>{item.title}</span>}
+                        {!collapsed && (
+                          <span className="flex items-center gap-2 flex-1">
+                            {item.title}
+                            {showBadge && (
+                              <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                                {unreadCount! > 99 ? "99+" : unreadCount}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </NavLink>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

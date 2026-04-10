@@ -35,6 +35,7 @@ const adminNav = [
   { title: "Daily Logs", url: "/logs/all", icon: FileText },
   { title: "Attendance", url: "/attendance", icon: Clock },
   { title: "Leave", url: "/leave/requests", icon: Calendar },
+  { title: "Clients", url: "/clients", icon: Briefcase },
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Announcements", url: "/announcements", icon: Megaphone },

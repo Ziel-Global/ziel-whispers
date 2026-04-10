@@ -11,7 +11,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Verify the caller is an admin
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Missing authorization" }), {
@@ -23,7 +22,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-    // Client with caller's JWT to check role
     const callerClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -37,27 +35,29 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, full_name, department, designation, employment_type, join_date, role, phone, shift_start, shift_end } = body;
+    const { email, full_name, department, designation, employment_type, join_date, role, phone, shift_start, shift_end, reminder_offset_minutes, password } = body;
 
-    if (!email || !full_name || !department || !designation || !employment_type || !join_date) {
+    if (!email || !full_name || !department || !designation || !employment_type || !join_date || !password) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Admin client with service role
+    if (password.length < 8) {
+      return new Response(JSON.stringify({ error: "Password must be at least 8 characters" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Generate a temporary password
-    const tempPassword = crypto.randomUUID().slice(0, 12) + "A1!";
-
-    // Create auth user
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
-      password: tempPassword,
+      password,
       email_confirm: true,
     });
 
@@ -69,8 +69,8 @@ Deno.serve(async (req) => {
     }
 
     const userId = authData.user.id;
+    const callerId = (await callerClient.auth.getUser()).data.user?.id;
 
-    // Insert into public.users table
     const { error: profileError } = await adminClient.from("users").insert({
       id: userId,
       email,
@@ -83,13 +83,13 @@ Deno.serve(async (req) => {
       phone: phone || null,
       shift_start: shift_start || "09:00",
       shift_end: shift_end || "18:00",
+      reminder_offset_minutes: reminder_offset_minutes || 30,
       must_change_password: true,
       status: "active",
-      created_by: (await callerClient.auth.getUser()).data.user?.id,
+      created_by: callerId,
     });
 
     if (profileError) {
-      // Rollback: delete the auth user
       await adminClient.auth.admin.deleteUser(userId);
       return new Response(JSON.stringify({ error: profileError.message }), {
         status: 400,
@@ -97,8 +97,17 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Write audit log
+    await adminClient.from("audit_logs").insert({
+      actor_id: callerId,
+      action: "user.created",
+      target_entity: "users",
+      target_id: userId,
+      metadata: { email, full_name, role: role || "employee" },
+    });
+
     return new Response(
-      JSON.stringify({ user_id: userId, email, temp_password: tempPassword }),
+      JSON.stringify({ user_id: userId, email }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

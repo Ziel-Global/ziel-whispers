@@ -22,6 +22,7 @@ import LogsAdminPage from "@/pages/LogsAdmin";
 import MyLeavePage from "@/pages/MyLeave";
 import LeaveAdminPage from "@/pages/LeaveAdmin";
 import PlaceholderPage from "@/pages/Placeholder";
+import SettingsPage from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -64,7 +65,7 @@ const App = () => (
               <Route path="/projects" element={<PlaceholderPage title="Projects" />} />
               <Route path="/announcements" element={<PlaceholderPage title="Announcements" />} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PlaceholderPage title="Reports" /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><PlaceholderPage title="Settings" /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
               <Route path="/my-projects" element={<PlaceholderPage title="My Projects" />} />
             </Route>
 

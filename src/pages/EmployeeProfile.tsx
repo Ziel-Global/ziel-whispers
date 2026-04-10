@@ -45,6 +45,7 @@ export default function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
+  const { startImpersonation } = useImpersonation();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);

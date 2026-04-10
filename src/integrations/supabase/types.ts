@@ -193,6 +193,7 @@ export type Database = {
           id: string
           industry: string | null
           name: string
+          notes: string | null
           status: string
         }
         Insert: {
@@ -204,6 +205,7 @@ export type Database = {
           id?: string
           industry?: string | null
           name: string
+          notes?: string | null
           status?: string
         }
         Update: {
@@ -215,6 +217,7 @@ export type Database = {
           id?: string
           industry?: string | null
           name?: string
+          notes?: string | null
           status?: string
         }
         Relationships: [

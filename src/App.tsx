@@ -21,6 +21,10 @@ import MyLogsPage from "@/pages/MyLogs";
 import LogsAdminPage from "@/pages/LogsAdmin";
 import MyLeavePage from "@/pages/MyLeave";
 import LeaveAdminPage from "@/pages/LeaveAdmin";
+import ClientsPage from "@/pages/Clients";
+import ProjectsPage from "@/pages/Projects";
+import ProjectNewPage from "@/pages/ProjectNew";
+import ProjectDetailPage from "@/pages/ProjectDetail";
 import PlaceholderPage from "@/pages/Placeholder";
 import SettingsPage from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
@@ -61,12 +65,17 @@ const App = () => (
               <Route path="/leave/my" element={<MyLeavePage />} />
               <Route path="/leave/requests" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LeaveAdminPage /></ProtectedRoute>} />
 
+              {/* Clients & Projects */}
+              <Route path="/clients" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ClientsPage /></ProtectedRoute>} />
+              <Route path="/projects" element={<ProjectsPage />} />
+              <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProjectNewPage /></ProtectedRoute>} />
+              <Route path="/projects/:id" element={<ProjectDetailPage />} />
+
               {/* Other */}
-              <Route path="/projects" element={<PlaceholderPage title="Projects" />} />
               <Route path="/announcements" element={<PlaceholderPage title="Announcements" />} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PlaceholderPage title="Reports" /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
-              <Route path="/my-projects" element={<PlaceholderPage title="My Projects" />} />
+              <Route path="/my-projects" element={<ProjectsPage />} />
             </Route>
 
             <Route path="*" element={<NotFound />} />

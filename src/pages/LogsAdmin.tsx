@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Download, Flag, Lock, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { Download, Flag, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { format, subDays } from "date-fns";
 
 const CATEGORIES = ["Development", "Meeting", "Bug Fix", "Code Review", "Deployment", "Documentation", "Testing", "Other"];
@@ -26,7 +26,7 @@ function formatHours(h: number) {
 }
 
 export default function LogsAdminPage() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const queryClient = useQueryClient();
   const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 7), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));

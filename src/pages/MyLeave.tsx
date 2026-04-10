@@ -12,8 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Calendar, Plus } from "lucide-react";
-import { format, differenceInBusinessDays, addDays } from "date-fns";
+import { Plus } from "lucide-react";
+import { format, differenceInBusinessDays } from "date-fns";
 
 export default function MyLeavePage() {
   const { user } = useAuth();

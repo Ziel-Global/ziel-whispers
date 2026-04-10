@@ -14,6 +14,13 @@ import EmployeesPage from "@/pages/Employees";
 import EmployeeNewPage from "@/pages/EmployeeNew";
 import EmployeeProfilePage from "@/pages/EmployeeProfile";
 import MyProfilePage from "@/pages/MyProfile";
+import MyAttendancePage from "@/pages/MyAttendance";
+import AttendanceAdminPage from "@/pages/AttendanceAdmin";
+import LogSubmitPage from "@/pages/LogSubmit";
+import MyLogsPage from "@/pages/MyLogs";
+import LogsAdminPage from "@/pages/LogsAdmin";
+import MyLeavePage from "@/pages/MyLeave";
+import LeaveAdminPage from "@/pages/LeaveAdmin";
 import PlaceholderPage from "@/pages/Placeholder";
 import NotFound from "@/pages/NotFound";
 
@@ -29,33 +36,35 @@ const App = () => (
           <Routes>
             <Route path="/login" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route
-              path="/set-password"
-              element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>}
-            />
+            <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
 
-            <Route
-              element={<ProtectedRoute><AppLayout /></ProtectedRoute>}
-            >
+            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<DashboardPage />} />
 
-              {/* Employee Management - Admin/Manager */}
+              {/* Employee Management */}
               <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeesPage /></ProtectedRoute>} />
               <Route path="/employees/new" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeeNewPage /></ProtectedRoute>} />
               <Route path="/employees/:id" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeeProfilePage /></ProtectedRoute>} />
-
-              {/* Self profile */}
               <Route path="/profile" element={<MyProfilePage />} />
 
-              {/* Shared */}
-              <Route path="/logs" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PlaceholderPage title="All Daily Logs" /></ProtectedRoute>} />
-              <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PlaceholderPage title="Reports" /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><PlaceholderPage title="Settings" /></ProtectedRoute>} />
-              <Route path="/attendance" element={<PlaceholderPage title="Attendance" />} />
-              <Route path="/leave" element={<PlaceholderPage title="Leave Management" />} />
+              {/* Attendance */}
+              <Route path="/attendance/my" element={<MyAttendancePage />} />
+              <Route path="/attendance" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><AttendanceAdminPage /></ProtectedRoute>} />
+
+              {/* Daily Logs */}
+              <Route path="/logs/submit" element={<LogSubmitPage />} />
+              <Route path="/logs/my" element={<MyLogsPage />} />
+              <Route path="/logs/all" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LogsAdminPage /></ProtectedRoute>} />
+
+              {/* Leave */}
+              <Route path="/leave/my" element={<MyLeavePage />} />
+              <Route path="/leave/requests" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LeaveAdminPage /></ProtectedRoute>} />
+
+              {/* Other */}
               <Route path="/projects" element={<PlaceholderPage title="Projects" />} />
               <Route path="/announcements" element={<PlaceholderPage title="Announcements" />} />
-              <Route path="/my-logs" element={<PlaceholderPage title="My Logs" />} />
+              <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PlaceholderPage title="Reports" /></ProtectedRoute>} />
+              <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><PlaceholderPage title="Settings" /></ProtectedRoute>} />
               <Route path="/my-projects" element={<PlaceholderPage title="My Projects" />} />
             </Route>
 

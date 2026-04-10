@@ -232,6 +232,29 @@ export default function EmployeeProfilePage() {
         </div>
         {isAdmin && (
           <div className="flex gap-2">
+            {!isOwnProfile && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  startImpersonation({
+                    id: employee.id,
+                    name: employee.full_name,
+                    role: employee.role,
+                    department: employee.department,
+                  });
+                  await supabase.from("audit_logs").insert({
+                    actor_id: myProfile?.id,
+                    action: "impersonation.started",
+                    target_entity: "users",
+                    target_id: employee.id,
+                  });
+                  navigate("/");
+                }}
+              >
+                <Eye className="h-4 w-4 mr-2" />View As
+              </Button>
+            )}
             {employee.status === "active" || employee.status === "pending" ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>

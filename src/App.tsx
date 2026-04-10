@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { ImpersonationProvider } from "@/contexts/ImpersonationContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AppLayout from "@/layouts/AppLayout";
 import LoginPage from "@/pages/Login";
@@ -28,6 +29,7 @@ import ProjectDetailPage from "@/pages/ProjectDetail";
 import AnnouncementsPage from "@/pages/Announcements";
 import ReportsPage from "@/pages/Reports";
 import SettingsPage from "@/pages/Settings";
+import AuditLogPage from "@/pages/AuditLog";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -39,48 +41,51 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
-            <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
+          <ImpersonationProvider>
+            <Routes>
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
 
-            <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<DashboardPage />} />
+              <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
+                <Route path="/" element={<DashboardPage />} />
 
-              {/* Employee Management */}
-              <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeesPage /></ProtectedRoute>} />
-              <Route path="/employees/new" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeeNewPage /></ProtectedRoute>} />
-              <Route path="/employees/:id" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeeProfilePage /></ProtectedRoute>} />
-              <Route path="/profile" element={<MyProfilePage />} />
+                {/* Employee Management */}
+                <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeesPage /></ProtectedRoute>} />
+                <Route path="/employees/new" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeeNewPage /></ProtectedRoute>} />
+                <Route path="/employees/:id" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeeProfilePage /></ProtectedRoute>} />
+                <Route path="/profile" element={<MyProfilePage />} />
 
-              {/* Attendance */}
-              <Route path="/attendance/my" element={<MyAttendancePage />} />
-              <Route path="/attendance" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><AttendanceAdminPage /></ProtectedRoute>} />
+                {/* Attendance */}
+                <Route path="/attendance/my" element={<MyAttendancePage />} />
+                <Route path="/attendance" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><AttendanceAdminPage /></ProtectedRoute>} />
 
-              {/* Daily Logs */}
-              <Route path="/logs/submit" element={<LogSubmitPage />} />
-              <Route path="/logs/my" element={<MyLogsPage />} />
-              <Route path="/logs/all" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LogsAdminPage /></ProtectedRoute>} />
+                {/* Daily Logs */}
+                <Route path="/logs/submit" element={<LogSubmitPage />} />
+                <Route path="/logs/my" element={<MyLogsPage />} />
+                <Route path="/logs/all" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LogsAdminPage /></ProtectedRoute>} />
 
-              {/* Leave */}
-              <Route path="/leave/my" element={<MyLeavePage />} />
-              <Route path="/leave/requests" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LeaveAdminPage /></ProtectedRoute>} />
+                {/* Leave */}
+                <Route path="/leave/my" element={<MyLeavePage />} />
+                <Route path="/leave/requests" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LeaveAdminPage /></ProtectedRoute>} />
 
-              {/* Clients & Projects */}
-              <Route path="/clients" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ClientsPage /></ProtectedRoute>} />
-              <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProjectNewPage /></ProtectedRoute>} />
-              <Route path="/projects/:id" element={<ProjectDetailPage />} />
+                {/* Clients & Projects */}
+                <Route path="/clients" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ClientsPage /></ProtectedRoute>} />
+                <Route path="/projects" element={<ProjectsPage />} />
+                <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProjectNewPage /></ProtectedRoute>} />
+                <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
-              {/* Other */}
-              <Route path="/announcements" element={<AnnouncementsPage />} />
-              <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ReportsPage /></ProtectedRoute>} />
-              <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
-              <Route path="/my-projects" element={<ProjectsPage />} />
-            </Route>
+                {/* Other */}
+                <Route path="/announcements" element={<AnnouncementsPage />} />
+                <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ReportsPage /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
+                <Route path="/audit" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogPage /></ProtectedRoute>} />
+                <Route path="/my-projects" element={<ProjectsPage />} />
+              </Route>
 
-            <Route path="*" element={<NotFound />} />
-          </Routes>
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </ImpersonationProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

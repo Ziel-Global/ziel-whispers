@@ -39,9 +39,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#1A1B1E" }}>
       <Card className="w-full max-w-sm border-border bg-card">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold tracking-tight text-foreground">
-            <span className="text-primary">Ziel</span> Logs
-          </CardTitle>
+          <img src={zielLogo} alt="Ziel Logs" className="h-10 mx-auto invert" />
           <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
         </CardHeader>
         <CardContent>

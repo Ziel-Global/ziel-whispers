@@ -16,9 +16,10 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Shield, ShieldOff } from "lucide-react";
+import { ArrowLeft, Shield, ShieldOff, Eye } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { LeaveBalancesTab } from "@/components/employees/LeaveBalancesTab";
+import { useImpersonation } from "@/contexts/ImpersonationContext";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const EMP_TYPES = ["Full-time", "Part-time", "Contract"];

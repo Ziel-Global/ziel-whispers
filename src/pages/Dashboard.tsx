@@ -5,9 +5,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, Briefcase } from "lucide-react";
+import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import { useEffect } from "react";
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();

@@ -9,12 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, AreaChart, Area, PieChart, Pie, Cell } from "recharts";
+import { Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, AreaChart, Area } from "recharts";
 import { Download, Camera } from "lucide-react";
 import { format, eachDayOfInterval, isWeekend, startOfMonth, endOfMonth, subDays, parseISO } from "date-fns";
 import html2canvas from "html2canvas";
 
-const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
+const _CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 
 function exportCSV(rows: Record<string, any>[], filename: string) {
@@ -37,7 +37,6 @@ function getWorkingDays(start: Date, end: Date) {
 }
 
 export default function ReportsPage() {
-  const { profile } = useAuth();
   const [tab, setTab] = useState("utilization");
 
   return (
@@ -96,7 +95,7 @@ function UtilizationReport() {
       <div className="flex gap-3 items-end">
         <div><label className="text-sm text-muted-foreground">Start</label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
         <div><label className="text-sm text-muted-foreground">End</label><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
-        <Button variant="outline" size="sm" onClick={() => exportCSV(rows.map(({ id, ...r }) => r), "utilization.csv")}><Download className="h-4 w-4 mr-1" />CSV</Button>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(rows.map(({ id: _id, ...r }) => r), "utilization.csv")}><Download className="h-4 w-4 mr-1" />CSV</Button>
       </div>
       {rows.length > 0 && (
         <Card className="p-4">

@@ -383,6 +383,9 @@ export default function EmployeeProfilePage() {
         </Form>
       </Card>
 
+      {/* D3 — Leave Balances (Admin only) */}
+      {isAdmin && <LeaveBalancesTab employeeId={employee.id} />}
+
       <Dialog open={emailWarningOpen} onOpenChange={setEmailWarningOpen}>
         <DialogContent>
           <DialogHeader>

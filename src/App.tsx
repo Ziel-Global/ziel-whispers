@@ -25,7 +25,8 @@ import ClientsPage from "@/pages/Clients";
 import ProjectsPage from "@/pages/Projects";
 import ProjectNewPage from "@/pages/ProjectNew";
 import ProjectDetailPage from "@/pages/ProjectDetail";
-import PlaceholderPage from "@/pages/Placeholder";
+import AnnouncementsPage from "@/pages/Announcements";
+import ReportsPage from "@/pages/Reports";
 import SettingsPage from "@/pages/Settings";
 import NotFound from "@/pages/NotFound";
 
@@ -72,8 +73,8 @@ const App = () => (
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
 
               {/* Other */}
-              <Route path="/announcements" element={<PlaceholderPage title="Announcements" />} />
-              <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PlaceholderPage title="Reports" /></ProtectedRoute>} />
+              <Route path="/announcements" element={<AnnouncementsPage />} />
+              <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ReportsPage /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
               <Route path="/my-projects" element={<ProjectsPage />} />
             </Route>

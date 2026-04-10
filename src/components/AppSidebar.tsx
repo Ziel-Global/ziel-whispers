@@ -25,6 +25,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import zielLogo from "@/assets/ziel-logo.png";
 
 const adminNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -59,12 +60,9 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <div className="flex h-14 items-center px-4 border-b border-sidebar-border">
-        {!collapsed && (
-          <span className="text-lg font-bold tracking-tight text-sidebar-foreground">
-            <span className="text-sidebar-primary">Ziel</span> Logs
-          </span>
-        )}
-        {collapsed && (
+        {!collapsed ? (
+          <img src={zielLogo} alt="Ziel Logs" className="h-7 invert" />
+        ) : (
           <span className="text-lg font-bold text-sidebar-primary">Z</span>
         )}
       </div>

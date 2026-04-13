@@ -66,7 +66,7 @@ export default function EmployeeNewPage() {
         await supabase.from("users").update({ avatar_url: path }).eq("id", res.user_id);
       }
 
-      toast.success(`Employee created. Invite sent to ${data.email}.`);
+      toast.success(`Employee created successfully.`);
       navigate("/employees");
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }

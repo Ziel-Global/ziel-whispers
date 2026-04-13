@@ -24,7 +24,14 @@ const schema = z.object({
   category: z.string().min(1, "Category is required"),
   hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
   description: z.string().min(20, "Min 20 characters"),
-  log_date: z.string().min(1, "Date is required"),
+  log_date: z.string().min(1, "Date is required").refine((v) => {
+    const d = new Date(v);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const minDate = new Date(today);
+    minDate.setDate(minDate.getDate() - 3);
+    return d >= minDate && d <= today;
+  }, "You can only submit logs for today or up to 3 days in the past"),
 });
 
 function formatHours(h: number) {

@@ -340,9 +340,9 @@ export default function ProjectDetailPage() {
 
       {/* Add Member Sheet */}
       <Sheet open={addMemberOpen} onOpenChange={setAddMemberOpen}>
-        <SheetContent>
+        <SheetContent className="flex flex-col h-full">
           <SheetHeader><SheetTitle>Add Members</SheetTitle></SheetHeader>
-          <div className="space-y-3 mt-4 flex-1 overflow-y-auto">
+          <div className="space-y-3 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
             {availableEmployees.length === 0 && <p className="text-sm text-muted-foreground">All employees are already on this project.</p>}
             {availableEmployees.map((e) => (
               <div key={e.id} className={`p-3 rounded-md border cursor-pointer transition-colors ${selectedUsers.includes(e.id) ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`} onClick={() => toggleUser(e.id)}>
@@ -359,7 +359,7 @@ export default function ProjectDetailPage() {
               </div>
             ))}
           </div>
-          <SheetFooter className="mt-4">
+          <SheetFooter className="mt-4 pt-4 border-t shrink-0">
             <Button onClick={addMembers} disabled={selectedUsers.length === 0} className="rounded-button w-full">Add {selectedUsers.length} Member{selectedUsers.length !== 1 ? "s" : ""}</Button>
           </SheetFooter>
         </SheetContent>

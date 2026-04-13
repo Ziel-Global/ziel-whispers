@@ -1,6 +1,11 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
+
+const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
+const ACTIVITY_KEY = "ziel_last_activity";
+const SESSION_ID_KEY = "ziel_session_id";
 
 type UserProfile = {
   id: string;
@@ -36,6 +41,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const sessionIdRef = useRef<string | null>(null);
+  const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -55,6 +62,65 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return nextProfile;
   };
 
+  // --- Inactivity timeout ---
+  const resetInactivityTimer = useCallback(() => {
+    localStorage.setItem(ACTIVITY_KEY, Date.now().toString());
+    if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    inactivityTimerRef.current = setTimeout(async () => {
+      toast.error("Your session has expired. Please log in again");
+      await supabase.auth.signOut();
+    }, SESSION_TIMEOUT_MS);
+  }, []);
+
+  // Check if session already expired on load / tab focus
+  const checkInactivityExpiry = useCallback(async () => {
+    const last = localStorage.getItem(ACTIVITY_KEY);
+    if (last && Date.now() - Number(last) > SESSION_TIMEOUT_MS) {
+      toast.error("Your session has expired. Please log in again");
+      await supabase.auth.signOut();
+      return true;
+    }
+    return false;
+  }, []);
+
+  // --- Cross-tab session detection via storage events ---
+  useEffect(() => {
+    const handleStorage = async (e: StorageEvent) => {
+      // Another tab started a new session
+      if (e.key === SESSION_ID_KEY && e.newValue && e.newValue !== sessionIdRef.current) {
+        toast.info("You have been logged out because a new session was started");
+        setSession(null);
+        setProfile(null);
+        // Don't call signOut — the other tab owns the session
+      }
+
+      // Another tab signed out (cleared the key)
+      if (e.key === SESSION_ID_KEY && !e.newValue) {
+        setSession(null);
+        setProfile(null);
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  // --- Activity listeners ---
+  useEffect(() => {
+    if (!session) return;
+
+    const events = ["mousedown", "keydown", "scroll", "touchstart"];
+    const handler = () => resetInactivityTimer();
+    events.forEach((ev) => window.addEventListener(ev, handler, { passive: true }));
+    resetInactivityTimer();
+
+    return () => {
+      events.forEach((ev) => window.removeEventListener(ev, handler));
+      if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
+    };
+  }, [session, resetInactivityTimer]);
+
+  // --- Auth state listener ---
   useEffect(() => {
     let isMounted = true;
 
@@ -69,17 +135,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      // Mark this tab's session id
+      const newSid = nextSession.access_token.slice(-16);
+      sessionIdRef.current = newSid;
+      localStorage.setItem(SESSION_ID_KEY, newSid);
+
+      // Check inactivity
+      const expired = await checkInactivityExpiry();
+      if (expired) { setLoading(false); return; }
+
       try {
         await fetchProfile(nextSession.user.id);
       } finally {
-        if (isMounted) {
-          setLoading(false);
-        }
+        if (isMounted) setLoading(false);
       }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, nextSession) => {
+        if (_event === "SIGNED_OUT") {
+          setSession(null);
+          setProfile(null);
+          setLoading(false);
+          localStorage.removeItem(SESSION_ID_KEY);
+          localStorage.removeItem(ACTIVITY_KEY);
+          return;
+        }
         setLoading(true);
         void syncSession(nextSession);
       }
@@ -105,6 +186,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         target_id: userId,
       });
     }
+    localStorage.removeItem(SESSION_ID_KEY);
+    localStorage.removeItem(ACTIVITY_KEY);
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);

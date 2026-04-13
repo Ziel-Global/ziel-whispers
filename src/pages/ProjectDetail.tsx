@@ -206,7 +206,7 @@ export default function ProjectDetailPage() {
               <div><span className="text-muted-foreground block">Client</span><span className="font-medium">{(project.clients as any)?.name}</span></div>
               <div><span className="text-muted-foreground block">Start Date</span><span className="font-medium">{format(new Date(project.start_date), "MMM d, yyyy")}</span></div>
               <div><span className="text-muted-foreground block">End Date</span><span className="font-medium">{project.end_date ? format(new Date(project.end_date), "MMM d, yyyy") : "—"}</span></div>
-              <div><span className="text-muted-foreground block">Status</span><span className="font-medium capitalize">{project.status}</span></div>
+              <div><span className="text-muted-foreground block">Status</span><span className="font-medium">{project.status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
             </div>
             {isAdmin && (
               <div className="space-y-3 pt-4 border-t">
@@ -215,7 +215,7 @@ export default function ProjectDetailPage() {
                     <span className="text-sm font-medium block mb-1">Change Status</span>
                     <Select value={project.status} onValueChange={changeStatus}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>

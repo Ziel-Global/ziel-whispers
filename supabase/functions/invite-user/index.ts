@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     const callerId = (await callerClient.auth.getUser()).data.user?.id;
 
     // 2. Insert into public.users
-    const { error: profileError } = await adminClient.from("users").insert({
+    const { error: profileError } = await adminClient.from("users").upsert({
       id: userId,
       email,
       full_name,
@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
       must_change_password: true,
       status: "active",
       created_by: callerId,
-    });
+    }, { onConflict: "id" });
 
     if (profileError) {
       console.error("Profile insert error:", profileError.message);

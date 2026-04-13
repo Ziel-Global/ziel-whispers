@@ -65,9 +65,9 @@ export default function EmployeeNewPage() {
         return;
       }
 
-      const res = result as { user_id?: string; error?: string };
-      if (res.error) {
-        toast.error(res.error);
+      const res = result as { ok?: boolean; user_id?: string; error?: string };
+      if (!res.ok) {
+        toast.error(res.error || "Failed to create employee");
         setSubmitting(false);
         return;
       }

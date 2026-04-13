@@ -228,7 +228,7 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
             )}
-            {!isAdmin && project.status === "on hold" && (
+            {!isAdmin && project.status === "on_hold" && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">This project is currently on hold.</div>
             )}
           </Card>

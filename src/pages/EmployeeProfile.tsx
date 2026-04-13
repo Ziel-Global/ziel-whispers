@@ -30,7 +30,7 @@ const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
 const adminSchema = z.object({
   full_name: z.string().min(1).max(100),
   email: z.string().email(),
-  phone: z.string().optional().refine((v) => !v || /^\+?[\d\s\-()]{7,20}$/.test(v), "Invalid phone"),
+  phone: z.string().optional().refine((v) => !v || /^03\d{9}$/.test(v), "Please enter a valid Pakistani phone number (03XXXXXXXXX)"),
   designation: z.string().min(1).max(100),
   department: z.string().min(1),
   join_date: z.string().min(1),

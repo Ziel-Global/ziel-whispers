@@ -20,7 +20,11 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) {
-      toast.error(error.message);
+      toast.error(
+        error.message.includes("Database error querying schema")
+          ? "Login is failing inside Supabase Auth before the app loads. The current broken auth field is auth.users.email_change being NULL."
+          : error.message
+      );
     } else {
       // Write audit log for login
       if (data.user) {

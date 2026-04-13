@@ -68,21 +68,23 @@ export function AppSidebar() {
   const { data: unreadCount } = useQuery({
     queryKey: ["unread-announcements", user?.id],
     queryFn: async () => {
-      const { data: announcements } = await supabase
+      const { data: announcements, error: announcementsError } = await supabase
         .from("announcements")
         .select("id")
         .lte("publish_at", new Date().toISOString());
+      if (announcementsError) throw announcementsError;
       if (!announcements?.length) return 0;
 
-      const { data: reads } = await supabase
+      const { data: reads, error: readsError } = await supabase
         .from("announcement_reads")
         .select("announcement_id")
         .eq("user_id", user!.id);
+      if (readsError) throw readsError;
 
       const readIds = new Set(reads?.map((r) => r.announcement_id) || []);
       return announcements.filter((a) => !readIds.has(a.id)).length;
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !!profile?.id,
     refetchInterval: 60000,
   });
 

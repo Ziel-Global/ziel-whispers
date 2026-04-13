@@ -38,37 +38,61 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const fetchProfile = async (userId: string) => {
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from("users")
       .select("id, full_name, email, role, department, designation, avatar_url, status, must_change_password")
       .eq("id", userId)
-      .single();
-    setProfile(data as UserProfile | null);
+      .maybeSingle();
+
+    if (error) {
+      console.error("Failed to fetch user profile", error);
+      setProfile(null);
+      return null;
+    }
+
+    const nextProfile = data as UserProfile | null;
+    setProfile(nextProfile);
+    return nextProfile;
   };
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        setSession(session);
-        if (session?.user) {
-          // Use setTimeout to avoid Supabase client deadlock
-          setTimeout(() => fetchProfile(session.user.id), 0);
-        } else {
-          setProfile(null);
-        }
+    let isMounted = true;
+
+    const syncSession = async (nextSession: Session | null) => {
+      if (!isMounted) return;
+
+      setSession(nextSession);
+
+      if (!nextSession?.user) {
+        setProfile(null);
         setLoading(false);
+        return;
+      }
+
+      try {
+        await fetchProfile(nextSession.user.id);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, nextSession) => {
+        setLoading(true);
+        void syncSession(nextSession);
       }
     );
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      }
-      setLoading(false);
+    void supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
+      void syncSession(nextSession);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   const signOut = async () => {

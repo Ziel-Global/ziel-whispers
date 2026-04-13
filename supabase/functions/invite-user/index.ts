@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status: 200, // Always return 200 so client SDK doesn't discard body
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -13,64 +20,59 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: false, error: "Missing authorization" });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 
-    const callerClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!, {
+    // Caller client to verify admin role
+    const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
     const { data: roleData } = await callerClient.rpc("get_my_role");
     if (roleData !== "admin") {
-      return new Response(JSON.stringify({ error: "Only admins can invite users" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: false, error: "Only admins can invite users" });
     }
 
     const body = await req.json();
-    const { email, full_name, department, designation, employment_type, join_date, role, phone, shift_start, shift_end, reminder_offset_minutes, password } = body;
+    const {
+      email, full_name, department, designation, employment_type,
+      join_date, role, phone, shift_start, shift_end,
+      reminder_offset_minutes, password,
+    } = body;
 
-    if (!email || !full_name || !department || !designation || !employment_type || !join_date || !password) {
-      return new Response(JSON.stringify({ error: "Missing required fields" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    if (!email || !full_name || !department || !designation || !employment_type || !join_date) {
+      return jsonResponse({ ok: false, error: "Missing required fields: email, full_name, department, designation, employment_type, join_date" });
     }
 
-    if (password.length < 8) {
-      return new Response(JSON.stringify({ error: "Password must be at least 8 characters" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    // Generate a temporary password if none provided
+    const userPassword = password && password.length >= 8
+      ? password
+      : crypto.randomUUID().slice(0, 12) + "A1!";
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // 1. Create auth user
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
-      password,
+      password: userPassword,
       email_confirm: true,
     });
 
     if (authError) {
-      return new Response(JSON.stringify({ error: authError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("Auth create error:", authError.message);
+      return jsonResponse({ ok: false, error: authError.message });
     }
 
     const userId = authData.user.id;
     const callerId = (await callerClient.auth.getUser()).data.user?.id;
 
+    // 2. Insert into public.users
     const { error: profileError } = await adminClient.from("users").insert({
       id: userId,
       email,
@@ -90,14 +92,13 @@ Deno.serve(async (req) => {
     });
 
     if (profileError) {
+      console.error("Profile insert error:", profileError.message);
+      // Rollback auth user
       await adminClient.auth.admin.deleteUser(userId);
-      return new Response(JSON.stringify({ error: profileError.message }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: false, error: profileError.message });
     }
 
-    // Write audit log
+    // 3. Audit log
     await adminClient.from("audit_logs").insert({
       actor_id: callerId,
       action: "user.created",
@@ -106,27 +107,23 @@ Deno.serve(async (req) => {
       metadata: { email, full_name, role: role || "employee" },
     });
 
-    // Send invite email
-    const callerProfile = await adminClient.from("users").select("full_name").eq("id", callerId!).single();
-    await adminClient.functions.invoke("send-invite", {
-      body: {
-        user_email: email,
-        user_name: full_name,
-        inviter_name: callerProfile.data?.full_name || "Admin",
-      },
-    });
+    // 4. Send invite email (best-effort, don't fail the whole request)
+    try {
+      const callerProfile = await adminClient.from("users").select("full_name").eq("id", callerId!).single();
+      await adminClient.functions.invoke("send-invite", {
+        body: {
+          user_email: email,
+          user_name: full_name,
+          inviter_name: callerProfile.data?.full_name || "Admin",
+        },
+      });
+    } catch (emailErr) {
+      console.error("Send invite email failed (non-fatal):", emailErr);
+    }
 
-    return new Response(
-      JSON.stringify({ user_id: userId, email }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return jsonResponse({ ok: true, user_id: userId, email });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("Unexpected error:", err);
+    return jsonResponse({ ok: false, error: err.message || "Unexpected error" });
   }
 });

@@ -86,10 +86,10 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
     let success = 0, failed = 0;
     for (const row of valid) {
       const tempPassword = crypto.randomUUID().slice(0, 12) + "A1!";
-      const { error } = await supabase.functions.invoke("invite-user", {
+      const { data, error } = await supabase.functions.invoke("invite-user", {
         body: { ...row, password: tempPassword },
       });
-      if (error) { failed++; } else { success++; }
+      if (error || !data?.ok) { failed++; } else { success++; }
     }
 
     toast.success(`Imported ${success} employees${failed ? `, ${failed} failed` : ""}`);

@@ -7,7 +7,7 @@ const corsHeaders = {
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
-    status: 200, // Always return 200 so client SDK doesn't discard body
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
@@ -27,7 +27,6 @@ Deno.serve(async (req) => {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 
-    // Caller client to verify admin role
     const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
@@ -48,7 +47,6 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: false, error: "Missing required fields: email, full_name, department, designation, employment_type, join_date" });
     }
 
-    // Generate a temporary password if none provided
     const userPassword = password && password.length >= 8
       ? password
       : crypto.randomUUID().slice(0, 12) + "A1!";
@@ -72,30 +70,33 @@ Deno.serve(async (req) => {
     const userId = authData.user.id;
     const callerId = (await callerClient.auth.getUser()).data.user?.id;
 
-    // 2. Insert into public.users
-    const { error: profileError } = await adminClient.from("users").upsert({
-      id: userId,
-      email,
-      full_name,
-      department,
-      designation,
-      employment_type,
-      join_date,
-      role: role || "employee",
-      phone: phone || null,
-      shift_start: shift_start || "09:00",
-      shift_end: shift_end || "18:00",
-      reminder_offset_minutes: reminder_offset_minutes || 30,
-      must_change_password: true,
-      status: "active",
-      created_by: callerId,
-    }, { onConflict: "id" });
+    // 2. Check if user row already exists
+    const { data: existingUser } = await adminClient.from("users").select("id").eq("id", userId).maybeSingle();
 
-    if (profileError) {
-      console.error("Profile insert error:", profileError.message);
-      // Rollback auth user
-      await adminClient.auth.admin.deleteUser(userId);
-      return jsonResponse({ ok: false, error: profileError.message });
+    if (!existingUser) {
+      const { error: profileError } = await adminClient.from("users").insert({
+        id: userId,
+        email,
+        full_name,
+        department,
+        designation,
+        employment_type,
+        join_date,
+        role: role || "employee",
+        phone: phone || null,
+        shift_start: shift_start || "09:00",
+        shift_end: shift_end || "18:00",
+        reminder_offset_minutes: reminder_offset_minutes || 30,
+        must_change_password: true,
+        status: "active",
+        created_by: callerId,
+      });
+
+      if (profileError) {
+        console.error("Profile insert error:", profileError.message);
+        await adminClient.auth.admin.deleteUser(userId);
+        return jsonResponse({ ok: false, error: profileError.message });
+      }
     }
 
     // 3. Audit log
@@ -107,19 +108,7 @@ Deno.serve(async (req) => {
       metadata: { email, full_name, role: role || "employee" },
     });
 
-    // 4. Send invite email (best-effort, don't fail the whole request)
-    try {
-      const callerProfile = await adminClient.from("users").select("full_name").eq("id", callerId!).single();
-      await adminClient.functions.invoke("send-invite", {
-        body: {
-          user_email: email,
-          user_name: full_name,
-          inviter_name: callerProfile.data?.full_name || "Admin",
-        },
-      });
-    } catch (emailErr) {
-      console.error("Send invite email failed (non-fatal):", emailErr);
-    }
+    // No invite email sent — account is created directly with password set by admin
 
     return jsonResponse({ ok: true, user_id: userId, email });
   } catch (err) {

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -20,6 +21,8 @@ const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
   const [search, setSearch] = useState("");
   const [deptFilter, setDeptFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -70,16 +73,18 @@ export default function EmployeesPage() {
           <h1 className="text-2xl font-bold tracking-tight">Employees</h1>
           <p className="text-muted-foreground mt-1">{employees.length} total employees</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setCsvOpen(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Import CSV
-          </Button>
-          <Button onClick={() => navigate("/employees/new")} className="rounded-button">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Employee
-          </Button>
-        </div>
+        {isAdmin && (
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => setCsvOpen(true)}>
+              <Upload className="h-4 w-4 mr-2" />
+              Import CSV
+            </Button>
+            <Button onClick={() => navigate("/employees/new")} className="rounded-button">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Employee
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="flex flex-wrap gap-3">

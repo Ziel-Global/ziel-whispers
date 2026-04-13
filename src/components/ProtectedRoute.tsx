@@ -1,5 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+import { useEffect, useRef } from "react";
 
 type Props = {
   children: React.ReactNode;
@@ -9,6 +11,16 @@ type Props = {
 export function ProtectedRoute({ children, allowedRoles }: Props) {
   const { session, profile, loading } = useAuth();
   const location = useLocation();
+  const toastShown = useRef(false);
+
+  const unauthorized = !!(allowedRoles && profile && !allowedRoles.includes(profile.role));
+
+  useEffect(() => {
+    if (unauthorized && !toastShown.current) {
+      toastShown.current = true;
+      toast.error("You do not have access to that page");
+    }
+  }, [unauthorized]);
 
   if (loading) {
     return (
@@ -22,12 +34,11 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // If user must change password, redirect to set-password
   if (profile?.must_change_password && location.pathname !== "/set-password") {
     return <Navigate to="/set-password" replace />;
   }
 
-  if (allowedRoles && profile && !allowedRoles.includes(profile.role)) {
+  if (unauthorized) {
     return <Navigate to="/" replace />;
   }
 

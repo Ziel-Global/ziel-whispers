@@ -50,10 +50,10 @@ const App = () => (
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/" element={<DashboardPage />} />
 
-                {/* Employee Management */}
-                <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeesPage /></ProtectedRoute>} />
+                {/* Employee Management — admin only */}
+                <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeesPage /></ProtectedRoute>} />
                 <Route path="/employees/new" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeeNewPage /></ProtectedRoute>} />
-                <Route path="/employees/:id" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><EmployeeProfilePage /></ProtectedRoute>} />
+                <Route path="/employees/:id" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeeProfilePage /></ProtectedRoute>} />
                 <Route path="/profile" element={<MyProfilePage />} />
 
                 {/* Attendance */}

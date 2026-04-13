@@ -26,7 +26,8 @@ function formatHours(h: number) {
 }
 
 export default function LogsAdminPage() {
-  const { user: _user } = useAuth();
+  const { user: _user, profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 7), "yyyy-MM-dd"));
   const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -182,23 +183,27 @@ export default function LogsAdminPage() {
                       <TableCell colSpan={9} className="bg-muted/50">
                         <div className="p-3 space-y-3">
                           <p className="text-sm">{log.description}</p>
-                          <div className="flex items-center gap-4">
-                            <div className="flex items-center gap-2">
-                              <Label className="text-xs">Flag</Label>
-                              <Switch checked={log.admin_flagged} onCheckedChange={() => toggleFlag(log)} />
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <Label className="text-xs">Lock</Label>
-                              <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
-                            </div>
-                          </div>
-                          <div className="space-y-1">
-                            <Label className="text-xs">Admin Comment</Label>
-                            <div className="flex gap-2">
-                              <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1" />
-                              <Button size="sm" onClick={() => saveComment(log.id)}>Save</Button>
-                            </div>
-                          </div>
+                          {isAdmin && (
+                            <>
+                              <div className="flex items-center gap-4">
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs">Flag</Label>
+                                  <Switch checked={log.admin_flagged} onCheckedChange={() => toggleFlag(log)} />
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Label className="text-xs">Lock</Label>
+                                  <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
+                                </div>
+                              </div>
+                              <div className="space-y-1">
+                                <Label className="text-xs">Admin Comment</Label>
+                                <div className="flex gap-2">
+                                  <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1" />
+                                  <Button size="sm" onClick={() => saveComment(log.id)}>Save</Button>
+                                </div>
+                              </div>
+                            </>
+                          )}
                         </div>
                       </TableCell>
                     </TableRow>

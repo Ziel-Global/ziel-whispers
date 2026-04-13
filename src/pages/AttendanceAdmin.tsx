@@ -18,7 +18,8 @@ import { format } from "date-fns";
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 
 export default function AttendanceAdminPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+  const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [deptFilter, setDeptFilter] = useState("all");
@@ -162,7 +163,10 @@ export default function AttendanceAdminPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                    {isAdmin && (
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
+                    )}
+                  </TableCell>
                   </TableCell>
                 </TableRow>
               ))

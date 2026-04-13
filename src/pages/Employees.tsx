@@ -14,7 +14,7 @@ import { CSVImportDialog } from "@/components/employees/CSVImportDialog";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const STATUSES = ["active", "inactive", "pending"];
-const EMP_TYPES = ["Full-time", "Part-time", "Contract"];
+const EMP_TYPES = ["full-time", "part-time", "contract"];
 
 const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
 

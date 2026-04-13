@@ -19,8 +19,8 @@ import { ArrowLeft, Plus, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
-const STATUS_OPTIONS = ["active", "on hold", "completed", "archived"];
-const STATUS_COLORS: Record<string, string> = { active: "bg-green-100 text-green-800", "on hold": "bg-yellow-100 text-yellow-800", completed: "bg-blue-100 text-blue-800", archived: "bg-muted text-muted-foreground" };
+const STATUS_OPTIONS = ["active", "on_hold", "completed", "archived"];
+const STATUS_COLORS: Record<string, string> = { active: "bg-green-100 text-green-800", on_hold: "bg-yellow-100 text-yellow-800", completed: "bg-blue-100 text-blue-800", archived: "bg-muted text-muted-foreground" };
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 
 export default function ProjectDetailPage() {

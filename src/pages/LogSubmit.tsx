@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
-const CATEGORIES = ["Development", "Meeting", "Bug Fix", "Code Review", "Deployment", "Documentation", "Testing", "Other"];
+const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
 
 const schema = z.object({
   project_id: z.string().optional(),

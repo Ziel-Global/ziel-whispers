@@ -20,7 +20,7 @@ type ParsedRow = {
 };
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
-const EMP_TYPES = ["Full-time", "Part-time", "Contract"];
+const EMP_TYPES = ["full-time", "part-time", "contract"];
 
 function validateRow(row: Record<string, string>): ParsedRow {
   const errors: string[] = [];

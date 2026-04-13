@@ -171,8 +171,8 @@ export default function MyAttendancePage() {
                   <Select value={workMode} onValueChange={setWorkMode}>
                     <SelectTrigger><SelectValue placeholder="Select mode" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Onsite">Onsite</SelectItem>
-                      <SelectItem value="Remote">Remote</SelectItem>
+                      <SelectItem value="onsite">Onsite</SelectItem>
+                      <SelectItem value="remote">Remote</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

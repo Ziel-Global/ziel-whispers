@@ -22,7 +22,7 @@ import { LeaveBalancesTab } from "@/components/employees/LeaveBalancesTab";
 import { useImpersonation } from "@/contexts/ImpersonationContext";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
-const EMP_TYPES = ["Full-time", "Part-time", "Contract"];
+const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
 const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";

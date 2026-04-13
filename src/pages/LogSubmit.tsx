@@ -17,6 +17,7 @@ import { Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
+const NO_PROJECT = "__none__";
 
 const schema = z.object({
   project_id: z.string().optional(),
@@ -41,7 +42,6 @@ export default function LogSubmitPage() {
   const today = new Date().toISOString().split("T")[0];
   const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
 
-  // Employee's assigned projects
   const { data: projects = [] } = useQuery({
     queryKey: ["my-projects", user?.id],
     queryFn: async () => {
@@ -57,7 +57,6 @@ export default function LogSubmitPage() {
     enabled: !!user?.id,
   });
 
-  // Today's logs
   const { data: todayLogs = [] } = useQuery({
     queryKey: ["my-logs-today", user?.id, today],
     queryFn: async () => {
@@ -74,7 +73,7 @@ export default function LogSubmitPage() {
 
   const form = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { project_id: "", category: "", hours: 1, description: "", log_date: today },
+    defaultValues: { project_id: NO_PROJECT, category: "", hours: 1, description: "", log_date: today },
   });
 
   const descValue = form.watch("description");
@@ -82,18 +81,19 @@ export default function LogSubmitPage() {
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSubmitting(true);
     try {
-      // Check if late (after shift end)
       const shiftEnd = (profile as any)?.shift_end || "18:00";
       const now = new Date();
       const [h, m] = shiftEnd.split(":").map(Number);
       const shiftEndTime = new Date();
-      shiftEndTime.setHours(h, m + 30, 0); // 30 min grace
+      shiftEndTime.setHours(h, m + 30, 0);
       const isLate = data.log_date === today && now > shiftEndTime;
       const isPastDate = data.log_date < today;
 
+      const projectId = data.project_id === NO_PROJECT ? null : data.project_id || null;
+
       const { error } = await supabase.from("daily_logs").insert({
         user_id: user!.id,
-        project_id: data.project_id || null,
+        project_id: projectId,
         category: data.category,
         hours: data.hours,
         description: data.description,
@@ -107,7 +107,7 @@ export default function LogSubmitPage() {
       });
 
       toast.success("Log submitted successfully");
-      form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
+      form.reset({ project_id: NO_PROJECT, category: "", hours: 1, description: "", log_date: today });
       queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSubmitting(false); }
@@ -144,7 +144,7 @@ export default function LogSubmitPage() {
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      <SelectItem value="">No project</SelectItem>
+                      <SelectItem value={NO_PROJECT}>No project</SelectItem>
                       {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -153,7 +153,7 @@ export default function LogSubmitPage() {
               )} />
               <FormField control={form.control} name="category" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category *</FormLabel>
+                  <FormLabel>Category <span className="text-destructive">*</span></FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                     <SelectContent>
@@ -165,7 +165,7 @@ export default function LogSubmitPage() {
               )} />
               <FormField control={form.control} name="hours" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hours *</FormLabel>
+                  <FormLabel>Hours <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
                     <Input type="number" step="0.5" min="0.5" max="24" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
                   </FormControl>
@@ -174,7 +174,7 @@ export default function LogSubmitPage() {
               )} />
               <FormField control={form.control} name="log_date" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Date *</FormLabel>
+                  <FormLabel>Date <span className="text-destructive">*</span></FormLabel>
                   <FormControl><Input type="date" {...field} min={threeDaysAgo} max={today} /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -182,7 +182,7 @@ export default function LogSubmitPage() {
             </div>
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem>
-                <FormLabel>Description *</FormLabel>
+                <FormLabel>Description <span className="text-destructive">*</span></FormLabel>
                 <FormControl><Textarea {...field} rows={3} placeholder="What did you work on? (min 20 chars)" /></FormControl>
                 <div className="flex justify-between">
                   <FormMessage />

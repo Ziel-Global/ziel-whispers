@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import { PasswordInput } from "@/components/ui/password-input";
 import zielLogo from "@/assets/ziel-logo.png";
 
 export default function LoginPage() {
@@ -17,22 +18,58 @@ export default function LoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setLoading(false);
-    if (error) {
-      toast.error(error.message);
-    } else {
-      // Write audit log for login
-      if (data.user) {
-        await supabase.from("audit_logs").insert({
-          actor_id: data.user.id,
-          action: "session.login",
-          target_entity: "users",
-          target_id: data.user.id,
-        });
-      }
-      navigate("/", { replace: true });
+
+    // Check lockout (5 failed attempts in last 15 min)
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data: recentAttempts } = await supabase
+      .from("login_attempts")
+      .select("id")
+      .eq("email", email.toLowerCase().trim())
+      .eq("success", false)
+      .gte("attempted_at", fifteenMinsAgo);
+
+    if (recentAttempts && recentAttempts.length >= 5) {
+      toast.error("Your account has been locked due to too many failed attempts. Please try again in 15 minutes.");
+      setLoading(false);
+      return;
     }
+
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    
+    if (error) {
+      // Record failed attempt
+      await supabase.from("login_attempts").insert({
+        email: email.toLowerCase().trim(),
+        success: false,
+      });
+      // Record audit log for failed login
+      await supabase.from("audit_logs").insert({
+        action: "session.login_failed",
+        target_entity: "users",
+        metadata: { email: email.toLowerCase().trim(), reason: error.message },
+      });
+      toast.error(error.message);
+      setLoading(false);
+      return;
+    }
+
+    // Record successful attempt & reset counter
+    await supabase.from("login_attempts").insert({
+      email: email.toLowerCase().trim(),
+      success: true,
+    });
+
+    // Write audit log for login
+    if (data.user) {
+      await supabase.from("audit_logs").insert({
+        actor_id: data.user.id,
+        action: "session.login",
+        target_entity: "users",
+        target_id: data.user.id,
+      });
+    }
+    setLoading(false);
+    navigate("/", { replace: true });
   };
 
   return (
@@ -50,7 +87,7 @@ export default function LoginPage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <PasswordInput id="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
             <Button type="submit" disabled={loading} className="w-full rounded-btn bg-primary text-primary-foreground hover:bg-primary/90">
               {loading ? "Signing in…" : "Sign In"}

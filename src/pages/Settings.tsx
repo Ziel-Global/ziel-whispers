@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { LeaveSettingsSection } from "@/components/settings/LeaveSettingsSection";
-import { Save, Send } from "lucide-react";
+import { Save } from "lucide-react";
 
 const TIMEZONES = [
   "UTC", "America/New_York", "America/Chicago", "America/Denver", "America/Los_Angeles",
@@ -25,7 +25,7 @@ export default function SettingsPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
-  const [testingEmail, setTestingEmail] = useState(false);
+  
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["system-settings"],
@@ -70,25 +70,6 @@ export default function SettingsPage() {
     }
   };
 
-  const sendTestEmail = async () => {
-    if (!profile?.email) return;
-    setTestingEmail(true);
-    try {
-      const { error } = await supabase.functions.invoke("send-email", {
-        body: {
-          to: profile.email,
-          subject: "Test Email from Ziel Logs",
-          html: `<div style="font-family:Arial,sans-serif;padding:20px;"><h2>Test Email</h2><p>This is a test email from Ziel Logs. If you're reading this, email delivery is working correctly.</p></div>`,
-        },
-      });
-      if (error) throw error;
-      toast.success(`Test email sent to ${profile.email}`);
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setTestingEmail(false);
-    }
-  };
 
   if (isLoading) {
     return (
@@ -114,7 +95,7 @@ export default function SettingsPage() {
           <TabsTrigger value="shifts">Shift & Log Rules</TabsTrigger>
           <TabsTrigger value="utilization">Utilization</TabsTrigger>
           <TabsTrigger value="leave">Leave Policy</TabsTrigger>
-          <TabsTrigger value="email">Email</TabsTrigger>
+          
         </TabsList>
 
         <TabsContent value="general">
@@ -188,23 +169,6 @@ export default function SettingsPage() {
           <LeaveSettingsSection />
         </TabsContent>
 
-        <TabsContent value="email">
-          <Card className="p-6 space-y-4">
-            <h3 className="font-semibold">Email Configuration</h3>
-            <p className="text-sm text-muted-foreground">Email is configured via Resend API. The API key is stored securely in project secrets.</p>
-            <div className="space-y-1">
-              <Label>Sender Name</Label>
-              <Input value={val("email_sender_name", "Ziel Logs")} onChange={(e) => set("email_sender_name", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Sender Email</Label>
-              <Input value={val("email_sender_email", "noreply@resend.dev")} onChange={(e) => set("email_sender_email", e.target.value)} />
-            </div>
-            <Button variant="outline" onClick={sendTestEmail} disabled={testingEmail}>
-              <Send className="h-4 w-4 mr-2" />{testingEmail ? "Sending…" : "Send Test Email"}
-            </Button>
-          </Card>
-        </TabsContent>
       </Tabs>
     </div>
   );

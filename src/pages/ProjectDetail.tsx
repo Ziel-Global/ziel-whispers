@@ -94,10 +94,6 @@ export default function ProjectDetailPage() {
         }
         await supabase.from("project_members").insert({ project_id: id!, user_id: uid, project_role_id: roleId });
         await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "project.member_added", target_entity: "project_members", target_id: id, metadata: { user_id: uid } });
-        // Send assignment email
-        supabase.functions.invoke("send-project-assignment", {
-          body: { user_id: uid, project_name: project?.name, role_name: roleName, action: "added" },
-        });
       }
       toast.success(`${selectedUsers.length} member(s) added`);
       setSelectedUsers([]);
@@ -110,10 +106,6 @@ export default function ProjectDetailPage() {
   const removeMember = async (memberId: string, userId: string) => {
     await supabase.from("project_members").update({ removed_at: new Date().toISOString() }).eq("id", memberId);
     await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "project.member_removed", target_entity: "project_members", target_id: id, metadata: { user_id: userId } });
-    // Send removal email
-    supabase.functions.invoke("send-project-assignment", {
-      body: { user_id: userId, project_name: project?.name, action: "removed" },
-    });
     toast.success("Member removed");
     queryClient.invalidateQueries({ queryKey: ["project-members", id] });
   };

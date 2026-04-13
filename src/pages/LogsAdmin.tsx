@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Download, Flag, ChevronDown, ChevronUp, Search } from "lucide-react";
 import { format, subDays } from "date-fns";
 
-const CATEGORIES = ["Development", "Meeting", "Bug Fix", "Code Review", "Deployment", "Documentation", "Testing", "Other"];
+const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -125,7 +125,7 @@ export default function LogsAdminPage() {
           <SelectTrigger className="w-[140px]"><SelectValue placeholder="Category" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Categories</SelectItem>
-            {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+            {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={statusFilter} onValueChange={setStatusFilter}>

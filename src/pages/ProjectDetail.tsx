@@ -19,8 +19,8 @@ import { ArrowLeft, Plus, Trash2, Download } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
-const STATUS_OPTIONS = ["active", "on hold", "completed", "archived"];
-const STATUS_COLORS: Record<string, string> = { active: "bg-green-100 text-green-800", "on hold": "bg-yellow-100 text-yellow-800", completed: "bg-blue-100 text-blue-800", archived: "bg-muted text-muted-foreground" };
+const STATUS_OPTIONS = ["active", "on_hold", "completed", "archived"];
+const STATUS_COLORS: Record<string, string> = { active: "bg-green-100 text-green-800", on_hold: "bg-yellow-100 text-yellow-800", completed: "bg-blue-100 text-blue-800", archived: "bg-muted text-muted-foreground" };
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 
 export default function ProjectDetailPage() {
@@ -206,7 +206,7 @@ export default function ProjectDetailPage() {
               <div><span className="text-muted-foreground block">Client</span><span className="font-medium">{(project.clients as any)?.name}</span></div>
               <div><span className="text-muted-foreground block">Start Date</span><span className="font-medium">{format(new Date(project.start_date), "MMM d, yyyy")}</span></div>
               <div><span className="text-muted-foreground block">End Date</span><span className="font-medium">{project.end_date ? format(new Date(project.end_date), "MMM d, yyyy") : "—"}</span></div>
-              <div><span className="text-muted-foreground block">Status</span><span className="font-medium capitalize">{project.status}</span></div>
+              <div><span className="text-muted-foreground block">Status</span><span className="font-medium">{project.status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
             </div>
             {isAdmin && (
               <div className="space-y-3 pt-4 border-t">
@@ -215,7 +215,7 @@ export default function ProjectDetailPage() {
                     <span className="text-sm font-medium block mb-1">Change Status</span>
                     <Select value={project.status} onValueChange={changeStatus}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
-                      <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}</SelectContent>
+                      <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
                     </Select>
                   </div>
                 </div>
@@ -228,7 +228,7 @@ export default function ProjectDetailPage() {
                 </div>
               </div>
             )}
-            {!isAdmin && project.status === "on hold" && (
+            {!isAdmin && project.status === "on_hold" && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">This project is currently on hold.</div>
             )}
           </Card>

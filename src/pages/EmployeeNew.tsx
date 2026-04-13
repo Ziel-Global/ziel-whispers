@@ -15,7 +15,7 @@ import { ArrowLeft, Eye, EyeOff } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
-const EMP_TYPES = ["Full-time", "Part-time", "Contract"];
+const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
 
@@ -160,7 +160,7 @@ export default function EmployeeNewPage() {
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      {EMP_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <FormMessage />

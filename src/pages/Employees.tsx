@@ -14,7 +14,7 @@ import { CSVImportDialog } from "@/components/employees/CSVImportDialog";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const STATUSES = ["active", "inactive", "pending"];
-const EMP_TYPES = ["Full-time", "Part-time", "Contract"];
+const EMP_TYPES = ["full-time", "part-time", "contract"];
 
 const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
 
@@ -105,7 +105,7 @@ export default function EmployeesPage() {
           <SelectTrigger className="w-[150px]"><SelectValue placeholder="Type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            {EMP_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

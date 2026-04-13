@@ -16,7 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
-const CATEGORIES = ["Development", "Meeting", "Bug Fix", "Code Review", "Deployment", "Documentation", "Testing", "Other"];
+const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
 
 const schema = z.object({
   project_id: z.string().optional(),
@@ -157,7 +157,7 @@ export default function LogSubmitPage() {
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                      {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <FormMessage />

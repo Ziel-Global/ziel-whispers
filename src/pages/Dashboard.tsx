@@ -13,16 +13,18 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const hasProfile = !!profile?.id;
   const today = new Date().toISOString().split("T")[0];
 
   // ——— Shared queries ———
   const { data: todayAttendance } = useQuery({
     queryKey: ["dashboard-attendance", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).maybeSingle();
+      const { data, error } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).maybeSingle();
+      if (error) throw error;
       return data;
     },
-    enabled: !!user?.id,
+    enabled: hasProfile && !!user?.id,
   });
 
   // ——— Admin queries ———
@@ -30,103 +32,117 @@ export default function DashboardPage() {
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const [
-        { count: activeEmployees },
-        { data: todayAtt },
-        { count: pendingLeaves },
-        { count: activeProjects },
+        activeEmployeesResult,
+        todayAttendanceResult,
+        pendingLeavesResult,
+        activeProjectsResult,
       ] = await Promise.all([
         supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
       ]);
+
+      if (activeEmployeesResult.error) throw activeEmployeesResult.error;
+      if (todayAttendanceResult.error) throw todayAttendanceResult.error;
+      if (pendingLeavesResult.error) throw pendingLeavesResult.error;
+      if (activeProjectsResult.error) throw activeProjectsResult.error;
+
       return {
-        activeEmployees: activeEmployees || 0,
-        todayClockedIn: todayAtt?.length || 0,
-        pendingLeaves: pendingLeaves || 0,
-        activeProjects: activeProjects || 0,
+        activeEmployees: activeEmployeesResult.count || 0,
+        todayClockedIn: todayAttendanceResult.data?.length || 0,
+        pendingLeaves: pendingLeavesResult.count || 0,
+        activeProjects: activeProjectsResult.count || 0,
       };
     },
-    enabled: isAdmin,
+    enabled: isAdmin && hasProfile,
     refetchInterval: 60000,
   });
 
   const { data: lateLogs } = useQuery({
     queryKey: ["dashboard-late-logs"],
     queryFn: async () => {
-      const { data } = await supabase.from("daily_logs").select("*, users(full_name)").eq("log_date", today).eq("is_late", true).limit(10);
+      const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("is_late", true).limit(10);
+      if (error) throw error;
       return data || [];
     },
-    enabled: isAdmin,
+    enabled: isAdmin && hasProfile,
   });
 
   const { data: pendingLeaveList } = useQuery({
     queryKey: ["dashboard-pending-leaves"],
     queryFn: async () => {
-      const { data } = await supabase.from("leave_requests").select("*, users(full_name), leave_types(name)").eq("status", "pending").order("created_at", { ascending: false }).limit(3);
+      const { data, error } = await supabase.from("leave_requests").select("*, users!leave_requests_user_id_fkey(full_name), leave_types(name)").eq("status", "pending").order("created_at", { ascending: false }).limit(3);
+      if (error) throw error;
       return data || [];
     },
-    enabled: isAdmin,
+    enabled: isAdmin && hasProfile,
   });
 
   const { data: recentAudit } = useQuery({
     queryKey: ["dashboard-audit"],
     queryFn: async () => {
-      const { data } = await supabase.from("audit_logs").select("*, users:actor_id(full_name)").order("created_at", { ascending: false }).limit(10);
+      const { data, error } = await supabase.from("audit_logs").select("*, users:actor_id(full_name)").order("created_at", { ascending: false }).limit(10);
+      if (error) throw error;
       return data || [];
     },
-    enabled: isAdmin,
+    enabled: isAdmin && hasProfile,
   });
 
   // ——— Employee queries ———
   const { data: todayLogs } = useQuery({
     queryKey: ["dashboard-my-logs", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("log_date", today);
+      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("log_date", today);
+      if (error) throw error;
       return data || [];
     },
-    enabled: !isAdmin && !!user?.id,
+    enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
   const { data: leaveBalance } = useQuery({
     queryKey: ["dashboard-leave-balance", user?.id],
     queryFn: async () => {
       const year = new Date().getFullYear();
-      const { data } = await supabase.from("leave_balances").select("*, leave_types(name)").eq("user_id", user!.id).eq("year", year);
+      const { data, error } = await supabase.from("leave_balances").select("*, leave_types(name)").eq("user_id", user!.id).eq("year", year);
+      if (error) throw error;
       return data || [];
     },
-    enabled: !isAdmin && !!user?.id,
+    enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
   const { data: myProjects } = useQuery({
     queryKey: ["dashboard-my-projects", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("project_members").select("project_id, project_roles(name), projects(id, name, status, clients(name))").eq("user_id", user!.id).is("removed_at", null);
+      const { data, error } = await supabase.from("project_members").select("project_id, project_roles(name), projects(id, name, status, clients(name))").eq("user_id", user!.id).is("removed_at", null);
+      if (error) throw error;
       return data || [];
     },
-    enabled: !isAdmin && !!user?.id,
+    enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
   const { data: recentLogs } = useQuery({
     queryKey: ["dashboard-recent-logs", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).order("log_date", { ascending: false }).limit(5);
+      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).order("log_date", { ascending: false }).limit(5);
+      if (error) throw error;
       return data || [];
     },
-    enabled: !isAdmin && !!user?.id,
+    enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
   const { data: urgentAnnouncements } = useQuery({
     queryKey: ["dashboard-urgent", user?.id],
     queryFn: async () => {
-      const { data: announcements } = await supabase.from("announcements").select("*, announcement_reads(dismissed)").eq("priority", "urgent").lte("publish_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(5);
+      const { data: announcements, error } = await supabase.from("announcements").select("*, announcement_reads(dismissed)").eq("priority", "urgent").lte("publish_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(5);
+      if (error) throw error;
       // Filter out dismissed
       return (announcements || []).filter((a) => {
         const reads = a.announcement_reads as any[];
         return !reads?.some((r: any) => r.dismissed);
       });
     },
-    enabled: !isAdmin && !!user?.id,
+    enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
   const dismissAnnouncement = async (announcementId: string) => {

@@ -160,7 +160,7 @@ export default function EmployeeNewPage() {
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      {EMP_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <FormMessage />

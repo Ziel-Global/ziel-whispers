@@ -347,7 +347,7 @@ export default function EmployeeProfilePage() {
                   <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
                     <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                     <SelectContent>
-                      {EMP_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                      {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                     </SelectContent>
                   </Select>
                   <FormMessage />

@@ -105,7 +105,7 @@ export default function EmployeesPage() {
           <SelectTrigger className="w-[150px]"><SelectValue placeholder="Type" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Types</SelectItem>
-            {EMP_TYPES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+            {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
           </SelectContent>
         </Select>
       </div>

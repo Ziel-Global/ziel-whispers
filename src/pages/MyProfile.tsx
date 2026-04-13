@@ -13,14 +13,14 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { Eye, EyeOff } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { PasswordInput } from "@/components/ui/password-input";
 
 const REMINDER_OPTIONS = [15, 30, 60];
 const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
 
 const profileSchema = z.object({
-  phone: z.string().optional().refine((v) => !v || /^\+?[\d\s\-()]{7,20}$/.test(v), "Invalid phone"),
+  phone: z.string().optional().refine((v) => !v || /^03\d{9}$/.test(v), "Please enter a valid Pakistani phone number (03XXXXXXXXX)"),
   shift_start: z.string(),
   shift_end: z.string(),
   reminder_offset_minutes: z.number(),
@@ -28,17 +28,16 @@ const profileSchema = z.object({
 
 const passwordSchema = z.object({
   current_password: z.string().min(1, "Current password is required"),
-  new_password: z.string().min(8, "Min 8 characters"),
+  new_password: z.string().min(8, "Min 8 characters").regex(/[0-9]/, "Must contain a number").regex(/[^a-zA-Z0-9]/, "Must contain a special character"),
   confirm_password: z.string(),
 }).refine((d) => d.new_password === d.confirm_password, { message: "Passwords don't match", path: ["confirm_password"] });
 
 export default function MyProfilePage() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [changingPw, setChangingPw] = useState(false);
-  const [showPw, setShowPw] = useState(false);
 
   const { data: employee } = useQuery({
     queryKey: ["employee", user?.id],
@@ -78,50 +77,32 @@ export default function MyProfilePage() {
         reminder_offset_minutes: data.reminder_offset_minutes,
       }).eq("id", employee.id);
       if (error) throw error;
-
       if (avatarFile) {
         const ext = avatarFile.name.split(".").pop();
         const path = `${employee.id}/avatar.${ext}`;
         await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
         await supabase.from("users").update({ avatar_url: path }).eq("id", employee.id);
       }
-
+      await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "user.profile_updated", target_entity: "users", target_id: employee.id });
       toast.success("Profile updated");
       queryClient.invalidateQueries({ queryKey: ["employee", user?.id] });
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSaving(false); }
   };
 
   const onChangePassword = async (data: z.infer<typeof passwordSchema>) => {
     setChangingPw(true);
     try {
-      // Verify current password by signing in
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: employee!.email,
-        password: data.current_password,
-      });
-      if (signInError) {
-        toast.error("Current password is incorrect");
-        setChangingPw(false);
-        return;
-      }
-
+      const { error: signInError } = await supabase.auth.signInWithPassword({ email: employee!.email, password: data.current_password });
+      if (signInError) { toast.error("Current password is incorrect"); setChangingPw(false); return; }
       const { error } = await supabase.auth.updateUser({ password: data.new_password });
       if (error) throw error;
-
-      // Clear must_change_password flag
       await supabase.from("users").update({ must_change_password: false }).eq("id", employee!.id);
-
+      await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "user.password_changed", target_entity: "users", target_id: employee!.id });
       toast.success("Password changed successfully");
       pwForm.reset();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setChangingPw(false);
-    }
+    } catch (err: any) { toast.error(err.message); }
+    finally { setChangingPw(false); }
   };
 
   if (!employee) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
@@ -135,84 +116,40 @@ export default function MyProfilePage() {
 
       <Card className="p-6 space-y-6">
         <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label className="text-muted-foreground text-xs">Full Name</Label>
-            <p className="font-medium">{employee.full_name}</p>
-          </div>
-          <div>
-            <Label className="text-muted-foreground text-xs">Email</Label>
-            <p className="font-medium">{employee.email}</p>
-          </div>
-          <div>
-            <Label className="text-muted-foreground text-xs">Department</Label>
-            <p className="font-medium">{employee.department}</p>
-          </div>
-          <div>
-            <Label className="text-muted-foreground text-xs">Designation</Label>
-            <p className="font-medium">{employee.designation}</p>
-          </div>
-          <div>
-            <Label className="text-muted-foreground text-xs">Employment Type</Label>
-            <p className="font-medium">{employee.employment_type}</p>
-          </div>
-          <div>
-            <Label className="text-muted-foreground text-xs">Join Date</Label>
-            <p className="font-medium">{employee.join_date}</p>
-          </div>
-          <div>
-            <Label className="text-muted-foreground text-xs">Role</Label>
-            <p className="font-medium capitalize">{employee.role}</p>
-          </div>
+          <div><Label className="text-muted-foreground text-xs">Full Name</Label><p className="font-medium">{employee.full_name}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Email</Label><p className="font-medium">{employee.email}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Department</Label><p className="font-medium">{employee.department}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Designation</Label><p className="font-medium">{employee.designation}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Employment Type</Label><p className="font-medium">{employee.employment_type}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Join Date</Label><p className="font-medium">{employee.join_date}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Role</Label><p className="font-medium capitalize">{employee.role}</p></div>
         </div>
-
         <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change name, email, department, or other details.</p>
-
         <Separator />
-
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSave)} className="space-y-4">
             <h3 className="font-semibold">Editable Fields</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone Number</FormLabel>
-                  <FormControl><Input {...field} placeholder="+1 234 567 8900" /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>Phone Number</FormLabel><FormControl><Input {...field} placeholder="03001234567" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="shift_start" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Shift Start</FormLabel>
-                  <FormControl><Input {...field} type="time" /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>Shift Start</FormLabel><FormControl><Input {...field} type="time" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="shift_end" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Shift End</FormLabel>
-                  <FormControl><Input {...field} type="time" /></FormControl>
-                  <FormMessage />
-                </FormItem>
+                <FormItem><FormLabel>Shift End</FormLabel><FormControl><Input {...field} type="time" /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reminder Offset</FormLabel>
-                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
+                <FormItem><FormLabel>Reminder Offset</FormLabel>
+                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                    <SelectContent>{REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}</SelectContent>
+                  </Select><FormMessage />
                 </FormItem>
               )} />
             </div>
             <div className="flex justify-end">
-              <Button type="submit" disabled={saving} className="rounded-button">
-                {saving ? "Saving…" : "Save Changes"}
-              </Button>
+              <Button type="submit" disabled={saving} className="rounded-button">{saving ? "Saving…" : "Save Changes"}</Button>
             </div>
           </form>
         </Form>
@@ -223,31 +160,24 @@ export default function MyProfilePage() {
         <form onSubmit={pwForm.handleSubmit(onChangePassword)} className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="current_password">Current Password</Label>
-              <Input id="current_password" type="password" {...pwForm.register("current_password")} />
+              <Label htmlFor="current_password">Current Password <span className="text-destructive">*</span></Label>
+              <PasswordInput id="current_password" {...pwForm.register("current_password")} />
               {pwForm.formState.errors.current_password && <p className="text-sm text-destructive">{pwForm.formState.errors.current_password.message}</p>}
             </div>
             <div />
             <div className="space-y-2">
-              <Label htmlFor="new_password">New Password</Label>
-              <div className="relative">
-                <Input id="new_password" type={showPw ? "text" : "password"} {...pwForm.register("new_password")} />
-                <button type="button" className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" onClick={() => setShowPw(!showPw)}>
-                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
+              <Label htmlFor="new_password">New Password <span className="text-destructive">*</span></Label>
+              <PasswordInput id="new_password" {...pwForm.register("new_password")} showStrength value={pwForm.watch("new_password")} />
               {pwForm.formState.errors.new_password && <p className="text-sm text-destructive">{pwForm.formState.errors.new_password.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="confirm_password">Confirm Password</Label>
-              <Input id="confirm_password" type="password" {...pwForm.register("confirm_password")} />
+              <Label htmlFor="confirm_password">Confirm Password <span className="text-destructive">*</span></Label>
+              <PasswordInput id="confirm_password" {...pwForm.register("confirm_password")} />
               {pwForm.formState.errors.confirm_password && <p className="text-sm text-destructive">{pwForm.formState.errors.confirm_password.message}</p>}
             </div>
           </div>
           <div className="flex justify-end">
-            <Button type="submit" disabled={changingPw} variant="outline">
-              {changingPw ? "Changing…" : "Change Password"}
-            </Button>
+            <Button type="submit" disabled={changingPw} variant="outline">{changingPw ? "Changing…" : "Change Password"}</Button>
           </div>
         </form>
       </Card>

@@ -24,24 +24,18 @@ export default function MyLeavePage() {
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const today = new Date().toISOString().split("T")[0];
 
   const { data: leaveTypes = [] } = useQuery({
     queryKey: ["leave-types"],
-    queryFn: async () => {
-      const { data } = await supabase.from("leave_types").select("*").order("name");
-      return data || [];
-    },
+    queryFn: async () => { const { data } = await supabase.from("leave_types").select("*").order("name"); return data || []; },
   });
 
   const { data: balances = [] } = useQuery({
     queryKey: ["my-leave-balances", user?.id],
     queryFn: async () => {
       const year = new Date().getFullYear();
-      const { data } = await supabase
-        .from("leave_balances")
-        .select("*, leave_types(name)")
-        .eq("user_id", user!.id)
-        .eq("year", year);
+      const { data } = await supabase.from("leave_balances").select("*, leave_types(name)").eq("user_id", user!.id).eq("year", year);
       return data || [];
     },
     enabled: !!user?.id,
@@ -50,23 +44,18 @@ export default function MyLeavePage() {
   const { data: requests = [] } = useQuery({
     queryKey: ["my-leave-requests", user?.id],
     queryFn: async () => {
-      const { data } = await supabase
-        .from("leave_requests")
-        .select("*, leave_types(name)")
-        .eq("user_id", user!.id)
-        .order("created_at", { ascending: false });
+      const { data } = await supabase.from("leave_requests").select("*, leave_types(name)").eq("user_id", user!.id).order("created_at", { ascending: false });
       return data || [];
     },
     enabled: !!user?.id,
   });
 
-  const workingDays = startDate && endDate
-    ? Math.max(1, differenceInBusinessDays(new Date(endDate), new Date(startDate)) + 1)
-    : 0;
+  const workingDays = startDate && endDate ? Math.max(1, differenceInBusinessDays(new Date(endDate), new Date(startDate)) + 1) : 0;
 
   const handleApply = async () => {
     if (!leaveTypeId || !startDate || !endDate) { toast.error("Fill all required fields"); return; }
-    // Check balance
+    if (startDate < today) { toast.error("Start date cannot be in the past"); return; }
+    if (endDate < startDate) { toast.error("End date must be on or after start date"); return; }
     const balance = balances.find((b: any) => b.leave_type_id === leaveTypeId);
     const remaining = balance ? balance.total_days - balance.used_days : 0;
     if (workingDays > remaining) { toast.error(`Insufficient balance. You have ${remaining} days remaining.`); return; }
@@ -74,15 +63,11 @@ export default function MyLeavePage() {
     setSubmitting(true);
     try {
       const { error } = await supabase.from("leave_requests").insert({
-        user_id: user!.id,
-        leave_type_id: leaveTypeId,
-        start_date: startDate,
-        end_date: endDate,
-        days_count: workingDays,
-        reason: reason || null,
-        status: "pending",
+        user_id: user!.id, leave_type_id: leaveTypeId, start_date: startDate, end_date: endDate,
+        days_count: workingDays, reason: reason || null, status: "pending",
       });
       if (error) throw error;
+      await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.requested", target_entity: "leave_requests" });
       toast.success("Leave request submitted");
       setApplyOpen(false);
       setLeaveTypeId(""); setStartDate(""); setEndDate(""); setReason("");
@@ -93,17 +78,13 @@ export default function MyLeavePage() {
 
   const cancelRequest = async (id: string) => {
     await supabase.from("leave_requests").update({ status: "cancelled" }).eq("id", id);
+    await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.cancelled", target_entity: "leave_requests", target_id: id });
     toast.success("Request cancelled");
     queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
   };
 
   const statusBadge = (status: string) => {
-    const map: Record<string, string> = {
-      pending: "bg-yellow-100 text-yellow-800",
-      approved: "bg-green-100 text-green-800",
-      rejected: "bg-red-100 text-red-700",
-      cancelled: "bg-gray-100 text-gray-500",
-    };
+    const map: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", approved: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-700", cancelled: "bg-gray-100 text-gray-500" };
     return <Badge className={`${map[status] || ""} capitalize`}>{status}</Badge>;
   };
 
@@ -111,12 +92,9 @@ export default function MyLeavePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
-        <Button onClick={() => setApplyOpen(true)} className="rounded-button">
-          <Plus className="h-4 w-4 mr-2" />Apply for Leave
-        </Button>
+        <Button onClick={() => setApplyOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-2" />Apply for Leave</Button>
       </div>
 
-      {/* Balance Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {balances.map((b: any) => {
           const remaining = b.total_days - b.used_days;
@@ -131,73 +109,54 @@ export default function MyLeavePage() {
             </Card>
           );
         })}
-        {balances.length === 0 && (
-          <p className="text-sm text-muted-foreground col-span-4">No leave balances configured. Contact your admin.</p>
-        )}
+        {balances.length === 0 && <p className="text-sm text-muted-foreground col-span-4">No leave balances configured. Contact your admin.</p>}
       </div>
 
-      {/* Request History */}
       <Card>
         <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Type</TableHead>
-              <TableHead>From</TableHead>
-              <TableHead>To</TableHead>
-              <TableHead>Days</TableHead>
-              <TableHead>Reason</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Admin Comment</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
+          <TableHeader><TableRow>
+            <TableHead>Type</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Admin Comment</TableHead><TableHead className="text-right">Actions</TableHead>
+          </TableRow></TableHeader>
           <TableBody>
             {requests.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No leave requests</TableCell></TableRow>
-            ) : (
-              requests.map((r: any) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.leave_types?.name}</TableCell>
-                  <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                  <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                  <TableCell>{r.days_count}</TableCell>
-                  <TableCell className="max-w-[150px] truncate">{r.reason || "—"}</TableCell>
-                  <TableCell>{statusBadge(r.status)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    {r.status === "pending" && (
-                      <Button variant="ghost" size="sm" className="text-destructive" onClick={() => cancelRequest(r.id)}>Cancel</Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            ) : requests.map((r: any) => (
+              <TableRow key={r.id}>
+                <TableCell className="font-medium">{r.leave_types?.name}</TableCell>
+                <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                <TableCell>{r.days_count}</TableCell>
+                <TableCell className="max-w-[150px] truncate">{r.reason || "—"}</TableCell>
+                <TableCell>{statusBadge(r.status)}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>
+                <TableCell className="text-right">
+                  {r.status === "pending" && <Button variant="ghost" size="sm" className="text-destructive" onClick={() => cancelRequest(r.id)}>Cancel</Button>}
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       </Card>
 
-      {/* Apply Modal */}
       <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Apply for Leave</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-1">
-              <Label>Leave Type *</Label>
+              <Label>Leave Type <span className="text-destructive">*</span></Label>
               <Select value={leaveTypeId} onValueChange={setLeaveTypeId}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {leaveTypes.map((lt: any) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}
-                </SelectContent>
+                <SelectContent>{leaveTypes.map((lt: any) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Start Date *</Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} min={new Date().toISOString().split("T")[0]} />
+                <Label>Start Date <span className="text-destructive">*</span></Label>
+                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} min={today} />
               </div>
               <div className="space-y-1">
-                <Label>End Date *</Label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || new Date().toISOString().split("T")[0]} />
+                <Label>End Date <span className="text-destructive">*</span></Label>
+                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || today} />
               </div>
             </div>
             {workingDays > 0 && <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""}</p>}

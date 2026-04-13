@@ -167,7 +167,6 @@ export default function AttendanceAdminPage() {
                       <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
                     )}
                   </TableCell>
-                  </TableCell>
                 </TableRow>
               ))
             )}

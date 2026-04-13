@@ -13,6 +13,7 @@ import {
   Send,
   CalendarCheck,
   Shield,
+  User,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -35,25 +36,36 @@ import zielLogo from "@/assets/ziel-logo.png";
 const adminNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "Employees", url: "/employees", icon: Users },
-  { title: "Daily Logs", url: "/logs/all", icon: FileText },
   { title: "Attendance", url: "/attendance", icon: Clock },
+  { title: "Daily Logs", url: "/logs/all", icon: FileText },
   { title: "Leave", url: "/leave/requests", icon: Calendar },
   { title: "Clients", url: "/clients", icon: Briefcase },
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
-  { title: "Audit Log", url: "/audit", icon: Shield },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Audit Log", url: "/audit", icon: Shield },
+];
+
+const managerNav = [
+  { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Attendance", url: "/attendance", icon: Clock },
+  { title: "Daily Logs", url: "/logs/all", icon: FileText },
+  { title: "Leave", url: "/leave/requests", icon: Calendar },
+  { title: "Projects", url: "/projects", icon: FolderKanban },
+  { title: "Reports", url: "/reports", icon: BarChart3 },
+  { title: "Announcements", url: "/announcements", icon: Megaphone },
 ];
 
 const employeeNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
   { title: "Submit Log", url: "/logs/submit", icon: Send },
   { title: "My Logs", url: "/logs/my", icon: ClipboardList },
-  { title: "Attendance", url: "/attendance/my", icon: Clock },
-  { title: "Leave", url: "/leave/my", icon: CalendarCheck },
-  { title: "My Projects", url: "/my-projects", icon: Briefcase },
+  { title: "My Attendance", url: "/attendance/my", icon: Clock },
+  { title: "My Leave", url: "/leave/my", icon: CalendarCheck },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
+  { title: "Profile", url: "/profile", icon: User },
 ];
 
 export function AppSidebar() {
@@ -62,8 +74,8 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
 
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
-  const items = isAdmin ? adminNav : employeeNav;
+  const role = profile?.role;
+  const items = role === "admin" ? adminNav : role === "manager" ? managerNav : employeeNav;
 
   const { data: unreadCount } = useQuery({
     queryKey: ["unread-announcements", user?.id],

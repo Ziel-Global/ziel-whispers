@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/ui/password-input";
-import zielLogo from "@/assets/ziel-logo.png";
+import zielLogoWhite from "@/assets/ziel-logo-white.png";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -19,7 +19,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    // Check lockout (5 failed attempts in last 15 min)
     const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
     const { data: recentAttempts } = await supabase
       .from("login_attempts")
@@ -37,12 +36,10 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     
     if (error) {
-      // Record failed attempt
       await supabase.from("login_attempts").insert({
         email: email.toLowerCase().trim(),
         success: false,
       });
-      // Record audit log for failed login
       await supabase.from("audit_logs").insert({
         action: "session.login_failed",
         target_entity: "users",
@@ -53,13 +50,11 @@ export default function LoginPage() {
       return;
     }
 
-    // Record successful attempt & reset counter
     await supabase.from("login_attempts").insert({
       email: email.toLowerCase().trim(),
       success: true,
     });
 
-    // Write audit log for login
     if (data.user) {
       await supabase.from("audit_logs").insert({
         actor_id: data.user.id,
@@ -76,7 +71,7 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#1A1B1E" }}>
       <Card className="w-full max-w-sm border-border bg-card">
         <CardHeader className="text-center">
-          <img src={zielLogo} alt="Ziel Logs" className="h-10 mx-auto invert" />
+          <img src={zielLogoWhite} alt="Ziel" className="h-10 mx-auto" />
           <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
         </CardHeader>
         <CardContent>

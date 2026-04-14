@@ -31,7 +31,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import zielLogo from "@/assets/ziel-logo.png";
+import zielLogoWhite from "@/assets/ziel-logo-white.png";
 
 const adminNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
@@ -75,23 +75,23 @@ export function AppSidebar() {
   const location = useLocation();
 
   const role = profile?.role;
+  const isAdminOrManager = role === "admin" || role === "manager";
   const items = role === "admin" ? adminNav : role === "manager" ? managerNav : employeeNav;
 
+  // Unread announcements badge
   const { data: unreadCount } = useQuery({
     queryKey: ["unread-announcements", user?.id],
     queryFn: async () => {
-      const { data: announcements, error: announcementsError } = await supabase
+      const { data: announcements } = await supabase
         .from("announcements")
         .select("id")
         .lte("publish_at", new Date().toISOString());
-      if (announcementsError) throw announcementsError;
       if (!announcements?.length) return 0;
 
-      const { data: reads, error: readsError } = await supabase
+      const { data: reads } = await supabase
         .from("announcement_reads")
         .select("announcement_id")
         .eq("user_id", user!.id);
-      if (readsError) throw readsError;
 
       const readIds = new Set(reads?.map((r) => r.announcement_id) || []);
       return announcements.filter((a) => !readIds.has(a.id)).length;
@@ -100,13 +100,34 @@ export function AppSidebar() {
     refetchInterval: 60000,
   });
 
+  // Pending leave requests badge (admin/manager only)
+  const { data: pendingLeaveCount } = useQuery({
+    queryKey: ["pending-leave-count"],
+    queryFn: async () => {
+      const { count, error } = await supabase
+        .from("leave_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (error) throw error;
+      return count || 0;
+    },
+    enabled: isAdminOrManager,
+    refetchInterval: 30000,
+  });
+
+  const getBadgeCount = (title: string): number => {
+    if (title === "Announcements") return unreadCount || 0;
+    if (title === "Leave" && isAdminOrManager) return pendingLeaveCount || 0;
+    return 0;
+  };
+
   return (
     <Sidebar collapsible="icon" className="border-r-0">
       <div className="flex h-14 items-center px-4 border-b border-sidebar-border">
         {!collapsed ? (
-          <img src={zielLogo} alt="Ziel Logs" className="h-7 invert" />
+          <img src={zielLogoWhite} alt="Ziel" className="h-7" />
         ) : (
-          <span className="text-lg font-bold text-sidebar-primary">Z</span>
+          <img src={zielLogoWhite} alt="Ziel" className="h-6 w-6 object-contain" />
         )}
       </div>
       <SidebarContent>
@@ -118,7 +139,8 @@ export function AppSidebar() {
             <SidebarMenu>
               {items.map((item) => {
                 const isActive = item.url === "/" ? location.pathname === "/" : location.pathname.startsWith(item.url);
-                const showBadge = item.title === "Announcements" && (unreadCount || 0) > 0;
+                const badgeCount = getBadgeCount(item.title);
+                const showBadge = badgeCount > 0;
                 return (
                   <SidebarMenuItem key={item.title}>
                     <SidebarMenuButton asChild isActive={isActive}>
@@ -134,7 +156,7 @@ export function AppSidebar() {
                             {item.title}
                             {showBadge && (
                               <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
-                                {unreadCount! > 99 ? "99+" : unreadCount}
+                                {badgeCount > 99 ? "99+" : badgeCount}
                               </span>
                             )}
                           </span>

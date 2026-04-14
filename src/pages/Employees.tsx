@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Upload, Eye, UserX } from "lucide-react";
+import { Plus, Search, Upload, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { CSVImportDialog } from "@/components/employees/CSVImportDialog";
 
@@ -143,7 +143,7 @@ export default function EmployeesPage() {
                     <TableCell>
                       <Avatar className="h-8 w-8">
                         <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
-                        <AvatarFallback className="bg-primary/10 text-primary-foreground text-xs">{initials}</AvatarFallback>
+                        <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
                       </Avatar>
                     </TableCell>
                     <TableCell className="font-medium">{emp.full_name}</TableCell>

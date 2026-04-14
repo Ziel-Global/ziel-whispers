@@ -21,7 +21,7 @@ const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "
 export default function LeaveAdminPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [statusFilter, setStatusFilter] = useState("pending");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
   const [actionModal, setActionModal] = useState<{ type: "approve" | "reject"; request: any } | null>(null);
   const [adminComment, setAdminComment] = useState("");
@@ -62,7 +62,6 @@ export default function LeaveAdminPage() {
       }).eq("id", request.id);
       if (error) throw error;
 
-      // Only deduct balance on approval
       if (type === "approve") {
         const { data: balance } = await supabase
           .from("leave_balances")
@@ -96,6 +95,7 @@ export default function LeaveAdminPage() {
       setActionModal(null);
       setAdminComment("");
       queryClient.invalidateQueries({ queryKey: ["admin-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setProcessing(false); }
   };
@@ -125,7 +125,11 @@ export default function LeaveAdminPage() {
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="approved">Approved</SelectItem><SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+                <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
             <Select value={deptFilter} onValueChange={setDeptFilter}>
@@ -161,6 +165,9 @@ export default function LeaveAdminPage() {
                           <Button variant="ghost" size="icon" onClick={() => setActionModal({ type: "reject", request: r })} className="text-destructive"><X className="h-4 w-4" /></Button>
                         </div>
                       )}
+                      {r.status !== "pending" && r.admin_comment && (
+                        <span className="text-xs text-muted-foreground" title={r.admin_comment}>💬</span>
+                      )}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -191,7 +198,7 @@ export default function LeaveAdminPage() {
                         const initials = l.users?.full_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
                         return (
                           <div key={l.id} className="flex items-center gap-1" title={`${l.users?.full_name} - ${l.leave_types?.name}`}>
-                            <Avatar className="h-4 w-4"><AvatarFallback className="text-[8px] bg-primary/10">{initials}</AvatarFallback></Avatar>
+                            <Avatar className="h-4 w-4"><AvatarFallback className="text-[8px]">{initials}</AvatarFallback></Avatar>
                             <span className="truncate">{l.users?.full_name?.split(" ")[0]}</span>
                           </div>
                         );

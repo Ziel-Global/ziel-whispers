@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -49,7 +49,22 @@ export default function AnnouncementsPage() {
     },
   });
 
-  // For employees: filter to relevant announcements
+  // Mark all visible announcements as read when page loads
+  useEffect(() => {
+    if (!announcements || !user?.id) return;
+    const markAllRead = async () => {
+      const unread = announcements.filter((a) => {
+        const reads = a.announcement_reads as any[];
+        return !reads?.some((r: any) => r.user_id === user.id);
+      });
+      if (unread.length === 0) return;
+      const inserts = unread.map((a) => ({ announcement_id: a.id, user_id: user.id }));
+      await supabase.from("announcement_reads").insert(inserts);
+      queryClient.invalidateQueries({ queryKey: ["unread-announcements"] });
+    };
+    markAllRead();
+  }, [announcements, user?.id]);
+
   const visibleAnnouncements = announcements?.filter((a) => {
     if (isAdmin) return true;
     const now = new Date();
@@ -57,20 +72,6 @@ export default function AnnouncementsPage() {
     if (a.audience !== "all" && a.audience !== profile?.department) return false;
     return true;
   }) || [];
-
-  const isRead = (a: any) => {
-    const reads = a.announcement_reads as any[];
-    return reads?.some((r: any) => r.user_id === user?.id);
-  };
-
-  const markAsRead = async (announcementId: string) => {
-    if (isAdmin) return;
-    const alreadyRead = visibleAnnouncements.find((a) => a.id === announcementId);
-    if (alreadyRead && isRead(alreadyRead)) return;
-    await supabase.from("announcement_reads").insert({ announcement_id: announcementId, user_id: user!.id });
-    queryClient.invalidateQueries({ queryKey: ["announcements"] });
-    queryClient.invalidateQueries({ queryKey: ["unread-announcements"] });
-  };
 
   const openAdd = () => { setEditId(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (a: any) => {
@@ -131,35 +132,28 @@ export default function AnnouncementsPage() {
       {isLoading && <p className="text-muted-foreground">Loading…</p>}
 
       <div className="space-y-3">
-        {visibleAnnouncements.map((a) => {
-          const read = isRead(a);
-          return (
-            <Card
-              key={a.id}
-              className={`p-5 cursor-pointer transition-colors ${!read && !isAdmin ? "border-l-4 border-l-primary" : ""}`}
-              onClick={() => markAsRead(a.id)}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {a.priority === "urgent" && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
-                    <h3 className={`font-semibold ${!read && !isAdmin ? "text-foreground" : "text-foreground/80"}`}>{a.title}</h3>
-                    {a.priority === "urgent" && <Badge variant="destructive" className="text-xs">Urgent</Badge>}
-                    {a.audience !== "all" && <Badge variant="outline" className="text-xs">{a.audience}</Badge>}
-                  </div>
-                  <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{a.body.replace(/<[^>]*>/g, "")}</p>
-                  <p className="text-xs text-muted-foreground mt-2">{formatDistanceToNow(new Date(a.publish_at), { addSuffix: true })}</p>
+        {visibleAnnouncements.map((a) => (
+          <Card key={a.id} className="p-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  {a.priority === "urgent" && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
+                  <h3 className="font-semibold text-foreground">{a.title}</h3>
+                  {a.priority === "urgent" && <Badge variant="destructive" className="text-xs">Urgent</Badge>}
+                  {a.audience !== "all" && <Badge variant="outline" className="text-xs">{a.audience}</Badge>}
                 </div>
-                {isAdmin && (
-                  <div className="flex gap-1 shrink-0">
-                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); openEdit(a); }}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeleteId(a.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                  </div>
-                )}
+                <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{a.body.replace(/<[^>]*>/g, "")}</p>
+                <p className="text-xs text-muted-foreground mt-2">{formatDistanceToNow(new Date(a.publish_at), { addSuffix: true })}</p>
               </div>
-            </Card>
-          );
-        })}
+              {isAdmin && (
+                <div className="flex gap-1 shrink-0">
+                  <Button variant="ghost" size="icon" onClick={() => openEdit(a)}><Pencil className="h-4 w-4" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteId(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                </div>
+              )}
+            </div>
+          </Card>
+        ))}
         {!isLoading && visibleAnnouncements.length === 0 && (
           <p className="text-center text-muted-foreground py-8">No announcements yet</p>
         )}
@@ -172,7 +166,6 @@ export default function AnnouncementsPage() {
         </div>
       )}
 
-      {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editId ? "Edit Announcement" : "New Announcement"}</DialogTitle></DialogHeader>
@@ -219,7 +212,6 @@ export default function AnnouncementsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader><AlertDialogTitle>Delete Announcement?</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>

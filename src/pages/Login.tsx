@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/ui/password-input";
-import zielLogoWhite from "@/assets/ziel-logo-white.png";
+import zielLogoWhite from "@/assets/ziel-logo-black.png";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -34,7 +34,7 @@ export default function LoginPage() {
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    
+
     if (error) {
       await supabase.from("login_attempts").insert({
         email: email.toLowerCase().trim(),
@@ -78,17 +78,38 @@ export default function LoginPage() {
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input id="email" type="email" placeholder="you@company.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                placeholder="you@company.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <PasswordInput id="password" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <PasswordInput
+                id="password"
+                placeholder="••••••••"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
-            <Button type="submit" disabled={loading} className="w-full rounded-btn bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-btn bg-primary text-primary-foreground hover:bg-primary/90"
+            >
               {loading ? "Signing in…" : "Sign In"}
             </Button>
             <div className="text-center">
-              <button type="button" onClick={() => navigate("/reset-password")} className="text-sm text-muted-foreground hover:text-foreground underline">
+              <button
+                type="button"
+                onClick={() => navigate("/reset-password")}
+                className="text-sm text-muted-foreground hover:text-foreground underline"
+              >
                 Forgot password?
               </button>
             </div>

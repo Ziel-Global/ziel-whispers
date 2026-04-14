@@ -45,7 +45,7 @@ export function TopBar() {
             <button className="focus:outline-none">
               <Avatar className="h-8 w-8 cursor-pointer">
                 <AvatarImage src={avatarUrl} />
-                <AvatarFallback className="bg-primary text-primary-foreground text-xs font-semibold">
+                <AvatarFallback className="text-xs font-semibold">
                   {initials}
                 </AvatarFallback>
               </Avatar>

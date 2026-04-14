@@ -24,6 +24,7 @@ export default function MyLeavePage() {
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [statusFilter, setStatusFilter] = useState("all");
   const today = new Date().toISOString().split("T")[0];
 
   const { data: leaveTypes = [] } = useQuery({
@@ -50,6 +51,8 @@ export default function MyLeavePage() {
     enabled: !!user?.id,
   });
 
+  const filteredRequests = statusFilter === "all" ? requests : requests.filter((r: any) => r.status === statusFilter);
+
   const workingDays = startDate && endDate ? Math.max(1, differenceInBusinessDays(new Date(endDate), new Date(startDate)) + 1) : 0;
 
   const handleApply = async () => {
@@ -72,6 +75,7 @@ export default function MyLeavePage() {
       setApplyOpen(false);
       setLeaveTypeId(""); setStartDate(""); setEndDate(""); setReason("");
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSubmitting(false); }
   };
@@ -81,6 +85,7 @@ export default function MyLeavePage() {
     await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.cancelled", target_entity: "leave_requests", target_id: id });
     toast.success("Request cancelled");
     queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+    queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
   };
 
   const statusBadge = (status: string) => {
@@ -112,15 +117,28 @@ export default function MyLeavePage() {
         {balances.length === 0 && <p className="text-sm text-muted-foreground col-span-4">No leave balances configured. Contact your admin.</p>}
       </div>
 
+      <div className="flex gap-3">
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="pending">Pending</SelectItem>
+            <SelectItem value="approved">Approved</SelectItem>
+            <SelectItem value="rejected">Rejected</SelectItem>
+            <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
       <Card>
         <Table>
           <TableHeader><TableRow>
             <TableHead>Type</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Admin Comment</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {requests.length === 0 ? (
+            {filteredRequests.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No leave requests</TableCell></TableRow>
-            ) : requests.map((r: any) => (
+            ) : filteredRequests.map((r: any) => (
               <TableRow key={r.id}>
                 <TableCell className="font-medium">{r.leave_types?.name}</TableCell>
                 <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>

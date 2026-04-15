@@ -281,7 +281,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="phone" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Phone</FormLabel>
-                  <FormControl><Input {...field} disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -338,7 +338,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="shift_start" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Shift Start (Override)</FormLabel>
-                  <FormControl><Input {...field} type="time" disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
                   <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
                   <FormMessage />
                 </FormItem>
@@ -346,7 +346,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="shift_end" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Shift End (Override)</FormLabel>
-                  <FormControl><Input {...field} type="time" disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
                   <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
                   <FormMessage />
                 </FormItem>
@@ -354,7 +354,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Reminder Offset</FormLabel>
-                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit && !isOwnProfile}>
+                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
                     <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                     <SelectContent>
                       {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}

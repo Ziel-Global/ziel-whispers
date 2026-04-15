@@ -48,7 +48,7 @@ export default function MyProfilePage() {
     if (employee?.phone) setPhone(employee.phone);
   });
 
-  const { data: pwFormState, } = useQuery({ queryKey: ["_noop"], queryFn: () => null, enabled: false });
+  
 
   const avatarUrl = employee?.avatar_url ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${employee.avatar_url}` : undefined;
 

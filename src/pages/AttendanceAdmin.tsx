@@ -188,12 +188,19 @@ export default function AttendanceAdminPage() {
                   <TableCell className="font-medium">{r.users?.full_name}</TableCell>
                   <TableCell>{r.users?.department}</TableCell>
                   <TableCell>{r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "—"}</TableCell>
-                  <TableCell>{r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "—"}</TableCell>
+                  <TableCell>
+                    {r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "—"}
+                    {r.auto_clocked_out && (
+                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">Auto</Badge>
+                    )}
+                  </TableCell>
                   <TableCell>{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "—"}</TableCell>
                   <TableCell>{r.work_mode || "—"}</TableCell>
                   <TableCell>
                     {!r.clock_out && r.clock_in ? (
                       <Badge className="bg-green-100 text-green-800">Active</Badge>
+                    ) : r.auto_clocked_out ? (
+                      <Badge className="bg-yellow-100 text-yellow-800">Auto Clock-Out</Badge>
                     ) : (
                       <Badge className="bg-muted text-muted-foreground">Complete</Badge>
                     )}

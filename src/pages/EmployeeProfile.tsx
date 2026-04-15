@@ -380,7 +380,7 @@ export default function EmployeeProfilePage() {
         </Form>
       </Card>
 
-      {isAdmin && <LeaveBalancesTab employeeId={employee.id} />}
+      
 
       <Dialog open={emailWarningOpen} onOpenChange={setEmailWarningOpen}>
         <DialogContent>

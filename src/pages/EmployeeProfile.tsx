@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ArrowLeft, Shield, ShieldOff } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
@@ -36,6 +37,7 @@ const adminSchema = z.object({
   shift_start: z.string(),
   shift_end: z.string(),
   reminder_offset_minutes: z.number(),
+  is_night_shift: z.boolean(),
 });
 
 export default function EmployeeProfilePage() {

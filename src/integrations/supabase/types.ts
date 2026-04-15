@@ -96,6 +96,8 @@ export type Database = {
       }
       attendance: {
         Row: {
+          auto_clocked_out: boolean
+          auto_clockout_notes: string | null
           clock_in: string | null
           clock_out: string | null
           created_at: string
@@ -107,6 +109,8 @@ export type Database = {
           work_mode: string | null
         }
         Insert: {
+          auto_clocked_out?: boolean
+          auto_clockout_notes?: string | null
           clock_in?: string | null
           clock_out?: string | null
           created_at?: string
@@ -118,6 +122,8 @@ export type Database = {
           work_mode?: string | null
         }
         Update: {
+          auto_clocked_out?: boolean
+          auto_clockout_notes?: string | null
           clock_in?: string | null
           clock_out?: string | null
           created_at?: string
@@ -182,6 +188,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      auto_clockout_acks: {
+        Row: {
+          acknowledged_at: string
+          attendance_id: string
+          id: string
+          user_id: string
+        }
+        Insert: {
+          acknowledged_at?: string
+          attendance_id: string
+          id?: string
+          user_id: string
+        }
+        Update: {
+          acknowledged_at?: string
+          attendance_id?: string
+          id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       clients: {
         Row: {
@@ -698,6 +725,7 @@ export type Database = {
           employment_type: string
           full_name: string
           id: string
+          is_night_shift: boolean
           join_date: string
           must_change_password: boolean
           phone: string | null
@@ -717,6 +745,7 @@ export type Database = {
           employment_type: string
           full_name: string
           id: string
+          is_night_shift?: boolean
           join_date: string
           must_change_password?: boolean
           phone?: string | null
@@ -736,6 +765,7 @@ export type Database = {
           employment_type?: string
           full_name?: string
           id?: string
+          is_night_shift?: boolean
           join_date?: string
           must_change_password?: boolean
           phone?: string | null

@@ -36,35 +36,38 @@ export default function MyLeavePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const today = new Date().toISOString().split("T")[0];
 
-  // Fetch leave types from DB for mapping
-  const { data: leaveTypes = [] } = useQuery({
-    queryKey: ["leave-types"],
-    queryFn: async () => { const { data } = await supabase.from("leave_types").select("*").order("name"); return data || []; },
-  });
-
-  // Fetch annual entitlement from system settings
+  // Live global entitlement from system_settings
   const { data: annualEntitlement = 12 } = useQuery({
     queryKey: ["system-setting-annual-leave"],
     queryFn: async () => {
       const { data } = await supabase.from("system_settings").select("value").eq("key", "annual_leave_entitlement").maybeSingle();
       return data ? Number(data.value) : 12;
     },
+    refetchInterval: 30000, // poll every 30s for real-time sync
   });
 
-  // Fetch leave balance (single annual pool)
-  const { data: balance } = useQuery({
-    queryKey: ["my-leave-balance", user?.id],
+  // Calculate used days from approved leave requests (live calculation)
+  const { data: usedDays = 0 } = useQuery({
+    queryKey: ["my-used-leave-days", user?.id],
     queryFn: async () => {
       const year = new Date().getFullYear();
-      const { data } = await supabase.from("leave_balances").select("*").eq("user_id", user!.id).eq("year", year).limit(1).maybeSingle();
-      return data;
+      const startOfYear = `${year}-01-01`;
+      const endOfYear = `${year}-12-31`;
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("days_count")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .gte("start_date", startOfYear)
+        .lte("start_date", endOfYear);
+      return (data || []).reduce((sum, r) => sum + r.days_count, 0);
     },
     enabled: !!user?.id,
   });
 
-  const totalDays = balance?.total_days ?? annualEntitlement;
-  const usedDays = balance?.used_days ?? 0;
-  const remainingDays = totalDays - usedDays;
+  const totalDays = annualEntitlement;
+  const remainingDays = Math.max(0, totalDays - usedDays);
+  const isExhausted = remainingDays <= 0;
 
   const { data: requests = [] } = useQuery({
     queryKey: ["my-leave-requests", user?.id],
@@ -83,10 +86,11 @@ export default function MyLeavePage() {
     if (!leaveCategory || !startDate || !endDate) { toast.error("Fill all required fields"); return; }
     if (startDate < today) { toast.error("Start date cannot be in the past"); return; }
     if (endDate < startDate) { toast.error("End date must be on or after start date"); return; }
+    if (isExhausted) { toast.error("You have exhausted your annual leave balance."); return; }
     if (workingDays > remainingDays) { toast.error(`Insufficient balance. You have ${remainingDays} days remaining.`); return; }
 
-    // Find the first leave type in DB, or use the category name
-    const leaveType = leaveTypes.length > 0 ? leaveTypes[0] : null;
+    const leaveTypes = (await supabase.from("leave_types").select("id").limit(1)).data;
+    const leaveType = leaveTypes && leaveTypes.length > 0 ? leaveTypes[0] : null;
     const finalReason = leaveCategory === "other"
       ? `${LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label}: ${otherReason}`
       : `${LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label}${reason ? ` - ${reason}` : ""}`;
@@ -108,6 +112,7 @@ export default function MyLeavePage() {
       setApplyOpen(false);
       setLeaveCategory(""); setStartDate(""); setEndDate(""); setReason(""); setOtherReason("");
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
       queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSubmitting(false); }
@@ -118,6 +123,7 @@ export default function MyLeavePage() {
     await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.cancelled", target_entity: "leave_requests", target_id: id });
     toast.success("Request cancelled");
     queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+    queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
     queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
   };
 
@@ -130,7 +136,9 @@ export default function MyLeavePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">My Leave</h1>
-        <Button onClick={() => setApplyOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-2" />Apply for Leave</Button>
+        <Button onClick={() => setApplyOpen(true)} disabled={isExhausted} className="rounded-button">
+          <Plus className="h-4 w-4 mr-2" />Apply for Leave
+        </Button>
       </div>
 
       <Card className="p-4">
@@ -140,6 +148,11 @@ export default function MyLeavePage() {
           <span className="text-sm text-muted-foreground">/ {totalDays} days remaining</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1">{usedDays} used</p>
+        {isExhausted && (
+          <p className="text-sm text-destructive mt-2 font-medium">
+            You have exhausted your annual leave balance. No further leave applications can be submitted.
+          </p>
+        )}
       </Card>
 
       <div className="flex gap-3">
@@ -165,7 +178,7 @@ export default function MyLeavePage() {
               <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No leave requests</TableCell></TableRow>
             ) : filteredRequests.map((r: any) => (
               <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.leave_types?.name || "Annual"}</TableCell>
+                <TableCell className="font-medium">{r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual"}</TableCell>
                 <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                 <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                 <TableCell>{r.days_count}</TableCell>
@@ -184,43 +197,51 @@ export default function MyLeavePage() {
       <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Apply for Leave</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <Label>Leave Type <span className="text-destructive">*</span></Label>
-              <Select value={leaveCategory} onValueChange={setLeaveCategory}>
-                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>
-                  {LEAVE_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            {leaveCategory === "other" && (
+          {isExhausted ? (
+            <p className="text-sm text-destructive font-medium py-4">
+              You have exhausted your annual leave balance. No further leave applications can be submitted.
+            </p>
+          ) : (
+            <div className="space-y-4">
               <div className="space-y-1">
-                <Label>Please specify <span className="text-destructive">*</span></Label>
-                <Input value={otherReason} onChange={(e) => setOtherReason(e.target.value)} placeholder="Reason for leave" />
+                <Label>Leave Type <span className="text-destructive">*</span></Label>
+                <Select value={leaveCategory} onValueChange={setLeaveCategory}>
+                  <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                  <SelectContent>
+                    {LEAVE_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               </div>
-            )}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label>Start Date <span className="text-destructive">*</span></Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} min={today} />
+              {leaveCategory === "other" && (
+                <div className="space-y-1">
+                  <Label>Please specify <span className="text-destructive">*</span></Label>
+                  <Input value={otherReason} onChange={(e) => setOtherReason(e.target.value)} placeholder="Reason for leave" />
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>Start Date <span className="text-destructive">*</span></Label>
+                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} min={today} />
+                </div>
+                <div className="space-y-1">
+                  <Label>End Date <span className="text-destructive">*</span></Label>
+                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || today} />
+                </div>
               </div>
+              {workingDays > 0 && (
+                <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""} · {remainingDays} days remaining</p>
+              )}
               <div className="space-y-1">
-                <Label>End Date <span className="text-destructive">*</span></Label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || today} />
+                <Label>Additional Notes</Label>
+                <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optional" rows={2} />
               </div>
             </div>
-            {workingDays > 0 && (
-              <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""} · {remainingDays} days remaining</p>
-            )}
-            <div className="space-y-1">
-              <Label>Additional Notes</Label>
-              <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optional" rows={2} />
-            </div>
-          </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setApplyOpen(false)}>Cancel</Button>
-            <Button onClick={handleApply} disabled={submitting}>{submitting ? "Submitting…" : "Submit"}</Button>
+            {!isExhausted && (
+              <Button onClick={handleApply} disabled={submitting}>{submitting ? "Submitting…" : "Submit"}</Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

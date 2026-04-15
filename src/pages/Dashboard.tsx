@@ -31,23 +31,12 @@ export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [
-        activeEmployeesResult,
-        todayAttendanceResult,
-        pendingLeavesResult,
-        activeProjectsResult,
-      ] = await Promise.all([
+      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult] = await Promise.all([
         supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
       ]);
-
-      if (activeEmployeesResult.error) throw activeEmployeesResult.error;
-      if (todayAttendanceResult.error) throw todayAttendanceResult.error;
-      if (pendingLeavesResult.error) throw pendingLeavesResult.error;
-      if (activeProjectsResult.error) throw activeProjectsResult.error;
-
       return {
         activeEmployees: activeEmployeesResult.count || 0,
         todayClockedIn: todayAttendanceResult.data?.length || 0,
@@ -100,16 +89,34 @@ export default function DashboardPage() {
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
-  const { data: leaveBalance } = useQuery({
-    queryKey: ["dashboard-leave-balance", user?.id],
+  // Live leave balance from global entitlement + approved requests
+  const { data: annualEntitlement = 12 } = useQuery({
+    queryKey: ["system-setting-annual-leave"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("value").eq("key", "annual_leave_entitlement").maybeSingle();
+      return data ? Number(data.value) : 12;
+    },
+    enabled: !isAdmin && hasProfile,
+    refetchInterval: 30000,
+  });
+
+  const { data: usedLeaveDays = 0 } = useQuery({
+    queryKey: ["my-used-leave-days", user?.id],
     queryFn: async () => {
       const year = new Date().getFullYear();
-      const { data, error } = await supabase.from("leave_balances").select("*, leave_types(name)").eq("user_id", user!.id).eq("year", year);
-      if (error) throw error;
-      return data || [];
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("days_count")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .gte("start_date", `${year}-01-01`)
+        .lte("start_date", `${year}-12-31`);
+      return (data || []).reduce((sum, r) => sum + r.days_count, 0);
     },
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
+
+  const annualRemaining = annualEntitlement - usedLeaveDays;
 
   const { data: myProjects } = useQuery({
     queryKey: ["dashboard-my-projects", user?.id],
@@ -136,7 +143,6 @@ export default function DashboardPage() {
     queryFn: async () => {
       const { data: announcements, error } = await supabase.from("announcements").select("*, announcement_reads(dismissed)").eq("priority", "urgent").lte("publish_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(5);
       if (error) throw error;
-      // Filter out dismissed
       return (announcements || []).filter((a) => {
         const reads = a.announcement_reads as any[];
         return !reads?.some((r: any) => r.dismissed);
@@ -164,8 +170,6 @@ export default function DashboardPage() {
 
   const isClockedIn = !!todayAttendance?.clock_in && !todayAttendance?.clock_out;
   const hasSubmittedLog = (todayLogs?.length || 0) > 0;
-  const annualLeave = leaveBalance?.find((b) => (b.leave_types as any)?.name?.toLowerCase().includes("annual"));
-  const annualRemaining = annualLeave ? annualLeave.total_days - annualLeave.used_days : null;
 
   // ——— ADMIN DASHBOARD ———
   if (isAdmin) {
@@ -176,7 +180,6 @@ export default function DashboardPage() {
           <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
         </div>
 
-        {/* Widget tiles */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/employees")}>
             <div className="flex items-center gap-3">
@@ -204,9 +207,7 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Alert panels */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          {/* Late Logs */}
           <Card className={`p-5 ${(lateLogs?.length ?? 0) > 0 ? "border-red-200 bg-red-50/30" : ""}`}>
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle className={`h-4 w-4 ${(lateLogs?.length ?? 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} />
@@ -227,7 +228,6 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          {/* Pending Leave Requests */}
           <Card className={`p-5 ${(pendingLeaveList?.length ?? 0) > 0 ? "border-yellow-200 bg-yellow-50/30" : ""}`}>
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -258,7 +258,6 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* Quick actions */}
         <div className="flex gap-3 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Employee</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/projects/new")}><Plus className="h-4 w-4 mr-1" />Add Project</Button>
@@ -266,7 +265,6 @@ export default function DashboardPage() {
           <Button variant="outline" size="sm" onClick={() => navigate("/reports")}><BarChart3 className="h-4 w-4 mr-1" />View Reports</Button>
         </div>
 
-        {/* Recent Activity */}
         <Card className="p-5">
           <h3 className="font-medium text-sm mb-3">Recent Activity</h3>
           {(!recentAudit || recentAudit.length === 0) ? (
@@ -297,7 +295,6 @@ export default function DashboardPage() {
         <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
       </div>
 
-      {/* Urgent announcements banner */}
       {urgentAnnouncements && urgentAnnouncements.length > 0 && (
         <div className="space-y-2">
           {urgentAnnouncements.map((a) => (
@@ -312,7 +309,6 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Status cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-3 mb-3">
@@ -353,28 +349,24 @@ export default function DashboardPage() {
             <Calendar className="h-5 w-5 text-muted-foreground" />
             <span className="text-sm font-medium">Leave Balance</span>
           </div>
-          {annualRemaining !== null ? (
-            <p className="text-sm"><strong>{annualRemaining}</strong> annual leave days remaining</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">No balance set</p>
-          )}
+          <p className="text-sm"><strong>{annualRemaining}</strong> annual leave days remaining</p>
+          <p className="text-xs text-muted-foreground">{usedLeaveDays} used / {annualEntitlement} total</p>
           <Button size="sm" variant="outline" className="mt-3 rounded-button w-full" onClick={() => navigate("/leave/my")}>Apply Leave</Button>
         </Card>
       </div>
 
-      {/* Projects */}
       {myProjects && myProjects.length > 0 && (
         <div>
-          <h2 className="font-semibold mb-3">Assigned Projects</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {myProjects.map((m: any) => (
-              <Card key={m.project_id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${m.project_id}`)}>
-                <div className="flex items-start justify-between">
+          <h2 className="text-lg font-semibold mb-3">My Projects</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {myProjects.map((pm: any) => (
+              <Card key={pm.project_id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${pm.project_id}`)}>
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium text-sm">{m.projects?.name}</p>
-                    <p className="text-xs text-muted-foreground">{m.projects?.clients?.name}</p>
+                    <p className="font-medium">{pm.projects?.name}</p>
+                    <p className="text-xs text-muted-foreground">{pm.projects?.clients?.name || "No client"} · {pm.project_roles?.name || "Member"}</p>
                   </div>
-                  <Badge variant="outline" className="text-xs">{m.project_roles?.name || "Member"}</Badge>
+                  <Badge variant="outline" className="capitalize">{pm.projects?.status}</Badge>
                 </div>
               </Card>
             ))}
@@ -382,22 +374,23 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Recent Logs */}
       {recentLogs && recentLogs.length > 0 && (
-        <Card className="p-5">
-          <h3 className="font-medium text-sm mb-3">Recent Logs</h3>
-          <div className="space-y-2">
-            {recentLogs.map((l) => (
-              <div key={l.id} className="flex items-center justify-between text-sm py-1.5 border-b last:border-0">
-                <div>
-                  <span className="font-medium">{format(new Date(l.log_date), "MMM d")}</span>
-                  <span className="text-muted-foreground ml-2">{(l.projects as any)?.name || "No project"} · {l.category} · {l.hours}h</span>
+        <div>
+          <h2 className="text-lg font-semibold mb-3">Recent Logs</h2>
+          <Card>
+            <div className="divide-y">
+              {recentLogs.map((log: any) => (
+                <div key={log.id} className="p-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</p>
+                    <p className="text-xs text-muted-foreground">{log.projects?.name || "No project"} · {log.hours}h · {log.category}</p>
+                  </div>
+                  <Button variant="link" size="sm" className="text-xs" onClick={() => navigate("/logs/my")}>View</Button>
                 </div>
-                {!l.is_locked && <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => navigate("/logs/my")}>Edit</Button>}
-              </div>
-            ))}
-          </div>
-        </Card>
+              ))}
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );

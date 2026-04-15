@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight } from "lucide-react";
+import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
 
 export default function MyAttendancePage() {
@@ -23,7 +23,26 @@ export default function MyAttendancePage() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const today = new Date().toISOString().split("T")[0];
 
-  // Today's attendance
+  // Check for any open (unclosed) attendance session - not just today
+  const { data: openSession } = useQuery({
+    queryKey: ["attendance-open-session", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", user!.id)
+        .is("clock_out", null)
+        .not("clock_in", "is", null)
+        .order("clock_in", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id,
+    refetchInterval: 30000,
+  });
+
+  // Today's attendance (for calendar display)
   const { data: todayRecord } = useQuery({
     queryKey: ["attendance-today", user?.id],
     queryFn: async () => {
@@ -55,15 +74,15 @@ export default function MyAttendancePage() {
     enabled: !!user?.id,
   });
 
-  // Live timer
+  // Live timer based on open session
   useEffect(() => {
-    if (!todayRecord?.clock_in || todayRecord?.clock_out) return;
-    const start = new Date(todayRecord.clock_in).getTime();
+    if (!openSession?.clock_in) return;
+    const start = new Date(openSession.clock_in).getTime();
     const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [todayRecord]);
+  }, [openSession]);
 
   const formatDuration = (secs: number) => {
     const h = Math.floor(secs / 3600);
@@ -90,17 +109,18 @@ export default function MyAttendancePage() {
       toast.success("Clocked in successfully");
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
       queryClient.invalidateQueries({ queryKey: ["attendance-month"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance-open-session"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setLoading(false); }
   };
 
   const handleClockOut = async () => {
-    if (!todayRecord) return;
+    if (!openSession) return;
     setLoading(true);
     try {
       const { error } = await supabase.from("attendance")
         .update({ clock_out: new Date().toISOString() })
-        .eq("id", todayRecord.id);
+        .eq("id", openSession.id);
       if (error) throw error;
       await supabase.from("audit_logs").insert({
         actor_id: user!.id, action: "attendance.clock_out", target_entity: "attendance",
@@ -108,12 +128,15 @@ export default function MyAttendancePage() {
       toast.success("Clocked out successfully");
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
       queryClient.invalidateQueries({ queryKey: ["attendance-month"] });
+      queryClient.invalidateQueries({ queryKey: ["attendance-open-session"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setLoading(false); }
   };
 
-  const isClockedIn = !!todayRecord?.clock_in && !todayRecord?.clock_out;
-  const hasClockedOut = !!todayRecord?.clock_out;
+  const hasOpenSession = !!openSession?.clock_in && !openSession?.clock_out;
+  const isOpenSessionFromDifferentDay = hasOpenSession && openSession?.date !== today;
+  const todayCompleted = !!todayRecord?.clock_out;
+  const canClockIn = !hasOpenSession && !todayCompleted;
 
   // Calendar
   const days = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) });
@@ -140,10 +163,18 @@ export default function MyAttendancePage() {
         <div className="flex flex-col items-center gap-4">
           <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
 
-          {isClockedIn && (
+          {hasOpenSession && (
             <>
+              {isOpenSessionFromDifferentDay && (
+                <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 w-full max-w-md">
+                  <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
+                  <p className="text-sm text-yellow-800">
+                    You have an open session from <strong>{format(new Date(openSession!.clock_in!), "EEEE, MMM d 'at' h:mm a")}</strong>. Please clock out to close it.
+                  </p>
+                </div>
+              )}
               <div className="text-5xl font-mono font-bold text-foreground">{formatDuration(elapsed)}</div>
-              <Badge className="bg-green-100 text-green-800">Active Session · {todayRecord?.work_mode}</Badge>
+              <Badge className="bg-green-100 text-green-800">Active Session · {openSession?.work_mode}</Badge>
               <Button onClick={handleClockOut} disabled={loading} variant="destructive" size="lg" className="rounded-button">
                 <LogOut className="h-5 w-5 mr-2" />
                 Clock Out
@@ -151,7 +182,7 @@ export default function MyAttendancePage() {
             </>
           )}
 
-          {hasClockedOut && (
+          {!hasOpenSession && todayCompleted && (
             <div className="text-center space-y-2">
               <Badge className="bg-muted text-muted-foreground">Session Complete</Badge>
               <p className="text-sm text-muted-foreground">
@@ -162,7 +193,7 @@ export default function MyAttendancePage() {
             </div>
           )}
 
-          {!todayRecord && (
+          {canClockIn && (
             <>
               <Clock className="h-12 w-12 text-muted-foreground" />
               <div className="w-full max-w-xs space-y-3">

@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,7 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Download, Flag, ChevronDown, ChevronUp, Search } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, Flag, ChevronDown, ChevronUp, Search, Save } from "lucide-react";
 import { format, subDays } from "date-fns";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
@@ -37,6 +38,60 @@ export default function LogsAdminPage() {
   const [searchQ, setSearchQ] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
+
+  // Settings state for Log Rules
+  const [shiftStart, setShiftStart] = useState("09:00");
+  const [shiftEnd, setShiftEnd] = useState("18:00");
+  const [logEditDays, setLogEditDays] = useState("3");
+  const [missedLogTime, setMissedLogTime] = useState("19:00");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  // Load settings
+  const { data: settings } = useQuery({
+    queryKey: ["system-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("key, value");
+      const map: Record<string, string> = {};
+      (data || []).forEach((s) => { map[s.key] = s.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (settings) {
+      setShiftStart(settings["default_shift_start"] || "09:00");
+      setShiftEnd(settings["default_shift_end"] || "18:00");
+      setLogEditDays(settings["log_edit_window_days"] || "3");
+      setMissedLogTime(settings["missed_log_check_time"] || "19:00");
+    }
+  }, [settings]);
+
+  const handleSaveSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const entries = [
+        { key: "default_shift_start", value: shiftStart },
+        { key: "default_shift_end", value: shiftEnd },
+        { key: "log_edit_window_days", value: logEditDays },
+        { key: "missed_log_check_time", value: missedLogTime },
+      ];
+      for (const entry of entries) {
+        await supabase.from("system_settings").upsert(
+          { ...entry, updated_by: profile?.id },
+          { onConflict: "key" }
+        );
+      }
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "settings.shift_log_rules_updated",
+        target_entity: "system_settings",
+      });
+      queryClient.invalidateQueries({ queryKey: ["system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["system-setting-log-edit-days"] });
+      toast.success("Shift & Log Rules saved");
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSavingSettings(false); }
+  };
 
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["admin-logs", dateFrom, dateTo],
@@ -103,117 +158,159 @@ export default function LogsAdminPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">All Daily Logs</h1>
-        <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" />Export CSV</Button>
-      </div>
+      <h1 className="text-2xl font-bold tracking-tight">Daily Logs</h1>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search descriptions…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} className="pl-9" />
-        </div>
-        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
-        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
-        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Employee" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Employees</SelectItem>
-            {employees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Category" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="ontime">On Time</SelectItem>
-            <SelectItem value="late">Late</SelectItem>
-            <SelectItem value="missed">Missed</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      <Tabs defaultValue="logs">
+        <TabsList>
+          <TabsTrigger value="logs">All Logs</TabsTrigger>
+          {isAdmin && <TabsTrigger value="rules">Shift & Log Rules</TabsTrigger>}
+        </TabsList>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8"></TableHead>
-              <TableHead>Date</TableHead>
-              <TableHead>Employee</TableHead>
-              <TableHead>Project</TableHead>
-              <TableHead>Category</TableHead>
-              <TableHead>Hours</TableHead>
-              <TableHead>Description</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-8"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No logs found</TableCell></TableRow>
-            ) : (
-              filtered.map((log: any) => (
-                <>
-                  <TableRow key={log.id} className={`cursor-pointer ${log.is_missed ? "bg-red-50" : ""}`} onClick={() => { setExpandedId(expandedId === log.id ? null : log.id); setComment(log.admin_comment || ""); }}>
-                    <TableCell>{expandedId === log.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                    <TableCell>{format(new Date(log.log_date + "T00:00:00"), "MMM d")}</TableCell>
-                    <TableCell className="font-medium">{log.users?.full_name}</TableCell>
-                    <TableCell>{log.projects?.name || "—"}</TableCell>
-                    <TableCell>{log.category}</TableCell>
-                    <TableCell>{formatHours(log.hours)}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{log.description}</TableCell>
-                    <TableCell>
-                      {log.is_missed ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
-                       log.is_late ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
-                       <Badge className="bg-green-100 text-green-800">On Time</Badge>}
-                    </TableCell>
-                    <TableCell>{log.admin_flagged && <Flag className="h-4 w-4 text-destructive fill-destructive" />}</TableCell>
-                  </TableRow>
-                  {expandedId === log.id && (
-                    <TableRow key={`${log.id}-detail`}>
-                      <TableCell colSpan={9} className="bg-muted/50">
-                        <div className="p-3 space-y-3">
-                          <p className="text-sm">{log.description}</p>
-                          {isAdmin && (
-                            <>
-                              <div className="flex items-center gap-4">
-                                <div className="flex items-center gap-2">
-                                  <Label className="text-xs">Flag</Label>
-                                  <Switch checked={log.admin_flagged} onCheckedChange={() => toggleFlag(log)} />
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  <Label className="text-xs">Lock</Label>
-                                  <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <Label className="text-xs">Admin Comment</Label>
-                                <div className="flex gap-2">
-                                  <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1" />
-                                  <Button size="sm" onClick={() => saveComment(log.id)}>Save</Button>
-                                </div>
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+        <TabsContent value="logs" className="space-y-6">
+          <div className="flex items-center justify-end">
+            <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" />Export CSV</Button>
+          </div>
+
+          <div className="flex flex-wrap gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search descriptions…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} className="pl-9" />
+            </div>
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
+            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Employee" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Employees</SelectItem>
+                {employees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="ontime">On Time</SelectItem>
+                <SelectItem value="late">Late</SelectItem>
+                <SelectItem value="missed">Missed</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <Card>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Employee</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Category</TableHead>
+                  <TableHead>Hours</TableHead>
+                  <TableHead>Description</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="w-8"></TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No logs found</TableCell></TableRow>
+                ) : (
+                  filtered.map((log: any) => (
+                    <>
+                      <TableRow key={log.id} className={`cursor-pointer ${log.is_missed ? "bg-red-50" : ""}`} onClick={() => { setExpandedId(expandedId === log.id ? null : log.id); setComment(log.admin_comment || ""); }}>
+                        <TableCell>{expandedId === log.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                        <TableCell>{format(new Date(log.log_date + "T00:00:00"), "MMM d")}</TableCell>
+                        <TableCell className="font-medium">{log.users?.full_name}</TableCell>
+                        <TableCell>{log.projects?.name || "—"}</TableCell>
+                        <TableCell>{log.category}</TableCell>
+                        <TableCell>{formatHours(log.hours)}</TableCell>
+                        <TableCell className="max-w-[200px] truncate">{log.description}</TableCell>
+                        <TableCell>
+                          {log.is_missed ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
+                           log.is_late ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
+                           <Badge className="bg-green-100 text-green-800">On Time</Badge>}
+                        </TableCell>
+                        <TableCell>{log.admin_flagged && <Flag className="h-4 w-4 text-destructive fill-destructive" />}</TableCell>
+                      </TableRow>
+                      {expandedId === log.id && (
+                        <TableRow key={`${log.id}-detail`}>
+                          <TableCell colSpan={9} className="bg-muted/50">
+                            <div className="p-3 space-y-3">
+                              <p className="text-sm">{log.description}</p>
+                              {isAdmin && (
+                                <>
+                                  <div className="flex items-center gap-4">
+                                    <div className="flex items-center gap-2">
+                                      <Label className="text-xs">Flag</Label>
+                                      <Switch checked={log.admin_flagged} onCheckedChange={() => toggleFlag(log)} />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                      <Label className="text-xs">Lock</Label>
+                                      <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Admin Comment</Label>
+                                    <div className="flex gap-2">
+                                      <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1" />
+                                      <Button size="sm" onClick={() => saveComment(log.id)}>Save</Button>
+                                    </div>
+                                  </div>
+                                </>
+                              )}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="rules">
+            <Card className="p-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold">Shift & Log Rules</h3>
+                <Button onClick={handleSaveSettings} disabled={savingSettings} className="rounded-button">
+                  <Save className="h-4 w-4 mr-2" />{savingSettings ? "Saving…" : "Save Rules"}
+                </Button>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <Label>Default Shift Start</Label>
+                  <Input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Default Shift End</Label>
+                  <Input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Log Edit Window (days)</Label>
+                  <Input type="number" value={logEditDays} onChange={(e) => setLogEditDays(e.target.value)} min="1" max="30" />
+                  <p className="text-xs text-muted-foreground">Employees can submit logs for today and up to this many days in the past</p>
+                </div>
+                <div className="space-y-1">
+                  <Label>Missed Log Detection Time</Label>
+                  <Input type="time" value={missedLogTime} onChange={(e) => setMissedLogTime(e.target.value)} />
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

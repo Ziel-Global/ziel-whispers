@@ -7,10 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LeaveSettingsSection } from "@/components/settings/LeaveSettingsSection";
 import { Save } from "lucide-react";
 
 const TIMEZONES = [
@@ -25,7 +23,6 @@ export default function SettingsPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
-  
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["system-settings"],
@@ -70,7 +67,6 @@ export default function SettingsPage() {
     }
   };
 
-
   if (isLoading) {
     return (
       <div className="max-w-2xl mx-auto space-y-6">
@@ -89,87 +85,40 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <Tabs defaultValue="general">
-        <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="general">General</TabsTrigger>
-          <TabsTrigger value="shifts">Shift & Log Rules</TabsTrigger>
-          <TabsTrigger value="utilization">Utilization</TabsTrigger>
-          <TabsTrigger value="leave">Leave Policy</TabsTrigger>
-          
-        </TabsList>
+      <Card className="p-6 space-y-4">
+        <h3 className="font-semibold">General Settings</h3>
+        <div className="space-y-1">
+          <Label>App Name</Label>
+          <Input value={val("app_name", "Ziel Logs")} onChange={(e) => set("app_name", e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>System Timezone</Label>
+          <Select value={val("timezone", "UTC")} onValueChange={(v) => set("timezone", v)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TIMEZONES.map((tz) => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+      </Card>
 
-        <TabsContent value="general">
-          <Card className="p-6 space-y-4">
-            <h3 className="font-semibold">General Settings</h3>
-            <div className="space-y-1">
-              <Label>App Name</Label>
-              <Input value={val("app_name", "Ziel Logs")} onChange={(e) => set("app_name", e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>System Timezone</Label>
-              <Select value={val("timezone", "UTC")} onValueChange={(v) => set("timezone", v)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {TIMEZONES.map((tz) => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="shifts">
-          <Card className="p-6 space-y-4">
-            <h3 className="font-semibold">Shift & Log Rules</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Default Shift Start</Label>
-                <Input type="time" value={val("default_shift_start", "09:00")} onChange={(e) => set("default_shift_start", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Default Shift End</Label>
-                <Input type="time" value={val("default_shift_end", "18:00")} onChange={(e) => set("default_shift_end", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Grace Period (minutes)</Label>
-                <Input type="number" value={val("grace_period_minutes", "30")} onChange={(e) => set("grace_period_minutes", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Log Edit Window (hours)</Label>
-                <Input type="number" value={val("log_edit_window_hours", "24")} onChange={(e) => set("log_edit_window_hours", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Missed Log Detection Time</Label>
-                <Input type="time" value={val("missed_log_check_time", "19:00")} onChange={(e) => set("missed_log_check_time", e.target.value)} />
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="utilization">
-          <Card className="p-6 space-y-4">
-            <h3 className="font-semibold">Utilization Thresholds</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label>Underutilized Threshold (%)</Label>
-                <Input type="number" value={val("utilization_low", "70")} onChange={(e) => set("utilization_low", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Overburdened Threshold (%)</Label>
-                <Input type="number" value={val("utilization_high", "110")} onChange={(e) => set("utilization_high", e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label>Expected Daily Hours</Label>
-                <Input type="number" value={val("expected_daily_hours", "8")} onChange={(e) => set("expected_daily_hours", e.target.value)} />
-              </div>
-            </div>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="leave">
-          <LeaveSettingsSection />
-        </TabsContent>
-
-      </Tabs>
+      <Card className="p-6 space-y-4">
+        <h3 className="font-semibold">Utilization Thresholds</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label>Underutilized Threshold (%)</Label>
+            <Input type="number" value={val("utilization_low", "70")} onChange={(e) => set("utilization_low", e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Overburdened Threshold (%)</Label>
+            <Input type="number" value={val("utilization_high", "110")} onChange={(e) => set("utilization_high", e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Expected Daily Hours</Label>
+            <Input type="number" value={val("expected_daily_hours", "8")} onChange={(e) => set("expected_daily_hours", e.target.value)} />
+          </div>
+        </div>
+      </Card>
     </div>
   );
 }

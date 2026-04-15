@@ -15,32 +15,56 @@ import { Input } from "@/components/ui/input";
 import { Plus } from "lucide-react";
 import { format, differenceInBusinessDays } from "date-fns";
 
+const LEAVE_CATEGORIES = [
+  { value: "sick", label: "Sick Leave" },
+  { value: "personal", label: "Personal Leave" },
+  { value: "bereavement", label: "Bereavement" },
+  { value: "casual", label: "Casual Leave" },
+  { value: "other", label: "Other" },
+];
+
 export default function MyLeavePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const [applyOpen, setApplyOpen] = useState(false);
-  const [leaveTypeId, setLeaveTypeId] = useState("");
+  const [leaveCategory, setLeaveCategory] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [reason, setReason] = useState("");
+  const [otherReason, setOtherReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
   const today = new Date().toISOString().split("T")[0];
 
+  // Fetch leave types from DB for mapping
   const { data: leaveTypes = [] } = useQuery({
     queryKey: ["leave-types"],
     queryFn: async () => { const { data } = await supabase.from("leave_types").select("*").order("name"); return data || []; },
   });
 
-  const { data: balances = [] } = useQuery({
-    queryKey: ["my-leave-balances", user?.id],
+  // Fetch annual entitlement from system settings
+  const { data: annualEntitlement = 12 } = useQuery({
+    queryKey: ["system-setting-annual-leave"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("value").eq("key", "annual_leave_entitlement").maybeSingle();
+      return data ? Number(data.value) : 12;
+    },
+  });
+
+  // Fetch leave balance (single annual pool)
+  const { data: balance } = useQuery({
+    queryKey: ["my-leave-balance", user?.id],
     queryFn: async () => {
       const year = new Date().getFullYear();
-      const { data } = await supabase.from("leave_balances").select("*, leave_types(name)").eq("user_id", user!.id).eq("year", year);
-      return data || [];
+      const { data } = await supabase.from("leave_balances").select("*").eq("user_id", user!.id).eq("year", year).limit(1).maybeSingle();
+      return data;
     },
     enabled: !!user?.id,
   });
+
+  const totalDays = balance?.total_days ?? annualEntitlement;
+  const usedDays = balance?.used_days ?? 0;
+  const remainingDays = totalDays - usedDays;
 
   const { data: requests = [] } = useQuery({
     queryKey: ["my-leave-requests", user?.id],
@@ -56,24 +80,33 @@ export default function MyLeavePage() {
   const workingDays = startDate && endDate ? Math.max(1, differenceInBusinessDays(new Date(endDate), new Date(startDate)) + 1) : 0;
 
   const handleApply = async () => {
-    if (!leaveTypeId || !startDate || !endDate) { toast.error("Fill all required fields"); return; }
+    if (!leaveCategory || !startDate || !endDate) { toast.error("Fill all required fields"); return; }
     if (startDate < today) { toast.error("Start date cannot be in the past"); return; }
     if (endDate < startDate) { toast.error("End date must be on or after start date"); return; }
-    const balance = balances.find((b: any) => b.leave_type_id === leaveTypeId);
-    const remaining = balance ? balance.total_days - balance.used_days : 0;
-    if (workingDays > remaining) { toast.error(`Insufficient balance. You have ${remaining} days remaining.`); return; }
+    if (workingDays > remainingDays) { toast.error(`Insufficient balance. You have ${remainingDays} days remaining.`); return; }
+
+    // Find the first leave type in DB, or use the category name
+    const leaveType = leaveTypes.length > 0 ? leaveTypes[0] : null;
+    const finalReason = leaveCategory === "other"
+      ? `${LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label}: ${otherReason}`
+      : `${LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label}${reason ? ` - ${reason}` : ""}`;
 
     setSubmitting(true);
     try {
       const { error } = await supabase.from("leave_requests").insert({
-        user_id: user!.id, leave_type_id: leaveTypeId, start_date: startDate, end_date: endDate,
-        days_count: workingDays, reason: reason || null, status: "pending",
+        user_id: user!.id,
+        leave_type_id: leaveType?.id || null,
+        start_date: startDate,
+        end_date: endDate,
+        days_count: workingDays,
+        reason: finalReason || null,
+        status: "pending",
       });
       if (error) throw error;
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.requested", target_entity: "leave_requests" });
       toast.success("Leave request submitted");
       setApplyOpen(false);
-      setLeaveTypeId(""); setStartDate(""); setEndDate(""); setReason("");
+      setLeaveCategory(""); setStartDate(""); setEndDate(""); setReason(""); setOtherReason("");
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
       queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
     } catch (err: any) { toast.error(err.message); }
@@ -96,26 +129,18 @@ export default function MyLeavePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
+        <h1 className="text-2xl font-bold tracking-tight">My Leave</h1>
         <Button onClick={() => setApplyOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-2" />Apply for Leave</Button>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {balances.map((b: any) => {
-          const remaining = b.total_days - b.used_days;
-          return (
-            <Card key={b.id} className="p-4">
-              <p className="text-sm font-medium">{b.leave_types?.name}</p>
-              <div className="flex items-baseline gap-2 mt-1">
-                <span className={`text-2xl font-bold ${remaining <= 2 ? "text-destructive" : "text-foreground"}`}>{remaining}</span>
-                <span className="text-sm text-muted-foreground">/ {b.total_days} days</span>
-              </div>
-              <p className="text-xs text-muted-foreground mt-1">{b.used_days} used</p>
-            </Card>
-          );
-        })}
-        {balances.length === 0 && <p className="text-sm text-muted-foreground col-span-4">No leave balances configured. Contact your admin.</p>}
-      </div>
+      <Card className="p-4">
+        <p className="text-sm font-medium">Annual Leaves</p>
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className={`text-2xl font-bold ${remainingDays <= 2 ? "text-destructive" : "text-foreground"}`}>{remainingDays}</span>
+          <span className="text-sm text-muted-foreground">/ {totalDays} days remaining</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">{usedDays} used</p>
+      </Card>
 
       <div className="flex gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -140,7 +165,7 @@ export default function MyLeavePage() {
               <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No leave requests</TableCell></TableRow>
             ) : filteredRequests.map((r: any) => (
               <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.leave_types?.name}</TableCell>
+                <TableCell className="font-medium">{r.leave_types?.name || "Annual"}</TableCell>
                 <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                 <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                 <TableCell>{r.days_count}</TableCell>
@@ -162,11 +187,19 @@ export default function MyLeavePage() {
           <div className="space-y-4">
             <div className="space-y-1">
               <Label>Leave Type <span className="text-destructive">*</span></Label>
-              <Select value={leaveTypeId} onValueChange={setLeaveTypeId}>
+              <Select value={leaveCategory} onValueChange={setLeaveCategory}>
                 <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
-                <SelectContent>{leaveTypes.map((lt: any) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}</SelectContent>
+                <SelectContent>
+                  {LEAVE_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
+                </SelectContent>
               </Select>
             </div>
+            {leaveCategory === "other" && (
+              <div className="space-y-1">
+                <Label>Please specify <span className="text-destructive">*</span></Label>
+                <Input value={otherReason} onChange={(e) => setOtherReason(e.target.value)} placeholder="Reason for leave" />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Start Date <span className="text-destructive">*</span></Label>
@@ -177,9 +210,11 @@ export default function MyLeavePage() {
                 <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || today} />
               </div>
             </div>
-            {workingDays > 0 && <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""}</p>}
+            {workingDays > 0 && (
+              <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""} · {remainingDays} days remaining</p>
+            )}
             <div className="space-y-1">
-              <Label>Reason</Label>
+              <Label>Additional Notes</Label>
               <Textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optional" rows={2} />
             </div>
           </div>

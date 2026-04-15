@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -13,13 +14,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Save } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
+const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Other"];
 
 export default function LeaveAdminPage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
   const [deptFilter, setDeptFilter] = useState("all");
@@ -27,6 +29,45 @@ export default function LeaveAdminPage() {
   const [adminComment, setAdminComment] = useState("");
   const [processing, setProcessing] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
+
+  // Annual leave entitlement setting
+  const [annualEntitlement, setAnnualEntitlement] = useState("12");
+  const [savingEntitlement, setSavingEntitlement] = useState(false);
+
+  const { data: settings } = useQuery({
+    queryKey: ["system-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("key, value");
+      const map: Record<string, string> = {};
+      (data || []).forEach((s) => { map[s.key] = s.value; });
+      return map;
+    },
+  });
+
+  useEffect(() => {
+    if (settings?.annual_leave_entitlement) {
+      setAnnualEntitlement(settings.annual_leave_entitlement);
+    }
+  }, [settings]);
+
+  const handleSaveEntitlement = async () => {
+    setSavingEntitlement(true);
+    try {
+      await supabase.from("system_settings").upsert(
+        { key: "annual_leave_entitlement", value: annualEntitlement, updated_by: profile?.id },
+        { onConflict: "key" }
+      );
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "settings.leave_entitlement_updated",
+        target_entity: "system_settings",
+        metadata: { annual_leave_entitlement: annualEntitlement },
+      });
+      queryClient.invalidateQueries({ queryKey: ["system-settings"] });
+      toast.success("Annual leave entitlement updated");
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSavingEntitlement(false); }
+  };
 
   const { data: requests = [] } = useQuery({
     queryKey: ["admin-leave-requests"],
@@ -62,14 +103,17 @@ export default function LeaveAdminPage() {
       }).eq("id", request.id);
       if (error) throw error;
 
+      // Only update balance on approval (deduct from annual pool)
       if (type === "approve") {
+        const year = new Date().getFullYear();
+        // Find or create the user's annual leave balance
         const { data: balance } = await supabase
           .from("leave_balances")
           .select("*")
           .eq("user_id", request.user_id)
-          .eq("leave_type_id", request.leave_type_id)
-          .eq("year", new Date().getFullYear())
-          .single();
+          .eq("year", year)
+          .limit(1)
+          .maybeSingle();
         if (balance) {
           await supabase.from("leave_balances")
             .update({ used_days: balance.used_days + request.days_count })
@@ -118,7 +162,11 @@ export default function LeaveAdminPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
       <Tabs defaultValue="requests">
-        <TabsList><TabsTrigger value="requests">Requests</TabsTrigger><TabsTrigger value="calendar">Calendar</TabsTrigger></TabsList>
+        <TabsList>
+          <TabsTrigger value="requests">Requests</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          <TabsTrigger value="settings">Leave Settings</TabsTrigger>
+        </TabsList>
 
         <TabsContent value="requests" className="space-y-4">
           <div className="flex gap-3">
@@ -208,6 +256,31 @@ export default function LeaveAdminPage() {
                   </div>
                 );
               })}
+            </div>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+          <Card className="p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="font-semibold">Leave Configuration</h3>
+              <Button onClick={handleSaveEntitlement} disabled={savingEntitlement} className="rounded-button">
+                <Save className="h-4 w-4 mr-2" />{savingEntitlement ? "Saving…" : "Save"}
+              </Button>
+            </div>
+            <div className="space-y-1 max-w-xs">
+              <Label>Annual Leave Entitlement (days)</Label>
+              <Input type="number" value={annualEntitlement} onChange={(e) => setAnnualEntitlement(e.target.value)} min="0" max="365" />
+              <p className="text-xs text-muted-foreground">Total annual leave days each employee is entitled to per year. All leave types draw from this single pool.</p>
+            </div>
+            <div className="mt-4">
+              <Label className="text-sm font-medium">Leave Categories (for tracking)</Label>
+              <div className="flex flex-wrap gap-2 mt-2">
+                {LEAVE_CATEGORIES.map((c) => (
+                  <Badge key={c} variant="outline">{c}</Badge>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">These categories are fixed and used for tracking purposes only. All draw from the single annual pool.</p>
             </div>
           </Card>
         </TabsContent>

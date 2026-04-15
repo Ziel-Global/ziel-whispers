@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Pencil } from "lucide-react";
+import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
@@ -36,6 +36,21 @@ export default function AttendanceAdminPage() {
         .from("attendance")
         .select("*, users!attendance_user_id_fkey(full_name, department, email)")
         .eq("date", selectedDate)
+        .order("clock_in", { ascending: true });
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // Fetch all open sessions (no clock_out) across all days
+  const { data: openSessions = [] } = useQuery({
+    queryKey: ["admin-open-sessions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("attendance")
+        .select("*, users!attendance_user_id_fkey(full_name, department)")
+        .is("clock_out", null)
+        .not("clock_in", "is", null)
         .order("clock_in", { ascending: true });
       if (error) throw error;
       return data || [];
@@ -88,6 +103,7 @@ export default function AttendanceAdminPage() {
       toast.success("Attendance updated");
       setEditRecord(null);
       queryClient.invalidateQueries({ queryKey: ["admin-attendance"] });
+      queryClient.invalidateQueries({ queryKey: ["admin-open-sessions"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSaving(false); }
   };
@@ -109,12 +125,32 @@ export default function AttendanceAdminPage() {
     a.click();
   };
 
+  // Flag open sessions from previous days
+  const today = new Date().toISOString().split("T")[0];
+  const staleOpenSessions = openSessions.filter((s: any) => s.date < today);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Attendance Management</h1>
         <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" />Export CSV</Button>
       </div>
+
+      {staleOpenSessions.length > 0 && (
+        <Card className="p-4 border-yellow-200 bg-yellow-50/50">
+          <div className="flex items-center gap-2 mb-2">
+            <AlertTriangle className="h-4 w-4 text-yellow-600" />
+            <h3 className="text-sm font-medium text-yellow-800">Open Sessions</h3>
+          </div>
+          <div className="space-y-1">
+            {staleOpenSessions.map((s: any) => (
+              <p key={s.id} className="text-sm text-yellow-700">
+                <strong>{s.users?.full_name}</strong> — Open session since {format(new Date(s.clock_in), "MMM d 'at' h:mm a")}
+              </p>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <div className="flex gap-3">
         <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />

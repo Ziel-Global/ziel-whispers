@@ -6,6 +6,7 @@ import { toast } from "sonner";
 const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
 const ACTIVITY_KEY = "ziel_last_activity";
 const SESSION_ID_KEY = "ziel_session_id";
+const STATUS_CHECK_INTERVAL = 30000; // 30 seconds
 
 type UserProfile = {
   id: string;
@@ -43,6 +44,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const sessionIdRef = useRef<string | null>(null);
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const statusCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -58,9 +60,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const nextProfile = data as UserProfile | null;
+    
+    // Check if account is deactivated
+    if (nextProfile && nextProfile.status === "inactive") {
+      toast.error("Your account has been deactivated. Please contact your administrator.");
+      await supabase.auth.signOut();
+      setSession(null);
+      setProfile(null);
+      return null;
+    }
+
     setProfile(nextProfile);
     return nextProfile;
   };
+
+  // --- Periodic status check for deactivation ---
+  const startStatusCheck = useCallback((userId: string) => {
+    if (statusCheckRef.current) clearInterval(statusCheckRef.current);
+    statusCheckRef.current = setInterval(async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("status")
+        .eq("id", userId)
+        .maybeSingle();
+      if (data?.status === "inactive") {
+        toast.error("Your account has been deactivated. Please contact your administrator.");
+        await supabase.auth.signOut();
+        setSession(null);
+        setProfile(null);
+      }
+    }, STATUS_CHECK_INTERVAL);
+  }, []);
 
   // --- Inactivity timeout ---
   const resetInactivityTimer = useCallback(() => {
@@ -72,7 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, SESSION_TIMEOUT_MS);
   }, []);
 
-  // Check if session already expired on load / tab focus
   const checkInactivityExpiry = useCallback(async () => {
     const last = localStorage.getItem(ACTIVITY_KEY);
     if (last && Date.now() - Number(last) > SESSION_TIMEOUT_MS) {
@@ -83,18 +112,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   }, []);
 
-  // --- Cross-tab session detection via storage events ---
+  // --- Cross-tab session detection ---
   useEffect(() => {
     const handleStorage = async (e: StorageEvent) => {
-      // Another tab started a new session
       if (e.key === SESSION_ID_KEY && e.newValue && e.newValue !== sessionIdRef.current) {
         toast.info("You have been logged out because a new session was started");
         setSession(null);
         setProfile(null);
-        // Don't call signOut — the other tab owns the session
       }
-
-      // Another tab signed out (cleared the key)
       if (e.key === SESSION_ID_KEY && !e.newValue) {
         setSession(null);
         setProfile(null);
@@ -132,20 +157,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!nextSession?.user) {
         setProfile(null);
         setLoading(false);
+        if (statusCheckRef.current) clearInterval(statusCheckRef.current);
         return;
       }
 
-      // Mark this tab's session id
       const newSid = nextSession.access_token.slice(-16);
       sessionIdRef.current = newSid;
       localStorage.setItem(SESSION_ID_KEY, newSid);
 
-      // Check inactivity
       const expired = await checkInactivityExpiry();
       if (expired) { setLoading(false); return; }
 
       try {
-        await fetchProfile(nextSession.user.id);
+        const prof = await fetchProfile(nextSession.user.id);
+        if (prof) {
+          startStatusCheck(nextSession.user.id);
+        }
       } finally {
         if (isMounted) setLoading(false);
       }
@@ -159,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           localStorage.removeItem(SESSION_ID_KEY);
           localStorage.removeItem(ACTIVITY_KEY);
+          if (statusCheckRef.current) clearInterval(statusCheckRef.current);
           return;
         }
         setLoading(true);
@@ -173,6 +201,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
       subscription.unsubscribe();
+      if (statusCheckRef.current) clearInterval(statusCheckRef.current);
     };
   }, []);
 
@@ -188,6 +217,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem(SESSION_ID_KEY);
     localStorage.removeItem(ACTIVITY_KEY);
+    if (statusCheckRef.current) clearInterval(statusCheckRef.current);
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);

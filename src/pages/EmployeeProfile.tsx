@@ -15,11 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Shield, ShieldOff, Eye } from "lucide-react";
+import { ArrowLeft, Shield, ShieldOff } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { LeaveBalancesTab } from "@/components/employees/LeaveBalancesTab";
-import { useImpersonation } from "@/contexts/ImpersonationContext";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
@@ -45,7 +43,6 @@ export default function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
-  const { startImpersonation } = useImpersonation();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
@@ -54,7 +51,6 @@ export default function EmployeeProfilePage() {
   const [pendingEmail, setPendingEmail] = useState("");
 
   const isAdmin = myProfile?.role === "admin";
-  const isManager = myProfile?.role === "manager";
   const isOwnProfile = myProfile?.id === id;
 
   const { data: employee, isLoading } = useQuery({
@@ -88,7 +84,6 @@ export default function EmployeeProfilePage() {
 
   const onSubmit = async (data: z.infer<typeof adminSchema>) => {
     if (!employee) return;
-    // Check if email changed
     if (data.email !== employee.email) {
       setPendingEmail(data.email);
       setEmailWarningOpen(true);
@@ -151,7 +146,6 @@ export default function EmployeeProfilePage() {
       const res = result as { error?: string };
       if (res.error) throw new Error(res.error);
 
-      // Save other fields too
       const formData = form.getValues();
       formData.email = pendingEmail;
       await saveProfile(formData);
@@ -230,31 +224,8 @@ export default function EmployeeProfilePage() {
             </div>
           </div>
         </div>
-        {isAdmin && (
+        {isAdmin && !isOwnProfile && (
           <div className="flex gap-2">
-            {!isOwnProfile && (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  startImpersonation({
-                    id: employee.id,
-                    name: employee.full_name,
-                    role: employee.role,
-                    department: employee.department,
-                  });
-                  await supabase.from("audit_logs").insert({
-                    actor_id: myProfile?.id,
-                    action: "impersonation.started",
-                    target_entity: "users",
-                    target_id: employee.id,
-                  });
-                  navigate("/");
-                }}
-              >
-                <Eye className="h-4 w-4 mr-2" />View As
-              </Button>
-            )}
             {employee.status === "active" || employee.status === "pending" ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -267,7 +238,7 @@ export default function EmployeeProfilePage() {
                   <AlertDialogHeader>
                     <AlertDialogTitle>Deactivate Employee?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will immediately revoke their system access. All historical data is preserved. Are you sure?
+                      This will immediately revoke their system access and force logout. All historical data is preserved.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
                   <AlertDialogFooter>
@@ -367,15 +338,17 @@ export default function EmployeeProfilePage() {
               )} />
               <FormField control={form.control} name="shift_start" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Shift Start</FormLabel>
+                  <FormLabel>Shift Start (Override)</FormLabel>
                   <FormControl><Input {...field} type="time" disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="shift_end" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Shift End</FormLabel>
+                  <FormLabel>Shift End (Override)</FormLabel>
                   <FormControl><Input {...field} type="time" disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -408,7 +381,6 @@ export default function EmployeeProfilePage() {
         </Form>
       </Card>
 
-      {/* D3 — Leave Balances (Admin only) */}
       {isAdmin && <LeaveBalancesTab employeeId={employee.id} />}
 
       <Dialog open={emailWarningOpen} onOpenChange={setEmailWarningOpen}>

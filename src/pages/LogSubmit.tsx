@@ -24,23 +24,11 @@ function getTodayStr() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-function getMinDateStr() {
+function getMinDateStr(days: number) {
   const d = new Date();
-  d.setDate(d.getDate() - 3);
+  d.setDate(d.getDate() - days);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
-
-const schema = z.object({
-  project_id: z.string().optional(),
-  category: z.string().min(1, "Category is required"),
-  hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
-  description: z.string().min(20, "Min 20 characters"),
-  log_date: z.string().min(1, "Date is required").refine((v) => {
-    const today = getTodayStr();
-    const minDate = getMinDateStr();
-    return v >= minDate && v <= today;
-  }, "You can only submit logs for today or up to 3 days in the past"),
-});
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -55,7 +43,27 @@ export default function LogSubmitPage() {
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
   const today = getTodayStr();
-  const threeDaysAgo = getMinDateStr();
+
+  // Fetch configurable log edit window (in days)
+  const { data: logEditDays = 3 } = useQuery({
+    queryKey: ["system-setting-log-edit-days"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("value").eq("key", "log_edit_window_days").maybeSingle();
+      return data ? Number(data.value) : 3;
+    },
+  });
+
+  const minDate = getMinDateStr(logEditDays);
+
+  const schema = z.object({
+    project_id: z.string().optional(),
+    category: z.string().min(1, "Category is required"),
+    hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
+    description: z.string().min(20, "Min 20 characters"),
+    log_date: z.string().min(1, "Date is required").refine((v) => {
+      return v >= minDate && v <= today;
+    }, `You can only submit logs for today or up to ${logEditDays} days in the past`),
+  });
 
   const { data: projects = [] } = useQuery({
     queryKey: ["my-projects", user?.id],
@@ -96,11 +104,12 @@ export default function LogSubmitPage() {
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSubmitting(true);
     try {
+      // Fetch resolved shift end for the user
       const shiftEnd = (profile as any)?.shift_end || "18:00";
       const now = new Date();
       const [h, m] = shiftEnd.split(":").map(Number);
       const shiftEndTime = new Date();
-      shiftEndTime.setHours(h, m + 30, 0);
+      shiftEndTime.setHours(h, m, 0);
       const isLate = data.log_date === today && now > shiftEndTime;
       const isPastDate = data.log_date < today;
 
@@ -141,6 +150,10 @@ export default function LogSubmitPage() {
         <h1 className="text-2xl font-bold tracking-tight">Submit Daily Log</h1>
         <p className="text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
       </div>
+
+      <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
+        You can submit logs for the past {logEditDays} days only.
+      </p>
 
       <Card className="p-6">
         <Form {...form}>
@@ -183,7 +196,7 @@ export default function LogSubmitPage() {
               <FormField control={form.control} name="log_date" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Date <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input type="date" {...field} min={threeDaysAgo} max={today} /></FormControl>
+                  <FormControl><Input type="date" {...field} min={minDate} max={today} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />

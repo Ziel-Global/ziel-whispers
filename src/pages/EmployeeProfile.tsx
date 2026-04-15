@@ -78,6 +78,7 @@ export default function EmployeeProfilePage() {
       shift_start: employee.shift_start,
       shift_end: employee.shift_end,
       reminder_offset_minutes: employee.reminder_offset_minutes,
+      is_night_shift: (employee as any).is_night_shift ?? false,
     } : undefined,
   });
 
@@ -108,7 +109,8 @@ export default function EmployeeProfilePage() {
         shift_start: data.shift_start,
         shift_end: data.shift_end,
         reminder_offset_minutes: data.reminder_offset_minutes,
-      }).eq("id", employee.id);
+        is_night_shift: data.is_night_shift,
+      } as any).eq("id", employee.id);
 
       if (error) throw error;
 

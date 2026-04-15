@@ -92,6 +92,25 @@ export default function LeaveAdminPage() {
     const { type, request } = actionModal;
     if (type === "reject" && !adminComment.trim()) { toast.error("Rejection reason is required"); return; }
 
+    // Check entitlement on approval
+    if (type === "approve") {
+      const year = new Date().getFullYear();
+      const entitlementVal = Number(annualEntitlement) || 12;
+      const { data: approvedReqs } = await supabase
+        .from("leave_requests")
+        .select("days_count")
+        .eq("user_id", request.user_id)
+        .eq("status", "approved")
+        .gte("start_date", `${year}-01-01`)
+        .lte("start_date", `${year}-12-31`);
+      const usedDays = (approvedReqs || []).reduce((s: number, r: any) => s + r.days_count, 0);
+      if (usedDays + request.days_count > entitlementVal) {
+        toast.error(`Cannot approve — employee would exceed annual entitlement (${usedDays} used + ${request.days_count} requested > ${entitlementVal} allowed)`);
+        setProcessing(false);
+        return;
+      }
+    }
+
     setProcessing(true);
     try {
       const newStatus = type === "approve" ? "approved" : "rejected";
@@ -102,24 +121,6 @@ export default function LeaveAdminPage() {
         reviewed_at: new Date().toISOString(),
       }).eq("id", request.id);
       if (error) throw error;
-
-      // Only update balance on approval (deduct from annual pool)
-      if (type === "approve") {
-        const year = new Date().getFullYear();
-        // Find or create the user's annual leave balance
-        const { data: balance } = await supabase
-          .from("leave_balances")
-          .select("*")
-          .eq("user_id", request.user_id)
-          .eq("year", year)
-          .limit(1)
-          .maybeSingle();
-        if (balance) {
-          await supabase.from("leave_balances")
-            .update({ used_days: balance.used_days + request.days_count })
-            .eq("id", balance.id);
-        }
-      }
 
       await supabase.from("audit_logs").insert({
         actor_id: user!.id,

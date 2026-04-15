@@ -369,11 +369,25 @@ export default function EmployeeProfilePage() {
               )} />
             </div>
 
+            {canEdit && (
+              <FormField control={form.control} name="is_night_shift" render={({ field }) => (
+                <FormItem className="flex items-center gap-3 space-y-0">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
+                  </FormControl>
+                  <div>
+                    <FormLabel className="text-sm font-medium">Night Shift Employee</FormLabel>
+                    <p className="text-xs text-muted-foreground">Skip automatic midnight clock-out for this employee</p>
+                  </div>
+                </FormItem>
+              )} />
+            )}
+
             {!canEdit && !isOwnProfile && (
               <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change profile details.</p>
             )}
 
-            {(canEdit || isOwnProfile) && (
+            {canEdit && (
               <div className="flex justify-end">
                 <Button type="submit" disabled={saving} className="rounded-button">
                   {saving ? "Saving…" : "Save Changes"}

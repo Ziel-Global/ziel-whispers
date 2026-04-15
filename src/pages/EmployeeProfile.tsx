@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ArrowLeft, Shield, ShieldOff } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { Checkbox } from "@/components/ui/checkbox";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
@@ -36,6 +37,7 @@ const adminSchema = z.object({
   shift_start: z.string(),
   shift_end: z.string(),
   reminder_offset_minutes: z.number(),
+  is_night_shift: z.boolean(),
 });
 
 export default function EmployeeProfilePage() {
@@ -76,6 +78,7 @@ export default function EmployeeProfilePage() {
       shift_start: employee.shift_start,
       shift_end: employee.shift_end,
       reminder_offset_minutes: employee.reminder_offset_minutes,
+      is_night_shift: (employee as any).is_night_shift ?? false,
     } : undefined,
   });
 
@@ -106,7 +109,8 @@ export default function EmployeeProfilePage() {
         shift_start: data.shift_start,
         shift_end: data.shift_end,
         reminder_offset_minutes: data.reminder_offset_minutes,
-      }).eq("id", employee.id);
+        is_night_shift: data.is_night_shift,
+      } as any).eq("id", employee.id);
 
       if (error) throw error;
 
@@ -281,7 +285,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="phone" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Phone</FormLabel>
-                  <FormControl><Input {...field} disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -338,7 +342,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="shift_start" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Shift Start (Override)</FormLabel>
-                  <FormControl><Input {...field} type="time" disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
                   <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
                   <FormMessage />
                 </FormItem>
@@ -346,7 +350,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="shift_end" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Shift End (Override)</FormLabel>
-                  <FormControl><Input {...field} type="time" disabled={!canEdit && !isOwnProfile} /></FormControl>
+                  <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
                   <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
                   <FormMessage />
                 </FormItem>
@@ -354,7 +358,7 @@ export default function EmployeeProfilePage() {
               <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Reminder Offset</FormLabel>
-                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit && !isOwnProfile}>
+                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
                     <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
                     <SelectContent>
                       {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}
@@ -365,11 +369,25 @@ export default function EmployeeProfilePage() {
               )} />
             </div>
 
+            {canEdit && (
+              <FormField control={form.control} name="is_night_shift" render={({ field }) => (
+                <FormItem className="flex items-center gap-3 space-y-0">
+                  <FormControl>
+                    <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
+                  </FormControl>
+                  <div>
+                    <FormLabel className="text-sm font-medium">Night Shift Employee</FormLabel>
+                    <p className="text-xs text-muted-foreground">Skip automatic midnight clock-out for this employee</p>
+                  </div>
+                </FormItem>
+              )} />
+            )}
+
             {!canEdit && !isOwnProfile && (
               <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change profile details.</p>
             )}
 
-            {(canEdit || isOwnProfile) && (
+            {canEdit && (
               <div className="flex justify-end">
                 <Button type="submit" disabled={saving} className="rounded-button">
                   {saving ? "Saving…" : "Save Changes"}

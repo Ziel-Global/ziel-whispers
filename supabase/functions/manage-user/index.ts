@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function jsonResponse(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -13,35 +20,27 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing authorization" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing authorization" }, 401);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!;
 
-    const callerClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!, {
+    const callerClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
     const { data: roleData } = await callerClient.rpc("get_my_role");
     if (roleData !== "admin") {
-      return new Response(JSON.stringify({ error: "Only admins can manage users" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Only admins can manage users" }, 403);
     }
 
     const body = await req.json();
     const { action, user_id } = body;
 
     if (!action || !user_id) {
-      return new Response(JSON.stringify({ error: "Missing action or user_id" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Missing action or user_id" }, 400);
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -51,19 +50,13 @@ Deno.serve(async (req) => {
     const callerId = (await callerClient.auth.getUser()).data.user?.id;
 
     if (action === "deactivate") {
-      // Update user status
       const { error: updateError } = await adminClient.from("users").update({ status: "inactive" }).eq("id", user_id);
       if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: updateError.message }, 400);
       }
 
-      // Ban the auth user (prevents sign-in)
-      await adminClient.auth.admin.updateUserById(user_id, { ban_duration: "876600h" }); // ~100 years
+      await adminClient.auth.admin.updateUserById(user_id, { ban_duration: "876600h" });
 
-      // Audit log
       await adminClient.from("audit_logs").insert({
         actor_id: callerId,
         action: "user.deactivated",
@@ -71,22 +64,15 @@ Deno.serve(async (req) => {
         target_id: user_id,
       });
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
     if (action === "reactivate") {
       const { error: updateError } = await adminClient.from("users").update({ status: "active" }).eq("id", user_id);
       if (updateError) {
-        return new Response(JSON.stringify({ error: updateError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: updateError.message }, 400);
       }
 
-      // Unban the auth user
       await adminClient.auth.admin.updateUserById(user_id, { ban_duration: "none" });
 
       await adminClient.from("audit_logs").insert({
@@ -96,35 +82,23 @@ Deno.serve(async (req) => {
         target_id: user_id,
       });
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
     if (action === "update_email") {
       const { new_email } = body;
       if (!new_email) {
-        return new Response(JSON.stringify({ error: "Missing new_email" }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Missing new_email" }, 400);
       }
 
       const { error: authError } = await adminClient.auth.admin.updateUserById(user_id, { email: new_email });
       if (authError) {
-        return new Response(JSON.stringify({ error: authError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: authError.message }, 400);
       }
 
       const { error: dbError } = await adminClient.from("users").update({ email: new_email }).eq("id", user_id);
       if (dbError) {
-        return new Response(JSON.stringify({ error: dbError.message }), {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: dbError.message }, 400);
       }
 
       await adminClient.from("audit_logs").insert({
@@ -135,20 +109,12 @@ Deno.serve(async (req) => {
         metadata: { new_email },
       });
 
-      return new Response(JSON.stringify({ success: true }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ success: true });
     }
 
-    return new Response(JSON.stringify({ error: "Unknown action" }), {
-      status: 400,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: "Unknown action" }, 400);
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("manage-user error:", err);
+    return jsonResponse({ error: err.message }, 500);
   }
 });

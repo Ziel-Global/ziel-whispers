@@ -19,18 +19,26 @@ import { format } from "date-fns";
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
 const NO_PROJECT = "__none__";
 
+function getTodayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function getMinDateStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 3);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 const schema = z.object({
   project_id: z.string().optional(),
   category: z.string().min(1, "Category is required"),
   hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
   description: z.string().min(20, "Min 20 characters"),
   log_date: z.string().min(1, "Date is required").refine((v) => {
-    const d = new Date(v);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const minDate = new Date(today);
-    minDate.setDate(minDate.getDate() - 3);
-    return d >= minDate && d <= today;
+    const today = getTodayStr();
+    const minDate = getMinDateStr();
+    return v >= minDate && v <= today;
   }, "You can only submit logs for today or up to 3 days in the past"),
 });
 
@@ -46,8 +54,8 @@ export default function LogSubmitPage() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [submitting, setSubmitting] = useState(false);
-  const today = new Date().toISOString().split("T")[0];
-  const threeDaysAgo = new Date(Date.now() - 3 * 86400000).toISOString().split("T")[0];
+  const today = getTodayStr();
+  const threeDaysAgo = getMinDateStr();
 
   const { data: projects = [] } = useQuery({
     queryKey: ["my-projects", user?.id],
@@ -127,18 +135,11 @@ export default function LogSubmitPage() {
     queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
   };
 
-  const submitted = todayLogs.length > 0;
-
   return (
     <div className="max-w-2xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Submit Daily Log</h1>
-          <p className="text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
-        </div>
-        <Badge className={submitted ? "bg-green-100 text-green-800" : "bg-red-100 text-red-700"}>
-          {submitted ? "Submitted" : "Not submitted yet"}
-        </Badge>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight">Submit Daily Log</h1>
+        <p className="text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
       </div>
 
       <Card className="p-6">

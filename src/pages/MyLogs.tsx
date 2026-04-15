@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock } from "lucide-react";
+import { Lock, MessageSquare } from "lucide-react";
 import { format, subDays } from "date-fns";
 
 function formatHours(h: number) {
@@ -58,7 +58,6 @@ export default function MyLogsPage() {
     enabled: !!user?.id,
   });
 
-  // Group by date
   const grouped = logs.reduce((acc: Record<string, any[]>, log: any) => {
     if (!acc[log.log_date]) acc[log.log_date] = [];
     acc[log.log_date].push(log);
@@ -117,6 +116,15 @@ export default function MyLogsPage() {
                           {log.is_locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
                         </div>
                         <p className="text-sm text-muted-foreground">{log.description}</p>
+                        {log.admin_comment && (
+                          <div className="mt-2 flex items-start gap-2 bg-accent/50 border border-border rounded-md p-2.5">
+                            <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                            <div>
+                              <span className="text-xs font-semibold text-primary">Admin Feedback:</span>
+                              <p className="text-sm text-foreground">{log.admin_comment}</p>
+                            </div>
+                          </div>
+                        )}
                         <p className="text-xs text-muted-foreground">Submitted {format(new Date(log.submitted_at), "h:mm a")}</p>
                       </div>
                     </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,11 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Plus, Save } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { Plus, Save, Trash2 } from "lucide-react";
 
 type Props = { employeeId: string };
 
 export function LeaveBalancesTab({ employeeId }: Props) {
+  const { profile } = useAuth();
   const queryClient = useQueryClient();
   const year = new Date().getFullYear();
   const [addTypeId, setAddTypeId] = useState("");
@@ -38,6 +41,14 @@ export function LeaveBalancesTab({ employeeId }: Props) {
     },
   });
 
+  const { data: employee } = useQuery({
+    queryKey: ["employee-name", employeeId],
+    queryFn: async () => {
+      const { data } = await supabase.from("users").select("full_name").eq("id", employeeId).single();
+      return data;
+    },
+  });
+
   const existingTypeIds = balances.map((b: any) => b.leave_type_id);
   const availableTypes = leaveTypes.filter((lt: any) => !existingTypeIds.includes(lt.id));
 
@@ -45,6 +56,25 @@ export function LeaveBalancesTab({ employeeId }: Props) {
     const { error } = await supabase.from("leave_balances").update({ total_days: totalDays }).eq("id", balanceId);
     if (error) { toast.error(error.message); return; }
     toast.success("Balance updated");
+    queryClient.invalidateQueries({ queryKey: ["employee-leave-balances"] });
+  };
+
+  const deleteBalance = async (balance: any) => {
+    const { error } = await supabase.from("leave_balances").delete().eq("id", balance.id);
+    if (error) { toast.error(error.message); return; }
+
+    await supabase.from("audit_logs").insert({
+      actor_id: profile?.id,
+      action: "leave_balance.deleted",
+      target_entity: "leave_balances",
+      target_id: balance.id,
+      metadata: {
+        employee_name: employee?.full_name || "Unknown",
+        leave_type: balance.leave_types?.name || "Unknown",
+      },
+    });
+
+    toast.success("Leave balance deleted");
     queryClient.invalidateQueries({ queryKey: ["employee-leave-balances"] });
   };
 
@@ -82,7 +112,7 @@ export function LeaveBalancesTab({ employeeId }: Props) {
             <TableRow><TableCell colSpan={5} className="text-center py-4 text-muted-foreground">No balances configured</TableCell></TableRow>
           ) : (
             balances.map((b: any) => (
-              <EditableBalanceRow key={b.id} balance={b} onSave={updateDays} />
+              <EditableBalanceRow key={b.id} balance={b} onSave={updateDays} onDelete={deleteBalance} />
             ))
           )}
         </TableBody>
@@ -110,7 +140,7 @@ export function LeaveBalancesTab({ employeeId }: Props) {
   );
 }
 
-function EditableBalanceRow({ balance, onSave }: { balance: any; onSave: (id: string, days: number) => void }) {
+function EditableBalanceRow({ balance, onSave, onDelete }: { balance: any; onSave: (id: string, days: number) => void; onDelete: (balance: any) => void }) {
   const [days, setDays] = useState(balance.total_days);
   const changed = days !== balance.total_days;
 
@@ -123,7 +153,26 @@ function EditableBalanceRow({ balance, onSave }: { balance: any; onSave: (id: st
       <TableCell>{balance.used_days}</TableCell>
       <TableCell>{days - balance.used_days}</TableCell>
       <TableCell className="text-right">
-        {changed && <Button size="sm" variant="ghost" onClick={() => onSave(balance.id, days)}><Save className="h-4 w-4" /></Button>}
+        <div className="flex items-center justify-end gap-1">
+          {changed && <Button size="sm" variant="ghost" onClick={() => onSave(balance.id, days)}><Save className="h-4 w-4" /></Button>}
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="ghost"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Delete Leave Balance?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Are you sure you want to delete this leave balance? This cannot be undone.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => onDelete(balance)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
       </TableCell>
     </TableRow>
   );

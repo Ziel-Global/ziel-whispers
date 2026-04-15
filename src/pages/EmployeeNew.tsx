@@ -67,7 +67,7 @@ export default function EmployeeNewPage() {
       }
 
       toast.success(`Employee created successfully.`);
-      navigate("/employees");
+      navigate(`/employees/${res.user_id}`);
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }
   };

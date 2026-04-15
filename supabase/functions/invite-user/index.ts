@@ -70,33 +70,32 @@ Deno.serve(async (req) => {
     const userId = authData.user.id;
     const callerId = (await callerClient.auth.getUser()).data.user?.id;
 
-    // 2. Check if user row already exists
-    const { data: existingUser } = await adminClient.from("users").select("id").eq("id", userId).maybeSingle();
+    // 2. Upsert user row — the handle_new_user trigger may have already created a row
+    // with default values, so we always update to ensure the admin-entered values are saved.
+    const profileData = {
+      id: userId,
+      email,
+      full_name,
+      department,
+      designation,
+      employment_type,
+      join_date,
+      role: role || "employee",
+      phone: phone || null,
+      shift_start: shift_start || "09:00",
+      shift_end: shift_end || "18:00",
+      reminder_offset_minutes: reminder_offset_minutes || 30,
+      must_change_password: true,
+      status: "active",
+      created_by: callerId,
+    };
 
-    if (!existingUser) {
-      const { error: profileError } = await adminClient.from("users").insert({
-        id: userId,
-        email,
-        full_name,
-        department,
-        designation,
-        employment_type,
-        join_date,
-        role: role || "employee",
-        phone: phone || null,
-        shift_start: shift_start || "09:00",
-        shift_end: shift_end || "18:00",
-        reminder_offset_minutes: reminder_offset_minutes || 30,
-        must_change_password: true,
-        status: "active",
-        created_by: callerId,
-      });
+    const { error: upsertError } = await adminClient.from("users").upsert(profileData, { onConflict: "id" });
 
-      if (profileError) {
-        console.error("Profile insert error:", profileError.message);
-        await adminClient.auth.admin.deleteUser(userId);
-        return jsonResponse({ ok: false, error: profileError.message });
-      }
+    if (upsertError) {
+      console.error("Profile upsert error:", upsertError.message);
+      await adminClient.auth.admin.deleteUser(userId);
+      return jsonResponse({ ok: false, error: upsertError.message });
     }
 
     // 3. Audit log
@@ -107,8 +106,6 @@ Deno.serve(async (req) => {
       target_id: userId,
       metadata: { email, full_name, role: role || "employee" },
     });
-
-    // No invite email sent — account is created directly with password set by admin
 
     return jsonResponse({ ok: true, user_id: userId, email });
   } catch (err) {

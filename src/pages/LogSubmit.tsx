@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Trash2 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -44,6 +45,7 @@ export default function LogSubmitPage() {
   const queryClient = useQueryClient();
   const { shiftEnd: resolvedShiftEnd } = useWorkSettings();
   const [submitting, setSubmitting] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const today = getTodayStr();
 
   // Fetch configurable log edit window (in days)
@@ -106,7 +108,6 @@ export default function LogSubmitPage() {
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSubmitting(true);
     try {
-      // Use resolved shift end from global/custom settings
       const now = new Date();
       const [h, m] = resolvedShiftEnd.split(":").map(Number);
       const shiftEndTime = new Date();
@@ -141,7 +142,8 @@ export default function LogSubmitPage() {
   const deleteLog = async (id: string) => {
     const { error } = await supabase.from("daily_logs").delete().eq("id", id);
     if (error) { toast.error(error.message); return; }
-    toast.success("Log deleted");
+    toast.success("Log entry deleted.");
+    setDeleteConfirmId(null);
     queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
   };
 
@@ -237,13 +239,36 @@ export default function LogSubmitPage() {
                   <p className="text-sm text-muted-foreground">{log.description}</p>
                 </div>
                 {!log.is_locked && (
-                  <Button variant="ghost" size="icon" onClick={() => deleteLog(log.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmId(log.id)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
                 )}
               </div>
             ))}
           </div>
         </Card>
       )}
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to delete this log?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action is permanent and cannot be undone. This log entry will be removed from your record.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteConfirmId && deleteLog(deleteConfirmId)}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Yes, Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

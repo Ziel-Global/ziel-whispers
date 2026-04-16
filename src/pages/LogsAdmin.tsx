@@ -14,9 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Flag, ChevronDown, ChevronUp, Search, Save } from "lucide-react";
-import { format, subDays } from "date-fns";
-
-const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
+import { format } from "date-fns";
+import { formatShiftTime } from "@/hooks/useWorkSettings";
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -26,17 +25,22 @@ function formatHours(h: number) {
   return `${hrs}h ${mins}m`;
 }
 
+function getShiftHours(shiftStart: string, shiftEnd: string): number {
+  const [sh, sm] = shiftStart.split(":").map(Number);
+  const [eh, em] = shiftEnd.split(":").map(Number);
+  return (eh * 60 + em - sh * 60 - sm) / 60;
+}
+
 export default function LogsAdminPage() {
   const { user: _user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
-  const [dateFrom, setDateFrom] = useState(format(subDays(new Date(), 7), "yyyy-MM-dd"));
-  const [dateTo, setDateTo] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [employeeFilter, setEmployeeFilter] = useState("all");
-  const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQ, setSearchQ] = useState("");
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
 
   // Settings state for Log Rules
@@ -66,6 +70,9 @@ export default function LogsAdminPage() {
     }
   }, [settings]);
 
+  const globalShiftStart = settings?.default_shift_start || "09:00";
+  const globalShiftEnd = settings?.default_shift_end || "18:00";
+
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
@@ -93,40 +100,86 @@ export default function LogsAdminPage() {
     finally { setSavingSettings(false); }
   };
 
+  // Fetch logs for selected date
   const { data: logs = [], isLoading } = useQuery({
-    queryKey: ["admin-logs", dateFrom, dateTo],
+    queryKey: ["admin-logs", selectedDate],
     queryFn: async () => {
       const { data } = await supabase
         .from("daily_logs")
-        .select("*, users!daily_logs_user_id_fkey(full_name, email), projects(name)")
-        .gte("log_date", dateFrom)
-        .lte("log_date", dateTo)
-        .order("log_date", { ascending: false })
+        .select("*, users!daily_logs_user_id_fkey(full_name, email, shift_start, shift_end, has_custom_shift), projects(name)")
+        .eq("log_date", selectedDate)
         .order("submitted_at", { ascending: false });
       return data || [];
     },
   });
 
+  // Fetch all active employees
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name").eq("status", "active");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift").eq("status", "active");
       return data || [];
     },
   });
 
-  const filtered = useMemo(() => {
-    return logs.filter((l: any) => {
-      const matchEmp = employeeFilter === "all" || l.user_id === employeeFilter;
-      const matchCat = categoryFilter === "all" || l.category === categoryFilter;
-      const matchStatus = statusFilter === "all" ||
-        (statusFilter === "late" && l.is_late) ||
-        (statusFilter === "ontime" && !l.is_late && !l.is_missed) ||
-        (statusFilter === "missed" && l.is_missed);
-      const matchSearch = !searchQ || l.description?.toLowerCase().includes(searchQ.toLowerCase());
-      return matchEmp && matchCat && matchStatus && matchSearch;
+  // Fetch attendance for the selected date
+  const { data: attendanceRecords = [] } = useQuery({
+    queryKey: ["admin-attendance-for-logs", selectedDate],
+    queryFn: async () => {
+      const { data } = await supabase.from("attendance").select("user_id, clock_in, clock_out, is_late").eq("date", selectedDate);
+      return data || [];
+    },
+  });
+
+  // Group logs by employee, include employees with zero logs
+  const groupedRows = useMemo(() => {
+    const logsByUser: Record<string, any[]> = {};
+    logs.forEach((l: any) => {
+      if (!l.user_id) return;
+      if (!logsByUser[l.user_id]) logsByUser[l.user_id] = [];
+      logsByUser[l.user_id].push(l);
     });
-  }, [logs, employeeFilter, categoryFilter, statusFilter, searchQ]);
+
+    const attByUser: Record<string, any> = {};
+    attendanceRecords.forEach((a: any) => {
+      if (a.user_id) attByUser[a.user_id] = a;
+    });
+
+    const allRows = employees.map((emp: any) => {
+      const empLogs = logsByUser[emp.id] || [];
+      const totalHours = empLogs.reduce((s: number, l: any) => s + Number(l.hours), 0);
+      const empShiftStart = emp.has_custom_shift ? emp.shift_start : globalShiftStart;
+      const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
+      const shiftHours = getShiftHours(empShiftStart, empShiftEnd);
+      const unloggedHours = Math.max(0, shiftHours - totalHours);
+      const att = attByUser[emp.id];
+      let status = "Absent";
+      if (att?.clock_in && att?.is_late) status = "Late";
+      else if (att?.clock_in) status = "Present";
+
+      return {
+        userId: emp.id,
+        name: emp.full_name,
+        logs: empLogs,
+        loggedHours: totalHours,
+        unloggedHours,
+        shiftHours,
+        logCount: empLogs.length,
+        status,
+      };
+    });
+
+    // Filter
+    return allRows.filter((r) => {
+      const matchEmp = employeeFilter === "all" || r.userId === employeeFilter;
+      const matchStatus = statusFilter === "all" ||
+        (statusFilter === "present" && r.status === "Present") ||
+        (statusFilter === "late" && r.status === "Late") ||
+        (statusFilter === "absent" && r.status === "Absent");
+      const matchSearch = !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || r.logs.some((l: any) => l.description?.toLowerCase().includes(searchQ.toLowerCase()));
+      return matchEmp && matchStatus && matchSearch;
+    });
+  }, [logs, employees, attendanceRecords, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
 
   const toggleFlag = async (log: any) => {
     await supabase.from("daily_logs").update({ admin_flagged: !log.admin_flagged }).eq("id", log.id);
@@ -145,14 +198,14 @@ export default function LogsAdminPage() {
   };
 
   const exportCSV = () => {
-    const header = "Date,Employee,Project,Category,Hours,Description,Status\n";
-    const rows = filtered.map((l: any) =>
-      `"${l.log_date}","${l.users?.full_name}","${l.projects?.name || ""}","${l.category}",${l.hours},"${l.description?.replace(/"/g, '""')}","${l.is_late ? "Late" : l.is_missed ? "Missed" : "On Time"}"`
+    const header = "Employee,Logged Hours,Unlogged Hours,Status,Log Count\n";
+    const rows = groupedRows.map((r) =>
+      `"${r.name}",${r.loggedHours.toFixed(1)},${r.unloggedHours.toFixed(1)},"${r.status}",${r.logCount}`
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `logs_${dateFrom}_${dateTo}.csv`;
+    a.download = `logs_${selectedDate}.csv`;
     a.click();
   };
 
@@ -174,10 +227,9 @@ export default function LogsAdminPage() {
           <div className="flex flex-wrap gap-3">
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search descriptions…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} className="pl-9" />
+              <Input placeholder="Search employees or descriptions…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} className="pl-9" />
             </div>
-            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-[150px]" />
-            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-[150px]" />
+            <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[170px]" />
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Employee" /></SelectTrigger>
               <SelectContent>
@@ -185,20 +237,13 @@ export default function LogsAdminPage() {
                 {employees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
               </SelectContent>
             </Select>
-            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Category" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Categories</SelectItem>
-                {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
-              </SelectContent>
-            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="ontime">On Time</SelectItem>
+                <SelectItem value="present">Present</SelectItem>
                 <SelectItem value="late">Late</SelectItem>
-                <SelectItem value="missed">Missed</SelectItem>
+                <SelectItem value="absent">Absent</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -208,66 +253,110 @@ export default function LogsAdminPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Employee</TableHead>
-                  <TableHead>Project</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Hours</TableHead>
-                  <TableHead>Description</TableHead>
+                  <TableHead>Employee Name</TableHead>
+                  <TableHead>Logged Hours</TableHead>
+                  <TableHead>Unlogged Hours</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead className="w-8"></TableHead>
+                  <TableHead>Log Count</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-                ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No logs found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                ) : groupedRows.length === 0 ? (
+                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
                 ) : (
-                  filtered.map((log: any) => (
+                  groupedRows.map((row) => (
                     <>
-                      <TableRow key={log.id} className={`cursor-pointer ${log.is_missed ? "bg-red-50" : ""}`} onClick={() => { setExpandedId(expandedId === log.id ? null : log.id); setComment(log.admin_comment || ""); }}>
-                        <TableCell>{expandedId === log.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                        <TableCell>{format(new Date(log.log_date + "T00:00:00"), "MMM d")}</TableCell>
-                        <TableCell className="font-medium">{log.users?.full_name}</TableCell>
-                        <TableCell>{log.projects?.name || "—"}</TableCell>
-                        <TableCell>{log.category}</TableCell>
-                        <TableCell>{formatHours(log.hours)}</TableCell>
-                        <TableCell className="max-w-[200px] truncate">{log.description}</TableCell>
+                      <TableRow
+                        key={row.userId}
+                        className={`cursor-pointer ${row.logCount === 0 ? "bg-red-50/50" : ""}`}
+                        onClick={() => setExpandedId(expandedId === row.userId ? null : row.userId)}
+                      >
+                        <TableCell>{expandedId === row.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                        <TableCell className="font-medium">{row.name}</TableCell>
+                        <TableCell>{formatHours(row.loggedHours)}</TableCell>
                         <TableCell>
-                          {log.is_missed ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
-                           log.is_late ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
-                           <Badge className="bg-green-100 text-green-800">On Time</Badge>}
+                          <span className={row.unloggedHours > 0 ? "text-amber-600 font-medium" : "text-muted-foreground"}>
+                            {row.unloggedHours > 0 ? formatHours(row.unloggedHours) : "0"}
+                          </span>
                         </TableCell>
-                        <TableCell>{log.admin_flagged && <Flag className="h-4 w-4 text-destructive fill-destructive" />}</TableCell>
+                        <TableCell>
+                          {row.status === "Absent" ? <Badge className="bg-red-100 text-red-700">Absent</Badge> :
+                           row.status === "Late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
+                           <Badge className="bg-green-100 text-green-800">Present</Badge>}
+                        </TableCell>
+                        <TableCell>
+                          {row.logCount > 0 ? (
+                            <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">No Logs</Badge>
+                          )}
+                        </TableCell>
                       </TableRow>
-                      {expandedId === log.id && (
-                        <TableRow key={`${log.id}-detail`}>
-                          <TableCell colSpan={9} className="bg-muted/50">
-                            <div className="p-3 space-y-3">
-                              <p className="text-sm">{log.description}</p>
-                              {isAdmin && (
-                                <>
-                                  <div className="flex items-center gap-4">
-                                    <div className="flex items-center gap-2">
-                                      <Label className="text-xs">Flag</Label>
-                                      <Switch checked={log.admin_flagged} onCheckedChange={() => toggleFlag(log)} />
+                      {expandedId === row.userId && (
+                        <TableRow key={`${row.userId}-detail`}>
+                          <TableCell colSpan={6} className="bg-muted/50 p-0">
+                            {row.logCount === 0 ? (
+                              <div className="p-4 text-sm text-muted-foreground text-center">No log entries submitted for this date.</div>
+                            ) : (
+                              <div className="divide-y">
+                                {row.logs.map((log: any) => (
+                                  <div key={log.id} className="p-3">
+                                    <div className="flex items-start justify-between">
+                                      <div className="space-y-1 flex-1">
+                                        <div className="flex flex-wrap gap-2 items-center">
+                                          {log.projects?.name && <Badge variant="outline">{log.projects.name}</Badge>}
+                                          <Badge variant="secondary">{log.category}</Badge>
+                                          <span className="text-sm font-medium">{formatHours(log.hours)}</span>
+                                          {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                                          {log.admin_flagged && <Flag className="h-3.5 w-3.5 text-destructive fill-destructive" />}
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">{log.description}</p>
+                                        <p className="text-xs text-muted-foreground">
+                                          Submitted {format(new Date(log.submitted_at), "h:mm a")}
+                                        </p>
+                                      </div>
                                     </div>
-                                    <div className="flex items-center gap-2">
-                                      <Label className="text-xs">Lock</Label>
-                                      <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
-                                    </div>
+                                    {isAdmin && expandedLogId === log.id && (
+                                      <div className="mt-3 space-y-3 border-t pt-3">
+                                        <div className="flex items-center gap-4">
+                                          <div className="flex items-center gap-2">
+                                            <Label className="text-xs">Flag</Label>
+                                            <Switch checked={log.admin_flagged} onCheckedChange={() => toggleFlag(log)} />
+                                          </div>
+                                          <div className="flex items-center gap-2">
+                                            <Label className="text-xs">Lock</Label>
+                                            <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
+                                          </div>
+                                        </div>
+                                        <div className="space-y-1">
+                                          <Label className="text-xs">Admin Comment</Label>
+                                          <div className="flex gap-2">
+                                            <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1" />
+                                            <Button size="sm" onClick={() => saveComment(log.id)}>Save</Button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {isAdmin && (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="mt-1 text-xs"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          setExpandedLogId(expandedLogId === log.id ? null : log.id);
+                                          setComment(log.admin_comment || "");
+                                        }}
+                                      >
+                                        {expandedLogId === log.id ? "Hide Actions" : "Admin Actions"}
+                                      </Button>
+                                    )}
                                   </div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs">Admin Comment</Label>
-                                    <div className="flex gap-2">
-                                      <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1" />
-                                      <Button size="sm" onClick={() => saveComment(log.id)}>Save</Button>
-                                    </div>
-                                  </div>
-                                </>
-                              )}
-                            </div>
+                                ))}
+                              </div>
+                            )}
                           </TableCell>
                         </TableRow>
                       )}
@@ -292,10 +381,12 @@ export default function LogsAdminPage() {
                 <div className="space-y-1">
                   <Label>Default Shift Start</Label>
                   <Input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(shiftStart)}</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Default Shift End</Label>
                   <Input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(shiftEnd)}</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Log Edit Window (days)</Label>
@@ -305,6 +396,7 @@ export default function LogsAdminPage() {
                 <div className="space-y-1">
                   <Label>Missed Log Detection Time</Label>
                   <Input type="time" value={missedLogTime} onChange={(e) => setMissedLogTime(e.target.value)} />
+                  <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(missedLogTime)}</p>
                 </div>
               </div>
             </Card>

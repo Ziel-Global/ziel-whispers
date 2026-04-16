@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
 
@@ -23,6 +24,7 @@ export default function MyAttendancePage() {
   const [elapsed, setElapsed] = useState(0);
   const [calMonth, setCalMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
+  const [clockOutConfirmOpen, setClockOutConfirmOpen] = useState(false);
   const today = new Date().toISOString().split("T")[0];
 
   // Check for any open (unclosed) attendance session
@@ -119,6 +121,7 @@ export default function MyAttendancePage() {
   const handleClockOut = async () => {
     if (!openSession) return;
     setLoading(true);
+    setClockOutConfirmOpen(false);
     try {
       const { error } = await supabase.from("attendance")
         .update({ clock_out: new Date().toISOString() })
@@ -152,7 +155,7 @@ export default function MyAttendancePage() {
       if (d < new Date() && isSameMonth(d, calMonth)) return "bg-red-100 text-red-700";
       return "";
     }
-    if ((rec as any).is_late) return "bg-yellow-100 text-yellow-700";
+    if (rec.is_late) return "bg-yellow-100 text-yellow-700";
     if (rec.clock_in) return "bg-green-100 text-green-700";
     return "";
   };
@@ -167,13 +170,13 @@ export default function MyAttendancePage() {
       </div>
 
       {/* Late clock-in alert for today */}
-      {todayRecord && (todayRecord as any).is_late && (
+      {todayRecord && todayRecord.is_late && (
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
             You clocked in late today at <strong>{format(new Date(todayRecord.clock_in!), "h:mm a")}</strong>. 
             Your shift started at <strong>{formatShiftTime(shiftStart)}</strong>
-            {(todayRecord as any).minutes_late > 0 && <> ({(todayRecord as any).minutes_late} mins late)</>}.
+            {todayRecord.minutes_late > 0 && <> ({todayRecord.minutes_late} mins late)</>}.
           </p>
         </div>
       )}
@@ -195,7 +198,7 @@ export default function MyAttendancePage() {
               )}
               <div className="text-5xl font-mono font-bold text-foreground">{formatDuration(elapsed)}</div>
               <Badge className="bg-green-100 text-green-800">Active Session · {openSession?.work_mode}</Badge>
-              <Button onClick={handleClockOut} disabled={loading} variant="destructive" size="lg" className="rounded-button">
+              <Button onClick={() => setClockOutConfirmOpen(true)} disabled={loading} variant="destructive" size="lg" className="rounded-button">
                 <LogOut className="h-5 w-5 mr-2" />
                 Clock Out
               </Button>
@@ -241,6 +244,24 @@ export default function MyAttendancePage() {
         </div>
       </Card>
 
+      {/* Clock Out Confirmation Dialog */}
+      <AlertDialog open={clockOutConfirmOpen} onOpenChange={setClockOutConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure you want to clock out?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action is irreversible. Once clocked out, you cannot undo this or modify your clock-out time.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleClockOut} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Yes, Clock Out
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Calendar */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
@@ -268,9 +289,9 @@ export default function MyAttendancePage() {
           <div className="mt-4 p-3 bg-muted rounded-md space-y-1 text-sm">
             <p>
               <strong>Clock In:</strong> {selectedRecord.clock_in ? format(new Date(selectedRecord.clock_in), "h:mm a") : "—"}
-              {(selectedRecord as any).is_late && (
+              {selectedRecord.is_late && (
                 <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
-                  Late by {(selectedRecord as any).minutes_late} mins
+                  Late by {selectedRecord.minutes_late} mins
                 </Badge>
               )}
             </p>

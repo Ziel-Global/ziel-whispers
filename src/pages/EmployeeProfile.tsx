@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { formatShiftTime } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,15 +16,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { ArrowLeft, Shield, ShieldOff } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { ArrowLeft, Shield, ShieldOff, Download, Trash2 } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { Checkbox } from "@/components/ui/checkbox";
+import { format } from "date-fns";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
 const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
+
+function formatHours(h: number) {
+  const hrs = Math.floor(h);
+  const mins = Math.round((h - hrs) * 60);
+  if (hrs === 0) return `${mins}m`;
+  if (mins === 0) return `${hrs}h`;
+  return `${hrs}h ${mins}m`;
+}
 
 const adminSchema = z.object({
   full_name: z.string().min(1).max(100),
@@ -50,6 +62,11 @@ export default function EmployeeProfilePage() {
   const [deactivating, setDeactivating] = useState(false);
   const [emailWarningOpen, setEmailWarningOpen] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
+  const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
+
+  // Work Logs filters
+  const [logDateFilter, setLogDateFilter] = useState("");
+  const [logProjectFilter, setLogProjectFilter] = useState("all");
 
   const isAdmin = myProfile?.role === "admin";
   const isOwnProfile = myProfile?.id === id;
@@ -62,6 +79,51 @@ export default function EmployeeProfilePage() {
       return data;
     },
     enabled: !!id,
+  });
+
+  // Work Logs for this employee
+  const { data: workLogs = [] } = useQuery({
+    queryKey: ["employee-work-logs", id, logDateFilter, logProjectFilter],
+    queryFn: async () => {
+      let query = supabase
+        .from("daily_logs")
+        .select("*, projects(name)")
+        .eq("user_id", id!)
+        .order("log_date", { ascending: false })
+        .order("created_at", { ascending: false });
+      if (logDateFilter) query = query.eq("log_date", logDateFilter);
+      if (logProjectFilter !== "all") query = query.eq("project_id", logProjectFilter);
+      const { data } = await query;
+      return data || [];
+    },
+    enabled: !!id && isAdmin,
+  });
+
+  // Projects for filter
+  const { data: employeeProjects = [] } = useQuery({
+    queryKey: ["employee-projects-filter", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("project_members")
+        .select("projects(id, name)")
+        .eq("user_id", id!)
+        .is("removed_at", null);
+      return (data || []).map((m: any) => m.projects).filter(Boolean);
+    },
+    enabled: !!id && isAdmin,
+  });
+
+  const totalLoggedHours = useMemo(() => workLogs.reduce((s: number, l: any) => s + Number(l.hours), 0), [workLogs]);
+
+  // Global settings for shift comparison
+  const { data: globalSettings } = useQuery({
+    queryKey: ["system-settings-global"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("key, value").in("key", ["default_shift_start", "default_shift_end"]);
+      const map: Record<string, string> = {};
+      (data || []).forEach((s) => { map[s.key] = s.value; });
+      return map;
+    },
   });
 
   const form = useForm({
@@ -78,7 +140,7 @@ export default function EmployeeProfilePage() {
       shift_start: employee.shift_start,
       shift_end: employee.shift_end,
       reminder_offset_minutes: employee.reminder_offset_minutes,
-      is_night_shift: (employee as any).is_night_shift ?? false,
+      is_night_shift: employee.is_night_shift ?? false,
     } : undefined,
   });
 
@@ -98,9 +160,8 @@ export default function EmployeeProfilePage() {
     if (!employee) return;
     setSaving(true);
     try {
-      // Determine if shift was explicitly changed from global defaults
-      const globalShiftStart = "09:00";
-      const globalShiftEnd = "18:00";
+      const globalShiftStart = globalSettings?.default_shift_start || "09:00";
+      const globalShiftEnd = globalSettings?.default_shift_end || "18:00";
       const hasCustomShift = data.shift_start !== globalShiftStart || data.shift_end !== globalShiftEnd;
 
       const { error } = await supabase.from("users").update({
@@ -204,6 +265,26 @@ export default function EmployeeProfilePage() {
     }
   };
 
+  const handleDeleteLog = async (logId: string) => {
+    const { error } = await supabase.from("daily_logs").delete().eq("id", logId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Log entry deleted.");
+    setDeleteLogId(null);
+    queryClient.invalidateQueries({ queryKey: ["employee-work-logs"] });
+  };
+
+  const exportWorkLogs = () => {
+    const header = "Date,Project,Category,Hours,Description,Submitted At\n";
+    const rows = workLogs.map((l: any) =>
+      `"${l.log_date}","${l.projects?.name || ""}","${l.category}",${l.hours},"${l.description?.replace(/"/g, '""')}","${format(new Date(l.submitted_at), "h:mm a")}"`
+    ).join("\n");
+    const blob = new Blob([header + rows], { type: "text/csv" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `work-logs-${employee?.full_name?.replace(/\s+/g, "-")}.csv`;
+    a.click();
+  };
+
   if (isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
   if (!employee) return <div className="text-center py-12 text-muted-foreground">Employee not found</div>;
 
@@ -219,7 +300,7 @@ export default function EmployeeProfilePage() {
   const canEdit = isAdmin;
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => navigate("/employees")}>
@@ -268,143 +349,240 @@ export default function EmployeeProfilePage() {
         )}
       </div>
 
-      <Card className="p-6">
-        <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
+      <Tabs defaultValue="profile">
+        <TabsList>
+          <TabsTrigger value="profile">Profile</TabsTrigger>
+          {isAdmin && <TabsTrigger value="logs">Work Logs</TabsTrigger>}
+        </TabsList>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField control={form.control} name="full_name" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Full Name</FormLabel>
-                  <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Phone</FormLabel>
-                  <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="designation" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Designation</FormLabel>
-                  <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="department" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Department</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="join_date" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Join Date</FormLabel>
-                  <FormControl><Input {...field} type="date" disabled={!canEdit} /></FormControl>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="employment_type" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Employment Type</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="role" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Role</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {ROLES.map((r) => <SelectItem key={r} value={r} className="capitalize">{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="shift_start" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Shift Start (Override)</FormLabel>
-                  <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
-                  <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="shift_end" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Shift End (Override)</FormLabel>
-                  <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
-                  <p className="text-xs text-muted-foreground">Leave as default to use global shift setting</p>
-                  <FormMessage />
-                </FormItem>
-              )} />
-              <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Reminder Offset</FormLabel>
-                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
-                    <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
+        <TabsContent value="profile">
+          <Card className="p-6">
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <FormField control={form.control} name="full_name" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="email" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="phone" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone</FormLabel>
+                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="designation" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Designation</FormLabel>
+                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="department" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Department</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="join_date" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Join Date</FormLabel>
+                      <FormControl><Input {...field} type="date" disabled={!canEdit} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="employment_type" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Employment Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="role" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {ROLES.map((r) => <SelectItem key={r} value={r} className="capitalize">{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="shift_start" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Shift Start (Override)</FormLabel>
+                      <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
+                      <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(field.value)}. Leave as default to use global shift setting.</p>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="shift_end" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Shift End (Override)</FormLabel>
+                      <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
+                      <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(field.value)}. Leave as default to use global shift setting.</p>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Reminder Offset</FormLabel>
+                      <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+
+                {canEdit && (
+                  <FormField control={form.control} name="is_night_shift" render={({ field }) => (
+                    <FormItem className="flex items-center gap-3 space-y-0">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
+                      </FormControl>
+                      <div>
+                        <FormLabel className="text-sm font-medium">Night Shift Employee</FormLabel>
+                        <p className="text-xs text-muted-foreground">Skip automatic midnight clock-out for this employee</p>
+                      </div>
+                    </FormItem>
+                  )} />
+                )}
+
+                {!canEdit && !isOwnProfile && (
+                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change profile details.</p>
+                )}
+
+                {canEdit && (
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={saving} className="rounded-button">
+                      {saving ? "Saving…" : "Save Changes"}
+                    </Button>
+                  </div>
+                )}
+              </form>
+            </Form>
+          </Card>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="logs" className="space-y-4">
+            {/* Summary */}
+            <Card className="p-4">
+              <p className="text-sm font-medium">Total Logged Hours (filtered): <strong>{formatHours(totalLoggedHours)}</strong></p>
+            </Card>
+
+            {/* Filters */}
+            <div className="flex flex-wrap gap-3 items-center">
+              <Input
+                type="date"
+                value={logDateFilter}
+                onChange={(e) => setLogDateFilter(e.target.value)}
+                className="w-[170px]"
+                placeholder="Filter by date"
+              />
+              {logDateFilter && (
+                <Button variant="ghost" size="sm" onClick={() => setLogDateFilter("")}>Clear date</Button>
+              )}
+              <Select value={logProjectFilter} onValueChange={setLogProjectFilter}>
+                <SelectTrigger className="w-[180px]"><SelectValue placeholder="Project" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Projects</SelectItem>
+                  {employeeProjects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" size="sm" onClick={exportWorkLogs}>
+                <Download className="h-4 w-4 mr-1" />CSV
+              </Button>
             </div>
 
-            {canEdit && (
-              <FormField control={form.control} name="is_night_shift" render={({ field }) => (
-                <FormItem className="flex items-center gap-3 space-y-0">
-                  <FormControl>
-                    <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
-                  </FormControl>
-                  <div>
-                    <FormLabel className="text-sm font-medium">Night Shift Employee</FormLabel>
-                    <p className="text-xs text-muted-foreground">Skip automatic midnight clock-out for this employee</p>
-                  </div>
-                </FormItem>
-              )} />
-            )}
+            {/* Table */}
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Project</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Hours</TableHead>
+                    <TableHead>Submitted</TableHead>
+                    <TableHead className="w-10"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {workLogs.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No logs found</TableCell></TableRow>
+                  ) : (
+                    workLogs.map((log: any) => (
+                      <TableRow key={log.id}>
+                        <TableCell>{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                        <TableCell>{log.projects?.name || "—"}</TableCell>
+                        <TableCell className="max-w-[250px] truncate">{log.description}</TableCell>
+                        <TableCell className="font-medium">{formatHours(log.hours)}</TableCell>
+                        <TableCell className="text-muted-foreground text-sm">{format(new Date(log.submitted_at), "h:mm a")}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => setDeleteLogId(log.id)}>
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </Card>
 
-            {!canEdit && !isOwnProfile && (
-              <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change profile details.</p>
-            )}
-
-            {canEdit && (
-              <div className="flex justify-end">
-                <Button type="submit" disabled={saving} className="rounded-button">
-                  {saving ? "Saving…" : "Save Changes"}
-                </Button>
-              </div>
-            )}
-          </form>
-        </Form>
-      </Card>
-
-      
+            {/* Delete Confirmation */}
+            <AlertDialog open={!!deleteLogId} onOpenChange={(open) => !open && setDeleteLogId(null)}>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Are you sure you want to delete this log?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This action is permanent and cannot be undone. This log entry will be removed from the employee's record.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => deleteLogId && handleDeleteLog(deleteLogId)}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    Yes, Delete
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </TabsContent>
+        )}
+      </Tabs>
 
       <Dialog open={emailWarningOpen} onOpenChange={setEmailWarningOpen}>
         <DialogContent>

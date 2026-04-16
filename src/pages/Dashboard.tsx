@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkSettings } from "@/hooks/useWorkSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = new Date().toISOString().split("T")[0];
+  const { annualLeaveEntitlement } = useWorkSettings();
 
   // ——— Shared queries ———
   const { data: todayAttendance } = useQuery({
@@ -31,17 +33,19 @@ export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult] = await Promise.all([
+      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult, lateAttendanceResult] = await Promise.all([
         supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("attendance").select("*", { count: "exact", head: true }).eq("date", today).eq("is_late", true),
       ]);
       return {
         activeEmployees: activeEmployeesResult.count || 0,
         todayClockedIn: todayAttendanceResult.data?.length || 0,
         pendingLeaves: pendingLeavesResult.count || 0,
         activeProjects: activeProjectsResult.count || 0,
+        lateToday: lateAttendanceResult.count || 0,
       };
     },
     enabled: isAdmin && hasProfile,
@@ -89,17 +93,7 @@ export default function DashboardPage() {
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
-  // Live leave balance from global entitlement + approved requests
-  const { data: annualEntitlement = 12 } = useQuery({
-    queryKey: ["system-setting-annual-leave"],
-    queryFn: async () => {
-      const { data } = await supabase.from("system_settings").select("value").eq("key", "annual_leave_entitlement").maybeSingle();
-      return data ? Number(data.value) : 12;
-    },
-    enabled: !isAdmin && hasProfile,
-    refetchInterval: 30000,
-  });
-
+  // Leave balance uses the hook's annualLeaveEntitlement (live from system_settings)
   const { data: usedLeaveDays = 0 } = useQuery({
     queryKey: ["my-used-leave-days", user?.id],
     queryFn: async () => {
@@ -116,7 +110,7 @@ export default function DashboardPage() {
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
-  const annualRemaining = annualEntitlement - usedLeaveDays;
+  const annualRemaining = annualLeaveEntitlement - usedLeaveDays;
 
   const { data: myProjects } = useQuery({
     queryKey: ["dashboard-my-projects", user?.id],
@@ -206,6 +200,17 @@ export default function DashboardPage() {
             </div>
           </Card>
         </div>
+
+        {/* Late Attendance Alert */}
+        {(stats?.lateToday ?? 0) > 0 && (
+          <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+            <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
+            <p className="text-sm text-yellow-800">
+              <strong>{stats!.lateToday}</strong> employee{stats!.lateToday > 1 ? "s" : ""} clocked in late today.
+            </p>
+            <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => navigate("/attendance")}>View</Button>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <Card className={`p-5 ${(lateLogs?.length ?? 0) > 0 ? "border-red-200 bg-red-50/30" : ""}`}>
@@ -316,7 +321,12 @@ export default function DashboardPage() {
             <span className="text-sm font-medium">Attendance</span>
           </div>
           {isClockedIn ? (
-            <p className="text-sm">Clocked in since <strong>{format(new Date(todayAttendance!.clock_in!), "h:mm a")}</strong></p>
+            <>
+              <p className="text-sm">Clocked in since <strong>{format(new Date(todayAttendance!.clock_in!), "h:mm a")}</strong></p>
+              {(todayAttendance as any)?.is_late && (
+                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {(todayAttendance as any).minutes_late} mins</p>
+              )}
+            </>
           ) : todayAttendance?.clock_out ? (
             <p className="text-sm text-muted-foreground">Completed today</p>
           ) : (
@@ -350,7 +360,7 @@ export default function DashboardPage() {
             <span className="text-sm font-medium">Leave Balance</span>
           </div>
           <p className="text-sm"><strong>{annualRemaining}</strong> annual leave days remaining</p>
-          <p className="text-xs text-muted-foreground">{usedLeaveDays} used / {annualEntitlement} total</p>
+          <p className="text-xs text-muted-foreground">{usedLeaveDays} used / {annualLeaveEntitlement} total</p>
           <Button size="sm" variant="outline" className="mt-3 rounded-button w-full" onClick={() => navigate("/leave/my")}>Apply Leave</Button>
         </Card>
       </div>

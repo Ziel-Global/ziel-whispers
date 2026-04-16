@@ -98,6 +98,11 @@ export default function EmployeeProfilePage() {
     if (!employee) return;
     setSaving(true);
     try {
+      // Determine if shift was explicitly changed from global defaults
+      const globalShiftStart = "09:00";
+      const globalShiftEnd = "18:00";
+      const hasCustomShift = data.shift_start !== globalShiftStart || data.shift_end !== globalShiftEnd;
+
       const { error } = await supabase.from("users").update({
         full_name: data.full_name,
         phone: data.phone || null,
@@ -110,6 +115,7 @@ export default function EmployeeProfilePage() {
         shift_end: data.shift_end,
         reminder_offset_minutes: data.reminder_offset_minutes,
         is_night_shift: data.is_night_shift,
+        has_custom_shift: hasCustomShift,
       } as any).eq("id", employee.id);
 
       if (error) throw error;

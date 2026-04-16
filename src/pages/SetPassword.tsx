@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -12,39 +12,52 @@ export default function SetPasswordPage() {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
+  const hasSubmitted = useRef(false);
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { user, profile, signOut } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (hasSubmitted.current) return;
     if (password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
     if (!/[0-9]/.test(password)) { toast.error("Password must contain at least one number"); return; }
     if (!/[^a-zA-Z0-9]/.test(password)) { toast.error("Password must contain at least one special character"); return; }
     if (password !== confirm) { toast.error("Passwords do not match"); return; }
+
+    const userId = profile?.id || user?.id;
+    if (!userId) { toast.error("Session expired. Please log in again."); navigate("/login", { replace: true }); return; }
+
     setLoading(true);
+    hasSubmitted.current = true;
+
     try {
+      // 1. Update the auth password
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
 
-      if (profile) {
-        const [{ error: profileError }, { error: auditError }] = await Promise.all([
-          supabase.from("users").update({ must_change_password: false }).eq("id", profile.id),
-          supabase.from("audit_logs").insert({
-            actor_id: profile.id,
-            action: "user.password_set",
-            target_entity: "users",
-            target_id: profile.id,
-          }),
-        ]);
+      // 2. Clear the must_change_password flag BEFORE signing out
+      const { error: profileError } = await supabase
+        .from("users")
+        .update({ must_change_password: false } as any)
+        .eq("id", userId);
+      if (profileError) throw profileError;
 
-        if (profileError) throw profileError;
-        if (auditError) throw auditError;
-      }
+      // 3. Audit log (non-critical, don't block on error)
+      await supabase.from("audit_logs").insert({
+        actor_id: userId,
+        action: "user.password_set",
+        target_entity: "users",
+        target_id: userId,
+      }).then(() => {});
 
+      // 4. Sign out completely to clear all session state
       await signOut();
+
+      // 5. Show success and redirect
       toast.success("Password changed successfully. Please log in with your new password.");
       navigate("/login", { replace: true });
     } catch (error: any) {
+      hasSubmitted.current = false;
       toast.error(error.message || "Failed to update password");
     } finally {
       setLoading(false);

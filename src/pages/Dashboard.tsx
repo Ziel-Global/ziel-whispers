@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useWorkSettings, formatShiftTime } from "@/hooks/useWorkSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,6 +16,7 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = new Date().toISOString().split("T")[0];
+  const { shiftStart, annualLeaveEntitlement } = useWorkSettings();
 
   // ——— Shared queries ———
   const { data: todayAttendance } = useQuery({

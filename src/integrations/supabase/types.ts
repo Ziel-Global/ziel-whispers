@@ -103,6 +103,7 @@ export type Database = {
           created_at: string
           date: string
           edited_by: string | null
+          hours_late: number
           id: string
           is_late: boolean
           minutes_late: number
@@ -118,6 +119,7 @@ export type Database = {
           created_at?: string
           date: string
           edited_by?: string | null
+          hours_late?: number
           id?: string
           is_late?: boolean
           minutes_late?: number
@@ -133,6 +135,7 @@ export type Database = {
           created_at?: string
           date?: string
           edited_by?: string | null
+          hours_late?: number
           id?: string
           is_late?: boolean
           minutes_late?: number

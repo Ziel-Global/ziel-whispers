@@ -79,3 +79,16 @@
     @apply bg-background text-foreground font-sans;
   }
 }
+
+@layer components {
+  /* Global button hover: primary buttons hover to black */
+  .rounded-button,
+  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]) {
+    transition: background 150ms ease;
+  }
+  .rounded-button:hover,
+  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover {
+    background: hsl(0 0% 0%) !important;
+    color: white !important;
+  }
+}

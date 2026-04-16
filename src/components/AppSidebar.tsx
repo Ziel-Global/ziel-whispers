@@ -20,6 +20,7 @@ import { useQuery } from "@tanstack/react-query";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
+import { APP_VERSION } from "@/lib/constants";
 import {
   Sidebar,
   SidebarContent,
@@ -29,6 +30,7 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
 import zielLogoWhite from "@/assets/ziel-logo-white.png";
@@ -170,6 +172,9 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+      <SidebarFooter className="px-4 pb-3">
+        <span className="text-[11px] text-sidebar-foreground/40">{APP_VERSION}</span>
+      </SidebarFooter>
     </Sidebar>
   );
 }

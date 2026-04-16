@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -77,6 +77,32 @@ export default function MyAttendancePage() {
     },
     enabled: !!user?.id,
   });
+
+  // Monthly logs for log status indicators
+  const { data: monthLogs = [] } = useQuery({
+    queryKey: ["my-month-logs", user?.id, monthStart],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("log_date, is_late")
+        .eq("user_id", user!.id)
+        .gte("log_date", monthStart)
+        .lte("log_date", monthEnd);
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  // Group logs by date
+  const logsByDate = useMemo(() => {
+    const map: Record<string, { count: number; hasLate: boolean }> = {};
+    monthLogs.forEach((l: any) => {
+      if (!map[l.log_date]) map[l.log_date] = { count: 0, hasLate: false };
+      map[l.log_date].count++;
+      if (l.is_late) map[l.log_date].hasLate = true;
+    });
+    return map;
+  }, [monthLogs]);
 
   // Live timer
   useEffect(() => {
@@ -160,6 +186,20 @@ export default function MyAttendancePage() {
     return "";
   };
 
+  const getLogIndicator = (d: Date) => {
+    if (isWeekend(d)) return null;
+    const dateStr = format(d, "yyyy-MM-dd");
+    const logInfo = logsByDate[dateStr];
+    const isPast = d < new Date() && !isSameDay(d, new Date());
+
+    if (!logInfo || logInfo.count === 0) {
+      if (isPast) return { label: "No Log", color: "text-red-500" };
+      return null;
+    }
+    if (logInfo.hasLate) return { label: "Late", color: "text-amber-600" };
+    return { label: "Logged", color: "text-green-600" };
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -169,12 +209,12 @@ export default function MyAttendancePage() {
         </Badge>
       </div>
 
-      {/* Late clock-in alert for today */}
+      {/* Late clock-in alert for today — dynamic duration */}
       {todayRecord && todayRecord.is_late && (
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You're late. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You're late by <strong>{formatLateness((todayRecord as any).hours_late, todayRecord.minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -272,15 +312,19 @@ export default function MyAttendancePage() {
         </div>
         <div className="grid grid-cols-7 gap-1">
           {Array.from({ length: days[0].getDay() }).map((_, i) => <div key={`pad-${i}`} />)}
-          {days.map((d) => (
-            <button
-              key={d.toISOString()}
-              onClick={() => setSelectedDay(d)}
-              className={`h-9 rounded text-sm font-medium transition-colors ${getDayColor(d)} ${selectedDay && isSameDay(d, selectedDay) ? "ring-2 ring-primary" : ""} hover:ring-1 hover:ring-border`}
-            >
-              {d.getDate()}
-            </button>
-          ))}
+          {days.map((d) => {
+            const indicator = getLogIndicator(d);
+            return (
+              <button
+                key={d.toISOString()}
+                onClick={() => setSelectedDay(d)}
+                className={`min-h-[44px] rounded text-sm font-medium transition-colors flex flex-col items-center justify-center gap-0.5 ${getDayColor(d)} ${selectedDay && isSameDay(d, selectedDay) ? "ring-2 ring-primary" : ""} hover:ring-1 hover:ring-border`}
+              >
+                <span>{d.getDate()}</span>
+                {indicator && <span className={`text-[9px] leading-none font-medium ${indicator.color}`}>{indicator.label}</span>}
+              </button>
+            );
+          })}
         </div>
 
         {selectedRecord && (
@@ -299,6 +343,18 @@ export default function MyAttendancePage() {
             )}
             <p><strong>Mode:</strong> {selectedRecord.work_mode || "—"}</p>
             {selectedRecord.notes && <p><strong>Notes:</strong> {selectedRecord.notes}</p>}
+            {/* Log status for selected day */}
+            {(() => {
+              const dateStr = format(selectedDay!, "yyyy-MM-dd");
+              const logInfo = logsByDate[dateStr];
+              if (!logInfo || logInfo.count === 0) {
+                const isPast = selectedDay! < new Date();
+                if (isPast) return <p><strong>Log:</strong> <span className="text-red-600">No log submitted</span></p>;
+                return null;
+              }
+              if (logInfo.hasLate) return <p><strong>Log:</strong> <span className="text-amber-600">Submitted late</span></p>;
+              return <p><strong>Log:</strong> <span className="text-green-600">Submitted on time</span></p>;
+            })()}
           </div>
         )}
       </Card>

@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useWorkSettings } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatLateness } from "@/hooks/useWorkSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = new Date().toISOString().split("T")[0];
-  const { annualLeaveEntitlement } = useWorkSettings();
+  const { annualLeaveEntitlement, shiftStart } = useWorkSettings();
 
   // ——— Shared queries ———
   const { data: todayAttendance } = useQuery({
@@ -324,7 +324,7 @@ export default function DashboardPage() {
             <>
               <p className="text-sm">Clocked in since <strong>{format(new Date(todayAttendance!.clock_in!), "h:mm a")}</strong></p>
               {(todayAttendance as any)?.is_late && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ You're late. Your shift has started.</p>
+                <p className="text-xs text-yellow-700 mt-1">⚠️ You're late by {formatLateness((todayAttendance as any)?.hours_late, (todayAttendance as any)?.minutes_late)}. Your shift starts at {formatShiftTime(shiftStart)}.</p>
               )}
             </>
           ) : todayAttendance?.clock_out ? (

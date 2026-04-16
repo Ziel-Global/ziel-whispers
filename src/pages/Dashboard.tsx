@@ -33,17 +33,19 @@ export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult] = await Promise.all([
+      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult, lateAttendanceResult] = await Promise.all([
         supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("attendance").select("*", { count: "exact", head: true }).eq("date", today).eq("is_late", true),
       ]);
       return {
         activeEmployees: activeEmployeesResult.count || 0,
         todayClockedIn: todayAttendanceResult.data?.length || 0,
         pendingLeaves: pendingLeavesResult.count || 0,
         activeProjects: activeProjectsResult.count || 0,
+        lateToday: lateAttendanceResult.count || 0,
       };
     },
     enabled: isAdmin && hasProfile,
@@ -91,17 +93,7 @@ export default function DashboardPage() {
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
-  // Live leave balance from global entitlement + approved requests
-  const { data: annualEntitlement = 12 } = useQuery({
-    queryKey: ["system-setting-annual-leave"],
-    queryFn: async () => {
-      const { data } = await supabase.from("system_settings").select("value").eq("key", "annual_leave_entitlement").maybeSingle();
-      return data ? Number(data.value) : 12;
-    },
-    enabled: !isAdmin && hasProfile,
-    refetchInterval: 30000,
-  });
-
+  // Leave balance uses the hook's annualLeaveEntitlement (live from system_settings)
   const { data: usedLeaveDays = 0 } = useQuery({
     queryKey: ["my-used-leave-days", user?.id],
     queryFn: async () => {
@@ -118,7 +110,7 @@ export default function DashboardPage() {
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
-  const annualRemaining = annualEntitlement - usedLeaveDays;
+  const annualRemaining = annualLeaveEntitlement - usedLeaveDays;
 
   const { data: myProjects } = useQuery({
     queryKey: ["dashboard-my-projects", user?.id],

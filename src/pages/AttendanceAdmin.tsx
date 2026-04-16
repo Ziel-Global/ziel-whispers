@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
+import { formatLateness } from "@/hooks/useWorkSettings";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 
@@ -202,7 +203,7 @@ export default function AttendanceAdminPage() {
                     {r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "—"}
                     {r.is_late && (
                       <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">
-                        Late by {r.minutes_late} mins
+                        Late by {formatLateness((r as any).hours_late, r.minutes_late)}
                       </Badge>
                     )}
                   </TableCell>

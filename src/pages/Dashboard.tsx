@@ -16,7 +16,7 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = new Date().toISOString().split("T")[0];
-  const { annualLeaveEntitlement } = useWorkSettings();
+  const { annualLeaveEntitlement, shiftStart } = useWorkSettings();
 
   // ——— Shared queries ———
   const { data: todayAttendance } = useQuery({

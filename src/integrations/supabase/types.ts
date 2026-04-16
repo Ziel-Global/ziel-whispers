@@ -104,6 +104,8 @@ export type Database = {
           date: string
           edited_by: string | null
           id: string
+          is_late: boolean
+          minutes_late: number
           notes: string | null
           user_id: string | null
           work_mode: string | null
@@ -117,6 +119,8 @@ export type Database = {
           date: string
           edited_by?: string | null
           id?: string
+          is_late?: boolean
+          minutes_late?: number
           notes?: string | null
           user_id?: string | null
           work_mode?: string | null
@@ -130,6 +134,8 @@ export type Database = {
           date?: string
           edited_by?: string | null
           id?: string
+          is_late?: boolean
+          minutes_late?: number
           notes?: string | null
           user_id?: string | null
           work_mode?: string | null
@@ -724,6 +730,7 @@ export type Database = {
           email: string
           employment_type: string
           full_name: string
+          has_custom_shift: boolean
           id: string
           is_night_shift: boolean
           join_date: string
@@ -744,6 +751,7 @@ export type Database = {
           email: string
           employment_type: string
           full_name: string
+          has_custom_shift?: boolean
           id: string
           is_night_shift?: boolean
           join_date: string
@@ -764,6 +772,7 @@ export type Database = {
           email?: string
           employment_type?: string
           full_name?: string
+          has_custom_shift?: boolean
           id?: string
           is_night_shift?: boolean
           join_date?: string

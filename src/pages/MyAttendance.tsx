@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkSettings, formatShiftTime } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWee
 export default function MyAttendancePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { shiftStart, shiftEnd } = useWorkSettings();
   const [workMode, setWorkMode] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -23,7 +25,7 @@ export default function MyAttendancePage() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const today = new Date().toISOString().split("T")[0];
 
-  // Check for any open (unclosed) attendance session - not just today
+  // Check for any open (unclosed) attendance session
   const { data: openSession } = useQuery({
     queryKey: ["attendance-open-session", user?.id],
     queryFn: async () => {
@@ -42,7 +44,7 @@ export default function MyAttendancePage() {
     refetchInterval: 30000,
   });
 
-  // Today's attendance (for calendar display)
+  // Today's attendance
   const { data: todayRecord } = useQuery({
     queryKey: ["attendance-today", user?.id],
     queryFn: async () => {
@@ -74,7 +76,7 @@ export default function MyAttendancePage() {
     enabled: !!user?.id,
   });
 
-  // Live timer based on open session
+  // Live timer
   useEffect(() => {
     if (!openSession?.clock_in) return;
     const start = new Date(openSession.clock_in).getTime();
@@ -150,13 +152,31 @@ export default function MyAttendancePage() {
       if (d < new Date() && isSameMonth(d, calMonth)) return "bg-red-100 text-red-700";
       return "";
     }
+    if ((rec as any).is_late) return "bg-yellow-100 text-yellow-700";
     if (rec.clock_in) return "bg-green-100 text-green-700";
     return "";
   };
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">My Attendance</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">My Attendance</h1>
+        <Badge variant="outline" className="text-sm font-normal">
+          Your Shift: {formatShiftTime(shiftStart)} – {formatShiftTime(shiftEnd)}
+        </Badge>
+      </div>
+
+      {/* Late clock-in alert for today */}
+      {todayRecord && (todayRecord as any).is_late && (
+        <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+          <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
+          <p className="text-sm text-yellow-800">
+            You clocked in late today at <strong>{format(new Date(todayRecord.clock_in!), "h:mm a")}</strong>. 
+            Your shift started at <strong>{formatShiftTime(shiftStart)}</strong>
+            {(todayRecord as any).minutes_late > 0 && <> ({(todayRecord as any).minutes_late} mins late)</>}.
+          </p>
+        </div>
+      )}
 
       {/* Clock In/Out Widget */}
       <Card className="p-6">
@@ -246,7 +266,14 @@ export default function MyAttendancePage() {
 
         {selectedRecord && (
           <div className="mt-4 p-3 bg-muted rounded-md space-y-1 text-sm">
-            <p><strong>Clock In:</strong> {selectedRecord.clock_in ? format(new Date(selectedRecord.clock_in), "h:mm a") : "—"}</p>
+            <p>
+              <strong>Clock In:</strong> {selectedRecord.clock_in ? format(new Date(selectedRecord.clock_in), "h:mm a") : "—"}
+              {(selectedRecord as any).is_late && (
+                <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
+                  Late by {(selectedRecord as any).minutes_late} mins
+                </Badge>
+              )}
+            </p>
             <p><strong>Clock Out:</strong> {selectedRecord.clock_out ? format(new Date(selectedRecord.clock_out), "h:mm a") : "—"}</p>
             {selectedRecord.clock_in && selectedRecord.clock_out && (
               <p><strong>Duration:</strong> {formatDuration(Math.floor((new Date(selectedRecord.clock_out).getTime() - new Date(selectedRecord.clock_in).getTime()) / 1000))}</p>

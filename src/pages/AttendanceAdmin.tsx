@@ -42,7 +42,6 @@ export default function AttendanceAdminPage() {
     },
   });
 
-  // Fetch all open sessions (no clock_out) across all days
   const { data: openSessions = [] } = useQuery({
     queryKey: ["admin-open-sessions"],
     queryFn: async () => {
@@ -61,6 +60,8 @@ export default function AttendanceAdminPage() {
     if (deptFilter === "all") return records;
     return records.filter((r: any) => r.users?.department === deptFilter);
   }, [records, deptFilter]);
+
+  const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
     if (!clockOut) return "Active";
@@ -109,14 +110,14 @@ export default function AttendanceAdminPage() {
   };
 
   const exportCSV = () => {
-    const header = "Employee,Department,Clock In,Clock Out,Duration,Work Mode,Notes\n";
+    const header = "Employee,Department,Clock In,Clock Out,Duration,Work Mode,Late,Minutes Late,Notes\n";
     const rows = filtered.map((r: any) => {
       const name = r.users?.full_name || "";
       const dept = r.users?.department || "";
       const ci = r.clock_in ? format(new Date(r.clock_in), "HH:mm") : "";
       const co = r.clock_out ? format(new Date(r.clock_out), "HH:mm") : "";
       const dur = r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "";
-      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.notes || ""}"`;
+      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.is_late ? "Yes" : "No"}","${r.minutes_late || 0}","${r.notes || ""}"`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
@@ -125,7 +126,6 @@ export default function AttendanceAdminPage() {
     a.click();
   };
 
-  // Flag open sessions from previous days
   const today = new Date().toISOString().split("T")[0];
   const staleOpenSessions = openSessions.filter((s: any) => s.date < today);
 
@@ -152,7 +152,7 @@ export default function AttendanceAdminPage() {
         </Card>
       )}
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 items-center">
         <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />
         <Select value={deptFilter} onValueChange={setDeptFilter}>
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
@@ -161,6 +161,9 @@ export default function AttendanceAdminPage() {
             {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
           </SelectContent>
         </Select>
+        {lateCount > 0 && (
+          <Badge className="bg-yellow-100 text-yellow-800">{lateCount} late today</Badge>
+        )}
       </div>
 
       <Card>
@@ -187,7 +190,14 @@ export default function AttendanceAdminPage() {
                 <TableRow key={r.id}>
                   <TableCell className="font-medium">{r.users?.full_name}</TableCell>
                   <TableCell>{r.users?.department}</TableCell>
-                  <TableCell>{r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "—"}</TableCell>
+                  <TableCell>
+                    {r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "—"}
+                    {r.is_late && (
+                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">
+                        Late by {r.minutes_late} mins
+                      </Badge>
+                    )}
+                  </TableCell>
                   <TableCell>
                     {r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "—"}
                     {r.auto_clocked_out && (

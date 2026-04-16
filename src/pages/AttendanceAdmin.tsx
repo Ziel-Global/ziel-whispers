@@ -71,6 +71,14 @@ export default function AttendanceAdminPage() {
     return `${h}h ${m}m`;
   };
 
+  // Format time to 12-hour for edit fields
+  const to12Hour = (time24: string) => {
+    const [h, m] = time24.split(":").map(Number);
+    const suffix = h >= 12 ? "PM" : "AM";
+    const hour12 = h % 12 || 12;
+    return `${hour12}:${String(m).padStart(2, "0")} ${suffix}`;
+  };
+
   const openEdit = (rec: any) => {
     setEditRecord(rec);
     setEditClockIn(rec.clock_in ? format(new Date(rec.clock_in), "HH:mm") : "");
@@ -114,8 +122,8 @@ export default function AttendanceAdminPage() {
     const rows = filtered.map((r: any) => {
       const name = r.users?.full_name || "";
       const dept = r.users?.department || "";
-      const ci = r.clock_in ? format(new Date(r.clock_in), "HH:mm") : "";
-      const co = r.clock_out ? format(new Date(r.clock_out), "HH:mm") : "";
+      const ci = r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "";
+      const co = r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "";
       const dur = r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "";
       return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.is_late ? "Yes" : "No"}","${r.minutes_late || 0}","${r.notes || ""}"`;
     }).join("\n");
@@ -234,10 +242,12 @@ export default function AttendanceAdminPage() {
             <div className="space-y-1">
               <Label>Clock In</Label>
               <Input type="time" value={editClockIn} onChange={(e) => setEditClockIn(e.target.value)} />
+              {editClockIn && <p className="text-xs text-muted-foreground">{to12Hour(editClockIn)}</p>}
             </div>
             <div className="space-y-1">
               <Label>Clock Out</Label>
               <Input type="time" value={editClockOut} onChange={(e) => setEditClockOut(e.target.value)} />
+              {editClockOut && <p className="text-xs text-muted-foreground">{to12Hour(editClockOut)}</p>}
             </div>
             <div className="space-y-1">
               <Label>Notes</Label>

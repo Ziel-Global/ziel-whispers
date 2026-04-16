@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkSettings, formatShiftTime } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,6 +28,7 @@ const passwordSchema = z.object({
 export default function MyProfilePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { shiftStart, shiftEnd } = useWorkSettings();
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [changingPw, setChangingPw] = useState(false);
@@ -43,18 +45,14 @@ export default function MyProfilePage() {
     enabled: !!user?.id,
   });
 
-  // Sync phone from employee data
   useState(() => {
     if (employee?.phone) setPhone(employee.phone);
   });
-
-  
 
   const avatarUrl = employee?.avatar_url ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${employee.avatar_url}` : undefined;
 
   const onSave = async () => {
     if (!employee) return;
-    // Validate phone
     const parsed = profileSchema.safeParse({ phone });
     if (!parsed.success) {
       setPhoneError(parsed.error.errors[0]?.message || "Invalid phone");
@@ -63,7 +61,6 @@ export default function MyProfilePage() {
     setPhoneError("");
     setSaving(true);
     try {
-      // Employee can ONLY update phone
       const { error } = await supabase.from("users").update({
         phone: phone || null,
       }).eq("id", employee.id);
@@ -111,7 +108,6 @@ export default function MyProfilePage() {
 
   if (!employee) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
 
-  // Set phone from employee on first load
   if (phone === "" && employee.phone) {
     setPhone(employee.phone);
   }
@@ -133,8 +129,8 @@ export default function MyProfilePage() {
           <div><Label className="text-muted-foreground text-xs">Employment Type</Label><p className="font-medium">{employee.employment_type}</p></div>
           <div><Label className="text-muted-foreground text-xs">Join Date</Label><p className="font-medium">{employee.join_date}</p></div>
           <div><Label className="text-muted-foreground text-xs">Role</Label><p className="font-medium capitalize">{employee.role}</p></div>
-          <div><Label className="text-muted-foreground text-xs">Shift Start</Label><p className="font-medium">{employee.shift_start}</p></div>
-          <div><Label className="text-muted-foreground text-xs">Shift End</Label><p className="font-medium">{employee.shift_end}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Shift Start</Label><p className="font-medium">{formatShiftTime(shiftStart)}</p></div>
+          <div><Label className="text-muted-foreground text-xs">Shift End</Label><p className="font-medium">{formatShiftTime(shiftEnd)}</p></div>
         </div>
         <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change name, email, department, shift timing, or other details.</p>
         <Separator />

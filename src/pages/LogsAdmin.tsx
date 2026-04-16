@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Flag, ChevronDown, ChevronUp, Search, Save } from "lucide-react";
 import { format } from "date-fns";
-import { formatShiftTime, formatLateness } from "@/hooks/useWorkSettings";
+import { formatShiftTime } from "@/hooks/useWorkSettings";
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);

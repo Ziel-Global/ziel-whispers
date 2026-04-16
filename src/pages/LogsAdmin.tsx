@@ -287,27 +287,11 @@ export default function LogsAdminPage() {
                            <Badge className="bg-green-100 text-green-800">Present</Badge>}
                         </TableCell>
                         <TableCell>
-                          <div className="flex items-center gap-2">
-                            {row.logCount > 0 ? (
-                              <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground">No Logs</Badge>
-                            )}
-                            {isAdmin && row.logs.length > 0 && (
-                              <div className="flex items-center gap-0.5 ml-auto">
-                                {row.logs.map((log: any) => (
-                                  <button
-                                    key={log.id}
-                                    onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
-                                    className="p-0.5 rounded hover:bg-muted transition-colors"
-                                    title={`${log.admin_flagged ? "Unflag" : "Flag"}: ${log.description?.slice(0, 30) || "log"}`}
-                                  >
-                                    <Flag className={`h-3.5 w-3.5 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/30"}`} />
-                                  </button>
-                                ))}
-                              </div>
-                            )}
-                          </div>
+                          {row.logCount > 0 ? (
+                            <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
+                          ) : (
+                            <Badge variant="outline" className="text-muted-foreground">No Logs</Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                       {expandedId === row.userId && (
@@ -332,6 +316,15 @@ export default function LogsAdminPage() {
                                           Submitted {format(new Date(log.submitted_at), "h:mm a")}
                                         </p>
                                       </div>
+                                      {isAdmin && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
+                                          className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                                          title={log.admin_flagged ? "Unflag" : "Flag"}
+                                        >
+                                          <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/40"}`} />
+                                        </button>
+                                      )}
                                     </div>
                                     {isAdmin && expandedLogId === log.id && (
                                       <div className="mt-3 space-y-3 border-t pt-3">

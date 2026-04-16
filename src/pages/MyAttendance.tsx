@@ -174,7 +174,7 @@ export default function MyAttendancePage() {
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You're late by <strong>{formatLateness(todayRecord.hours_late, todayRecord.minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You're late. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
           </p>
         </div>
       )}

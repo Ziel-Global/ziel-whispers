@@ -406,32 +406,39 @@ export default function LogsAdminPage() {
                                 {row.logs.map((log: any) => (
                                   <div key={log.id} className="p-3">
                                     <div className="flex items-start justify-between gap-2">
-                                      <div className="space-y-1 flex-1">
-                                        <div className="flex flex-wrap gap-2 items-center">
-                                          <span className="text-xs text-muted-foreground">Project:</span>
-                                          {log.projects?.name ? <Badge variant="outline">{log.projects.name}</Badge> : <span className="text-sm text-muted-foreground">—</span>}
-                                          <span className="text-xs text-muted-foreground ml-2">Category:</span>
-                                          <Badge variant="secondary">{log.category}</Badge>
-                                          <span className="text-xs text-muted-foreground ml-2">Hours:</span>
-                                          <span className="text-sm font-medium">{formatHours(log.hours)}</span>
-                                          {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                                      <div className="flex-1">
+                                        {/* Vertical column grid layout with labels above values */}
+                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                                          <div>
+                                            <p className="text-[12px] text-muted-foreground mb-0.5">Logged Hours</p>
+                                            <p className="text-sm font-medium">{formatHours(log.hours)}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-[12px] text-muted-foreground mb-0.5">Submitted Time</p>
+                                            <p className="text-sm">{format(new Date(log.submitted_at), "h:mm a")}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
+                                            <p className="text-sm">{log.projects?.name || "—"}</p>
+                                          </div>
+                                          <div>
+                                            <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>
+                                            <Badge variant="secondary">{log.category}</Badge>
+                                          </div>
                                         </div>
-                                        <div>
-                                          <span className="text-xs text-muted-foreground">Description:</span>
+                                        <div className="mb-2">
+                                          <p className="text-[12px] text-muted-foreground mb-0.5">Description</p>
                                           <p className="text-sm text-muted-foreground">{log.description}</p>
                                         </div>
-                                        <div>
-                                          <span className="text-xs text-muted-foreground">Submitted:</span>
-                                          <span className="text-xs text-muted-foreground ml-1">
-                                            {format(new Date(log.submitted_at), "h:mm a")}
-                                          </span>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                                          {log.admin_comment && (
+                                            <div>
+                                              <p className="text-[12px] text-muted-foreground mb-0.5">Admin Comment</p>
+                                              <p className="text-sm">{log.admin_comment}</p>
+                                            </div>
+                                          )}
                                         </div>
-                                        {log.admin_comment && (
-                                          <div>
-                                            <span className="text-xs text-muted-foreground">Admin Comment:</span>
-                                            <p className="text-sm">{log.admin_comment}</p>
-                                          </div>
-                                        )}
                                       </div>
                                       {isAdmin && (
                                         <button

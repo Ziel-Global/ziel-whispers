@@ -13,7 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Download, Flag, ChevronDown, ChevronUp, Search, Save } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock } from "lucide-react";
 import { format } from "date-fns";
 import { formatShiftTime } from "@/hooks/useWorkSettings";
 
@@ -31,6 +33,10 @@ function getShiftHours(shiftStart: string, shiftEnd: string): number {
   return (eh * 60 + em - sh * 60 - sm) / 60;
 }
 
+function getInitials(name: string) {
+  return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+}
+
 export default function LogsAdminPage() {
   const { user: _user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
@@ -42,6 +48,7 @@ export default function LogsAdminPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
+  const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
 
   // Settings state for Log Rules
   const [shiftStart, setShiftStart] = useState("09:00");
@@ -72,6 +79,7 @@ export default function LogsAdminPage() {
 
   const globalShiftStart = settings?.default_shift_start || "09:00";
   const globalShiftEnd = settings?.default_shift_end || "18:00";
+  const missedLogDeadline = settings?.missed_log_check_time || "19:00";
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);
@@ -131,7 +139,7 @@ export default function LogsAdminPage() {
     },
   });
 
-  // Group logs by employee, include employees with zero logs
+  // Group logs by employee — compute log status
   const groupedRows = useMemo(() => {
     const logsByUser: Record<string, any[]> = {};
     logs.forEach((l: any) => {
@@ -152,10 +160,16 @@ export default function LogsAdminPage() {
       const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
       const shiftHours = getShiftHours(empShiftStart, empShiftEnd);
       const unloggedHours = Math.max(0, shiftHours - totalHours);
-      const att = attByUser[emp.id];
-      let status = "Absent";
-      if (att?.clock_in && att?.is_late) status = "Late";
-      else if (att?.clock_in) status = "Present";
+
+      // Log status: missed / added / late
+      const hasLogs = empLogs.length > 0;
+      const hasLateLog = empLogs.some((l: any) => l.is_late);
+      let logStatus: "missed" | "added" | "late" = "missed";
+      if (hasLogs && hasLateLog) logStatus = "late";
+      else if (hasLogs) logStatus = "added";
+
+      // Has any flagged log
+      const hasFlaggedLog = empLogs.some((l: any) => l.admin_flagged);
 
       return {
         userId: emp.id,
@@ -165,7 +179,8 @@ export default function LogsAdminPage() {
         unloggedHours,
         shiftHours,
         logCount: empLogs.length,
-        status,
+        logStatus,
+        hasFlaggedLog,
       };
     });
 
@@ -173,13 +188,36 @@ export default function LogsAdminPage() {
     return allRows.filter((r) => {
       const matchEmp = employeeFilter === "all" || r.userId === employeeFilter;
       const matchStatus = statusFilter === "all" ||
-        (statusFilter === "present" && r.status === "Present") ||
-        (statusFilter === "late" && r.status === "Late") ||
-        (statusFilter === "absent" && r.status === "Absent");
+        (statusFilter === "missed" && r.logStatus === "missed") ||
+        (statusFilter === "added" && r.logStatus === "added") ||
+        (statusFilter === "late" && r.logStatus === "late");
       const matchSearch = !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || r.logs.some((l: any) => l.description?.toLowerCase().includes(searchQ.toLowerCase()));
       return matchEmp && matchStatus && matchSearch;
     });
   }, [logs, employees, attendanceRecords, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
+
+  // Stat card counts (unfiltered)
+  const allUnfilteredRows = useMemo(() => {
+    const logsByUser: Record<string, any[]> = {};
+    logs.forEach((l: any) => {
+      if (!l.user_id) return;
+      if (!logsByUser[l.user_id]) logsByUser[l.user_id] = [];
+      logsByUser[l.user_id].push(l);
+    });
+    return employees.map((emp: any) => {
+      const empLogs = logsByUser[emp.id] || [];
+      const hasLogs = empLogs.length > 0;
+      const hasLateLog = empLogs.some((l: any) => l.is_late);
+      let logStatus: "missed" | "added" | "late" = "missed";
+      if (hasLogs && hasLateLog) logStatus = "late";
+      else if (hasLogs) logStatus = "added";
+      return { userId: emp.id, name: emp.full_name, logStatus };
+    });
+  }, [logs, employees]);
+
+  const missedList = allUnfilteredRows.filter(r => r.logStatus === "missed");
+  const addedList = allUnfilteredRows.filter(r => r.logStatus === "added");
+  const lateList = allUnfilteredRows.filter(r => r.logStatus === "late");
 
   const toggleFlag = async (log: any) => {
     await supabase.from("daily_logs").update({ admin_flagged: !log.admin_flagged }).eq("id", log.id);
@@ -198,9 +236,9 @@ export default function LogsAdminPage() {
   };
 
   const exportCSV = () => {
-    const header = "Employee,Logged Hours,Unlogged Hours,Status,Log Count\n";
+    const header = "Employee,Logged Hours,Unlogged Hours,Log Status,Log Count\n";
     const rows = groupedRows.map((r) =>
-      `"${r.name}",${r.loggedHours.toFixed(1)},${r.unloggedHours.toFixed(1)},"${r.status}",${r.logCount}`
+      `"${r.name}",${r.loggedHours.toFixed(1)},${r.unloggedHours.toFixed(1)},"${r.logStatus}",${r.logCount}`
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
@@ -208,6 +246,9 @@ export default function LogsAdminPage() {
     a.download = `logs_${selectedDate}.csv`;
     a.click();
   };
+
+  const modalData = modalType === "missed" ? missedList : modalType === "added" ? addedList : modalType === "late" ? lateList : [];
+  const modalTitle = modalType === "missed" ? "Logs Missed" : modalType === "added" ? "Logs Added" : "Logs Late";
 
   return (
     <div className="space-y-6">
@@ -220,6 +261,60 @@ export default function LogsAdminPage() {
         </TabsList>
 
         <TabsContent value="logs" className="space-y-6">
+          {/* Stat Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setModalType("missed")}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-red-50"><FileX className="h-5 w-5 text-red-600" /></div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Logs Missed</p>
+                  <p className="text-2xl font-bold">{missedList.length}</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setModalType("added")}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-green-50"><FileText className="h-5 w-5 text-green-600" /></div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Logs Added</p>
+                  <p className="text-2xl font-bold">{addedList.length}</p>
+                </div>
+              </div>
+            </Card>
+            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setModalType("late")}>
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-md bg-yellow-50"><Clock className="h-5 w-5 text-yellow-600" /></div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Logs Late</p>
+                  <p className="text-2xl font-bold">{lateList.length}</p>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Stat Card Modal */}
+          <Dialog open={!!modalType} onOpenChange={() => setModalType(null)}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>{modalTitle} — {format(new Date(selectedDate + "T00:00:00"), "MMM d, yyyy")}</DialogTitle>
+              </DialogHeader>
+              <ScrollArea className="max-h-[400px]">
+                {modalData.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No employees</p>
+                ) : (
+                  <div className="space-y-2">
+                    {modalData.map((emp) => (
+                      <div key={emp.userId} className="flex items-center gap-3 py-2 px-1">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{getInitials(emp.name)}</div>
+                        <span className="text-sm">{emp.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </ScrollArea>
+            </DialogContent>
+          </Dialog>
+
           <div className="flex items-center justify-end">
             <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" />Export CSV</Button>
           </div>
@@ -238,12 +333,12 @@ export default function LogsAdminPage() {
               </SelectContent>
             </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="present">Present</SelectItem>
-                <SelectItem value="late">Late</SelectItem>
-                <SelectItem value="absent">Absent</SelectItem>
+                <SelectItem value="missed">Logs Missed</SelectItem>
+                <SelectItem value="added">Logs Added</SelectItem>
+                <SelectItem value="late">Logs Late</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -256,7 +351,7 @@ export default function LogsAdminPage() {
                   <TableHead>Employee Name</TableHead>
                   <TableHead>Logged Hours</TableHead>
                   <TableHead>Unlogged Hours</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead>Log Status</TableHead>
                   <TableHead>Log Count</TableHead>
                 </TableRow>
               </TableHeader>
@@ -274,7 +369,12 @@ export default function LogsAdminPage() {
                         onClick={() => setExpandedId(expandedId === row.userId ? null : row.userId)}
                       >
                         <TableCell>{expandedId === row.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                        <TableCell className="font-medium">{row.name}</TableCell>
+                        <TableCell className="font-medium">
+                          <span className="flex items-center gap-2">
+                            {row.name}
+                            {row.hasFlaggedLog && <Flag className="h-3.5 w-3.5 text-destructive fill-destructive" />}
+                          </span>
+                        </TableCell>
                         <TableCell>{formatHours(row.loggedHours)}</TableCell>
                         <TableCell>
                           <span className={row.unloggedHours > 0 ? "text-amber-600 font-medium" : "text-muted-foreground"}>
@@ -282,16 +382,18 @@ export default function LogsAdminPage() {
                           </span>
                         </TableCell>
                         <TableCell>
-                          {row.status === "Absent" ? <Badge className="bg-red-100 text-red-700">Absent</Badge> :
-                           row.status === "Late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
-                           <Badge className="bg-green-100 text-green-800">Present</Badge>}
+                          {row.logStatus === "missed" ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
+                           row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
+                           <Badge className="bg-green-100 text-green-800">Added</Badge>}
                         </TableCell>
                         <TableCell>
-                          {row.logCount > 0 ? (
-                            <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
-                          ) : (
-                            <Badge variant="outline" className="text-muted-foreground">No Logs</Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {row.logCount > 0 ? (
+                              <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground">No Logs</Badge>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                       {expandedId === row.userId && (
@@ -306,15 +408,30 @@ export default function LogsAdminPage() {
                                     <div className="flex items-start justify-between gap-2">
                                       <div className="space-y-1 flex-1">
                                         <div className="flex flex-wrap gap-2 items-center">
-                                          {log.projects?.name && <Badge variant="outline">{log.projects.name}</Badge>}
+                                          <span className="text-xs text-muted-foreground">Project:</span>
+                                          {log.projects?.name ? <Badge variant="outline">{log.projects.name}</Badge> : <span className="text-sm text-muted-foreground">—</span>}
+                                          <span className="text-xs text-muted-foreground ml-2">Category:</span>
                                           <Badge variant="secondary">{log.category}</Badge>
+                                          <span className="text-xs text-muted-foreground ml-2">Hours:</span>
                                           <span className="text-sm font-medium">{formatHours(log.hours)}</span>
                                           {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
                                         </div>
-                                        <p className="text-sm text-muted-foreground">{log.description}</p>
-                                        <p className="text-xs text-muted-foreground">
-                                          Submitted {format(new Date(log.submitted_at), "h:mm a")}
-                                        </p>
+                                        <div>
+                                          <span className="text-xs text-muted-foreground">Description:</span>
+                                          <p className="text-sm text-muted-foreground">{log.description}</p>
+                                        </div>
+                                        <div>
+                                          <span className="text-xs text-muted-foreground">Submitted:</span>
+                                          <span className="text-xs text-muted-foreground ml-1">
+                                            {format(new Date(log.submitted_at), "h:mm a")}
+                                          </span>
+                                        </div>
+                                        {log.admin_comment && (
+                                          <div>
+                                            <span className="text-xs text-muted-foreground">Admin Comment:</span>
+                                            <p className="text-sm">{log.admin_comment}</p>
+                                          </div>
+                                        )}
                                       </div>
                                       {isAdmin && (
                                         <button

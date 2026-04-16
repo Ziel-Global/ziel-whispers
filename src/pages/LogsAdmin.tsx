@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, Flag, ChevronDown, ChevronUp, Search, Save } from "lucide-react";
 import { format } from "date-fns";
-import { formatShiftTime } from "@/hooks/useWorkSettings";
+import { formatShiftTime, formatLateness } from "@/hooks/useWorkSettings";
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -303,28 +303,32 @@ export default function LogsAdminPage() {
                               <div className="divide-y">
                                 {row.logs.map((log: any) => (
                                   <div key={log.id} className="p-3">
-                                    <div className="flex items-start justify-between">
+                                    <div className="flex items-start justify-between gap-2">
                                       <div className="space-y-1 flex-1">
                                         <div className="flex flex-wrap gap-2 items-center">
                                           {log.projects?.name && <Badge variant="outline">{log.projects.name}</Badge>}
                                           <Badge variant="secondary">{log.category}</Badge>
                                           <span className="text-sm font-medium">{formatHours(log.hours)}</span>
                                           {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
-                                          {log.admin_flagged && <Flag className="h-3.5 w-3.5 text-destructive fill-destructive" />}
                                         </div>
                                         <p className="text-sm text-muted-foreground">{log.description}</p>
                                         <p className="text-xs text-muted-foreground">
                                           Submitted {format(new Date(log.submitted_at), "h:mm a")}
                                         </p>
                                       </div>
+                                      {isAdmin && (
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
+                                          className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                                          title={log.admin_flagged ? "Unflag" : "Flag"}
+                                        >
+                                          <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/40"}`} />
+                                        </button>
+                                      )}
                                     </div>
                                     {isAdmin && expandedLogId === log.id && (
                                       <div className="mt-3 space-y-3 border-t pt-3">
                                         <div className="flex items-center gap-4">
-                                          <div className="flex items-center gap-2">
-                                            <Label className="text-xs">Flag</Label>
-                                            <Switch checked={log.admin_flagged} onCheckedChange={() => toggleFlag(log)} />
-                                          </div>
                                           <div className="flex items-center gap-2">
                                             <Label className="text-xs">Lock</Label>
                                             <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />

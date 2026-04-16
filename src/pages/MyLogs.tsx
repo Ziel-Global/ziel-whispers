@@ -106,28 +106,41 @@ export default function MyLogsPage() {
               <div className="space-y-2">
                 {dayLogs.map((log: any) => (
                   <Card key={log.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-1">
-                        <div className="flex flex-wrap gap-2">
-                          {log.projects?.name && <Badge variant="outline">{log.projects.name}</Badge>}
-                          <Badge variant="secondary">{log.category}</Badge>
-                          <span className="text-sm font-medium">{formatHours(log.hours)}</span>
-                          {log.is_late && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
-                          {log.is_locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
-                        </div>
-                        <p className="text-sm text-muted-foreground">{log.description}</p>
-                        {log.admin_comment && (
-                          <div className="mt-2 flex items-start gap-2 bg-accent/50 border border-border rounded-md p-2.5">
-                            <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" />
-                            <div>
-                              <span className="text-xs font-semibold text-primary">Admin Feedback:</span>
-                              <p className="text-sm text-foreground">{log.admin_comment}</p>
-                            </div>
-                          </div>
-                        )}
-                        <p className="text-xs text-muted-foreground">Submitted {format(new Date(log.submitted_at), "h:mm a")}</p>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                      <div>
+                        <p className="text-[12px] text-muted-foreground mb-0.5">Logged Hours</p>
+                        <p className="text-sm font-medium">{formatHours(log.hours)}</p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-muted-foreground mb-0.5">Submitted Time</p>
+                        <p className="text-sm">{format(new Date(log.submitted_at), "h:mm a")}</p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
+                        <p className="text-sm">{log.projects?.name || "—"}</p>
+                      </div>
+                      <div>
+                        <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>
+                        <Badge variant="secondary">{log.category}</Badge>
                       </div>
                     </div>
+                    <div className="mb-2">
+                      <p className="text-[12px] text-muted-foreground mb-0.5">Description</p>
+                      <p className="text-sm text-muted-foreground">{log.description}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {log.is_late && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
+                      {log.is_locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                    </div>
+                    {log.admin_comment && (
+                      <div className="mt-2 flex items-start gap-2 bg-accent/50 border border-border rounded-md p-2.5">
+                        <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                        <div>
+                          <span className="text-xs font-semibold text-primary">Admin Feedback:</span>
+                          <p className="text-sm text-foreground">{log.admin_comment}</p>
+                        </div>
+                      </div>
+                    )}
                   </Card>
                 ))}
               </div>

@@ -79,7 +79,7 @@ export default function LogsAdminPage() {
 
   const globalShiftStart = settings?.default_shift_start || "09:00";
   const globalShiftEnd = settings?.default_shift_end || "18:00";
-  const missedLogDeadline = settings?.missed_log_check_time || "19:00";
+  const _missedLogDeadline = settings?.missed_log_check_time || "19:00";
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);

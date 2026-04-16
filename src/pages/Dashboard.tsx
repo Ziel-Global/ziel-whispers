@@ -324,7 +324,7 @@ export default function DashboardPage() {
             <>
               <p className="text-sm">Clocked in since <strong>{format(new Date(todayAttendance!.clock_in!), "h:mm a")}</strong></p>
               {(todayAttendance as any)?.is_late && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {(todayAttendance as any).minutes_late} mins</p>
+                <p className="text-xs text-yellow-700 mt-1">⚠️ You're late. Your shift has started.</p>
               )}
             </>
           ) : todayAttendance?.clock_out ? (

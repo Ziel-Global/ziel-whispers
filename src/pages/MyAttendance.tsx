@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkSettings, formatShiftTime } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatLateness } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -174,9 +174,7 @@ export default function MyAttendancePage() {
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You clocked in late today at <strong>{format(new Date(todayRecord.clock_in!), "h:mm a")}</strong>. 
-            Your shift started at <strong>{formatShiftTime(shiftStart)}</strong>
-            {todayRecord.minutes_late > 0 && <> ({todayRecord.minutes_late} mins late)</>}.
+            You're late. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -291,7 +289,7 @@ export default function MyAttendancePage() {
               <strong>Clock In:</strong> {selectedRecord.clock_in ? format(new Date(selectedRecord.clock_in), "h:mm a") : "—"}
               {selectedRecord.is_late && (
                 <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
-                  Late by {selectedRecord.minutes_late} mins
+                  Late by {formatLateness((selectedRecord as any).hours_late, selectedRecord.minutes_late)}
                 </Badge>
               )}
             </p>

@@ -83,3 +83,13 @@ export function formatShiftTime(time: string | undefined | null): string {
   const hour12 = h % 12 || 12;
   return `${hour12}:${m.toString().padStart(2, "0")} ${suffix}`;
 }
+
+/** Format lateness from hours_late and minutes_late stored on attendance record */
+export function formatLateness(hoursLate: number, minutesLate: number): string {
+  const h = hoursLate || 0;
+  const m = minutesLate || 0;
+  if (h === 0 && m === 0) return "0m";
+  if (h === 0) return `${m}m`;
+  if (m === 0) return `${h}h`;
+  return `${h}h ${m}m`;
+}

@@ -386,15 +386,15 @@ export default function LogsAdminPage() {
                            row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
                            <Badge className="bg-green-100 text-green-800">Added</Badge>}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {row.logCount > 0 ? (
-                              <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
-                            ) : (
-                              <Badge variant="outline" className="text-muted-foreground">No Logs</Badge>
-                            )}
-                          </div>
-                        </TableCell>
+                         <TableCell>
+                           <div className="flex items-center gap-2 border border-border rounded-md px-3 py-1.5">
+                             {row.logCount > 0 ? (
+                               <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
+                             ) : (
+                               <span className="text-sm text-muted-foreground">No Logs</span>
+                             )}
+                           </div>
+                         </TableCell>
                       </TableRow>
                       {expandedId === row.userId && (
                         <TableRow key={`${row.userId}-detail`}>
@@ -469,9 +469,8 @@ export default function LogsAdminPage() {
                                     )}
                                     {isAdmin && (
                                       <Button
-                                        variant="ghost"
                                         size="sm"
-                                        className="mt-1 text-xs"
+                                        className="mt-1 text-xs bg-primary text-primary-foreground hover:bg-foreground hover:text-white transition-[background] duration-150 ease-in-out"
                                         onClick={(e) => {
                                           e.stopPropagation();
                                           setExpandedLogId(expandedLogId === log.id ? null : log.id);

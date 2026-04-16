@@ -76,7 +76,8 @@ export function useWorkSettings() {
 }
 
 /** Format HH:mm time string to 12-hour display */
-export function formatShiftTime(time: string): string {
+export function formatShiftTime(time: string | undefined | null): string {
+  if (!time) return "--";
   const [h, m] = time.split(":").map(Number);
   const suffix = h >= 12 ? "PM" : "AM";
   const hour12 = h % 12 || 12;

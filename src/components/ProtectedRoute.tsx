@@ -34,6 +34,10 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (location.pathname === "/set-password" && profile && !profile.must_change_password) {
+    return <Navigate to="/" replace />;
+  }
+
   if (profile?.must_change_password && location.pathname !== "/set-password") {
     return <Navigate to="/set-password" replace />;
   }

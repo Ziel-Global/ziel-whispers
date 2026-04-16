@@ -40,8 +40,9 @@ function formatHours(h: number) {
 }
 
 export default function LogSubmitPage() {
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { shiftEnd: resolvedShiftEnd } = useWorkSettings();
   const [submitting, setSubmitting] = useState(false);
   const today = getTodayStr();
 

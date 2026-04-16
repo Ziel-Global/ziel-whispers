@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useWorkSettings } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -104,10 +105,9 @@ export default function LogSubmitPage() {
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSubmitting(true);
     try {
-      // Fetch resolved shift end for the user
-      const shiftEnd = (profile as any)?.shift_end || "18:00";
+      // Use resolved shift end from global/custom settings
       const now = new Date();
-      const [h, m] = shiftEnd.split(":").map(Number);
+      const [h, m] = resolvedShiftEnd.split(":").map(Number);
       const shiftEndTime = new Date();
       shiftEndTime.setHours(h, m, 0);
       const isLate = data.log_date === today && now > shiftEndTime;

@@ -13,7 +13,7 @@ export default function SetPasswordPage() {
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, signOut } = useAuth();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,17 +22,33 @@ export default function SetPasswordPage() {
     if (!/[^a-zA-Z0-9]/.test(password)) { toast.error("Password must contain at least one special character"); return; }
     if (password !== confirm) { toast.error("Passwords do not match"); return; }
     setLoading(true);
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) { toast.error(error.message); setLoading(false); return; }
-    if (profile) {
-      await supabase.from("users").update({ must_change_password: false }).eq("id", profile.id);
+    try {
+      const { error } = await supabase.auth.updateUser({ password });
+      if (error) throw error;
+
+      if (profile) {
+        const [{ error: profileError }, { error: auditError }] = await Promise.all([
+          supabase.from("users").update({ must_change_password: false }).eq("id", profile.id),
+          supabase.from("audit_logs").insert({
+            actor_id: profile.id,
+            action: "user.password_set",
+            target_entity: "users",
+            target_id: profile.id,
+          }),
+        ]);
+
+        if (profileError) throw profileError;
+        if (auditError) throw auditError;
+      }
+
+      await signOut();
+      toast.success("Password changed successfully. Please log in with your new password.");
+      navigate("/login", { replace: true });
+    } catch (error: any) {
+      toast.error(error.message || "Failed to update password");
+    } finally {
+      setLoading(false);
     }
-    await supabase.from("audit_logs").insert({
-      actor_id: profile?.id, action: "user.password_set", target_entity: "users", target_id: profile?.id,
-    });
-    toast.success("Password updated successfully");
-    setLoading(false);
-    navigate("/", { replace: true });
   };
 
   return (

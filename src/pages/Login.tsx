@@ -93,15 +93,6 @@ export default function LoginPage() {
             >
               {loading ? "Signing in…" : "Sign In"}
             </Button>
-            <div className="text-center">
-              <button
-                type="button"
-                onClick={() => navigate("/reset-password")}
-                className="text-sm text-muted-foreground hover:text-foreground underline"
-              >
-                Forgot password?
-              </button>
-            </div>
           </form>
         </CardContent>
       </Card>

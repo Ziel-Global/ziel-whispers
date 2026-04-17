@@ -510,12 +510,12 @@ export default function LogsAdminPage() {
                 <div className="space-y-1">
                   <Label>Default Shift Start</Label>
                   <Input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(shiftStart)}</p>
+                  <p className="text-xs text-muted-foreground">Currently: {formatTime12h(shiftStart)}</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Default Shift End</Label>
                   <Input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(shiftEnd)}</p>
+                  <p className="text-xs text-muted-foreground">Currently: {formatTime12h(shiftEnd)}</p>
                 </div>
                 <div className="space-y-1">
                   <Label>Log Edit Window (days)</Label>
@@ -525,7 +525,7 @@ export default function LogsAdminPage() {
                 <div className="space-y-1">
                   <Label>Missed Log Detection Time</Label>
                   <Input type="time" value={missedLogTime} onChange={(e) => setMissedLogTime(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(missedLogTime)}</p>
+                  <p className="text-xs text-muted-foreground">Currently: {formatTime12h(missedLogTime)}</p>
                 </div>
               </div>
             </Card>

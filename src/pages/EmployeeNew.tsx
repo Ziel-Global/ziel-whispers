@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { PasswordInput } from "@/components/ui/password-input";
+import { formatTime12h } from "@/hooks/useWorkSettings";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
@@ -28,9 +30,9 @@ const schema = z.object({
   join_date: z.string().min(1, "Join date is required").refine((v) => new Date(v) <= new Date(), "Cannot be a future date"),
   employment_type: z.string().min(1, "Employment type is required"),
   role: z.string().min(1, "Role is required"),
-  shift_start: z.string().default("09:00"),
-  shift_end: z.string().default("18:00"),
-  reminder_offset_minutes: z.number().default(30),
+  shift_start: z.string().min(1, "Shift start required"),
+  shift_end: z.string().min(1, "Shift end required"),
+  reminder_offset_minutes: z.number().min(1),
   password: z.string().min(8, "Min 8 characters").regex(/[0-9]/, "Must contain a number").regex(/[^a-zA-Z0-9]/, "Must contain a special character"),
 });
 
@@ -41,17 +43,60 @@ export default function EmployeeNewPage() {
   const [submitting, setSubmitting] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
+  // Pull defaults from admin settings — no hardcoded fallbacks
+  const { data: settings } = useQuery({
+    queryKey: ["system-settings-defaults-new-emp"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("key, value")
+        .in("key", ["default_shift_start", "default_shift_end", "reminder_offset_minutes"]);
+      const map: Record<string, string> = {};
+      (data || []).forEach((s) => { map[s.key] = s.value; });
+      return map;
+    },
+  });
+
+  const defaultShiftStart = settings?.default_shift_start ?? "";
+  const defaultShiftEnd = settings?.default_shift_end ?? "";
+  const defaultReminder = Number(settings?.reminder_offset_minutes ?? 0);
+
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
     defaultValues: {
       full_name: "", email: "", phone: "", designation: "", department: "",
       join_date: "", employment_type: "", role: "employee",
-      shift_start: "09:00", shift_end: "18:00", reminder_offset_minutes: 30,
+      shift_start: "", shift_end: "", reminder_offset_minutes: 0,
       password: "",
     },
   });
 
+  // Once settings load, populate the shift/reminder defaults
+  useEffect(() => {
+    if (settings) {
+      if (defaultShiftStart && !form.getValues("shift_start")) form.setValue("shift_start", defaultShiftStart);
+      if (defaultShiftEnd && !form.getValues("shift_end")) form.setValue("shift_end", defaultShiftEnd);
+      if (defaultReminder && !form.getValues("reminder_offset_minutes")) form.setValue("reminder_offset_minutes", defaultReminder);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings]);
+
+  const resetForm = () => {
+    form.reset({
+      full_name: "", email: "", phone: "", designation: "", department: "",
+      join_date: "", employment_type: "", role: "employee",
+      shift_start: defaultShiftStart, shift_end: defaultShiftEnd,
+      reminder_offset_minutes: defaultReminder,
+      password: "",
+    });
+    setAvatarFile(null);
+  };
+
   const onSubmit = async (data: FormData) => {
+    if (!defaultShiftStart || !defaultShiftEnd || !defaultReminder) {
+      toast.error("System settings missing. Ask an admin to configure default shift times and reminder offset in Settings.");
+      return;
+    }
     setSubmitting(true);
     try {
       const { data: result, error } = await supabase.functions.invoke("invite-user", { body: data });
@@ -66,8 +111,8 @@ export default function EmployeeNewPage() {
         await supabase.from("users").update({ avatar_url: path }).eq("id", res.user_id);
       }
 
-      toast.success(`Employee created successfully.`);
-      navigate(`/employees/${res.user_id}`);
+      toast.success("Employee created successfully");
+      resetForm();
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }
   };
@@ -124,14 +169,24 @@ export default function EmployeeNewPage() {
                 </FormItem>
               )} />
               <FormField control={form.control} name="shift_start" render={({ field }) => (
-                <FormItem><FormLabel>Shift Start</FormLabel><FormControl><Input {...field} type="time" /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Shift Start</FormLabel>
+                  <FormControl><Input {...field} type="time" /></FormControl>
+                  {field.value && <p className="text-xs text-muted-foreground">Displayed as {formatTime12h(field.value)}</p>}
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="shift_end" render={({ field }) => (
-                <FormItem><FormLabel>Shift End</FormLabel><FormControl><Input {...field} type="time" /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Shift End</FormLabel>
+                  <FormControl><Input {...field} type="time" /></FormControl>
+                  {field.value && <p className="text-xs text-muted-foreground">Displayed as {formatTime12h(field.value)}</p>}
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
                 <FormItem><FormLabel>Reminder Offset</FormLabel>
-                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}><FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value || "")}><FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
                     <SelectContent>{REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}</SelectContent>
                   </Select><FormMessage />
                 </FormItem>

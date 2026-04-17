@@ -3,7 +3,6 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
-const SESSION_TIMEOUT_MS = 8 * 60 * 60 * 1000; // 8 hours
 const ACTIVITY_KEY = "ziel_last_activity";
 const SESSION_ID_KEY = "ziel_session_id";
 const STATUS_CHECK_INTERVAL = 30000; // 30 seconds
@@ -38,6 +37,18 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
+async function getSessionTimeoutMs(): Promise<number> {
+  const { data } = await supabase
+    .from("system_settings")
+    .select("value")
+    .eq("key", "session_timeout_hours")
+    .maybeSingle();
+  const hours = Number(data?.value);
+  // If setting is missing or invalid, fall back to 8h to avoid locking users out
+  if (!hours || Number.isNaN(hours) || hours <= 0) return 8 * 60 * 60 * 1000;
+  return hours * 60 * 60 * 1000;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -45,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionIdRef = useRef<string | null>(null);
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionTimeoutMsRef = useRef<number>(8 * 60 * 60 * 1000);
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
@@ -60,8 +72,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const nextProfile = data as UserProfile | null;
-    
-    // Check if account is deactivated
     if (nextProfile && nextProfile.status === "inactive") {
       toast.error("Your account has been deactivated. Please contact your administrator.");
       await supabase.auth.signOut();
@@ -74,7 +84,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return nextProfile;
   };
 
-  // --- Periodic status check for deactivation ---
   const startStatusCheck = useCallback((userId: string) => {
     if (statusCheckRef.current) clearInterval(statusCheckRef.current);
     statusCheckRef.current = setInterval(async () => {
@@ -92,19 +101,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }, STATUS_CHECK_INTERVAL);
   }, []);
 
-  // --- Inactivity timeout ---
   const resetInactivityTimer = useCallback(() => {
     localStorage.setItem(ACTIVITY_KEY, Date.now().toString());
     if (inactivityTimerRef.current) clearTimeout(inactivityTimerRef.current);
     inactivityTimerRef.current = setTimeout(async () => {
       toast.error("Your session has expired. Please log in again");
       await supabase.auth.signOut();
-    }, SESSION_TIMEOUT_MS);
+    }, sessionTimeoutMsRef.current);
   }, []);
 
   const checkInactivityExpiry = useCallback(async () => {
     const last = localStorage.getItem(ACTIVITY_KEY);
-    if (last && Date.now() - Number(last) > SESSION_TIMEOUT_MS) {
+    if (last && Date.now() - Number(last) > sessionTimeoutMsRef.current) {
       toast.error("Your session has expired. Please log in again");
       await supabase.auth.signOut();
       return true;
@@ -112,7 +120,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   }, []);
 
-  // --- Cross-tab session detection ---
   useEffect(() => {
     const handleStorage = async (e: StorageEvent) => {
       if (e.key === SESSION_ID_KEY && e.newValue && e.newValue !== sessionIdRef.current) {
@@ -130,7 +137,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener("storage", handleStorage);
   }, []);
 
-  // --- Activity listeners ---
   useEffect(() => {
     if (!session) return;
 
@@ -145,7 +151,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session, resetInactivityTimer]);
 
-  // --- Auth state listener ---
   useEffect(() => {
     let isMounted = true;
 
@@ -164,6 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newSid = nextSession.access_token.slice(-16);
       sessionIdRef.current = newSid;
       localStorage.setItem(SESSION_ID_KEY, newSid);
+
+      // Refresh session timeout from settings on each session sync
+      sessionTimeoutMsRef.current = await getSessionTimeoutMs();
 
       const expired = await checkInactivityExpiry();
       if (expired) { setLoading(false); return; }

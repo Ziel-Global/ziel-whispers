@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { formatShiftTime } from "@/hooks/useWorkSettings";
+import { formatTime12h } from "@/hooks/useWorkSettings";
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -28,8 +28,10 @@ function formatHours(h: number) {
 }
 
 function getShiftHours(shiftStart: string, shiftEnd: string): number {
+  if (!shiftStart || !shiftEnd) return 0;
   const [sh, sm] = shiftStart.split(":").map(Number);
   const [eh, em] = shiftEnd.split(":").map(Number);
+  if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
   return (eh * 60 + em - sh * 60 - sm) / 60;
 }
 
@@ -50,11 +52,11 @@ export default function LogsAdminPage() {
   const [comment, setComment] = useState("");
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
 
-  // Settings state for Log Rules
-  const [shiftStart, setShiftStart] = useState("09:00");
-  const [shiftEnd, setShiftEnd] = useState("18:00");
-  const [logEditDays, setLogEditDays] = useState("3");
-  const [missedLogTime, setMissedLogTime] = useState("19:00");
+  // Settings state for Log Rules — empty until loaded from DB
+  const [shiftStart, setShiftStart] = useState("");
+  const [shiftEnd, setShiftEnd] = useState("");
+  const [logEditDays, setLogEditDays] = useState("");
+  const [missedLogTime, setMissedLogTime] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Load settings
@@ -70,16 +72,16 @@ export default function LogsAdminPage() {
 
   useEffect(() => {
     if (settings) {
-      setShiftStart(settings["default_shift_start"] || "09:00");
-      setShiftEnd(settings["default_shift_end"] || "18:00");
-      setLogEditDays(settings["log_edit_window_days"] || "3");
-      setMissedLogTime(settings["missed_log_check_time"] || "19:00");
+      setShiftStart(settings["default_shift_start"] ?? "");
+      setShiftEnd(settings["default_shift_end"] ?? "");
+      setLogEditDays(settings["log_edit_window_days"] ?? "");
+      setMissedLogTime(settings["missed_log_check_time"] ?? "");
     }
   }, [settings]);
 
-  const globalShiftStart = settings?.default_shift_start || "09:00";
-  const globalShiftEnd = settings?.default_shift_end || "18:00";
-  const _missedLogDeadline = settings?.missed_log_check_time || "19:00";
+  const globalShiftStart = settings?.default_shift_start ?? "";
+  const globalShiftEnd = settings?.default_shift_end ?? "";
+  const _missedLogDeadline = settings?.missed_log_check_time ?? "";
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);

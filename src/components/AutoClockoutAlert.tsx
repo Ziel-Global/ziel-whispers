@@ -10,11 +10,22 @@ export function AutoClockoutAlert() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch auto-clocked-out attendance records that haven't been acknowledged
+  // Fetch admin-configured display label for auto clock-out time
+  const { data: autoClockoutLabel } = useQuery({
+    queryKey: ["auto-clockout-display-label"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "auto_clockout_display_time")
+        .maybeSingle();
+      return (data?.value as string) || "12:00 AM";
+    },
+  });
+
   const { data: unackedAutoClockouts = [] } = useQuery({
     queryKey: ["auto-clockout-unacked", user?.id],
     queryFn: async () => {
-      // Get all auto-clocked-out records for this user
       const { data: autoRecords } = await supabase
         .from("attendance")
         .select("id, date, clock_in")
@@ -24,7 +35,6 @@ export function AutoClockoutAlert() {
 
       if (!autoRecords || autoRecords.length === 0) return [];
 
-      // Get acknowledged ones
       const { data: acks } = await supabase
         .from("auto_clockout_acks")
         .select("attendance_id")
@@ -48,6 +58,7 @@ export function AutoClockoutAlert() {
   if (unackedAutoClockouts.length === 0) return null;
 
   const current = unackedAutoClockouts[0];
+  const displayTime = autoClockoutLabel || "12:00 AM";
 
   return (
     <Dialog open={true} onOpenChange={() => {}}>
@@ -62,7 +73,7 @@ export function AutoClockoutAlert() {
           <p className="text-sm text-muted-foreground">
             <strong>Heads up</strong> — You forgot to clock out on{" "}
             <strong>{format(new Date(current.date + "T00:00:00"), "EEEE, MMMM d, yyyy")}</strong>, so the system
-            automatically clocked you out at 12:00 AM.
+            automatically clocked you out at {displayTime}.
           </p>
           <p className="text-sm text-muted-foreground">
             Please make it a habit to clock out at the end of your shift. Repeated occurrences may be noted in your attendance record.

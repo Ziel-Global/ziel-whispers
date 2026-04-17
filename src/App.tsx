@@ -8,7 +8,6 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AppLayout from "@/layouts/AppLayout";
 import LoginPage from "@/pages/Login";
 import SetPasswordPage from "@/pages/SetPassword";
-import ResetPasswordPage from "@/pages/ResetPassword";
 import DashboardPage from "@/pages/Dashboard";
 import EmployeesPage from "@/pages/Employees";
 import EmployeeNewPage from "@/pages/EmployeeNew";
@@ -42,7 +41,6 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/reset-password" element={<ResetPasswordPage />} />
             <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
 
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>

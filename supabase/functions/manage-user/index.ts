@@ -85,6 +85,32 @@ Deno.serve(async (req) => {
       return jsonResponse({ success: true });
     }
 
+    if (action === "set_password") {
+      const { new_password } = body;
+      if (!new_password || typeof new_password !== "string" || new_password.length < 8) {
+        return jsonResponse({ error: "Password must be at least 8 characters" }, 400);
+      }
+      if (!/[0-9]/.test(new_password) || !/[^a-zA-Z0-9]/.test(new_password)) {
+        return jsonResponse({ error: "Password must contain a number and a special character" }, 400);
+      }
+
+      const { error: authError } = await adminClient.auth.admin.updateUserById(user_id, { password: new_password });
+      if (authError) {
+        return jsonResponse({ error: authError.message }, 400);
+      }
+
+      await adminClient.from("users").update({ must_change_password: false }).eq("id", user_id);
+
+      await adminClient.from("audit_logs").insert({
+        actor_id: callerId,
+        action: "user.password_set_by_admin",
+        target_entity: "users",
+        target_id: user_id,
+      });
+
+      return jsonResponse({ success: true });
+    }
+
     if (action === "update_email") {
       const { new_email } = body;
       if (!new_email) {

@@ -24,11 +24,22 @@ export default function AttendanceAdminPage() {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [deptFilter, setDeptFilter] = useState("all");
+  const [workModeFilter, setWorkModeFilter] = useState("all");
+  const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [editRecord, setEditRecord] = useState<any>(null);
   const [editClockIn, setEditClockIn] = useState("");
   const [editClockOut, setEditClockOut] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const { data: allEmployees = [] } = useQuery({
+    queryKey: ["all-employees-for-filter"],
+    queryFn: async () => {
+      const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name");
+      return data || [];
+    },
+  });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["admin-attendance", selectedDate],
@@ -58,9 +69,17 @@ export default function AttendanceAdminPage() {
   });
 
   const filtered = useMemo(() => {
-    if (deptFilter === "all") return records;
-    return records.filter((r: any) => r.users?.department === deptFilter);
-  }, [records, deptFilter]);
+    return records.filter((r: any) => {
+      if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
+      if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
+      if (employeeFilter !== "all" && r.user_id !== employeeFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [records, deptFilter, workModeFilter, employeeFilter, searchQuery]);
 
   const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);
 
@@ -161,13 +180,35 @@ export default function AttendanceAdminPage() {
         </Card>
       )}
 
-      <div className="flex gap-3 items-center">
+      <div className="flex gap-3 items-center flex-wrap">
+        <Input
+          type="search"
+          placeholder="Search by employee name…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-[240px]"
+        />
         <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />
+        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Employee" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Employees</SelectItem>
+            {allEmployees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={deptFilter} onValueChange={setDeptFilter}>
           <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Departments</SelectItem>
             {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={workModeFilter} onValueChange={setWorkModeFilter}>
+          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Work Mode" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Modes</SelectItem>
+            <SelectItem value="remote">Remote</SelectItem>
+            <SelectItem value="onsite">Onsite</SelectItem>
           </SelectContent>
         </Select>
         {lateCount > 0 && (

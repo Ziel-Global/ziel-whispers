@@ -55,6 +55,21 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
+    // Pull defaults from system_settings — no hardcoded shift/reminder values here.
+    const { data: settingsRows } = await adminClient
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["default_shift_start", "default_shift_end", "reminder_offset_minutes"]);
+    const settingsMap: Record<string, string> = {};
+    (settingsRows || []).forEach((s: any) => { settingsMap[s.key] = s.value; });
+    const fallbackShiftStart = settingsMap["default_shift_start"] || null;
+    const fallbackShiftEnd = settingsMap["default_shift_end"] || null;
+    const fallbackReminder = Number(settingsMap["reminder_offset_minutes"]) || null;
+
+    if ((!shift_start && !fallbackShiftStart) || (!shift_end && !fallbackShiftEnd) || (!reminder_offset_minutes && !fallbackReminder)) {
+      return jsonResponse({ ok: false, error: "Default shift/reminder settings are not configured. Please configure them in Settings before inviting users." });
+    }
+
     // 1. Create auth user
     const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
       email,
@@ -82,9 +97,9 @@ Deno.serve(async (req) => {
       join_date,
       role: role || "employee",
       phone: phone || null,
-      shift_start: shift_start || "09:00",
-      shift_end: shift_end || "18:00",
-      reminder_offset_minutes: reminder_offset_minutes || 30,
+      shift_start: shift_start || fallbackShiftStart,
+      shift_end: shift_end || fallbackShiftEnd,
+      reminder_offset_minutes: reminder_offset_minutes || fallbackReminder,
       must_change_password: true,
       status: "active",
       created_by: callerId,

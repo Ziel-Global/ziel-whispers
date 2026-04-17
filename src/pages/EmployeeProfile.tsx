@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatShiftTime } from "@/hooks/useWorkSettings";
+import { formatTime12h } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -165,8 +165,13 @@ export default function EmployeeProfilePage() {
     if (!employee) return;
     setSaving(true);
     try {
-      const globalShiftStart = globalSettings?.default_shift_start || "09:00";
-      const globalShiftEnd = globalSettings?.default_shift_end || "18:00";
+      const globalShiftStart = globalSettings?.default_shift_start;
+      const globalShiftEnd = globalSettings?.default_shift_end;
+      if (!globalShiftStart || !globalShiftEnd) {
+        toast.error("Default shift times are not configured. Please set them in Settings first.");
+        setSaving(false);
+        return;
+      }
       const hasCustomShift = data.shift_start !== globalShiftStart || data.shift_end !== globalShiftEnd;
 
       const { error } = await supabase.from("users").update({
@@ -442,7 +447,7 @@ export default function EmployeeProfilePage() {
                     <FormItem>
                       <FormLabel>Shift Start (Override)</FormLabel>
                       <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
-                      <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(field.value)}. Leave as default to use global shift setting.</p>
+                      <p className="text-xs text-muted-foreground">Currently: {formatTime12h(field.value)}. Leave as default to use global shift setting.</p>
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -450,7 +455,7 @@ export default function EmployeeProfilePage() {
                     <FormItem>
                       <FormLabel>Shift End (Override)</FormLabel>
                       <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
-                      <p className="text-xs text-muted-foreground">Currently: {formatShiftTime(field.value)}. Leave as default to use global shift setting.</p>
+                      <p className="text-xs text-muted-foreground">Currently: {formatTime12h(field.value)}. Leave as default to use global shift setting.</p>
                       <FormMessage />
                     </FormItem>
                   )} />

@@ -11,10 +11,8 @@ type WorkSettings = {
 };
 
 /**
- * Resolves work settings for the current user:
- * - If employee has has_custom_shift=true, uses their personal shift times
- * - Otherwise, reads global defaults from system_settings
- * - Always reads annual leave entitlement from system_settings
+ * Resolves work settings for the current user.
+ * All values come from the database (system_settings is seeded with defaults via migration).
  */
 export function useWorkSettings() {
   const { user } = useAuth();
@@ -55,14 +53,15 @@ export function useWorkSettings() {
   });
 
   const hasCustomShift = !!(userShift as any)?.has_custom_shift;
+  // Settings come from DB (seeded). Empty strings used only while loading; UI uses formatTime12h which guards.
   const shiftStart = hasCustomShift
-    ? userShift?.shift_start || "09:00"
-    : globalSettings?.default_shift_start || "09:00";
+    ? (userShift?.shift_start ?? "")
+    : (globalSettings?.default_shift_start ?? "");
   const shiftEnd = hasCustomShift
-    ? userShift?.shift_end || "18:00"
-    : globalSettings?.default_shift_end || "18:00";
-  const annualLeaveEntitlement = Number(globalSettings?.annual_leave_entitlement) || 12;
-  const timezone = globalSettings?.timezone || "Asia/Karachi";
+    ? (userShift?.shift_end ?? "")
+    : (globalSettings?.default_shift_end ?? "");
+  const annualLeaveEntitlement = Number(globalSettings?.annual_leave_entitlement ?? 0);
+  const timezone = globalSettings?.timezone ?? "";
 
   const resolved: WorkSettings = {
     shiftStart,
@@ -75,14 +74,24 @@ export function useWorkSettings() {
   return resolved;
 }
 
-/** Format HH:mm time string to 12-hour display */
-export function formatShiftTime(time: string | undefined | null): string {
+/**
+ * Format any HH:mm time string to 12-hour display (e.g. "9:00 AM").
+ * The single source of truth for time display across the app.
+ */
+export function formatTime12h(time: string | undefined | null): string {
   if (!time) return "--";
-  const [h, m] = time.split(":").map(Number);
+  const parts = time.split(":");
+  if (parts.length < 2) return "--";
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  if (Number.isNaN(h) || Number.isNaN(m)) return "--";
   const suffix = h >= 12 ? "PM" : "AM";
   const hour12 = h % 12 || 12;
   return `${hour12}:${m.toString().padStart(2, "0")} ${suffix}`;
 }
+
+/** @deprecated use formatTime12h */
+export const formatShiftTime = formatTime12h;
 
 /** Format lateness from hours_late and minutes_late stored on attendance record */
 export function formatLateness(hoursLate: number, minutesLate: number): string {

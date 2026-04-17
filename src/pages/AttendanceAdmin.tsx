@@ -24,11 +24,22 @@ export default function AttendanceAdminPage() {
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
   const [deptFilter, setDeptFilter] = useState("all");
+  const [workModeFilter, setWorkModeFilter] = useState("all");
+  const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
   const [editRecord, setEditRecord] = useState<any>(null);
   const [editClockIn, setEditClockIn] = useState("");
   const [editClockOut, setEditClockOut] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const { data: allEmployees = [] } = useQuery({
+    queryKey: ["all-employees-for-filter"],
+    queryFn: async () => {
+      const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name");
+      return data || [];
+    },
+  });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["admin-attendance", selectedDate],
@@ -58,9 +69,17 @@ export default function AttendanceAdminPage() {
   });
 
   const filtered = useMemo(() => {
-    if (deptFilter === "all") return records;
-    return records.filter((r: any) => r.users?.department === deptFilter);
-  }, [records, deptFilter]);
+    return records.filter((r: any) => {
+      if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
+      if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
+      if (employeeFilter !== "all" && r.user_id !== employeeFilter) return false;
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
+        if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
+      }
+      return true;
+    });
+  }, [records, deptFilter, workModeFilter, employeeFilter, searchQuery]);
 
   const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);
 

@@ -20,6 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Shield, ShieldOff, Download, Trash2 } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
@@ -63,6 +64,10 @@ export default function EmployeeProfilePage() {
   const [emailWarningOpen, setEmailWarningOpen] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
   const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
+  const [adminNewPassword, setAdminNewPassword] = useState("");
+  const [adminConfirmPassword, setAdminConfirmPassword] = useState("");
+  const [adminPwError, setAdminPwError] = useState("");
+  const [settingPassword, setSettingPassword] = useState(false);
 
   // Work Logs filters
   const [logDateFilter, setLogDateFilter] = useState("");
@@ -491,6 +496,58 @@ export default function EmployeeProfilePage() {
               </form>
             </Form>
           </Card>
+
+          {isAdmin && !isOwnProfile && (
+            <Card className="p-6 space-y-4">
+              <div>
+                <h3 className="font-semibold">Change Password</h3>
+                <p className="text-sm text-muted-foreground mt-1">Set a new password for this employee. They will use it on their next login.</p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <FormLabel>New Password <span className="text-destructive">*</span></FormLabel>
+                  <PasswordInput value={adminNewPassword} onChange={(e) => setAdminNewPassword(e.target.value)} showStrength />
+                </div>
+                <div className="space-y-2">
+                  <FormLabel>Confirm New Password <span className="text-destructive">*</span></FormLabel>
+                  <PasswordInput value={adminConfirmPassword} onChange={(e) => setAdminConfirmPassword(e.target.value)} />
+                </div>
+              </div>
+              {adminPwError && <p className="text-sm text-destructive">{adminPwError}</p>}
+              <div className="flex justify-end">
+                <Button
+                  variant="outline"
+                  disabled={settingPassword}
+                  onClick={async () => {
+                    setAdminPwError("");
+                    if (adminNewPassword.length < 8) { setAdminPwError("Password must be at least 8 characters"); return; }
+                    if (!/[0-9]/.test(adminNewPassword)) { setAdminPwError("Password must contain a number"); return; }
+                    if (!/[^a-zA-Z0-9]/.test(adminNewPassword)) { setAdminPwError("Password must contain a special character"); return; }
+                    if (adminNewPassword !== adminConfirmPassword) { setAdminPwError("Passwords do not match"); return; }
+                    setSettingPassword(true);
+                    try {
+                      const { data, error } = await supabase.functions.invoke("manage-user", {
+                        body: { action: "set_password", user_id: id, new_password: adminNewPassword },
+                      });
+                      if (error || (data as any)?.error) {
+                        toast.error((data as any)?.error || error?.message || "Failed to set password");
+                      } else {
+                        toast.success("Password updated successfully");
+                        setAdminNewPassword("");
+                        setAdminConfirmPassword("");
+                      }
+                    } catch (err: any) {
+                      toast.error(err.message);
+                    } finally {
+                      setSettingPassword(false);
+                    }
+                  }}
+                >
+                  {settingPassword ? "Updating…" : "Update Password"}
+                </Button>
+              </div>
+            </Card>
+          )}
         </TabsContent>
 
         {isAdmin && (

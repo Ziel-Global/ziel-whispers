@@ -19,15 +19,11 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
-    const { data: recentAttempts } = await supabase
-      .from("login_attempts")
-      .select("id")
-      .eq("email", email.toLowerCase().trim())
-      .eq("success", false)
-      .gte("attempted_at", fifteenMinsAgo);
+    const { data: lockData } = await supabase.functions.invoke("log-login-attempt", {
+      body: { action: "check", email },
+    });
 
-    if (recentAttempts && recentAttempts.length >= 5) {
+    if (lockData?.locked) {
       toast.error("Your account has been locked due to too many failed attempts. Please try again in 15 minutes.");
       setLoading(false);
       return;
@@ -36,23 +32,16 @@ export default function LoginPage() {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
     if (error) {
-      await supabase.from("login_attempts").insert({
-        email: email.toLowerCase().trim(),
-        success: false,
-      });
-      await supabase.from("audit_logs").insert({
-        action: "session.login_failed",
-        target_entity: "users",
-        metadata: { email: email.toLowerCase().trim(), reason: error.message },
+      await supabase.functions.invoke("log-login-attempt", {
+        body: { action: "record", email, success: false },
       });
       toast.error(error.message);
       setLoading(false);
       return;
     }
 
-    await supabase.from("login_attempts").insert({
-      email: email.toLowerCase().trim(),
-      success: true,
+    await supabase.functions.invoke("log-login-attempt", {
+      body: { action: "record", email, success: true },
     });
 
     if (data.user) {

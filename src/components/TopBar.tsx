@@ -15,7 +15,6 @@ import {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export function TopBar() {
-  console.log("Helllllllllo")
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 

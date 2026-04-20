@@ -14,6 +14,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -28,7 +29,7 @@ const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
-const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -76,7 +77,7 @@ export default function EmployeeProfilePage() {
   const isAdmin = myProfile?.role === "admin";
   const isOwnProfile = myProfile?.id === id;
 
-  const { data: employee, isLoading } = useQuery({
+  const { data: employee, isLoading, error: employeeError } = useQuery({
     queryKey: ["employee", id],
     queryFn: async () => {
       const { data, error } = await supabase.from("users").select("*").eq("id", id!).single();
@@ -133,20 +134,20 @@ export default function EmployeeProfilePage() {
 
   const form = useForm({
     resolver: zodResolver(adminSchema),
-    values: employee ? {
-      full_name: employee.full_name,
-      email: employee.email,
-      phone: employee.phone || "",
-      designation: employee.designation,
-      department: employee.department,
-      join_date: employee.join_date,
-      employment_type: employee.employment_type,
-      role: employee.role,
-      shift_start: employee.shift_start,
-      shift_end: employee.shift_end,
-      reminder_offset_minutes: employee.reminder_offset_minutes,
-      is_night_shift: employee.is_night_shift ?? false,
-    } : undefined,
+    defaultValues: {
+      full_name: employee?.full_name || "",
+      email: employee?.email || "",
+      phone: employee?.phone || "",
+      designation: employee?.designation || "",
+      department: employee?.department || "",
+      join_date: employee?.join_date || "",
+      employment_type: employee?.employment_type || "",
+      role: employee?.role || "",
+      shift_start: employee?.shift_start || "09:00",
+      shift_end: employee?.shift_end || "17:00",
+      reminder_offset_minutes: employee?.reminder_offset_minutes || 15,
+      is_night_shift: employee?.is_night_shift ?? false,
+    },
   });
 
   const avatarUrl = employee?.avatar_url ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${employee.avatar_url}` : undefined;
@@ -296,6 +297,7 @@ export default function EmployeeProfilePage() {
   };
 
   if (isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
+  if (employeeError) return <div className="text-center py-12 text-muted-foreground">Failed to load employee. {(employeeError as any)?.message}</div>;
   if (!employee) return <div className="text-center py-12 text-muted-foreground">Employee not found</div>;
 
   const statusBadge = (status: string) => {
@@ -510,11 +512,11 @@ export default function EmployeeProfilePage() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <FormLabel>New Password <span className="text-destructive">*</span></FormLabel>
+                  <Label>New Password <span className="text-destructive">*</span></Label>
                   <PasswordInput value={adminNewPassword} onChange={(e) => setAdminNewPassword(e.target.value)} showStrength />
                 </div>
                 <div className="space-y-2">
-                  <FormLabel>Confirm New Password <span className="text-destructive">*</span></FormLabel>
+                  <Label>Confirm New Password <span className="text-destructive">*</span></Label>
                   <PasswordInput value={adminConfirmPassword} onChange={(e) => setAdminConfirmPassword(e.target.value)} />
                 </div>
               </div>

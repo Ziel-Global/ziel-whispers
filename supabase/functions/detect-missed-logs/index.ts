@@ -1,6 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
-Deno.serve(async (req) => {
+Deno.serve(async (req: Request) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -18,9 +18,9 @@ Deno.serve(async (req) => {
     if (!users) return new Response("No users");
 
     const { data: todayLogs } = await supabase.from("daily_logs").select("user_id").eq("log_date", todayStr);
-    const loggedUserIds = new Set((todayLogs || []).map((l) => l.user_id));
+    const loggedUserIds = new Set((todayLogs || []).map((l: { user_id: string }) => l.user_id));
 
-    const missedUsers = users.filter((u) => !loggedUserIds.has(u.id));
+    const missedUsers = users.filter((u: { id: string }) => !loggedUserIds.has(u.id));
 
     // Insert missed_logs entries (detection logic kept, emails removed)
     for (const user of missedUsers) {
@@ -28,7 +28,8 @@ Deno.serve(async (req) => {
     }
 
     return new Response(JSON.stringify({ missed: missedUsers.length }), { headers: { "Content-Type": "application/json" } });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    return new Response(JSON.stringify({ error: errorMessage }), { status: 500 });
   }
 });

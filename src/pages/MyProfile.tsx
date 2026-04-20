@@ -13,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { PasswordInput } from "@/components/ui/password-input";
 
-const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 const profileSchema = z.object({
   phone: z.string().optional().refine((v) => !v || /^03\d{9}$/.test(v), "Please enter a valid Pakistani phone number (03XXXXXXXXX)"),

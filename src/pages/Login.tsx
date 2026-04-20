@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/ui/password-input";
-import zielLogoWhite from "@/assets/ziel-logo-white.png";
+import zielLogoWhite from "@/assets/ziel-logo-black.png";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");

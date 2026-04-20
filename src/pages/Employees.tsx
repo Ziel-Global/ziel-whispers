@@ -17,7 +17,7 @@ const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "
 const STATUSES = ["active", "inactive", "pending"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 
-const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export default function EmployeesPage() {
   const navigate = useNavigate();

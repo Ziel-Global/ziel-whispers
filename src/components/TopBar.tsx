@@ -11,7 +11,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
+
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export function TopBar() {
   console.log("Helllllllllo")

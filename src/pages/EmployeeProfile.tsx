@@ -28,7 +28,7 @@ const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
-const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);

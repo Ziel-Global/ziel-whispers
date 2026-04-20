@@ -10,7 +10,13 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:schema:test": "ts-node src/lib/database-util.ts test",
+    "db:schema:extract": "ts-node src/lib/database-util.ts extract",
+    "db:schema:stats": "ts-node src/lib/database-util.ts stats",
+    "db:schema:compare": "ts-node src/lib/database-util.ts compare",
+    "db:schema:replicate": "ts-node src/lib/database-util.ts replicate",
+    "db:schema:replicate:dry": "ts-node src/lib/database-util.ts replicate:dry-run"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

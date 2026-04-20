@@ -14,6 +14,7 @@ import {
 const SUPABASE_URL = "https://goutpygixoxkgbrfmkey.supabase.co";
 
 export function TopBar() {
+  console.log("Helllllllllo")
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 

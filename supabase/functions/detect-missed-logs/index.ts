@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Always status 200 — errors surface in the body so supabase-js never swallows them.
+function jsonResponse(body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -20,11 +28,11 @@ Deno.serve(async (req: Request) => {
     const todayStr = new Date().toISOString().split("T")[0];
     const dayOfWeek = new Date().getDay();
     if (dayOfWeek === 0 || dayOfWeek === 6) {
-      return new Response(JSON.stringify({ skipped: "weekend" }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      return jsonResponse({ ok: true, skipped: "weekend" });
     }
 
     const { data: users } = await supabase.from("users").select("id, full_name, email").eq("status", "active");
-    if (!users) return new Response("No users");
+    if (!users) return jsonResponse({ ok: true, missed: 0, message: "No active users" });
 
     const { data: todayLogs } = await supabase.from("daily_logs").select("user_id").eq("log_date", todayStr);
     const loggedUserIds = new Set((todayLogs || []).map((l: { user_id: string }) => l.user_id));
@@ -36,9 +44,10 @@ Deno.serve(async (req: Request) => {
       await supabase.from("missed_logs").insert({ user_id: user.id, log_date: todayStr });
     }
 
-    return new Response(JSON.stringify({ missed: missedUsers.length }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    return jsonResponse({ ok: true, missed: missedUsers.length });
   } catch (err: unknown) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    return new Response(JSON.stringify({ error: errorMessage }), { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("detect-missed-logs error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

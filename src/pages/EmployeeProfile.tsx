@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -150,6 +150,25 @@ export default function EmployeeProfilePage() {
     },
   });
 
+  useEffect(() => {
+    if (employee) {
+      form.reset({
+        full_name: employee.full_name || "",
+        email: employee.email || "",
+        phone: employee.phone || "",
+        designation: employee.designation || "",
+        department: employee.department || "",
+        join_date: employee.join_date || "",
+        employment_type: employee.employment_type || "",
+        role: employee.role || "",
+        shift_start: employee.shift_start || "09:00",
+        shift_end: employee.shift_end || "17:00",
+        reminder_offset_minutes: employee.reminder_offset_minutes || 15,
+        is_night_shift: employee.is_night_shift ?? false,
+      });
+    }
+  }, [employee, form]);
+
   const avatarUrl = employee?.avatar_url ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${employee.avatar_url}` : undefined;
 
   const onSubmit = async (data: z.infer<typeof adminSchema>) => {
@@ -224,8 +243,8 @@ export default function EmployeeProfilePage() {
         body: { action: "update_email", user_id: employee!.id, new_email: pendingEmail },
       });
       if (error) throw error;
-      const res = result as { error?: string };
-      if (res.error) throw new Error(res.error);
+      const res = result as { ok: boolean; error?: string };
+      if (!res.ok) throw new Error(res.error ?? "Failed to update email");
 
       const formData = form.getValues();
       formData.email = pendingEmail;
@@ -244,8 +263,8 @@ export default function EmployeeProfilePage() {
         body: { action: "deactivate", user_id: employee.id },
       });
       if (error) throw error;
-      const res = result as { error?: string };
-      if (res.error) throw new Error(res.error);
+      const res = result as { ok: boolean; error?: string };
+      if (!res.ok) throw new Error(res.error ?? "Failed to deactivate employee");
       toast.success("Employee deactivated");
       queryClient.invalidateQueries({ queryKey: ["employee", id] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -264,8 +283,8 @@ export default function EmployeeProfilePage() {
         body: { action: "reactivate", user_id: employee.id },
       });
       if (error) throw error;
-      const res = result as { error?: string };
-      if (res.error) throw new Error(res.error);
+      const res = result as { ok: boolean; error?: string };
+      if (!res.ok) throw new Error(res.error ?? "Failed to reactivate employee");
       toast.success("Employee reactivated");
       queryClient.invalidateQueries({ queryKey: ["employee", id] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
@@ -536,8 +555,10 @@ export default function EmployeeProfilePage() {
                       const { data, error } = await supabase.functions.invoke("manage-user", {
                         body: { action: "set_password", user_id: id, new_password: adminNewPassword },
                       });
-                      if (error || (data as any)?.error) {
-                        toast.error((data as any)?.error || error?.message || "Failed to set password");
+                      if (error) {
+                        toast.error(error.message || "Failed to set password");
+                      } else if (!(data as any)?.ok) {
+                        toast.error((data as any)?.error || "Failed to set password");
                       } else {
                         toast.success("Password updated successfully");
                         setAdminNewPassword("");

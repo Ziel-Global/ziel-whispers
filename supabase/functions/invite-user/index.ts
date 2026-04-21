@@ -125,7 +125,8 @@ Deno.serve(async (req) => {
 
     return jsonResponse({ ok: true, user_id: userId, email });
   } catch (err) {
-    console.error("Unexpected error:", err);
-    return jsonResponse({ ok: false, error: err.message || "Unexpected error" });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("invite-user error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

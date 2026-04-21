@@ -26,10 +26,10 @@ export default function LoginPage() {
       try {
         const { error } = await supabase.from("system_settings").select("key").limit(1);
         if (error) {
-           console.error("DB Connection Error:", error);
-           setDbStatus("failed");
+          console.error("DB Connection Error:", error);
+          setDbStatus("failed");
         } else {
-           setDbStatus("connected");
+          setDbStatus("connected");
         }
       } catch (err) {
         console.error("DB Connection Exception:", err);
@@ -54,7 +54,7 @@ export default function LoginPage() {
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-
+    console.log("Login Data:", data);
     if (error) {
       await supabase.functions.invoke("log-login-attempt", {
         body: { action: "record", email, success: false },

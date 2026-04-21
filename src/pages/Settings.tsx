@@ -91,30 +91,7 @@ export default function SettingsPage() {
         </div>
       </Card>
 
-      <Card className="p-6 space-y-4">
-        <h3 className="font-semibold">Default Shift</h3>
-        <p className="text-xs text-muted-foreground">Used for employees who do not have a custom shift override.</p>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label>Default Shift Start</Label>
-            <Input type="time" value={val("default_shift_start")} onChange={(e) => set("default_shift_start", e.target.value)} />
-            {val("default_shift_start") && <p className="text-xs text-muted-foreground">{formatTime12h(val("default_shift_start"))}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label>Default Shift End</Label>
-            <Input type="time" value={val("default_shift_end")} onChange={(e) => set("default_shift_end", e.target.value)} />
-            {val("default_shift_end") && <p className="text-xs text-muted-foreground">{formatTime12h(val("default_shift_end"))}</p>}
-          </div>
-          <div className="space-y-1">
-            <Label>Late Grace Period (minutes)</Label>
-            <Input type="number" min="0" max="120" value={val("late_grace_minutes")} onChange={(e) => set("late_grace_minutes", e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Default Reminder Offset (minutes)</Label>
-            <Input type="number" min="1" max="240" value={val("reminder_offset_minutes")} onChange={(e) => set("reminder_offset_minutes", e.target.value)} />
-          </div>
-        </div>
-      </Card>
+
 
       <Card className="p-6 space-y-4">
         <h3 className="font-semibold">Security</h3>
@@ -133,44 +110,6 @@ export default function SettingsPage() {
             <Label>Max Failed Login Attempts</Label>
             <Input type="number" min="1" max="20" value={val("max_failed_login_attempts")} onChange={(e) => set("max_failed_login_attempts", e.target.value)} />
             <p className="text-xs text-muted-foreground">Account locks after this many failures</p>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6 space-y-4">
-        <h3 className="font-semibold">Logs & Auto Clock-Out</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label>Log Edit Window (days)</Label>
-            <Input type="number" min="1" max="30" value={val("log_edit_window_days")} onChange={(e) => set("log_edit_window_days", e.target.value)} />
-            <p className="text-xs text-muted-foreground">How many past days an employee may log</p>
-          </div>
-          <div className="space-y-1">
-            <Label>Auto Clock-Out Display Time</Label>
-            <Input value={val("auto_clockout_display_time")} onChange={(e) => set("auto_clockout_display_time", e.target.value)} placeholder="12:00 AM" />
-            <p className="text-xs text-muted-foreground">Time shown in the missed clock-out alert</p>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6 space-y-4">
-        <h3 className="font-semibold">Utilization Thresholds</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <Label>Underutilized Threshold (%)</Label>
-            <Input type="number" value={val("utilization_low", "70")} onChange={(e) => set("utilization_low", e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Overburdened Threshold (%)</Label>
-            <Input type="number" value={val("utilization_high", "110")} onChange={(e) => set("utilization_high", e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Expected Daily Hours</Label>
-            <Input type="number" value={val("expected_daily_hours", "8")} onChange={(e) => set("expected_daily_hours", e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Annual Leave Entitlement (days)</Label>
-            <Input type="number" value={val("annual_leave_entitlement", "12")} onChange={(e) => set("annual_leave_entitlement", e.target.value)} />
           </div>
         </div>
       </Card>

@@ -52,11 +52,12 @@ export default function LogsAdminPage() {
   const [comment, setComment] = useState("");
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
 
-  // Settings state for Log Rules — empty until loaded from DB
-  const [shiftStart, setShiftStart] = useState("");
-  const [shiftEnd, setShiftEnd] = useState("");
   const [logEditDays, setLogEditDays] = useState("");
   const [missedLogTime, setMissedLogTime] = useState("");
+  const [autoClockoutLabel, setAutoClockoutLabel] = useState("");
+  const [expectedHours, setExpectedHours] = useState("");
+  const [utilLow, setUtilLow] = useState("");
+  const [utilHigh, setUtilHigh] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
   // Load settings
@@ -72,10 +73,12 @@ export default function LogsAdminPage() {
 
   useEffect(() => {
     if (settings) {
-      setShiftStart(settings["default_shift_start"] ?? "");
-      setShiftEnd(settings["default_shift_end"] ?? "");
       setLogEditDays(settings["log_edit_window_days"] ?? "");
       setMissedLogTime(settings["missed_log_check_time"] ?? "");
+      setAutoClockoutLabel(settings["auto_clockout_display_time"] ?? "");
+      setExpectedHours(settings["expected_daily_hours"] ?? "8");
+      setUtilLow(settings["utilization_low"] ?? "70");
+      setUtilHigh(settings["utilization_high"] ?? "110");
     }
   }, [settings]);
 
@@ -87,10 +90,12 @@ export default function LogsAdminPage() {
     setSavingSettings(true);
     try {
       const entries = [
-        { key: "default_shift_start", value: shiftStart },
-        { key: "default_shift_end", value: shiftEnd },
         { key: "log_edit_window_days", value: logEditDays },
         { key: "missed_log_check_time", value: missedLogTime },
+        { key: "auto_clockout_display_time", value: autoClockoutLabel },
+        { key: "expected_daily_hours", value: expectedHours },
+        { key: "utilization_low", value: utilLow },
+        { key: "utilization_high", value: utilHigh },
       ];
       for (const entry of entries) {
         await supabase.from("system_settings").upsert(
@@ -100,12 +105,13 @@ export default function LogsAdminPage() {
       }
       await supabase.from("audit_logs").insert({
         actor_id: profile?.id,
-        action: "settings.shift_log_rules_updated",
+        action: "settings.log_rules_updated",
         target_entity: "system_settings",
       });
       queryClient.invalidateQueries({ queryKey: ["system-settings"] });
       queryClient.invalidateQueries({ queryKey: ["system-setting-log-edit-days"] });
-      toast.success("Shift & Log Rules saved");
+      queryClient.invalidateQueries({ queryKey: ["auto-clockout-display-label"] });
+      toast.success("Log Rules saved");
     } catch (err: any) { toast.error(err.message); }
     finally { setSavingSettings(false); }
   };
@@ -259,7 +265,7 @@ export default function LogsAdminPage() {
       <Tabs defaultValue="logs">
         <TabsList>
           <TabsTrigger value="logs">All Logs</TabsTrigger>
-          {isAdmin && <TabsTrigger value="rules">Shift & Log Rules</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="rules">Log Rules & Thresholds</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="logs" className="space-y-6">
@@ -385,18 +391,18 @@ export default function LogsAdminPage() {
                         </TableCell>
                         <TableCell>
                           {row.logStatus === "missed" ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
-                           row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
-                           <Badge className="bg-green-100 text-green-800">Added</Badge>}
+                            row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
+                              <Badge className="bg-green-100 text-green-800">Added</Badge>}
                         </TableCell>
-                         <TableCell>
-                           <div className="flex items-center gap-2 border border-border rounded-md px-3 py-1.5">
-                             {row.logCount > 0 ? (
-                               <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
-                             ) : (
-                               <span className="text-sm text-muted-foreground">No Logs</span>
-                             )}
-                           </div>
-                         </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2 border border-border rounded-md px-3 py-1.5">
+                            {row.logCount > 0 ? (
+                              <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">No Logs</span>
+                            )}
+                          </div>
+                        </TableCell>
                       </TableRow>
                       {expandedId === row.userId && (
                         <TableRow key={`${row.userId}-detail`}>
@@ -499,34 +505,50 @@ export default function LogsAdminPage() {
 
         {isAdmin && (
           <TabsContent value="rules">
-            <Card className="p-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold">Shift & Log Rules</h3>
+            <Card className="p-6 space-y-6">
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium border-b pb-2">Log Submission Rules</h4>
+                  <div className="space-y-1">
+                    <Label>Log Edit Window (days)</Label>
+                    <Input type="number" value={logEditDays} onChange={(e) => setLogEditDays(e.target.value)} min="1" max="30" />
+                    <p className="text-xs text-muted-foreground">Employees can submit logs for today and up to this many days in the past</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Missed Log Detection Time</Label>
+                    <Input type="time" value={missedLogTime} onChange={(e) => setMissedLogTime(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">Currently: {formatTime12h(missedLogTime)}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Auto Clock-Out Display Time</Label>
+                    <Input value={autoClockoutLabel} onChange={(e) => setAutoClockoutLabel(e.target.value)} placeholder="12:00 AM" />
+                    <p className="text-xs text-muted-foreground">Label shown to users in missed clock-out alerts</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <h4 className="text-sm font-medium border-b pb-2">Reporting Thresholds</h4>
+                  <div className="space-y-1">
+                    <Label>Expected Daily Hours</Label>
+                    <Input type="number" value={expectedHours} onChange={(e) => setExpectedHours(e.target.value)} min="1" max="24" />
+                    <p className="text-xs text-muted-foreground">Used to calculate utilization percentages</p>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Underutilized Threshold (%)</Label>
+                    <Input type="number" value={utilLow} onChange={(e) => setUtilLow(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Overburdened Threshold (%)</Label>
+                    <Input type="number" value={utilHigh} onChange={(e) => setUtilHigh(e.target.value)} />
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-end">
+                {/* <h3 className="font-semibold">Log Rules & Threshols</h3> */}
                 <Button onClick={handleSaveSettings} disabled={savingSettings} className="rounded-button">
                   <Save className="h-4 w-4 mr-2" />{savingSettings ? "Saving…" : "Save Rules"}
                 </Button>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <Label>Default Shift Start</Label>
-                  <Input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Currently: {formatTime12h(shiftStart)}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label>Default Shift End</Label>
-                  <Input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Currently: {formatTime12h(shiftEnd)}</p>
-                </div>
-                <div className="space-y-1">
-                  <Label>Log Edit Window (days)</Label>
-                  <Input type="number" value={logEditDays} onChange={(e) => setLogEditDays(e.target.value)} min="1" max="30" />
-                  <p className="text-xs text-muted-foreground">Employees can submit logs for today and up to this many days in the past</p>
-                </div>
-                <div className="space-y-1">
-                  <Label>Missed Log Detection Time</Label>
-                  <Input type="time" value={missedLogTime} onChange={(e) => setMissedLogTime(e.target.value)} />
-                  <p className="text-xs text-muted-foreground">Currently: {formatTime12h(missedLogTime)}</p>
-                </div>
               </div>
             </Card>
           </TabsContent>

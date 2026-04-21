@@ -129,7 +129,9 @@ export default function LogSubmitPage() {
 
       toast.success("Log submitted successfully");
       form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
-      queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSubmitting(false); }
   };
@@ -139,7 +141,9 @@ export default function LogSubmitPage() {
     if (error) { toast.error(error.message); return; }
     toast.success("Log entry deleted.");
     setDeleteConfirmId(null);
-    queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
+    await queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
+    await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
+    await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
   };
 
   return (
@@ -159,7 +163,7 @@ export default function LogSubmitPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="project_id" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Project</FormLabel>
+                  <FormLabel>Project <span className="text-destructive">*</span></FormLabel>
                    <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger></FormControl>
                     <SelectContent>

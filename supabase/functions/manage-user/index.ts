@@ -6,9 +6,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
+// Always status 200 — errors surface in the body so supabase-js never swallows them.
+function jsonResponse(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
-    status,
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
@@ -21,7 +22,7 @@ Deno.serve(async (req) => {
   try {
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return jsonResponse({ error: "Missing authorization" }, 401);
+      return jsonResponse({ ok: false, error: "Missing authorization" });
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -34,14 +35,14 @@ Deno.serve(async (req) => {
 
     const { data: roleData } = await callerClient.rpc("get_my_role");
     if (roleData !== "admin") {
-      return jsonResponse({ error: "Only admins can manage users" }, 403);
+      return jsonResponse({ ok: false, error: "Only admins can manage users" });
     }
 
     const body = await req.json();
     const { action, user_id } = body;
 
     if (!action || !user_id) {
-      return jsonResponse({ error: "Missing action or user_id" }, 400);
+      return jsonResponse({ ok: false, error: "Missing action or user_id" });
     }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -53,7 +54,7 @@ Deno.serve(async (req) => {
     if (action === "deactivate") {
       const { error: updateError } = await adminClient.from("users").update({ status: "inactive" }).eq("id", user_id);
       if (updateError) {
-        return jsonResponse({ error: updateError.message }, 400);
+        return jsonResponse({ ok: false, error: updateError.message });
       }
 
       await adminClient.auth.admin.updateUserById(user_id, { ban_duration: "876600h" });
@@ -65,13 +66,13 @@ Deno.serve(async (req) => {
         target_id: user_id,
       });
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ ok: true });
     }
 
     if (action === "reactivate") {
       const { error: updateError } = await adminClient.from("users").update({ status: "active" }).eq("id", user_id);
       if (updateError) {
-        return jsonResponse({ error: updateError.message }, 400);
+        return jsonResponse({ ok: false, error: updateError.message });
       }
 
       await adminClient.auth.admin.updateUserById(user_id, { ban_duration: "none" });
@@ -83,21 +84,21 @@ Deno.serve(async (req) => {
         target_id: user_id,
       });
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ ok: true });
     }
 
     if (action === "set_password") {
       const { new_password } = body;
       if (!new_password || typeof new_password !== "string" || new_password.length < 8) {
-        return jsonResponse({ error: "Password must be at least 8 characters" }, 400);
+        return jsonResponse({ ok: false, error: "Password must be at least 8 characters" });
       }
       if (!/[0-9]/.test(new_password) || !/[^a-zA-Z0-9]/.test(new_password)) {
-        return jsonResponse({ error: "Password must contain a number and a special character" }, 400);
+        return jsonResponse({ ok: false, error: "Password must contain a number and a special character" });
       }
 
       const { error: authError } = await adminClient.auth.admin.updateUserById(user_id, { password: new_password });
       if (authError) {
-        return jsonResponse({ error: authError.message }, 400);
+        return jsonResponse({ ok: false, error: authError.message });
       }
 
       await adminClient.from("users").update({ must_change_password: false }).eq("id", user_id);
@@ -109,23 +110,23 @@ Deno.serve(async (req) => {
         target_id: user_id,
       });
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ ok: true });
     }
 
     if (action === "update_email") {
       const { new_email } = body;
       if (!new_email) {
-        return jsonResponse({ error: "Missing new_email" }, 400);
+        return jsonResponse({ ok: false, error: "Missing new_email" });
       }
 
       const { error: authError } = await adminClient.auth.admin.updateUserById(user_id, { email: new_email });
       if (authError) {
-        return jsonResponse({ error: authError.message }, 400);
+        return jsonResponse({ ok: false, error: authError.message });
       }
 
       const { error: dbError } = await adminClient.from("users").update({ email: new_email }).eq("id", user_id);
       if (dbError) {
-        return jsonResponse({ error: dbError.message }, 400);
+        return jsonResponse({ ok: false, error: dbError.message });
       }
 
       await adminClient.from("audit_logs").insert({
@@ -136,12 +137,13 @@ Deno.serve(async (req) => {
         metadata: { new_email },
       });
 
-      return jsonResponse({ success: true });
+      return jsonResponse({ ok: true });
     }
 
-    return jsonResponse({ error: "Unknown action" }, 400);
+    return jsonResponse({ ok: false, error: "Unknown action" });
   } catch (err) {
-    console.error("manage-user error:", err);
-    return jsonResponse({ error: err.message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("manage-user error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

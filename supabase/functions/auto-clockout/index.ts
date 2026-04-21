@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Always status 200 — errors surface in the body so supabase-js never swallows them.
+function jsonResponse(body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -27,10 +35,7 @@ Deno.serve(async (req) => {
 
     if (fetchError) {
       console.error("Error fetching open sessions:", fetchError);
-      return new Response(JSON.stringify({ error: fetchError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: false, error: fetchError.message });
     }
 
     let processed = 0;
@@ -72,15 +77,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, processed }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return jsonResponse({ ok: true, processed });
   } catch (err) {
-    console.error("auto-clockout error:", err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("auto-clockout error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

@@ -12,41 +12,14 @@ import zielLogoWhite from "@/assets/ziel-logo-black.png";
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-
-  const validateEmail = (emailValue: string): boolean => {
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return emailRegex.test(emailValue);
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setEmailError("");
-    setPasswordError("");
-
-    // Validate email format
-    if (!email.trim()) {
-      setEmailError("Email is invalid");
-      setLoading(false);
-      return;
-    }
-
-    if (!validateEmail(email)) {
-      setEmailError("Email is invalid");
-      setLoading(false);
-      return;
-    }
-
-    // Validate password
-    if (!password) {
-      setPasswordError("Password is invalid");
-      setLoading(false);
-      return;
-    }
 
     const { data: lockData } = await supabase.functions.invoke("log-login-attempt", {
       body: { action: "check", email },
@@ -64,39 +37,7 @@ export default function LoginPage() {
       await supabase.functions.invoke("log-login-attempt", {
         body: { action: "record", email, success: false },
       });
-      
-      // Determine if error is related to email or password
-      const errorMessage = error.message.toLowerCase();
-      
-      // If it's a generic "invalid credentials" error, differentiate based on context
-      if (errorMessage.includes("invalid login credentials") || errorMessage.includes("invalid credentials")) {
-        // Try to check if user exists via the function
-        let userExists = false;
-        try {
-          const { data: checkData, error: checkError } = await supabase.functions.invoke("check-user-exists", {
-            body: { email },
-          });
-          
-          userExists = !checkError && checkData?.exists;
-        } catch (e) {
-          // Function call failed, will use default logic below
-        }
-        
-        if (userExists) {
-          // User exists, so password must be wrong
-          setPasswordError("Password invalid");
-        } else {
-          // Assume password is wrong for properly formatted emails (safer assumption)
-          // If it's actually the email, user will need to check email format separately
-          setPasswordError("Password invalid");
-        }
-      } else if (errorMessage.includes("user") || errorMessage.includes("email")) {
-        setEmailError("Email is invalid");
-      } else if (errorMessage.includes("password")) {
-        setPasswordError("Password invalid");
-      } else {
-        toast.error(error.message);
-      }
+      toast.error(error.message);
       setLoading(false);
       return;
     }

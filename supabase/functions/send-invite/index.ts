@@ -6,6 +6,14 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Always status 200 — errors surface in the body so supabase-js never swallows them.
+function jsonResponse(body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -15,9 +23,7 @@ Deno.serve(async (req) => {
     const { user_email, user_name, inviter_name, app_url } = await req.json();
 
     if (!user_email || !user_name) {
-      return new Response(JSON.stringify({ error: "Missing user_email or user_name" }), {
-        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: false, error: "Missing user_email or user_name" });
     }
 
     const setPasswordUrl = `${app_url || "https://id-preview--71558b0e-812b-4b7d-9faf-956160583e7f.lovable.app"}/set-password`;
@@ -46,18 +52,18 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const { error } = await adminClient.functions.invoke("send-email", {
+    const { data: emailResult } = await adminClient.functions.invoke("send-email", {
       body: { to: user_email, subject: "You're invited to Ziel Logs — Set your password", html },
     });
 
-    if (error) throw error;
+    if (!emailResult?.ok) {
+      return jsonResponse({ ok: false, error: emailResult?.error ?? "Failed to send invite email" });
+    }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return jsonResponse({ ok: true });
   } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("send-invite error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

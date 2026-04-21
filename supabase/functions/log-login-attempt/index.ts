@@ -6,16 +6,18 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-function jsonResponse(body: Record<string, unknown>, status = 200) {
+// Always status 200 — errors surface in the body so supabase-js never swallows them.
+function jsonResponse(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
-    status,
+    status: 200,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
 
+// Pattern 4: use ReturnType<typeof createClient> + (client as any) to avoid TS2345
 async function loadSetting(client: ReturnType<typeof createClient>, key: string): Promise<string | null> {
-  const { data } = await client.from("system_settings").select("value").eq("key", key).maybeSingle();
-  return (data as any)?.value ?? null;
+  const { data } = await (client as any).from("system_settings").select("value").eq("key", key).maybeSingle();
+  return data?.value ?? null;
 }
 
 Deno.serve(async (req) => {
@@ -31,7 +33,7 @@ Deno.serve(async (req) => {
     const { action, email, success } = body;
 
     if (!email || typeof email !== "string") {
-      return jsonResponse({ error: "Invalid email" }, 400);
+      return jsonResponse({ ok: false, error: "Invalid email" });
     }
     const normalizedEmail = email.toLowerCase().trim();
 
@@ -49,7 +51,7 @@ Deno.serve(async (req) => {
       if (!lockoutMinutes || !maxAttempts) {
         // Settings not configured — fail open (allow login attempt) but log
         console.warn("Login lockout settings missing", { lockoutMinutesStr, maxAttemptsStr });
-        return jsonResponse({ locked: false });
+        return jsonResponse({ ok: true, locked: false });
       }
 
       const windowAgo = new Date(Date.now() - lockoutMinutes * 60 * 1000).toISOString();
@@ -59,8 +61,8 @@ Deno.serve(async (req) => {
         .eq("email", normalizedEmail)
         .eq("success", false)
         .gte("attempted_at", windowAgo);
-      if (error) return jsonResponse({ error: error.message }, 500);
-      return jsonResponse({ locked: (data?.length ?? 0) >= maxAttempts });
+      if (error) return jsonResponse({ ok: false, error: error.message });
+      return jsonResponse({ ok: true, locked: (data?.length ?? 0) >= maxAttempts });
     }
 
     if (action === "record") {
@@ -73,13 +75,14 @@ Deno.serve(async (req) => {
         success: !!success,
         ip_address: ip,
       });
-      if (error) return jsonResponse({ error: error.message }, 500);
+      if (error) return jsonResponse({ ok: false, error: error.message });
       return jsonResponse({ ok: true });
     }
 
-    return jsonResponse({ error: "Unknown action" }, 400);
+    return jsonResponse({ ok: false, error: "Unknown action" });
   } catch (err) {
-    console.error("log-login-attempt error:", err);
-    return jsonResponse({ error: (err as Error).message }, 500);
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("log-login-attempt error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

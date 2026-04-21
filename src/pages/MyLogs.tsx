@@ -135,9 +135,9 @@ export default function MyLogsPage() {
                     </div>
                     {log.admin_comment && (
                       <div className="mt-2 flex items-start gap-2 bg-accent/50 border border-border rounded-md p-2.5">
-                        <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                        <MessageSquare className=" w-4 text-black mt-0.5 shrink-0" />
                         <div>
-                          <span className="text-xs font-semibold text-primary">Admin Feedback:</span>
+                          <span className="text-xs font-semibold text-black">Admin Feedback:</span>
                           <p className="text-sm text-foreground">{log.admin_comment}</p>
                         </div>
                       </div>

@@ -71,7 +71,7 @@ function UtilizationReport() {
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
 
-  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end").eq("status", "active"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end").eq("status", "active").order("full_name"); return data || []; } });
   const { data: logs } = useQuery({
     queryKey: ["report-logs", startDate, endDate],
     queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate); return data || []; },
@@ -272,7 +272,7 @@ function AttendanceTrendReport() {
   const [endDate, setEndDate] = useState(getPKTDateString());
   const [dept, setDept] = useState("all");
 
-  const { data: employees } = useQuery({ queryKey: ["att-trend-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id").eq("status", "active"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q; return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["att-trend-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name").eq("status", "active"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
   const { data: attendance } = useQuery({
     queryKey: ["att-trend", startDate, endDate, dept],
     queryFn: async () => {

@@ -133,7 +133,7 @@ export default function LogsAdminPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift").eq("status", "active");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift").eq("status", "active").order("full_name");
       return data || [];
     },
   });
@@ -201,7 +201,7 @@ export default function LogsAdminPage() {
         (statusFilter === "late" && r.logStatus === "late");
       const matchSearch = !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || r.logs.some((l: any) => l.description?.toLowerCase().includes(searchQ.toLowerCase()));
       return matchEmp && matchStatus && matchSearch;
-    });
+    }).sort((a, b) => a.name.localeCompare(b.name));
   }, [logs, employees, attendanceRecords, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
 
   // Stat card counts (unfiltered)

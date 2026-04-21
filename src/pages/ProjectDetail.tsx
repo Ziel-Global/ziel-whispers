@@ -60,7 +60,7 @@ export default function ProjectDetailPage() {
   const { data: allEmployees } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, designation").eq("status", "active");
+      const { data } = await supabase.from("users").select("id, full_name, designation").eq("status", "active").order("full_name");
       return data || [];
     },
     enabled: isAdmin,
@@ -239,7 +239,7 @@ export default function ProjectDetailPage() {
                   <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Role</TableHead><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {members?.map((m) => (
+                  {members?.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
                     <TableRow key={m.id}>
                       <TableCell>
                         <div className="flex items-center gap-2">

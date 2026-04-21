@@ -73,7 +73,8 @@ export default function AttendanceAdminPage() {
       if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
       if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
       if (employeeFilter !== "all" && r.user_id !== employeeFilter) return false;
-      const q = searchQuery.trim().toLowerCase();
+      if (searchQuery.trim()) {
+        const q = searchQuery.trim().toLowerCase();
         if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
       }
       return true;

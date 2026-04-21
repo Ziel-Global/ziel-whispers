@@ -84,7 +84,7 @@ export default function LeaveAdminPage() {
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
       const matchDept = deptFilter === "all" || r.users?.department === deptFilter;
       return matchStatus && matchDept;
-    });
+    }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
   }, [requests, statusFilter, deptFilter]);
 
   const handleAction = async () => {

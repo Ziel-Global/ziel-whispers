@@ -73,12 +73,11 @@ export default function AttendanceAdminPage() {
       if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
       if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
       if (employeeFilter !== "all" && r.user_id !== employeeFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
+      const q = searchQuery.trim().toLowerCase();
         if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
       }
       return true;
-    });
+    }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
   }, [records, deptFilter, workModeFilter, employeeFilter, searchQuery]);
 
   const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);

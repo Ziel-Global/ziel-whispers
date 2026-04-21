@@ -74,7 +74,8 @@ export default function LogSubmitPage() {
         .is("removed_at", null);
       return (memberships || [])
         .map((m: any) => m.projects)
-        .filter((p: any) => p && p.status === "active");
+        .filter((p: any) => p && p.status === "active")
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
     },
     enabled: !!user?.id,
   });

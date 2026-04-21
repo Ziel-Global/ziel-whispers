@@ -98,7 +98,7 @@ export default function EmployeesPage() {
       const { data, error } = await supabase
         .from("users")
         .select("*")
-        .order("created_at", { ascending: false });
+        .order("full_name", { ascending: true });
       if (error) throw error;
       return data;
     },

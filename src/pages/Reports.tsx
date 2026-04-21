@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, LineChart, Line, AreaChart, Area } from "recharts";
 import { Download, Camera } from "lucide-react";
 import { format, eachDayOfInterval, isWeekend, startOfMonth, endOfMonth, subDays, parseISO } from "date-fns";
+import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 import html2canvas from "html2canvas";
 
 const _CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
@@ -67,8 +68,8 @@ export default function ReportsPage() {
 
 // ——— G3: Utilization ———
 function UtilizationReport() {
-  const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(startOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(format(endOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
 
   const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end").eq("status", "active"); return data || []; } });
   const { data: logs } = useQuery({
@@ -133,7 +134,7 @@ function UtilizationReport() {
 // ——— G4: Heatmap ———
 function HeatmapReport() {
   const heatmapRef = useRef<HTMLDivElement>(null);
-  const [month, setMonth] = useState(format(new Date(), "yyyy-MM"));
+  const [month, setMonth] = useState(getPKTDateString().slice(0, 7)); // "YYYY-MM"
   const [dept, setDept] = useState("all");
 
   const start = `${month}-01`;
@@ -196,7 +197,7 @@ function MonthlySummaryReport() {
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const [selectedUser, setSelectedUser] = useState(isAdmin ? "" : profile?.id || "");
-  const [month, setMonth] = useState(format(subDays(startOfMonth(new Date()), 1), "yyyy-MM"));
+  const [month, setMonth] = useState(format(subDays(startOfMonth(new Date(getPKTDateString())), 1), "yyyy-MM"));
 
   const { data: employees } = useQuery({ queryKey: ["summary-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name"); return data || []; }, enabled: isAdmin });
 
@@ -267,8 +268,8 @@ function MonthlySummaryReport() {
 // ——— G6: Attendance Trends ———
 function AttendanceTrendReport() {
   const chartRef = useRef<HTMLDivElement>(null);
-  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(subDays(new Date(getPKTDateString()), 30), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(getPKTDateString());
   const [dept, setDept] = useState("all");
 
   const { data: employees } = useQuery({ queryKey: ["att-trend-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id").eq("status", "active"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q; return data || []; } });
@@ -325,8 +326,8 @@ function AttendanceTrendReport() {
 
 // ——— Daily Logs Report ———
 function DailyLogsReport() {
-  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(subDays(new Date(getPKTDateString()), 30), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(getPKTDateString());
   const [empFilter, setEmpFilter] = useState("all");
 
   const { data: employees } = useQuery({ queryKey: ["dlr-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name"); return data || []; } });
@@ -360,8 +361,8 @@ function DailyLogsReport() {
 
 // ——— Leave Report ———
 function LeaveReport() {
-  const [startDate, setStartDate] = useState(format(startOfMonth(new Date()), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(format(endOfMonth(new Date()), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(startOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(format(endOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
 
   const { data: requests } = useQuery({
     queryKey: ["leave-report", startDate, endDate],
@@ -390,8 +391,8 @@ function LeaveReport() {
 
 // ——— Missed Logs Report ———
 function MissedLogsReport() {
-  const [startDate, setStartDate] = useState(format(subDays(new Date(), 30), "yyyy-MM-dd"));
-  const [endDate, setEndDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [startDate, setStartDate] = useState(format(subDays(new Date(getPKTDateString()), 30), "yyyy-MM-dd"));
+  const [endDate, setEndDate] = useState(getPKTDateString());
 
   const { data: missed } = useQuery({
     queryKey: ["missed-report", startDate, endDate],
@@ -411,7 +412,7 @@ function MissedLogsReport() {
       <Card><Table>
         <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Detected At</TableHead></TableRow></TableHeader>
         <TableBody>{(missed || []).map((m) => (
-          <TableRow key={m.id} className="bg-red-50/30"><TableCell>{(m.users as any)?.full_name}</TableCell><TableCell>{format(parseISO(m.log_date), "MMM d, yyyy")}</TableCell><TableCell className="text-muted-foreground">{format(new Date(m.detected_at), "MMM d, h:mm a")}</TableCell></TableRow>
+          <TableRow key={m.id} className="bg-red-50/30"><TableCell>{(m.users as any)?.full_name}</TableCell><TableCell>{format(parseISO(m.log_date), "MMM d, yyyy")}</TableCell><TableCell className="text-muted-foreground">{formatPKTTime(m.detected_at)}</TableCell></TableRow>
         ))}{(!missed || missed.length === 0) && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No missed logs found</TableCell></TableRow>}</TableBody>
       </Table></Card>
     </div>

@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
-import { formatLateness } from "@/hooks/useWorkSettings";
+import { formatLateness, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 
@@ -22,7 +22,7 @@ export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [selectedDate, setSelectedDate] = useState(getPKTDateString());
   const [deptFilter, setDeptFilter] = useState("all");
   const [workModeFilter, setWorkModeFilter] = useState("all");
   const [employeeFilter, setEmployeeFilter] = useState("all");
@@ -111,8 +111,8 @@ export default function AttendanceAdminPage() {
     setSaving(true);
     try {
       const dateStr = editRecord.date;
-      const clockIn = editClockIn ? new Date(`${dateStr}T${editClockIn}:00`).toISOString() : editRecord.clock_in;
-      const clockOut = editClockOut ? new Date(`${dateStr}T${editClockOut}:00`).toISOString() : null;
+      const clockIn = editClockIn ? `${dateStr}T${editClockIn}:00+05:00` : editRecord.clock_in;
+      const clockOut = editClockOut ? `${dateStr}T${editClockOut}:00+05:00` : null;
 
       const { error } = await supabase.from("attendance").update({
         clock_in: clockIn,
@@ -142,8 +142,8 @@ export default function AttendanceAdminPage() {
     const rows = filtered.map((r: any) => {
       const name = r.users?.full_name || "";
       const dept = r.users?.department || "";
-      const ci = r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "";
-      const co = r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "";
+      const ci = r.clock_in ? formatPKTTime(r.clock_in) : "";
+      const co = r.clock_out ? formatPKTTime(r.clock_out) : "";
       const dur = r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "";
       return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.is_late ? "Yes" : "No"}","${r.minutes_late || 0}","${r.notes || ""}"`;
     }).join("\n");
@@ -154,7 +154,7 @@ export default function AttendanceAdminPage() {
     a.click();
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getPKTDateString();
   const staleOpenSessions = openSessions.filter((s: any) => s.date < today);
 
   return (
@@ -173,7 +173,7 @@ export default function AttendanceAdminPage() {
           <div className="space-y-1">
             {staleOpenSessions.map((s: any) => (
               <p key={s.id} className="text-sm text-yellow-700">
-                <strong>{s.users?.full_name}</strong> — Open session since {format(new Date(s.clock_in), "MMM d 'at' h:mm a")}
+                <strong>{s.users?.full_name}</strong> — Open session since {formatPKTTime(s.clock_in)} on {format(new Date(s.clock_in), "MMM d")}
               </p>
             ))}
           </div>
@@ -241,15 +241,15 @@ export default function AttendanceAdminPage() {
                   <TableCell className="font-medium">{r.users?.full_name}</TableCell>
                   <TableCell>{r.users?.department}</TableCell>
                   <TableCell>
-                    {r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "—"}
+                    {r.clock_in ? formatPKTTime(r.clock_in) : "—"}
                     {r.is_late && (
                       <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">
-                        Late by {formatLateness((r as any).hours_late, r.minutes_late)}
+                        Late by {formatLateness(r.minutes_late)}
                       </Badge>
                     )}
                   </TableCell>
                   <TableCell>
-                    {r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "—"}
+                    {r.clock_out ? formatPKTTime(r.clock_out) : "—"}
                     {r.auto_clocked_out && (
                       <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">Auto</Badge>
                     )}

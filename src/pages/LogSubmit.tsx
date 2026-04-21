@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkSettings } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -21,15 +21,10 @@ import { format } from "date-fns";
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
 const NO_PROJECT = "__none__";
 
-function getTodayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function getMinDateStr(days: number) {
-  const d = new Date();
+  const d = new Date(getPKTDateString());
   d.setDate(d.getDate() - days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return format(d, "yyyy-MM-dd");
 }
 
 function formatHours(h: number) {
@@ -46,7 +41,7 @@ export default function LogSubmitPage() {
   const { shiftEnd: resolvedShiftEnd } = useWorkSettings();
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const today = getTodayStr();
+  const today = getPKTDateString();
 
   // Fetch configurable log edit window (in days)
   const { data: logEditDays = 3 } = useQuery({
@@ -60,7 +55,7 @@ export default function LogSubmitPage() {
   const minDate = getMinDateStr(logEditDays);
 
   const schema = z.object({
-    project_id: z.string().optional(),
+    project_id: z.string().min(1, "Please select a project").refine(v => v !== NO_PROJECT, "Please select a project"),
     category: z.string().min(1, "Category is required"),
     hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
     description: z.string().min(20, "Min 20 characters"),
@@ -100,7 +95,7 @@ export default function LogSubmitPage() {
 
   const form = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { project_id: NO_PROJECT, category: "", hours: 1, description: "", log_date: today },
+    defaultValues: { project_id: "", category: "", hours: 1, description: "", log_date: today },
   });
 
   const descValue = form.watch("description");
@@ -108,11 +103,11 @@ export default function LogSubmitPage() {
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSubmitting(true);
     try {
-      const now = new Date();
+      const nowPKT = new Date(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }).format(new Date()));
       const [h, m] = resolvedShiftEnd.split(":").map(Number);
-      const shiftEndTime = new Date();
+      const shiftEndTime = new Date(nowPKT);
       shiftEndTime.setHours(h, m, 0);
-      const isLate = data.log_date === today && now > shiftEndTime;
+      const isLate = data.log_date === today && nowPKT > shiftEndTime;
       const isPastDate = data.log_date < today;
 
       const projectId = data.project_id === NO_PROJECT ? null : data.project_id || null;
@@ -133,7 +128,7 @@ export default function LogSubmitPage() {
       });
 
       toast.success("Log submitted successfully");
-      form.reset({ project_id: NO_PROJECT, category: "", hours: 1, description: "", log_date: today });
+      form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
       queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSubmitting(false); }
@@ -151,7 +146,7 @@ export default function LogSubmitPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Submit Daily Log</h1>
-        <p className="text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+        <p className="text-muted-foreground mt-1">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
       </div>
 
       <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
@@ -165,10 +160,9 @@ export default function LogSubmitPage() {
               <FormField control={form.control} name="project_id" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Project</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
+                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      <SelectItem value={NO_PROJECT}>No project</SelectItem>
                       {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
                     </SelectContent>
                   </Select>

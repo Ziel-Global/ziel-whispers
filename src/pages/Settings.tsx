@@ -10,7 +10,6 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Save } from "lucide-react";
-import { getTimeZones } from "@vvo/tzdb";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 
 type SettingsMap = Record<string, string>;
@@ -20,12 +19,6 @@ export default function SettingsPage() {
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
 
-  // Dynamic timezone list from @vvo/tzdb
-  const timezones = useMemo(() => {
-    return getTimeZones({ includeUtc: true })
-      .map((tz) => ({ name: tz.name, label: `${tz.name} (${tz.abbreviation})` }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, []);
 
   const { data: settings, isLoading } = useQuery({
     queryKey: ["system-settings"],
@@ -95,15 +88,6 @@ export default function SettingsPage() {
         <div className="space-y-1">
           <Label>App Name</Label>
           <Input value={val("app_name", "Ziel Logs")} onChange={(e) => set("app_name", e.target.value)} />
-        </div>
-        <div className="space-y-1">
-          <Label>System Timezone</Label>
-          <Select value={val("timezone")} onValueChange={(v) => set("timezone", v)}>
-            <SelectTrigger><SelectValue placeholder="Select timezone" /></SelectTrigger>
-            <SelectContent className="max-h-[300px]">
-              {timezones.map((tz) => <SelectItem key={tz.name} value={tz.name}>{tz.label}</SelectItem>)}
-            </SelectContent>
-          </Select>
         </div>
       </Card>
 

@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock } from "lucide-react";
 import { format } from "date-fns";
-import { formatTime12h } from "@/hooks/useWorkSettings";
+import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -43,7 +43,7 @@ export default function LogsAdminPage() {
   const { user: _user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [selectedDate, setSelectedDate] = useState(getPKTDateString());
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQ, setSearchQ] = useState("");
@@ -298,7 +298,7 @@ export default function LogsAdminPage() {
           <Dialog open={!!modalType} onOpenChange={() => setModalType(null)}>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>{modalTitle} — {format(new Date(selectedDate + "T00:00:00"), "MMM d, yyyy")}</DialogTitle>
+                <DialogTitle>{modalTitle} — {new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", month: "short", day: "numeric", year: "numeric" }).format(new Date(selectedDate + "T00:00:00"))}</DialogTitle>
               </DialogHeader>
               <ScrollArea className="max-h-[400px]">
                 {modalData.length === 0 ? (
@@ -417,7 +417,7 @@ export default function LogsAdminPage() {
                                           </div>
                                           <div>
                                             <p className="text-[12px] text-muted-foreground mb-0.5">Submitted Time</p>
-                                            <p className="text-sm">{format(new Date(log.submitted_at), "h:mm a")}</p>
+                                            <p className="text-sm">{formatPKTTime(log.submitted_at)}</p>
                                           </div>
                                           <div>
                                             <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>

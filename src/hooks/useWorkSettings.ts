@@ -61,7 +61,7 @@ export function useWorkSettings() {
     ? (userShift?.shift_end ?? "")
     : (globalSettings?.default_shift_end ?? "");
   const annualLeaveEntitlement = Number(globalSettings?.annual_leave_entitlement ?? 0);
-  const timezone = globalSettings?.timezone ?? "";
+  const timezone = "Asia/Karachi";
 
   const resolved: WorkSettings = {
     shiftStart,
@@ -93,12 +93,102 @@ export function formatTime12h(time: string | undefined | null): string {
 /** @deprecated use formatTime12h */
 export const formatShiftTime = formatTime12h;
 
-/** Format lateness from hours_late and minutes_late stored on attendance record */
-export function formatLateness(hoursLate: number, minutesLate: number): string {
-  const h = hoursLate || 0;
-  const m = minutesLate || 0;
-  if (h === 0 && m === 0) return "0m";
+/** Format lateness from total minutes stored on attendance record */
+export function formatLateness(totalMinutes: number): string {
+  const mTotal = totalMinutes || 0;
+  if (mTotal === 0) return "0m";
+  const h = Math.floor(mTotal / 60);
+  const m = mTotal % 60;
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;
+}
+
+/**
+ * Pakistan Standard Time (PKT) is UTC+5.
+ */
+const PKT_OFFSET_HOURS = 5;
+
+/** 
+ * Gets "Today" in PKT (Asia/Karachi) regardless of local browser time. 
+ * Format: YYYY-MM-DD
+ */
+export function getPKTDateString(baseDate: Date = new Date()): string {
+  const utc = baseDate.getTime() + (baseDate.getTimezoneOffset() * 60000);
+  const pktDate = new Date(utc + (3600000 * PKT_OFFSET_HOURS));
+  const year = pktDate.getFullYear();
+  const month = String(pktDate.getMonth() + 1).padStart(2, "0");
+  const day = String(pktDate.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Gets "Now" in PKT (Asia/Karachi) as an ISO-like string with offset.
+ * Example: 2026-04-21T14:30:00+05:00
+ */
+export function getPKTISOString(baseDate: Date = new Date()): string {
+  const utc = baseDate.getTime() + (baseDate.getTimezoneOffset() * 60000);
+  const pktDate = new Date(utc + (3600000 * PKT_OFFSET_HOURS));
+  
+  const year = pktDate.getFullYear();
+  const month = String(pktDate.getMonth() + 1).padStart(2, "0");
+  const day = String(pktDate.getDate()).padStart(2, "0");
+  const hours = String(pktDate.getHours()).padStart(2, "0");
+  const minutes = String(pktDate.getMinutes()).padStart(2, "0");
+  const seconds = String(pktDate.getSeconds()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+05:00`;
+}
+
+/**
+ * Formats a Date or ISO string into a 12-hour PKT time string (e.g. "09:30 AM").
+ */
+export function formatPKTTime(dateInput: Date | string | null | undefined): string {
+  if (!dateInput) return "--";
+  const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
+  if (isNaN(date.getTime())) return "--";
+
+  // If the input string has a +05:00 offset, browser Date handles it.
+  // If not, we normalize to PKT.
+  const options: Intl.DateTimeFormatOptions = {
+    timeZone: "Asia/Karachi",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: true,
+  };
+  return new Intl.DateTimeFormat("en-US", options).format(date);
+}
+
+/**
+ * Checks if the current time is past the shift start time (in PKT).
+ * Matches the logic in the database trigger calculate_late_clockin.
+ */
+export function getLatenessInfo(shiftStart: string, graceMinutes: number = 15) {
+  if (!shiftStart) return { isLate: false, minutesLate: 0 };
+  
+  const parts = shiftStart.split(":");
+  if (parts.length < 2) return { isLate: false, minutesLate: 0 };
+  
+  const now = new Date();
+  // Calculate day of week (1=Mon, ..., 7=Sun)
+  // getTimezoneOffset is in minutes. PKT is UTC+5, so offset 300 mins.
+  const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+  const pktNow = new Date(utc + (3600000 * 5));
+  
+  // Skip weekends (0=Sun, 6=Sat in JS)
+  const day = pktNow.getDay();
+  if (day === 0 || day === 6) {
+    return { isLate: false, minutesLate: 0 };
+  }
+  
+  const shiftStartTime = new Date(pktNow);
+  shiftStartTime.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
+  
+  const diffMs = pktNow.getTime() - shiftStartTime.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  
+  return {
+    isLate: diffMins > graceMinutes,
+    minutesLate: diffMins,
+  };
 }

@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Lock, MessageSquare } from "lucide-react";
 import { format, subDays } from "date-fns";
+import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -25,7 +26,7 @@ export default function MyLogsPage() {
   const [customTo, setCustomTo] = useState("");
 
   const fromDate = range === "custom" ? customFrom : format(subDays(new Date(), Number(range)), "yyyy-MM-dd");
-  const toDate = range === "custom" ? customTo : format(new Date(), "yyyy-MM-dd");
+  const toDate = range === "custom" ? customTo : getPKTDateString();
 
   const { data: logs = [] } = useQuery({
     queryKey: ["my-logs", user?.id, fromDate, toDate, projectFilter],
@@ -100,7 +101,7 @@ export default function MyLogsPage() {
           return (
             <div key={date} className="space-y-2">
               <div className="flex items-center justify-between">
-                <h3 className="font-semibold">{format(new Date(date + "T00:00:00"), "EEEE, MMM d, yyyy")}</h3>
+                <h3 className="font-semibold">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "short", day: "numeric", year: "numeric" }).format(new Date(date + "T00:00:00"))}</h3>
                 <span className="text-sm font-medium text-muted-foreground">Total: {formatHours(totalHours)}</span>
               </div>
               <div className="space-y-2">
@@ -113,7 +114,7 @@ export default function MyLogsPage() {
                       </div>
                       <div>
                         <p className="text-[12px] text-muted-foreground mb-0.5">Submitted Time</p>
-                        <p className="text-sm">{format(new Date(log.submitted_at), "h:mm a")}</p>
+                        <p className="text-sm">{formatPKTTime(log.submitted_at)}</p>
                       </div>
                       <div>
                         <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>

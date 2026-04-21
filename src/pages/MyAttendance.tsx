@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkSettings, formatShiftTime, formatLateness } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, getPKTISOString, formatPKTTime, getLatenessInfo } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -25,7 +25,8 @@ export default function MyAttendancePage() {
   const [calMonth, setCalMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [clockOutConfirmOpen, setClockOutConfirmOpen] = useState(false);
-  const today = new Date().toISOString().split("T")[0];
+  const [lateConfirmOpen, setLateConfirmOpen] = useState(false);
+   const today = getPKTDateString();
 
   // Check for any open (unclosed) attendance session
   const { data: openSession } = useQuery({
@@ -108,7 +109,7 @@ export default function MyAttendancePage() {
   useEffect(() => {
     if (!openSession?.clock_in) return;
     const start = new Date(openSession.clock_in).getTime();
-    const tick = () => setElapsed(Math.floor((Date.now() - start) / 1000));
+    const tick = () => setElapsed(Math.floor((new Date().getTime() - start) / 1000));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
@@ -121,14 +122,14 @@ export default function MyAttendancePage() {
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
   };
 
-  const handleClockIn = async () => {
-    if (!workMode) { toast.error("Select work mode first"); return; }
+  const performClockIn = async () => {
     setLoading(true);
+    setLateConfirmOpen(false);
     try {
       const { error } = await supabase.from("attendance").insert({
         user_id: user!.id,
         date: today,
-        clock_in: new Date().toISOString(),
+        clock_in: getPKTISOString(),
         work_mode: workMode,
         notes: notes || null,
       });
@@ -144,13 +145,25 @@ export default function MyAttendancePage() {
     finally { setLoading(false); }
   };
 
+  const handleClockIn = async () => {
+    if (!workMode) { toast.error("Select work mode first"); return; }
+    
+    const { isLate } = getLatenessInfo(shiftStart);
+    if (isLate) {
+      setLateConfirmOpen(true);
+      return;
+    }
+    
+    await performClockIn();
+  };
+
   const handleClockOut = async () => {
     if (!openSession) return;
     setLoading(true);
     setClockOutConfirmOpen(false);
     try {
       const { error } = await supabase.from("attendance")
-        .update({ clock_out: new Date().toISOString() })
+        .update({ clock_out: getPKTISOString() })
         .eq("id", openSession.id);
       if (error) throw error;
       await supabase.from("audit_logs").insert({
@@ -214,7 +227,7 @@ export default function MyAttendancePage() {
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You're late by <strong>{formatLateness((todayRecord as any).hours_late, todayRecord.minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You're late by <strong>{formatLateness(todayRecord.minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -222,7 +235,7 @@ export default function MyAttendancePage() {
       {/* Clock In/Out Widget */}
       <Card className="p-6">
         <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-muted-foreground">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+          <p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
 
           {hasOpenSession && (
             <>
@@ -230,7 +243,7 @@ export default function MyAttendancePage() {
                 <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 w-full max-w-md">
                   <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
                   <p className="text-sm text-yellow-800">
-                    You have an open session from <strong>{format(new Date(openSession!.clock_in!), "EEEE, MMM d 'at' h:mm a")}</strong>. Please clock out to close it.
+                    You have an open session from <strong>{formatPKTTime(openSession!.clock_in!)} on {format(new Date(openSession!.clock_in!), "MMM d")}</strong>. Please clock out to close it.
                   </p>
                 </div>
               )}
@@ -247,7 +260,7 @@ export default function MyAttendancePage() {
             <div className="text-center space-y-2">
               <Badge className="bg-muted text-muted-foreground">Session Complete</Badge>
               <p className="text-sm text-muted-foreground">
-                {format(new Date(todayRecord!.clock_in!), "h:mm a")} — {format(new Date(todayRecord!.clock_out!), "h:mm a")}
+                {formatPKTTime(todayRecord!.clock_in!)} — {formatPKTTime(todayRecord!.clock_out!)}
                 {" · "}
                 {formatDuration(Math.floor((new Date(todayRecord!.clock_out!).getTime() - new Date(todayRecord!.clock_in!).getTime()) / 1000))}
               </p>
@@ -330,14 +343,14 @@ export default function MyAttendancePage() {
         {selectedRecord && (
           <div className="mt-4 p-3 bg-muted rounded-md space-y-1 text-sm">
             <p>
-              <strong>Clock In:</strong> {selectedRecord.clock_in ? format(new Date(selectedRecord.clock_in), "h:mm a") : "—"}
+              <strong>Clock In:</strong> {selectedRecord.clock_in ? formatPKTTime(selectedRecord.clock_in) : "—"}
               {selectedRecord.is_late && (
                 <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
                   Late by {formatLateness((selectedRecord as any).hours_late, selectedRecord.minutes_late)}
                 </Badge>
               )}
             </p>
-            <p><strong>Clock Out:</strong> {selectedRecord.clock_out ? format(new Date(selectedRecord.clock_out), "h:mm a") : "—"}</p>
+            <p><strong>Clock Out:</strong> {selectedRecord.clock_out ? formatPKTTime(selectedRecord.clock_out) : "—"}</p>
             {selectedRecord.clock_in && selectedRecord.clock_out && (
               <p><strong>Duration:</strong> {formatDuration(Math.floor((new Date(selectedRecord.clock_out).getTime() - new Date(selectedRecord.clock_in).getTime()) / 1000))}</p>
             )}
@@ -358,6 +371,29 @@ export default function MyAttendancePage() {
           </div>
         )}
       </Card>
+
+      {/* Late Clock-in Confirmation */}
+      <AlertDialog open={lateConfirmOpen} onOpenChange={setLateConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              Late Clock-in Warning
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              You are clocking in late (exceeding the 15-minute grace period). Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+              <br /><br />
+              Are you sure you want to proceed? This will be recorded as a late arrival.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={performClockIn} className="bg-yellow-600 hover:bg-yellow-700">
+              Confirm Late Clock-in
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

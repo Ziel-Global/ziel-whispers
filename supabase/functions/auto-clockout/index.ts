@@ -26,10 +26,38 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Find all open sessions (clock_in set, clock_out null) excluding night shift employees
+    // 1. Fetch configuration from system_settings
+    const { data: settings } = await adminClient
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["auto_clockout_time", "timezone"]);
+    
+    const settingsMap = Object.fromEntries((settings || []).map(s => [s.key, s.value]));
+    const timezone = "Asia/Karachi";
+    const autoClockoutTime = settingsMap.auto_clockout_time || "00:00";
+
+    // 2. Identify "Today" in the target timezone (PKT)
+    const now = new Date();
+    const todayPKT = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now); // Result: "YYYY-MM-DD"
+
+    console.log(`Current server time (UTC): ${now.toISOString()}`);
+    console.log(`Current ${timezone} date: ${todayPKT}`);
+
+    // 3. Find all open sessions
     const { data: openSessions, error: fetchError } = await adminClient
       .from("attendance")
-      .select("id, user_id, clock_in, date, users!attendance_user_id_fkey(is_night_shift)")
+      .select(`
+        id, 
+        user_id, 
+        clock_in, 
+        date, 
+        users!attendance_user_id_fkey(role, is_night_shift)
+      `)
       .is("clock_out", null)
       .not("clock_in", "is", null);
 
@@ -40,19 +68,30 @@ Deno.serve(async (req) => {
 
     let processed = 0;
     for (const session of openSessions || []) {
-      // Skip night shift employees
       const user = session.users as any;
-      if (user?.is_night_shift) continue;
+      
+      // REQUIREMENT: Admin accounts are excluded from automatic clock-out
+      if (user?.role === "admin") {
+        console.log(`Skipping admin user: ${session.user_id}`);
+        continue;
+      }
+      
+      // SKIP night shift employees (existing practice)
+      if (user?.is_night_shift) {
+        console.log(`Skipping night shift user: ${session.user_id}`);
+        continue;
+      }
 
-      // Calculate midnight of the clock-in date (end of that day)
-      const clockInDate = session.date;
-      const today = new Date().toISOString().split("T")[0];
+      // REQUIREMENT: Only auto clock-out if the session is from a previous day (relative to PKT)
+      const sessionDate = session.date;
+      if (sessionDate >= todayPKT) {
+        console.log(`Skipping session from today/future (${sessionDate}) for user: ${session.user_id}`);
+        continue;
+      }
 
-      // Only auto clock-out if the session is from a previous day
-      if (clockInDate >= today) continue;
-
-      // Set clock-out to midnight (end of clock-in day)
-      const midnightClockOut = `${clockInDate}T23:59:59.999Z`;
+      // REQUIREMENT: Record clock-out as 11:59:59 PM PKT on the same day
+      // Format: YYYY-MM-DDT23:59:59+05:00
+      const midnightClockOut = `${sessionDate}T23:59:59+05:00`;
 
       const { error: updateError } = await adminClient
         .from("attendance")
@@ -62,7 +101,7 @@ Deno.serve(async (req) => {
           auto_clockout_notes: "System auto clock-out — employee did not clock out manually.",
         })
         .eq("id", session.id)
-        .is("clock_out", null); // Idempotent: only update if still open
+        .is("clock_out", null);
 
       if (!updateError) {
         processed++;
@@ -72,12 +111,17 @@ Deno.serve(async (req) => {
           action: "attendance.auto_clockout",
           target_entity: "attendance",
           target_id: session.id,
-          metadata: { user_id: session.user_id, clock_in_date: clockInDate },
+          metadata: { 
+            user_id: session.user_id, 
+            clock_in_date: sessionDate,
+            clock_out_recorded: midnightClockOut,
+            timezone_used: timezone
+          },
         });
       }
     }
 
-    return jsonResponse({ ok: true, processed });
+    return jsonResponse({ ok: true, processed, timezone, todayPKT });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("auto-clockout error:", message);

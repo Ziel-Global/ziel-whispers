@@ -9,9 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Upload, Eye } from "lucide-react";
+import { Plus, Search, Upload, Eye, Save, Clock } from "lucide-react";
 import { format } from "date-fns";
+import { useQueryClient } from "@tanstack/react-query";
 import { CSVImportDialog } from "@/components/employees/CSVImportDialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import { formatTime12h } from "@/hooks/useWorkSettings";
+import { toast } from "sonner";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
 const STATUSES = ["active", "inactive", "pending"];
@@ -28,6 +34,63 @@ export default function EmployeesPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [csvOpen, setCsvOpen] = useState(false);
+  const queryClient = useQueryClient();
+
+  // Shift Settings State
+  const [shiftStart, setShiftStart] = useState("");
+  const [shiftEnd, setShiftEnd] = useState("");
+  const [gracePeriod, setGracePeriod] = useState("");
+  const [reminderOffset, setReminderOffset] = useState("");
+  const [leaveEntitlement, setLeaveEntitlement] = useState("");
+  const [savingSettings, setSavingSettings] = useState(false);
+
+  const { data: settings } = useQuery({
+    queryKey: ["system-settings"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("key, value");
+      const map: Record<string, string> = {};
+      (data || []).forEach((s) => { map[s.key] = s.value; });
+      return map;
+    },
+  });
+
+  useMemo(() => {
+    if (settings) {
+      setShiftStart(settings["default_shift_start"] ?? "");
+      setShiftEnd(settings["default_shift_end"] ?? "");
+      setGracePeriod(settings["late_grace_minutes"] ?? "15");
+      setReminderOffset(settings["reminder_offset_minutes"] ?? "30");
+      setLeaveEntitlement(settings["annual_leave_entitlement"] ?? "12");
+    }
+  }, [settings]);
+
+  const handleSaveGlobalSettings = async () => {
+    setSavingSettings(true);
+    try {
+      const entries = [
+        { key: "default_shift_start", value: shiftStart },
+        { key: "default_shift_end", value: shiftEnd },
+        { key: "late_grace_minutes", value: gracePeriod },
+        { key: "reminder_offset_minutes", value: reminderOffset },
+        { key: "annual_leave_entitlement", value: leaveEntitlement },
+      ];
+      for (const entry of entries) {
+        await supabase.from("system_settings").upsert(
+          { ...entry, updated_by: profile?.id },
+          { onConflict: "key" }
+        );
+      }
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "settings.global_shift_updated",
+        target_entity: "system_settings",
+      });
+      queryClient.invalidateQueries({ queryKey: ["system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["system-settings-global"] });
+      toast.success("Global shift settings saved");
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSavingSettings(false); }
+  };
 
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ["employees"],
@@ -87,84 +150,149 @@ export default function EmployeesPage() {
         )}
       </div>
 
-      <div className="flex flex-wrap gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by name, email, designation…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
-        </div>
-        <Select value={deptFilter} onValueChange={setDeptFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Departments</SelectItem>
-            {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            {STATUSES.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={typeFilter} onValueChange={setTypeFilter}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Type" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Types</SelectItem>
-            {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </div>
+      <Tabs defaultValue="list">
+        <TabsList>
+          <TabsTrigger value="list">All Employees</TabsTrigger>
+          {isAdmin && <TabsTrigger value="shift">Global Shift Settings</TabsTrigger>}
+        </TabsList>
 
-      <div className="border border-border rounded-card bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-[50px]"></TableHead>
-              <TableHead>Full Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Designation</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Join Date</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
-            ) : (
-              filtered.map((emp) => {
-                const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
-                return (
-                  <TableRow key={emp.id} className="cursor-pointer" onClick={() => navigate(`/employees/${emp.id}`)}>
-                    <TableCell>
-                      <Avatar className="h-8 w-8">
-                        <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
-                        <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
-                      </Avatar>
-                    </TableCell>
-                    <TableCell className="font-medium">{emp.full_name}</TableCell>
-                    <TableCell className="text-muted-foreground">{emp.email}</TableCell>
-                    <TableCell>{emp.designation}</TableCell>
-                    <TableCell>{emp.department}</TableCell>
-                    <TableCell>{emp.employment_type}</TableCell>
-                    <TableCell>{format(new Date(emp.join_date), "MMM d, yyyy")}</TableCell>
-                    <TableCell>{statusBadge(emp.status)}</TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })
-            )}
-          </TableBody>
-        </Table>
-      </div>
+        <TabsContent value="list" className="space-y-6 mt-6">
+          <div className="flex flex-wrap gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by name, email, designation…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+            </div>
+            <Select value={deptFilter} onValueChange={setDeptFilter}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Departments</SelectItem>
+                {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {STATUSES.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="border border-border rounded-card bg-card">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[50px]"></TableHead>
+                  <TableHead>Full Name</TableHead>
+                  <TableHead>Email</TableHead>
+                  <TableHead>Designation</TableHead>
+                  <TableHead>Department</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Join Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {isLoading ? (
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                ) : filtered.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
+                ) : (
+                  filtered.map((emp) => {
+                    const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                    return (
+                      <TableRow key={emp.id} className="cursor-pointer" onClick={() => navigate(`/employees/${emp.id}`)}>
+                        <TableCell>
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
+                            <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
+                          </Avatar>
+                        </TableCell>
+                        <TableCell className="font-medium">{emp.full_name}</TableCell>
+                        <TableCell className="text-muted-foreground">{emp.email}</TableCell>
+                        <TableCell>{emp.designation}</TableCell>
+                        <TableCell>{emp.department}</TableCell>
+                        <TableCell>{emp.employment_type}</TableCell>
+                        <TableCell>{format(new Date(emp.join_date), "MMM d, yyyy")}</TableCell>
+                        <TableCell>{statusBadge(emp.status)}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}>
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="shift" className="mt-6">
+            <Card className="p-6 space-y-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-lg">Global Shift & Leave Settings</h3>
+                  <p className="text-sm text-muted-foreground">Used for employees who do not have a custom shift override.</p>
+                </div>
+                <Button onClick={handleSaveGlobalSettings} disabled={savingSettings} className="rounded-button">
+                  <Save className="h-4 w-4 mr-2" />{savingSettings ? "Saving…" : "Save Settings"}
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-black font-medium border-b pb-2">
+                    <Clock className="h-4 w-4" />
+                    <h4>Shift Times</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Default Shift Start</Label>
+                      <Input type="time" value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} />
+                      <p className="text-[11px] text-muted-foreground">Currently: {formatTime12h(shiftStart)}</p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Default Shift End</Label>
+                      <Input type="time" value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} />
+                      <p className="text-[11px] text-muted-foreground">Currently: {formatTime12h(shiftEnd)}</p>
+                    </div>
+
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 text-black font-medium border-b pb-2">
+                    <Save className="h-4 w-4" />
+                    <h4>Policy Thresholds</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-1.5">
+                      <Label>Late Grace Period (min)</Label>
+                      <Input type="number" value={gracePeriod} onChange={(e) => setGracePeriod(e.target.value)} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Default Reminder (min)</Label>
+                      <Input type="number" value={reminderOffset} onChange={(e) => setReminderOffset(e.target.value)} />
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+            </Card>
+          </TabsContent>
+        )}
+      </Tabs>
 
       <CSVImportDialog open={csvOpen} onOpenChange={setCsvOpen} />
     </div>

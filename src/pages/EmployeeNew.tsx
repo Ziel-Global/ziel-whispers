@@ -12,7 +12,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card } from "@/components/ui/card";
 import { ArrowLeft } from "lucide-react";
-import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { PasswordInput } from "@/components/ui/password-input";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 
@@ -41,7 +40,6 @@ type FormData = z.infer<typeof schema>;
 export default function EmployeeNewPage() {
   const navigate = useNavigate();
   const [submitting, setSubmitting] = useState(false);
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
 
   // Pull defaults from admin settings — no hardcoded fallbacks
   const { data: settings } = useQuery({
@@ -89,7 +87,6 @@ export default function EmployeeNewPage() {
       reminder_offset_minutes: defaultReminder,
       password: "",
     });
-    setAvatarFile(null);
   };
 
   const onSubmit = async (data: FormData) => {
@@ -104,12 +101,7 @@ export default function EmployeeNewPage() {
       const res = result as { ok?: boolean; user_id?: string; error?: string };
       if (!res.ok) { toast.error(res.error || "Failed to create employee"); setSubmitting(false); return; }
 
-      if (avatarFile && res.user_id) {
-        const ext = avatarFile.name.split(".").pop();
-        const path = `${res.user_id}/avatar.${ext}`;
-        await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
-        await supabase.from("users").update({ avatar_url: path }).eq("id", res.user_id);
-      }
+      // Avatar upload is handled by users themselves; admins cannot upload avatars here.
 
       toast.success("Employee created successfully");
       resetForm();
@@ -130,7 +122,7 @@ export default function EmployeeNewPage() {
       <Card className="p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            <AvatarUpload onFileChange={setAvatarFile} />
+            {/* Avatar upload is disabled for admins when creating employees. Employees upload their own avatar. */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="full_name" render={({ field }) => (
                 <FormItem><FormLabel>Full Name <span className="text-destructive">*</span></FormLabel><FormControl><Input {...field} placeholder="John Doe" /></FormControl><FormMessage /></FormItem>

@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Shield, ShieldOff, Download, Trash2 } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
@@ -211,7 +212,7 @@ export default function EmployeeProfilePage() {
 
       if (error) throw error;
 
-      if (avatarFile) {
+      if (avatarFile && isOwnProfile) {
         const ext = avatarFile.name.split(".").pop();
         const path = `${employee.id}/avatar.${ext}`;
         await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
@@ -390,7 +391,16 @@ export default function EmployeeProfilePage() {
           <Card className="p-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
+                {isOwnProfile ? (
+                  <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16">
+                      <AvatarImage src={avatarUrl} />
+                      <AvatarFallback className="bg-muted text-muted-foreground">{employee.full_name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="full_name" render={({ field }) => (

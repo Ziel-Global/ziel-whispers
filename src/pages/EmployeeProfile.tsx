@@ -552,9 +552,19 @@ export default function EmployeeProfilePage() {
                     if (adminNewPassword !== adminConfirmPassword) { setAdminPwError("Passwords do not match"); return; }
                     setSettingPassword(true);
                     try {
+                      // const { data, error } = await supabase.functions.invoke("manage-user", {
+                      //   body: { action: "set_password", user_id: id, new_password: adminNewPassword },
+                      // });
+                      const { data: { session } } = await supabase.auth.getSession();
                       const { data, error } = await supabase.functions.invoke("manage-user", {
                         body: { action: "set_password", user_id: id, new_password: adminNewPassword },
+                        headers: {
+                          Authorization: `Bearer ${session?.access_token}`,
+                        },
                       });
+
+
+
                       if (error) {
                         toast.error(error.message || "Failed to set password");
                       } else if (!(data as any)?.ok) {

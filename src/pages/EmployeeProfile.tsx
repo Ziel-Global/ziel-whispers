@@ -235,12 +235,21 @@ export default function EmployeeProfilePage() {
     }
   };
 
+  // FIX 1: Added Authorization header to update_email edge function call
+  // Previously: no headers were passed, causing 401 UNAUTHORIZED error
+  // Now: session token is fetched and passed as Authorization header
   const confirmEmailChange = async () => {
     setEmailWarningOpen(false);
     setSaving(true);
     try {
+      // Get current session to extract access token for Authorization header
+      const { data: { session } } = await supabase.auth.getSession();
       const { data: result, error } = await supabase.functions.invoke("manage-user", {
         body: { action: "update_email", user_id: employee!.id, new_email: pendingEmail },
+        // FIX: Pass Authorization header with session token
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
       if (error) throw error;
       const res = result as { ok: boolean; error?: string };
@@ -255,12 +264,21 @@ export default function EmployeeProfilePage() {
     }
   };
 
+  // FIX 2: Added Authorization header to deactivate edge function call
+  // Previously: no headers were passed, causing 401 UNAUTHORIZED error
+  // Now: session token is fetched and passed as Authorization header
   const handleDeactivate = async () => {
     if (!employee) return;
     setDeactivating(true);
     try {
+      // Get current session to extract access token for Authorization header
+      const { data: { session } } = await supabase.auth.getSession();
       const { data: result, error } = await supabase.functions.invoke("manage-user", {
         body: { action: "deactivate", user_id: employee.id },
+        // FIX: Pass Authorization header with session token
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
       if (error) throw error;
       const res = result as { ok: boolean; error?: string };
@@ -275,12 +293,21 @@ export default function EmployeeProfilePage() {
     }
   };
 
+  // FIX 3: Added Authorization header to reactivate edge function call
+  // Previously: no headers were passed, causing 401 UNAUTHORIZED error
+  // Now: session token is fetched and passed as Authorization header
   const handleReactivate = async () => {
     if (!employee) return;
     setDeactivating(true);
     try {
+      // Get current session to extract access token for Authorization header
+      const { data: { session } } = await supabase.auth.getSession();
       const { data: result, error } = await supabase.functions.invoke("manage-user", {
         body: { action: "reactivate", user_id: employee.id },
+        // FIX: Pass Authorization header with session token
+        headers: {
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
       if (error) throw error;
       const res = result as { ok: boolean; error?: string };
@@ -552,12 +579,14 @@ export default function EmployeeProfilePage() {
                     if (adminNewPassword !== adminConfirmPassword) { setAdminPwError("Passwords do not match"); return; }
                     setSettingPassword(true);
                     try {
-                      // const { data, error } = await supabase.functions.invoke("manage-user", {
-                      //   body: { action: "set_password", user_id: id, new_password: adminNewPassword },
-                      // });
+                      // FIX 4: Added Authorization header to set_password edge function call
+                      // Previously: no headers were passed, causing 401 UNAUTHORIZED error
+                      // Now: session token is fetched and passed as Authorization header
+                      // Get current session to extract access token for Authorization header
                       const { data: { session } } = await supabase.auth.getSession();
                       const { data, error } = await supabase.functions.invoke("manage-user", {
                         body: { action: "set_password", user_id: id, new_password: adminNewPassword },
+                        // FIX: Pass Authorization header with session token
                         headers: {
                           Authorization: `Bearer ${session?.access_token}`,
                         },

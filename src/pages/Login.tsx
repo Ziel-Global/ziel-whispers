@@ -26,10 +26,10 @@ export default function LoginPage() {
       try {
         const { error } = await supabase.from("system_settings").select("key").limit(1);
         if (error) {
-           console.error("DB Connection Error:", error);
-           setDbStatus("failed");
+          console.error("DB Connection Error:", error);
+          setDbStatus("failed");
         } else {
-           setDbStatus("connected");
+          setDbStatus("connected");
         }
       } catch (err) {
         console.error("DB Connection Exception:", err);
@@ -127,7 +127,7 @@ export default function LoginPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center border-t py-3">
+        {/* <CardFooter className="flex justify-center border-t py-3">
           <div className="flex items-center gap-2 text-[11px]">
             <span className="text-muted-foreground">Database Status:</span>
             {dbStatus === "checking" && <span className="animate-pulse text-yellow-500">Checking…</span>}
@@ -142,7 +142,7 @@ export default function LoginPage() {
               </span>
             )}
           </div>
-        </CardFooter>
+        </CardFooter> */}
       </Card>
     </div>
   );

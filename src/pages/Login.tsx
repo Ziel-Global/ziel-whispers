@@ -54,7 +54,7 @@ export default function LoginPage() {
     }
 
     const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    console.log("Login Data:", data);
+
     if (error) {
       await supabase.functions.invoke("log-login-attempt", {
         body: { action: "record", email, success: false },
@@ -127,7 +127,7 @@ export default function LoginPage() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="flex justify-center border-t py-3">
+        {/* <CardFooter className="flex justify-center border-t py-3">
           <div className="flex items-center gap-2 text-[11px]">
             <span className="text-muted-foreground">Database Status:</span>
             {dbStatus === "checking" && <span className="animate-pulse text-yellow-500">Checking…</span>}
@@ -142,7 +142,7 @@ export default function LoginPage() {
               </span>
             )}
           </div>
-        </CardFooter>
+        </CardFooter> */}
       </Card>
     </div>
   );

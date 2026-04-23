@@ -12,7 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus } from "lucide-react";
+import { Plus, ChevronDown, ChevronUp } from "lucide-react";
 import { format, differenceInBusinessDays } from "date-fns";
 
 const LEAVE_CATEGORIES = [
@@ -72,7 +72,7 @@ export default function MyLeavePage() {
   const { data: requests = [] } = useQuery({
     queryKey: ["my-leave-requests", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("leave_requests").select("*, leave_types(name)").eq("user_id", user!.id).order("created_at", { ascending: false });
+      const { data } = await supabase.from("leave_requests").select("*, leave_types(name), users!leave_requests_reviewed_by_fkey(full_name)").eq("user_id", user!.id).order("created_at", { ascending: false });
       return data || [];
     },
     enabled: !!user?.id,
@@ -80,10 +80,19 @@ export default function MyLeavePage() {
 
   const filteredRequests = statusFilter === "all" ? requests : requests.filter((r: any) => r.status === statusFilter);
 
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
   const workingDays = startDate && endDate ? Math.max(1, differenceInBusinessDays(new Date(endDate), new Date(startDate)) + 1) : 0;
 
   const handleApply = async () => {
     if (!leaveCategory || !startDate || !endDate) { toast.error("Fill all required fields"); return; }
+    // Prevent weekend selection (Saturday=6, Sunday=0)
+    const sDay = new Date(startDate + "T00:00:00").getDay();
+    const eDay = new Date(endDate + "T00:00:00").getDay();
+    if (sDay === 6 || sDay === 0 || eDay === 6 || eDay === 0) {
+      toast.error("Start/End date cannot be on Saturday or Sunday. Please choose working days.");
+      return;
+    }
     if (startDate < today) { toast.error("Start date cannot be in the past"); return; }
     if (endDate < startDate) { toast.error("End date must be on or after start date"); return; }
     if (isExhausted) { toast.error("You have exhausted your annual leave balance."); return; }
@@ -171,24 +180,47 @@ export default function MyLeavePage() {
       <Card>
         <Table>
           <TableHeader><TableRow>
+            <TableHead className="w-8"></TableHead>
             <TableHead>Type</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Admin Comment</TableHead><TableHead className="text-right">Actions</TableHead>
           </TableRow></TableHeader>
           <TableBody>
             {filteredRequests.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No leave requests</TableCell></TableRow>
+              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No leave requests</TableCell></TableRow>
             ) : filteredRequests.map((r: any) => (
-              <TableRow key={r.id}>
-                <TableCell className="font-medium">{r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual"}</TableCell>
-                <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                <TableCell>{r.days_count}</TableCell>
-                <TableCell className="max-w-[150px] truncate">{r.reason || "—"}</TableCell>
-                <TableCell>{statusBadge(r.status)}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>
-                <TableCell className="text-right">
-                  {r.status === "pending" && <Button variant="ghost" size="sm" className="text-destructive" onClick={() => cancelRequest(r.id)}>Cancel</Button>}
-                </TableCell>
-              </TableRow>
+              <>
+                <TableRow key={r.id} className="cursor-pointer" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                  <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                  <TableCell className="font-medium">{r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual"}</TableCell>
+                  <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                  <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                  <TableCell>{r.days_count}</TableCell>
+                  <TableCell className="max-w-[150px] truncate">{r.reason || "—"}</TableCell>
+                  <TableCell>{statusBadge(r.status)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>
+                  <TableCell className="text-right">
+                    {r.status === "pending" && <Button variant="ghost" size="sm" className="text-destructive" onClick={(e) => { e.stopPropagation(); cancelRequest(r.id); }}>Cancel</Button>}
+                  </TableCell>
+                </TableRow>
+                {expandedId === r.id && (
+                  <TableRow key={`${r.id}-detail`}>
+                    <TableCell colSpan={9} className="bg-muted/50 p-0">
+                      <div className="p-4">
+                        <div className="mb-3">
+                          <p className="text-[12px] text-muted-foreground mb-0.5">Reason / Notes</p>
+                          <p className="text-sm">{r.reason || "—"}</p>
+                        </div>
+                        <div>
+                          <p className="text-[12px] text-muted-foreground mb-0.5">Admin Comment</p>
+                          <p className="text-sm">{r.admin_comment || "—"}</p>
+                        </div>
+                        {r.reviewed_at && (
+                          <p className="text-xs text-muted-foreground mt-2">Reviewed by {r.users?.full_name || r.reviewed_by || "—"} on {format(new Date(r.reviewed_at), "MMM d, yyyy 'at' h:mm a")}</p>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </>
             ))}
           </TableBody>
         </Table>
@@ -221,11 +253,25 @@ export default function MyLeavePage() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>Start Date <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} min={today} />
+                  <Input type="date" value={startDate} onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) { setStartDate(v); return; }
+                    const d = new Date(v + "T00:00:00");
+                    const day = d.getDay(); // 0=Sun .. 6=Sat
+                    if (day === 6 || day === 0) { toast.error("Start date cannot be on Saturday or Sunday"); setStartDate(""); return; }
+                    setStartDate(v);
+                  }} min={today} />
                 </div>
                 <div className="space-y-1">
                   <Label>End Date <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} min={startDate || today} />
+                  <Input type="date" value={endDate} onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) { setEndDate(v); return; }
+                    const d = new Date(v + "T00:00:00");
+                    const day = d.getDay();
+                    if (day === 6 || day === 0) { toast.error("End date cannot be on Saturday or Sunday"); setEndDate(""); return; }
+                    setEndDate(v);
+                  }} min={startDate || today} />
                 </div>
               </div>
               {workingDays > 0 && (

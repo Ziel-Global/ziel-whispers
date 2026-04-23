@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, ChevronLeft, ChevronRight, Save } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
@@ -84,8 +84,10 @@ export default function LeaveAdminPage() {
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
       const matchDept = deptFilter === "all" || r.users?.department === deptFilter;
       return matchStatus && matchDept;
-    }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    });
   }, [requests, statusFilter, deptFilter]);
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleAction = async () => {
     if (!actionModal) return;
@@ -159,6 +161,8 @@ export default function LeaveAdminPage() {
     return approvedRequests.filter((r: any) => r.start_date <= ds && r.end_date >= ds);
   };
 
+  const [namesModal, setNamesModal] = useState<{ date: string; leaves: any[] } | null>(null);
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
@@ -192,33 +196,79 @@ export default function LeaveAdminPage() {
           <Card>
             <Table>
               <TableHeader><TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Employee</TableHead><TableHead>Type</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Submitted</TableHead><TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
                 {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No requests</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No requests</TableCell></TableRow>
                 ) : filtered.map((r: any) => (
-                  <TableRow key={r.id} className={r.status === "pending" ? "bg-yellow-50/50" : ""}>
-                    <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                    <TableCell>{r.leave_types?.name}</TableCell>
-                    <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d")}</TableCell>
-                    <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d")}</TableCell>
-                    <TableCell>{r.days_count}</TableCell>
-                    <TableCell className="max-w-[120px] truncate">{r.reason || "—"}</TableCell>
-                    <TableCell>{statusBadge(r.status)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d")}</TableCell>
-                    <TableCell className="text-right">
-                      {r.status === "pending" && (
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" onClick={() => setActionModal({ type: "approve", request: r })} className="text-green-600"><Check className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => setActionModal({ type: "reject", request: r })} className="text-destructive"><X className="h-4 w-4" /></Button>
-                        </div>
-                      )}
-                      {r.status !== "pending" && r.admin_comment && (
-                        <span className="text-xs text-muted-foreground" title={r.admin_comment}>💬</span>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <>
+                    <TableRow key={r.id} className={`cursor-pointer ${r.status === "pending" ? "bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                      <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                      <TableCell className="font-medium">{r.users?.full_name}</TableCell>
+                      <TableCell>{r.leave_types?.name}</TableCell>
+                      <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d")}</TableCell>
+                      <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d")}</TableCell>
+                      <TableCell>{r.days_count}</TableCell>
+                      <TableCell className="max-w-[120px] truncate">{r.reason || "—"}</TableCell>
+                      <TableCell>{statusBadge(r.status)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d")}</TableCell>
+                      <TableCell className="text-right">
+                        {r.status === "pending" && (
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }} className="text-destructive"><X className="h-4 w-4" /></Button>
+                          </div>
+                        )}
+                        {r.status !== "pending" && r.admin_comment && (
+                          <span className="text-xs text-muted-foreground" title={r.admin_comment}>💬</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {expandedId === r.id && (
+                      <TableRow key={`${r.id}-detail`}>
+                        <TableCell colSpan={10} className="bg-muted/50 p-0">
+                          <div className="p-4">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                              <div>
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Employee</p>
+                                <p className="text-sm font-medium">{r.users?.full_name}</p>
+                                <p className="text-xs text-muted-foreground">{r.users?.department} · {r.users?.email}</p>
+                              </div>
+                              <div>
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Dates</p>
+                                <p className="text-sm">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — {format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</p>
+                                <p className="text-xs text-muted-foreground">{r.days_count} day(s)</p>
+                              </div>
+                              <div>
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Submitted</p>
+                                <p className="text-sm">{format(new Date(r.created_at), "MMM d, yyyy 'at' h:mm a")}</p>
+                              </div>
+                            </div>
+                            <div className="mb-3">
+                              <p className="text-[12px] text-muted-foreground mb-0.5">Reason / Notes</p>
+                              <p className="text-sm">{r.reason || "—"}</p>
+                            </div>
+                            {r.admin_comment && (
+                              <div className="mb-2">
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Admin Comment</p>
+                                <p className="text-sm">{r.admin_comment}</p>
+                              </div>
+                            )}
+                            <div className="flex items-center gap-2 mt-2">
+                              {r.status === "pending" && (
+                                <>
+                                  <Button size="sm" onClick={async (e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }}>Approve</Button>
+                                  <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }}>Reject</Button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                 ))}
               </TableBody>
             </Table>
@@ -240,7 +290,7 @@ export default function LeaveAdminPage() {
               {calDays.map((d) => {
                 const leaves = getLeavesForDay(d);
                 return (
-                  <div key={d.toISOString()} className={`min-h-[60px] p-1 rounded text-xs border ${isWeekend(d) ? "bg-muted" : "bg-card"}`}>
+                  <div key={d.toISOString()} className={`min-h-[60px] p-1 rounded text-xs border ${isWeekend(d) ? "bg-muted opacity-60 blur-sm" : "bg-card"}`}>
                     <span className="font-medium">{d.getDate()}</span>
                     <div className="mt-0.5 space-y-0.5">
                       {leaves.slice(0, 2).map((l: any) => {
@@ -252,13 +302,43 @@ export default function LeaveAdminPage() {
                           </div>
                         );
                       })}
-                      {leaves.length > 2 && <span className="text-muted-foreground">+{leaves.length - 2}</span>}
+                      {leaves.length > 2 && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); const ds = format(d, "yyyy-MM-dd"); setNamesModal({ date: ds, leaves }); }}
+                          className="text-muted-foreground text-xs ml-1 underline"
+                        >+{leaves.length - 2}</button>
+                      )}
                     </div>
                   </div>
                 );
               })}
             </div>
           </Card>
+
+          <Dialog open={!!namesModal} onOpenChange={() => setNamesModal(null)}>
+            <DialogContent className="max-w-sm">
+              <DialogHeader>
+                <DialogTitle>Employees on {namesModal?.date}</DialogTitle>
+              </DialogHeader>
+              <div className="p-3">
+                {namesModal?.leaves && namesModal.leaves.length > 0 ? (
+                  <div className="space-y-2">
+                    {namesModal.leaves.map((l: any) => (
+                      <div key={l.id} className="flex items-center gap-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{(l.users?.full_name || "").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0,2)}</div>
+                        <div>
+                          <p className="text-sm font-medium">{l.users?.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{l.leave_types?.name} · {l.days_count} day(s)</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No employees</p>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         <TabsContent value="settings" className="space-y-4">

@@ -2,6 +2,8 @@ import { useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
@@ -46,6 +48,7 @@ function validateRow(row: Record<string, string>): ParsedRow {
 export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [importing, setImporting] = useState(false);
+  const [defaultPassword, setDefaultPassword] = useState<string>("User@12345");
   const queryClient = useQueryClient();
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -69,7 +72,7 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
   }, []);
 
   const downloadTemplate = () => {
-    const csv = "full_name,email,phone,designation,department,employment_type,join_date,role\nJohn Doe,john@example.com,+1234567890,Developer,Engineering,Full-time,2024-01-15,employee";
+    const csv = "full_name,email,phone,designation,department,employment_type,join_date,role\nJohn Doe,john@example.com,+1234567890,Developer,Engineering,full-time,2024-01-15,employee";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -81,13 +84,21 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const handleImport = async () => {
     const valid = rows.filter((r) => r.errors.length === 0);
     if (valid.length === 0) { toast.error("No valid rows to import"); return; }
+    // Validate default password if provided
+    if (defaultPassword && defaultPassword.length > 0 && defaultPassword.length < 8) {
+      toast.error("Default password must be at least 8 characters");
+      return;
+    }
+
+    const useDefault = defaultPassword && defaultPassword.length >= 8;
+
     setImporting(true);
 
     let success = 0, failed = 0;
     for (const row of valid) {
-      const tempPassword = crypto.randomUUID().slice(0, 12) + "A1!";
+      const passwordToUse = useDefault ? defaultPassword : crypto.randomUUID().slice(0, 12) + "A1!";
       const { data, error } = await supabase.functions.invoke("invite-user", {
-        body: { ...row, password: tempPassword },
+        body: { ...row, password: passwordToUse },
       });
       if (error || !data?.ok) { failed++; } else { success++; }
     }
@@ -119,6 +130,13 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
                 <span><Upload className="h-4 w-4 mr-2" />Upload CSV</span>
               </Button>
             </label>
+          </div>
+          <div className="flex items-center gap-3 mt-2">
+            <div className="w-[320px]">
+              <Label className="text-xs">Default password for imported users</Label>
+              <Input value={defaultPassword} onChange={(e) => setDefaultPassword((e.target as HTMLInputElement).value)} placeholder="User@12345" />
+              <p className="text-xs text-muted-foreground mt-1">If set, this password will be applied to every imported user. Users will be required to change it on first login.</p>
+            </div>
           </div>
 
           {rows.length > 0 && (

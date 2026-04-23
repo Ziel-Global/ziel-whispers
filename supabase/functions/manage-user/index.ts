@@ -140,6 +140,53 @@ Deno.serve(async (req) => {
       return jsonResponse({ ok: true });
     }
 
+    if (action === "delete") {
+      // Permanently delete related DB rows, the user row, and the auth account
+      try {
+        // Delete related data
+        const relatedDeletes = [
+          { table: "project_members", col: "user_id" },
+          { table: "auto_clockout_acks", col: "user_id" },
+          { table: "audit_logs", col: "actor_id" },
+          { table: "audit_logs", col: "target_id" },
+          { table: "attendance", col: "user_id" },
+          { table: "daily_logs", col: "user_id" },
+          { table: "leave_requests", col: "user_id" },
+          { table: "notifications", col: "user_id" },
+          { table: "leave_balances", col: "user_id" },
+          { table: "time_entries", col: "user_id" },
+        ];
+
+        for (const d of relatedDeletes) {
+          const { error: relErr } = await adminClient.from(d.table).delete().eq(d.col, user_id);
+          if (relErr) {
+            // log and continue; don't fail deletion due to missing table or constraints
+            console.warn(`manage-user: failed deleting from ${d.table}:`, relErr.message);
+          }
+        }
+
+        // Remove user row from users table
+        const { error: dbErr } = await adminClient.from("users").delete().eq("id", user_id);
+        if (dbErr) return jsonResponse({ ok: false, error: dbErr.message });
+
+        // Delete auth user
+        const { error: delErr } = await adminClient.auth.admin.deleteUser(user_id);
+        if (delErr) return jsonResponse({ ok: false, error: delErr.message });
+
+        await adminClient.from("audit_logs").insert({
+          actor_id: callerId,
+          action: "user.deleted",
+          target_entity: "users",
+          target_id: user_id,
+        });
+
+        return jsonResponse({ ok: true });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return jsonResponse({ ok: false, error: msg });
+      }
+    }
+
     return jsonResponse({ ok: false, error: "Unknown action" });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

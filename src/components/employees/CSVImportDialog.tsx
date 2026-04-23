@@ -21,7 +21,7 @@ type ParsedRow = {
   errors: string[];
 };
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 
 function validateRow(row: Record<string, string>): ParsedRow {
@@ -49,6 +49,7 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [importing, setImporting] = useState(false);
   const [defaultPassword, setDefaultPassword] = useState<string>("User@12345");
+  const [failedImports, setFailedImports] = useState<Array<{ full_name: string; email: string; reason: string }>>([]);
   const queryClient = useQueryClient();
 
   const handleFile = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -95,18 +96,35 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
     setImporting(true);
 
     let success = 0, failed = 0;
+    const failedList: Array<{ full_name: string; email: string; reason: string }> = [];
     for (const row of valid) {
       const passwordToUse = useDefault ? defaultPassword : crypto.randomUUID().slice(0, 12) + "A1!";
-      const { data, error } = await supabase.functions.invoke("invite-user", {
-        body: { ...row, password: passwordToUse },
-      });
-      if (error || !data?.ok) { failed++; } else { success++; }
+      try {
+        const res = await supabase.functions.invoke("invite-user", { body: { ...row, password: passwordToUse } });
+        const { data, error } = res as any;
+        if (error) {
+          failed++;
+          failedList.push({ full_name: row.full_name, email: row.email, reason: error.message || JSON.stringify(error) });
+        } else if (data && data.ok === false) {
+          failed++;
+          const reason = data.error || JSON.stringify(data);
+          failedList.push({ full_name: row.full_name, email: row.email, reason });
+        } else {
+          success++;
+        }
+      } catch (err: any) {
+        failed++;
+        failedList.push({ full_name: row.full_name, email: row.email, reason: err?.message || String(err) });
+      }
     }
-
+    setFailedImports(failedList);
     toast.success(`Imported ${success} employees${failed ? `, ${failed} failed` : ""}`);
     queryClient.invalidateQueries({ queryKey: ["employees"] });
-    setRows([]);
-    onOpenChange(false);
+    // If no failures, clear and close. Otherwise keep the dialog open so admin can review failures.
+    if (failed === 0) {
+      setRows([]);
+      onOpenChange(false);
+    }
     setImporting(false);
   };
 
@@ -167,6 +185,45 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
                 </Table>
               </div>
             </>
+          )}
+
+          {failedImports.length > 0 && (
+            <div className="mt-4">
+              <h4 className="text-sm font-medium">Failed Imports</h4>
+              <p className="text-xs text-muted-foreground mb-2">These rows failed during server processing. You can export them to retry after fixing issues.</p>
+              <div className="border rounded-md max-h-[200px] overflow-auto">
+                <Table>
+                  <TableHead>
+                    <TableRow>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Reason</TableHead>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {failedImports.map((f, i) => (
+                      <TableRow key={i} className="bg-destructive/5">
+                        <TableCell>{f.full_name}</TableCell>
+                        <TableCell>{f.email}</TableCell>
+                        <TableCell className="text-destructive text-xs">{f.reason}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+              <div className="flex gap-2 mt-2">
+                <Button variant="outline" size="sm" onClick={() => {
+                  const csv = "full_name,email,reason\n" + failedImports.map(f => `"${f.full_name}","${f.email}","${f.reason.replace(/"/g,'""')}"`).join("\n");
+                  const blob = new Blob([csv], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = `failed_imports_${new Date().toISOString().slice(0,10)}.csv`;
+                  a.click();
+                }}>Export Failures</Button>
+                <Button variant="outline" size="sm" onClick={() => setFailedImports([])}>Clear Failures</Button>
+              </div>
+            </div>
           )}
         </div>
         <DialogFooter>

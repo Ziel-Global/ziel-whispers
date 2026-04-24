@@ -16,7 +16,7 @@ import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { formatLateness, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
 
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();

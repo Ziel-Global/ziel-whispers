@@ -9,17 +9,18 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Upload, Eye, Save, Clock } from "lucide-react";
+import { Plus, Search, Upload, Eye, Save, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
 import { CSVImportDialog } from "@/components/employees/CSVImportDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
 const STATUSES = ["active", "inactive", "pending"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 
@@ -35,6 +36,8 @@ export default function EmployeesPage() {
   const [typeFilter, setTypeFilter] = useState("all");
   const [csvOpen, setCsvOpen] = useState(false);
   const queryClient = useQueryClient();
+  const [deletingUser, setDeletingUser] = useState<any | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Shift Settings State
   const [shiftStart, setShiftStart] = useState("");
@@ -193,18 +196,16 @@ export default function EmployeesPage() {
                   <TableHead>Full Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Designation</TableHead>
-                  <TableHead>Department</TableHead>
                   <TableHead>Type</TableHead>
-                  <TableHead>Join Date</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
                 ) : (
                   filtered.map((emp) => {
                     const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
@@ -219,14 +220,17 @@ export default function EmployeesPage() {
                         <TableCell className="font-medium">{emp.full_name}</TableCell>
                         <TableCell className="text-muted-foreground">{emp.email}</TableCell>
                         <TableCell>{emp.designation}</TableCell>
-                        <TableCell>{emp.department}</TableCell>
                         <TableCell>{emp.employment_type}</TableCell>
-                        <TableCell>{format(new Date(emp.join_date), "MMM d, yyyy")}</TableCell>
                         <TableCell>{statusBadge(emp.status)}</TableCell>
                         <TableCell className="text-right">
                           <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}>
                             <Eye className="h-4 w-4" />
                           </Button>
+                          {isAdmin && (
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeletingUser(emp); }} className="text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     );
@@ -235,6 +239,41 @@ export default function EmployeesPage() {
               </TableBody>
             </Table>
           </div>
+          <Dialog open={!!deletingUser} onOpenChange={(open) => { if (!open) setDeletingUser(null); }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete user — {deletingUser?.full_name}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-destructive font-medium">Warning: This will permanently delete the user account and all related data (attendance, logs, leave requests, notifications, balances, etc.). This action cannot be undone.</p>
+                <p className="text-sm">Are you sure you want to delete <strong>{deletingUser?.full_name}</strong> ({deletingUser?.email})?</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeletingUser(null)}>Cancel</Button>
+                <Button className="bg-destructive text-destructive-foreground" onClick={async () => {
+                  console.log("Deleting user", deletingUser);
+                  if (!deletingUser) return;
+                  if (deletingUser.id === profile?.id) { toast.error("You cannot delete your own account."); return; }
+                  setDeleting(true);
+                  try {
+                    const res = await supabase.functions.invoke("manage-user", { body: { action: "delete", user_id: deletingUser.id } }) as any;
+                    console.log("Delete response", res);
+                    if (res?.data?.ok) {
+                      toast.success("User and related data deleted");
+                      queryClient.invalidateQueries({ queryKey: ["employees"] });
+                      setDeletingUser(null);
+                    } else {
+                      console.log("Delete error", res);
+                      toast.error(res?.data?.error || res?.error?.message || "Failed to delete user");
+                    }
+                  } catch (err: any) {
+                    console.log("Delete error", err);
+                    toast.error(err?.message || String(err));
+                  } finally { setDeleting(false); }
+                }} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {isAdmin && (

@@ -93,12 +93,24 @@ export function formatTime12h(time: string | undefined | null): string {
 /** @deprecated use formatTime12h */
 export const formatShiftTime = formatTime12h;
 
-/** Format lateness from total minutes stored on attendance record */
-export function formatLateness(totalMinutes: number): string {
-  const mTotal = totalMinutes || 0;
-  if (mTotal === 0) return "0m";
-  const h = Math.floor(mTotal / 60);
-  const m = mTotal % 60;
+/**
+ * Format lateness.
+ * Accepts either a single total minutes number, or two args (hours, minutes).
+ * Examples: `formatLateness(75)` -> "1h 15m"; `formatLateness(1, 15)` -> "1h 15m".
+ */
+export function formatLateness(totalOrHours: number, minutes?: number): string {
+  let totalMinutes = 0;
+  if (typeof minutes === "number") {
+    const h = Number(totalOrHours) || 0;
+    const m = Number(minutes) || 0;
+    totalMinutes = h * 60 + m;
+  } else {
+    totalMinutes = Number(totalOrHours) || 0;
+  }
+
+  if (totalMinutes === 0) return "0m";
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
   if (h === 0) return `${m}m`;
   if (m === 0) return `${h}h`;
   return `${h}h ${m}m`;

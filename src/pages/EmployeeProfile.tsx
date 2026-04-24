@@ -21,11 +21,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Shield, ShieldOff, Download, Trash2 } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
@@ -211,7 +212,7 @@ export default function EmployeeProfilePage() {
 
       if (error) throw error;
 
-      if (avatarFile) {
+      if (avatarFile && isOwnProfile) {
         const ext = avatarFile.name.split(".").pop();
         const path = `${employee.id}/avatar.${ext}`;
         await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
@@ -417,7 +418,16 @@ export default function EmployeeProfilePage() {
           <Card className="p-6">
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
+                {isOwnProfile ? (
+                  <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <Avatar className="h-16 w-16">
+                      <AvatarImage src={avatarUrl} />
+                      <AvatarFallback className="bg-muted text-muted-foreground">{employee.full_name?.charAt(0)}</AvatarFallback>
+                    </Avatar>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <FormField control={form.control} name="full_name" render={({ field }) => (
@@ -579,17 +589,8 @@ export default function EmployeeProfilePage() {
                     if (adminNewPassword !== adminConfirmPassword) { setAdminPwError("Passwords do not match"); return; }
                     setSettingPassword(true);
                     try {
-                      // FIX 4: Added Authorization header to set_password edge function call
-                      // Previously: no headers were passed, causing 401 UNAUTHORIZED error
-                      // Now: session token is fetched and passed as Authorization header
-                      // Get current session to extract access token for Authorization header
-                      const { data: { session } } = await supabase.auth.getSession();
                       const { data, error } = await supabase.functions.invoke("manage-user", {
                         body: { action: "set_password", user_id: id, new_password: adminNewPassword },
-                        // FIX: Pass Authorization header with session token
-                        headers: {
-                          Authorization: `Bearer ${session?.access_token}`,
-                        },
                       });
                       if (error) {
                         toast.error(error.message || "Failed to set password");

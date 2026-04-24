@@ -35,6 +35,9 @@ export default function SetPasswordPage() {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
 
+      // Mark that we're performing a password set flow so route guards can avoid redirect flashes
+      try { localStorage.setItem("_zl_just_set_password", "1"); } catch {}
+
       // 2. Clear the must_change_password flag BEFORE signing out
       const { error: profileError } = await supabase
         .from("users")
@@ -55,9 +58,12 @@ export default function SetPasswordPage() {
 
       // 5. Show success and redirect
       toast.success("Password changed successfully. Please log in with your new password.");
+      // Clear local flag and redirect to login. Clearing before navigate avoids ProtectedRoute seeing the flag.
+      try { localStorage.removeItem("_zl_just_set_password"); } catch {}
       navigate("/login", { replace: true });
     } catch (error: any) {
       hasSubmitted.current = false;
+      try { localStorage.removeItem("_zl_just_set_password"); } catch {}
       toast.error(error.message || "Failed to update password");
     } finally {
       setLoading(false);

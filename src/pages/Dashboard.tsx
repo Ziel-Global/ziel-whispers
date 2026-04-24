@@ -395,7 +395,7 @@ export default function DashboardPage() {
                     <p className="text-sm font-medium">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</p>
                     <p className="text-xs text-muted-foreground">{log.projects?.name || "No project"} · {log.hours}h · {log.category}</p>
                   </div>
-                  <Button variant="link" size="sm" className="text-xs" onClick={() => navigate("/logs/my")}>View</Button>
+                  <Button variant="link" size="sm" className="text-xs text-black" onClick={() => navigate("/logs/my")}>View</Button>
                 </div>
               ))}
             </div>

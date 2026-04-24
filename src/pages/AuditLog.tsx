@@ -10,7 +10,9 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Download, Search, Shield, FileText } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Download, Search, Shield, FileText, MoreHorizontal, Eye } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -48,6 +50,29 @@ const ACTION_LABELS: Record<string, string> = {
   "impersonation.ended": "Impersonation Ended",
 };
 
+const formatMetadata = (metadata: any): string => {
+  if (!metadata) return "—";
+  if (typeof metadata === "string") return metadata;
+  
+  if (Array.isArray(metadata)) {
+    return metadata.map(item => 
+      typeof item === "object" ? JSON.stringify(item) : String(item)
+    ).join(", ");
+  }
+
+  if (typeof metadata === "object") {
+    return Object.entries(metadata)
+      .map(([key, value]) => {
+        const formattedKey = key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+        const formattedValue = typeof value === "object" ? JSON.stringify(value) : String(value);
+        return `${formattedKey}: ${formattedValue}`;
+      })
+      .join(" | ");
+  }
+  
+  return JSON.stringify(metadata);
+};
+
 const PAGE_SIZE = 25;
 
 export default function AuditLogPage() {
@@ -55,15 +80,21 @@ export default function AuditLogPage() {
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
   const [page, setPage] = useState(0);
+  const [selectedLog, setSelectedLog] = useState<any>(null);
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ["audit-logs", page],
+    queryKey: ["audit-logs", page, actionFilter],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let q = supabase
         .from("audit_logs")
         .select("*, users:actor_id(full_name, avatar_url)")
-        .order("created_at", { ascending: false })
-        .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+        .order("created_at", { ascending: false });
+
+      if (actionFilter !== "all") {
+        q = q.eq("action", actionFilter);
+      }
+
+      const { data, error } = await q.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       if (error) throw error;
       return data || [];
     },
@@ -75,16 +106,13 @@ export default function AuditLogPage() {
       const q = search.toLowerCase();
       const actorName = ((l as any).users?.full_name || "System").toLowerCase();
       const actionLabel = (ACTION_LABELS[l.action] || l.action).toLowerCase();
-      const matchSearch = !q || actorName.includes(q) || actionLabel.includes(q) || l.action.includes(q);
-      const matchAction = actionFilter === "all" || l.action === actionFilter;
-      return matchSearch && matchAction;
+      return !q || actorName.includes(q) || actionLabel.includes(q) || l.action.includes(q);
     });
-  }, [logs, search, actionFilter]);
+  }, [logs, search]);
 
   const actionTypes = useMemo(() => {
-    if (!logs) return [];
-    return [...new Set(logs.map((l) => l.action))].sort();
-  }, [logs]);
+    return Object.keys(ACTION_LABELS).sort();
+  }, []);
 
   const exportCSV = () => {
     const rows = filtered.map((l) => ({
@@ -136,20 +164,21 @@ export default function AuditLogPage() {
               <TableHead>Action</TableHead>
               <TableHead>Target</TableHead>
               <TableHead>Details</TableHead>
+              <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  {Array.from({ length: 5 }).map((_, j) => (
+                  {Array.from({ length: 6 }).map((_, j) => (
                     <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
                   ))}
                 </TableRow>
               ))
             ) : filtered.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-12">
+                <TableCell colSpan={6} className="text-center py-12">
                   <Shield className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
                   <p className="font-medium">No audit logs found</p>
                   <p className="text-sm text-muted-foreground">System events will appear here</p>
@@ -176,8 +205,22 @@ export default function AuditLogPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{l.target_entity || "—"}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">
-                    {l.metadata ? JSON.stringify(l.metadata) : "—"}
+                  <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={formatMetadata(l.metadata)}>
+                    {formatMetadata(l.metadata)}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" className="h-8 w-8 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => setSelectedLog(l)}>
+                          <Eye className="mr-2 h-4 w-4" /> View Details
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                 </TableRow>
               ))
@@ -190,6 +233,46 @@ export default function AuditLogPage() {
         {page > 0 && <Button variant="outline" size="sm" onClick={() => setPage(page - 1)}>Previous</Button>}
         {logs && logs.length === PAGE_SIZE && <Button variant="outline" size="sm" onClick={() => setPage(page + 1)}>Next</Button>}
       </div>
+
+      <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Audit Log Details</DialogTitle>
+          </DialogHeader>
+          <div className="py-4 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Action</p>
+                <p>{selectedLog ? ACTION_LABELS[selectedLog.action] || selectedLog.action : "—"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Actor</p>
+                <p>{selectedLog?.users?.full_name || "System"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Target</p>
+                <p>{selectedLog?.target_entity || "—"}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-muted-foreground">Timestamp</p>
+                <p>{selectedLog ? format(new Date(selectedLog.created_at), "PPpp") : "—"}</p>
+              </div>
+            </div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">Metadata Details</p>
+              {selectedLog?.metadata ? (
+                <div className="bg-muted p-4 rounded-md overflow-auto text-sm max-h-[300px]">
+                  <pre className="whitespace-pre-wrap font-mono">
+                    {JSON.stringify(selectedLog.metadata, null, 2)}
+                  </pre>
+                </div>
+              ) : (
+                <p className="text-sm">No additional metadata available.</p>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

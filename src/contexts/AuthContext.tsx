@@ -197,7 +197,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (statusCheckRef.current) clearInterval(statusCheckRef.current);
           return;
         }
-        setLoading(true);
+        // Never set loading = true here. The initial useState(true) handles
+        // the first app bootstrap. All subsequent auth events (SIGNED_IN from
+        // token refreshes on tab re-focus, TOKEN_REFRESHED, etc.) should sync
+        // silently in the background so the UI isn't torn down and in-progress
+        // user work (file imports, form edits, etc.) is preserved.
         void syncSession(nextSession);
       }
     );

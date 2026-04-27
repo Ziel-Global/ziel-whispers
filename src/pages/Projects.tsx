@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, FolderKanban } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { Plus, Search, FolderKanban, Upload, Trash2 } from "lucide-react";
+import { ProjectCSVImportDialog } from "@/components/projects/ProjectCSVImportDialog";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -21,9 +24,13 @@ const STATUS_COLORS: Record<string, string> = {
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [csvOpen, setCsvOpen] = useState(false);
+  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -79,6 +86,20 @@ export default function ProjectsPage() {
     return (m?.project_roles as any)?.name || "Member";
   };
 
+  const handleDelete = async () => {
+    if (!projectToDelete) return;
+    setDeleting(true);
+    const { error } = await supabase.from("projects").delete().eq("id", projectToDelete.id);
+    setDeleting(false);
+    if (error) {
+      toast.error("Cannot delete project because it is currently in use (has associated logs or team members).");
+    } else {
+      toast.success("Project deleted successfully");
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    }
+    setProjectToDelete(null);
+  };
+
   // Employee card view
   if (!isAdmin) {
     return (
@@ -107,7 +128,12 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-        <Button onClick={() => navigate("/projects/new")} className="rounded-button"><Plus className="h-4 w-4 mr-2" />New Project</Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setCsvOpen(true)} className="rounded-button">
+            <Upload className="h-4 w-4 mr-2" />Import CSV
+          </Button>
+          <Button onClick={() => navigate("/projects/new")} className="rounded-button"><Plus className="h-4 w-4 mr-2" />New Project</Button>
+        </div>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -135,22 +161,49 @@ export default function ProjectsPage() {
               <TableHead>Status</TableHead>
               <TableHead>Team</TableHead>
               <TableHead>Hours</TableHead>
+              {isAdmin && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
+            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
             {filtered.map((p) => (
               <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${p.id}`)}>
                 <TableCell className="font-medium">{p.name}</TableCell>
                 <TableCell><Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge></TableCell>
                 <TableCell>{projectStats?.teamSize[p.id] || 0}</TableCell>
                 <TableCell>{(projectStats?.totalHours[p.id] || 0).toFixed(1)}h</TableCell>
+                {isAdmin && (
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8" onClick={() => setProjectToDelete({ id: p.id, name: p.name })}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </TableCell>
+                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
+      {isAdmin && <ProjectCSVImportDialog open={csvOpen} onOpenChange={setCsvOpen} />}
+
+      <AlertDialog open={!!projectToDelete} onOpenChange={(o) => !o && setProjectToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete <strong>{projectToDelete?.name}</strong>? This action cannot be undone. If the project has any team members or submitted logs, deletion will be prevented.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete Project"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

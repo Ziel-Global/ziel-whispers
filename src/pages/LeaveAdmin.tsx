@@ -11,10 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
@@ -28,6 +29,8 @@ export default function LeaveAdminPage() {
   const [actionModal, setActionModal] = useState<{ type: "approve" | "reject"; request: any } | null>(null);
   const [adminComment, setAdminComment] = useState("");
   const [processing, setProcessing] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
 
   // Annual leave entitlement setting
@@ -147,6 +150,22 @@ export default function LeaveAdminPage() {
     finally { setProcessing(false); }
   };
 
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    const { error } = await supabase.from("leave_requests").delete().eq("id", deleteId);
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "leave.deleted", target_entity: "leave_requests", target_id: deleteId });
+      toast.success("Leave request deleted");
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+    }
+  };
+
   const statusBadge = (status: string) => {
     const map: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", approved: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-700", cancelled: "bg-gray-100 text-gray-500" };
     return <Badge className={`${map[status] || ""} capitalize`}>{status}</Badge>;
@@ -215,15 +234,18 @@ export default function LeaveAdminPage() {
                       <TableCell>{statusBadge(r.status)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d")}</TableCell>
                       <TableCell className="text-right">
-                        {r.status === "pending" && (
-                          <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }} className="text-destructive"><X className="h-4 w-4" /></Button>
-                          </div>
-                        )}
-                        {r.status !== "pending" && r.admin_comment && (
-                          <span className="text-xs text-muted-foreground" title={r.admin_comment}>💬</span>
-                        )}
+                        <div className="flex justify-end gap-1 items-center">
+                          {r.status === "pending" && (
+                            <>
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }} className="text-destructive"><X className="h-4 w-4" /></Button>
+                            </>
+                          )}
+                          {r.status !== "pending" && r.admin_comment && (
+                            <span className="text-xs text-muted-foreground mr-2" title={r.admin_comment}>💬</span>
+                          )}
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                     {expandedId === r.id && (
@@ -386,6 +408,23 @@ export default function LeaveAdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Leave Request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this leave request? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

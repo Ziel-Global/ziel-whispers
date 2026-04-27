@@ -155,6 +155,8 @@ Deno.serve(async (req) => {
           { table: "notifications", col: "user_id" },
           { table: "leave_balances", col: "user_id" },
           { table: "time_entries", col: "user_id" },
+          { table: "announcement_reads", col: "user_id" },
+          { table: "announcements", col: "created_by" },
         ];
 
         for (const d of relatedDeletes) {

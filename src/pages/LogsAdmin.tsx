@@ -14,8 +14,9 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock } from "lucide-react";
+import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
@@ -51,6 +52,8 @@ export default function LogsAdminPage() {
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [logEditDays, setLogEditDays] = useState("");
   const [missedLogTime, setMissedLogTime] = useState("");
@@ -240,6 +243,18 @@ export default function LogsAdminPage() {
   const saveComment = async (logId: string) => {
     await supabase.from("daily_logs").update({ admin_comment: comment }).eq("id", logId);
     toast.success("Comment saved");
+    queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
+  };
+
+  const handleDeleteLog = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    const { error } = await supabase.from("daily_logs").delete().eq("id", deleteId);
+    setDeleting(false);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "log.deleted", target_entity: "daily_logs", target_id: deleteId });
+    toast.success("Log deleted");
+    setDeleteId(null);
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
   };
 
@@ -449,13 +464,22 @@ export default function LogsAdminPage() {
                                         </div>
                                       </div>
                                       {isAdmin && (
-                                        <button
-                                          onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
-                                          className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-                                          title={log.admin_flagged ? "Unflag" : "Flag"}
-                                        >
-                                          <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/40"}`} />
-                                        </button>
+                                        <div className="flex gap-1 items-center">
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
+                                            className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                                            title={log.admin_flagged ? "Unflag" : "Flag"}
+                                          >
+                                            <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/40"}`} />
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); setDeleteId(log.id); }}
+                                            className="shrink-0 p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                                            title="Delete Log"
+                                          >
+                                            <Trash2 className="h-4 w-4" />
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
                                     {isAdmin && expandedLogId === log.id && (
@@ -554,6 +578,23 @@ export default function LogsAdminPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Log?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this log? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteLog} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

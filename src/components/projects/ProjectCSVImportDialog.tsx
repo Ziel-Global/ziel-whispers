@@ -2,61 +2,50 @@ import { useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { Download, Upload } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 type ParsedRow = {
-  full_name: string;
-  email: string;
-  phone?: string;
-  designation: string;
-  department: string;
-  employment_type: string;
-  join_date: string;
-  role?: string;
+  name: string;
+  description: string;
+  start_date: string;
+  end_date: string;
+  status: string;
   errors: string[];
 };
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
-const EMP_TYPES = ["full-time", "part-time", "contract"];
+const VALID_STATUSES = ["active", "on_hold", "completed", "archived"];
 
 function validateRow(row: Record<string, string>): ParsedRow {
   const errors: string[] = [];
-  const full_name = row["full_name"]?.trim() || "";
-  const email = row["email"]?.trim() || "";
-  const designation = row["designation"]?.trim() || "";
-  const department = row["department"]?.trim() || "";
-  const employment_type = row["employment_type"]?.trim() || "";
-  const join_date = row["join_date"]?.trim() || "";
-  const role = row["role"]?.trim() || "employee";
-  const phone = row["phone"]?.trim() || "";
+  const name = row["name"]?.trim() || "";
+  const description = row["description"]?.trim() || "";
+  const start_date = row["start_date"]?.trim() || "";
+  const end_date = row["end_date"]?.trim() || "";
+  const status = row["status"]?.trim().toLowerCase() || "active";
 
-  if (!full_name) errors.push("Missing name");
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errors.push("Invalid email");
-  if (!designation) errors.push("Missing designation");
-  if (!DEPARTMENTS.includes(department)) errors.push("Invalid department");
-  if (!EMP_TYPES.includes(employment_type)) errors.push("Invalid type");
-  if (!join_date || isNaN(Date.parse(join_date))) errors.push("Invalid date");
+  if (!name) errors.push("Missing name");
+  if (!start_date || isNaN(Date.parse(start_date))) errors.push("Invalid start date");
+  if (end_date && isNaN(Date.parse(end_date))) errors.push("Invalid end date");
+  if (!VALID_STATUSES.includes(status)) errors.push("Invalid status");
 
-  return { full_name, email, phone, designation, department, employment_type, join_date, role, errors };
+  return { name, description, start_date, end_date, status, errors };
 }
 
-export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function ProjectCSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { profile } = useAuth();
   const [rows, setRows] = useState<ParsedRow[]>([]);
   const [importing, setImporting] = useState(false);
-  const [defaultPassword, setDefaultPassword] = useState<string>("User@12345");
-  const [failedImports, setFailedImports] = useState<Array<{ full_name: string; email: string; reason: string }>>([]);
+  const [failedImports, setFailedImports] = useState<Array<{ name: string; reason: string }>>([]);
   const queryClient = useQueryClient();
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!newOpen) {
       setRows([]);
       setFailedImports([]);
-      setDefaultPassword("User@12345");
     }
     onOpenChange(newOpen);
   };
@@ -68,9 +57,14 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
     reader.onload = (ev) => {
       const text = ev.target?.result as string;
       const lines = text.split("\n").filter((l) => l.trim());
-      if (lines.length < 2) return;
+      if (lines.length < 2) {
+        toast.error("File is empty or missing headers");
+        return;
+      }
       const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
       const parsed = lines.slice(1).map((line) => {
+        // Handle basic CSV parsing (ignores commas inside quotes for simplicity in this basic version, but can be robust)
+        // A simple split by comma since fields are usually simple strings
         const values = line.split(",").map((v) => v.trim());
         const obj: Record<string, string> = {};
         headers.forEach((h, i) => (obj[h] = values[i] || ""));
@@ -79,57 +73,64 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
       setRows(parsed);
     };
     reader.readAsText(file);
+    // Reset file input so same file can be selected again
+    e.target.value = "";
   }, []);
 
   const downloadTemplate = () => {
-    const csv = "full_name,email,phone,designation,department,employment_type,join_date,role\nJohn Doe,john@example.com,+1234567890,Developer,Engineering,full-time,2024-01-15,employee";
+    const csv = "name,description,start_date,end_date,status\nWebsite Redesign,Redesigning the corporate site,2024-05-01,2024-08-01,active\nMobile App API,Backend API for new mobile app,2024-06-01,,on_hold";
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "employee_template.csv";
+    a.download = "project_template.csv";
     a.click();
   };
 
   const handleImport = async () => {
     const valid = rows.filter((r) => r.errors.length === 0);
     if (valid.length === 0) { toast.error("No valid rows to import"); return; }
-    // Validate default password if provided
-    if (defaultPassword && defaultPassword.length > 0 && defaultPassword.length < 8) {
-      toast.error("Default password must be at least 8 characters");
-      return;
-    }
-
-    const useDefault = defaultPassword && defaultPassword.length >= 8;
 
     setImporting(true);
 
     let success = 0, failed = 0;
-    const failedList: Array<{ full_name: string; email: string; reason: string }> = [];
+    const failedList: Array<{ name: string; reason: string }> = [];
+    
+    // Process in batches or one by one
     for (const row of valid) {
-      const passwordToUse = useDefault ? defaultPassword : crypto.randomUUID().slice(0, 12) + "A1!";
       try {
-        const res = await supabase.functions.invoke("invite-user", { body: { ...row, password: passwordToUse } });
-        const { data, error } = res as any;
+        const { data: project, error } = await supabase.from("projects").insert({
+          name: row.name,
+          description: row.description || null,
+          start_date: row.start_date,
+          end_date: row.end_date || null,
+          status: row.status,
+          created_by: profile?.id,
+        }).select("id").single();
+        
         if (error) {
           failed++;
-          failedList.push({ full_name: row.full_name, email: row.email, reason: error.message || JSON.stringify(error) });
-        } else if (data && data.ok === false) {
-          failed++;
-          const reason = data.error || JSON.stringify(data);
-          failedList.push({ full_name: row.full_name, email: row.email, reason });
+          failedList.push({ name: row.name, reason: error.message || JSON.stringify(error) });
         } else {
+          // Log the creation
+          await supabase.from("audit_logs").insert({ 
+            actor_id: profile?.id, 
+            action: "project.created_via_csv", 
+            target_entity: "projects", 
+            target_id: project.id 
+          });
           success++;
         }
       } catch (err: any) {
         failed++;
-        failedList.push({ full_name: row.full_name, email: row.email, reason: err?.message || String(err) });
+        failedList.push({ name: row.name, reason: err?.message || String(err) });
       }
     }
+    
     setFailedImports(failedList);
-    toast.success(`Imported ${success} employees${failed ? `, ${failed} failed` : ""}`);
-    queryClient.invalidateQueries({ queryKey: ["employees"] });
-    // If no failures, clear and close. Otherwise keep the dialog open so admin can review failures.
+    toast.success(`Imported ${success} projects${failed ? `, ${failed} failed` : ""}`);
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+    
     if (failed === 0) {
       setRows([]);
       onOpenChange(false);
@@ -143,7 +144,7 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
         <DialogHeader>
-          <DialogTitle>Import Employees from CSV</DialogTitle>
+          <DialogTitle>Import Projects from CSV</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="flex gap-3">
@@ -158,13 +159,6 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
               </Button>
             </label>
           </div>
-          <div className="flex items-center gap-3 mt-2">
-            <div className="w-[320px]">
-              <Label className="text-xs">Default password for imported users</Label>
-              <Input value={defaultPassword} onChange={(e) => setDefaultPassword((e.target as HTMLInputElement).value)} placeholder="User@12345" />
-              <p className="text-xs text-muted-foreground mt-1">If set, this password will be applied to every imported user. Users will be required to change it on first login.</p>
-            </div>
-          </div>
 
           {rows.length > 0 && (
             <>
@@ -174,19 +168,19 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Type</TableHead>
+                      <TableHead>Start Date</TableHead>
+                      <TableHead>End Date</TableHead>
+                      <TableHead>Status</TableHead>
                       <TableHead>Errors</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {rows.map((r, i) => (
                       <TableRow key={i} className={r.errors.length > 0 ? "bg-destructive/5" : ""}>
-                        <TableCell>{r.full_name}</TableCell>
-                        <TableCell>{r.email}</TableCell>
-                        <TableCell>{r.department}</TableCell>
-                        <TableCell>{r.employment_type}</TableCell>
+                        <TableCell>{r.name}</TableCell>
+                        <TableCell>{r.start_date}</TableCell>
+                        <TableCell>{r.end_date || "—"}</TableCell>
+                        <TableCell>{r.status}</TableCell>
                         <TableCell className="text-destructive text-xs">{r.errors.join(", ") || "—"}</TableCell>
                       </TableRow>
                     ))}
@@ -202,18 +196,16 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
               <p className="text-xs text-muted-foreground mb-2">These rows failed during server processing. You can export them to retry after fixing issues.</p>
               <div className="border rounded-md max-h-[200px] overflow-auto">
                 <Table>
-                  <TableHead>
+                  <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Email</TableHead>
                       <TableHead>Reason</TableHead>
                     </TableRow>
-                  </TableHead>
+                  </TableHeader>
                   <TableBody>
                     {failedImports.map((f, i) => (
                       <TableRow key={i} className="bg-destructive/5">
-                        <TableCell>{f.full_name}</TableCell>
-                        <TableCell>{f.email}</TableCell>
+                        <TableCell>{f.name}</TableCell>
                         <TableCell className="text-destructive text-xs">{f.reason}</TableCell>
                       </TableRow>
                     ))}
@@ -222,12 +214,12 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
               </div>
               <div className="flex gap-2 mt-2">
                 <Button variant="outline" size="sm" onClick={() => {
-                  const csv = "full_name,email,reason\n" + failedImports.map(f => `"${f.full_name}","${f.email}","${f.reason.replace(/"/g,'""')}"`).join("\n");
+                  const csv = "name,reason\n" + failedImports.map(f => `"${f.name}","${f.reason.replace(/"/g,'""')}"`).join("\n");
                   const blob = new Blob([csv], { type: "text/csv" });
                   const url = URL.createObjectURL(blob);
                   const a = document.createElement("a");
                   a.href = url;
-                  a.download = `failed_imports_${new Date().toISOString().slice(0,10)}.csv`;
+                  a.download = `failed_project_imports_${new Date().toISOString().slice(0,10)}.csv`;
                   a.click();
                 }}>Export Failures</Button>
                 <Button variant="outline" size="sm" onClick={() => setFailedImports([])}>Clear Failures</Button>
@@ -238,7 +230,7 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
         <DialogFooter>
           <Button variant="outline" onClick={() => handleOpenChange(false)}>Cancel</Button>
           <Button onClick={handleImport} disabled={importing || validCount === 0}>
-            {importing ? "Importing…" : `Import ${validCount} Employees`}
+            {importing ? "Importing…" : `Import ${validCount} Projects`}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,12 +1,15 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { Lock, MessageSquare } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Lock, MessageSquare, Trash2 } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
@@ -20,10 +23,13 @@ function formatHours(h: number) {
 
 export default function MyLogsPage() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [range, setRange] = useState("7");
   const [projectFilter, setProjectFilter] = useState("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fromDate = range === "custom" ? customFrom : format(subDays(new Date(), Number(range)), "yyyy-MM-dd");
   const toDate = range === "custom" ? customTo : getPKTDateString();
@@ -64,6 +70,18 @@ export default function MyLogsPage() {
     acc[log.log_date].push(log);
     return acc;
   }, {});
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    const { error } = await supabase.from("daily_logs").delete().eq("id", deleteId).eq("is_locked", false);
+    setDeleting(false);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "log.deleted", target_entity: "daily_logs", target_id: deleteId });
+    toast.success("Log deleted");
+    setDeleteId(null);
+    queryClient.invalidateQueries({ queryKey: ["my-logs"] });
+  };
 
   return (
     <div className="space-y-6">
@@ -129,9 +147,16 @@ export default function MyLogsPage() {
                       <p className="text-[12px] text-muted-foreground mb-0.5">Description</p>
                       <p className="text-sm text-muted-foreground">{log.description}</p>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      {log.is_late && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
-                      {log.is_locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                    <div className="flex items-center justify-between mt-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {log.is_late && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
+                        {log.is_locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
+                      </div>
+                      {!log.is_locked && (
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10" onClick={() => setDeleteId(log.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                     {log.admin_comment && (
                       <div className="mt-2 flex items-start gap-2 bg-accent/50 border border-border rounded-md p-2.5">
@@ -149,6 +174,23 @@ export default function MyLogsPage() {
           );
         })
       )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Log?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this log? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -12,7 +12,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Plus, ChevronDown, ChevronUp } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format, differenceInBusinessDays } from "date-fns";
 
 const LEAVE_CATEGORIES = [
@@ -34,6 +35,8 @@ export default function MyLeavePage() {
   const [otherReason, setOtherReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [statusFilter, setStatusFilter] = useState("all");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const today = new Date().toISOString().split("T")[0];
 
   // Live global entitlement from system_settings
@@ -127,13 +130,21 @@ export default function MyLeavePage() {
     finally { setSubmitting(false); }
   };
 
-  const cancelRequest = async (id: string) => {
-    await supabase.from("leave_requests").update({ status: "cancelled" }).eq("id", id);
-    await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.cancelled", target_entity: "leave_requests", target_id: id });
-    toast.success("Request cancelled");
-    queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
-    queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
-    queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+  const deleteRequest = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    const { error } = await supabase.from("leave_requests").delete().eq("id", deleteId);
+    setDeleting(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.deleted", target_entity: "leave_requests", target_id: deleteId });
+      toast.success("Leave request deleted");
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+    }
   };
 
   const statusBadge = (status: string) => {
@@ -198,7 +209,11 @@ export default function MyLeavePage() {
                   <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>
                   <TableCell className="text-right">
-                    {r.status === "pending" && <Button variant="ghost" size="sm" className="text-destructive" onClick={(e) => { e.stopPropagation(); cancelRequest(r.id); }}>Cancel</Button>}
+                    {r.status === "pending" && (
+                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
                 {expandedId === r.id && (
@@ -291,6 +306,23 @@ export default function MyLeavePage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Leave Request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this leave request? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteRequest} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

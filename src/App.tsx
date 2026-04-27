@@ -20,7 +20,7 @@ import MyLogsPage from "@/pages/MyLogs";
 import LogsAdminPage from "@/pages/LogsAdmin";
 import MyLeavePage from "@/pages/MyLeave";
 import LeaveAdminPage from "@/pages/LeaveAdmin";
-import ClientsPage from "@/pages/Clients";
+
 import ProjectsPage from "@/pages/Projects";
 import ProjectNewPage from "@/pages/ProjectNew";
 import ProjectDetailPage from "@/pages/ProjectDetail";
@@ -71,8 +71,7 @@ const App = () => (
               <Route path="/leave/my" element={<MyLeavePage />} />
               <Route path="/leave/requests" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LeaveAdminPage /></ProtectedRoute>} />
 
-              {/* Clients & Projects */}
-              <Route path="/clients" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ClientsPage /></ProtectedRoute>} />
+              {/* Projects */}
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProjectNewPage /></ProtectedRoute>} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />

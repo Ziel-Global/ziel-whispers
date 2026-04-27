@@ -115,7 +115,7 @@ export default function DashboardPage() {
   const { data: myProjects } = useQuery({
     queryKey: ["dashboard-my-projects", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("project_members").select("project_id, project_roles(name), projects(id, name, status, clients(name))").eq("user_id", user!.id).is("removed_at", null);
+      const { data, error } = await supabase.from("project_members").select("project_id, project_roles(name), projects(id, name, status)").eq("user_id", user!.id).is("removed_at", null);
       if (error) throw error;
       return data || [];
     },
@@ -266,7 +266,7 @@ export default function DashboardPage() {
         <div className="flex gap-3 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Employee</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/projects/new")}><Plus className="h-4 w-4 mr-1" />Add Project</Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/clients")}><Building2 className="h-4 w-4 mr-1" />Add Client</Button>
+
           <Button variant="outline" size="sm" onClick={() => navigate("/reports")}><BarChart3 className="h-4 w-4 mr-1" />View Reports</Button>
         </div>
 
@@ -374,7 +374,7 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{pm.projects?.name}</p>
-                    <p className="text-xs text-muted-foreground">{pm.projects?.clients?.name || "No client"} · {pm.project_roles?.name || "Member"}</p>
+                    <p className="text-xs text-muted-foreground">{pm.project_roles?.name || "Member"}</p>
                   </div>
                   <Badge variant="outline" className="capitalize">{pm.projects?.status}</Badge>
                 </div>

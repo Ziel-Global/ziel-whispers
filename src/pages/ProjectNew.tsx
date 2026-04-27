@@ -18,7 +18,7 @@ import { ArrowLeft } from "lucide-react";
 const schema = z.object({
   name: z.string().min(1, "Required").max(200),
   description: z.string().optional(),
-  client_id: z.string().min(1, "Required"),
+
   start_date: z.string().min(1, "Required"),
   end_date: z.string().optional(),
 });
@@ -28,15 +28,8 @@ export default function ProjectNewPage() {
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
 
-  const { data: clients } = useQuery({
-    queryKey: ["clients-active"],
-    queryFn: async () => {
-      const { data } = await supabase.from("clients").select("id, name").eq("status", "active").order("name");
-      return data || [];
-    },
-  });
 
-  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", client_id: "", start_date: new Date().toISOString().split("T")[0], end_date: "" } });
+  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", start_date: new Date().toISOString().split("T")[0], end_date: "" } });
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSaving(true);
@@ -44,7 +37,7 @@ export default function ProjectNewPage() {
       const { data: project, error } = await supabase.from("projects").insert({
         name: data.name,
         description: data.description || null,
-        client_id: data.client_id,
+
         start_date: data.start_date,
         end_date: data.end_date || null,
         created_by: profile?.id,
@@ -71,15 +64,7 @@ export default function ProjectNewPage() {
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} rows={3} /></FormControl><FormMessage /></FormItem>
             )} />
-            <FormField control={form.control} name="client_id" render={({ field }) => (
-              <FormItem><FormLabel>Client *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger></FormControl>
-                  <SelectContent>{clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+
             <div className="grid grid-cols-2 gap-4">
               <FormField control={form.control} name="start_date" render={({ field }) => (
                 <FormItem><FormLabel>Start Date *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>

@@ -24,25 +24,16 @@ export default function ProjectsPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [clientFilter, setClientFilter] = useState("all");
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("*, clients(name)").order("name", { ascending: true });
+      const { data, error } = await supabase.from("projects").select("*").order("name", { ascending: true });
       if (error) throw error;
       return data;
     },
   });
 
-  const { data: clients } = useQuery({
-    queryKey: ["clients-list"],
-    queryFn: async () => {
-      const { data } = await supabase.from("clients").select("id, name").eq("status", "active").order("name");
-      return data || [];
-    },
-    enabled: isAdmin,
-  });
 
   // For employees, get their memberships
   const { data: myMemberships } = useQuery({
@@ -79,10 +70,9 @@ export default function ProjectsPage() {
       list = list.filter((p) => myProjectIds.has(p.id));
     }
     if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
-    if (clientFilter !== "all") list = list.filter((p) => p.client_id === clientFilter);
     if (search) list = list.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     return list;
-  }, [projects, search, statusFilter, clientFilter, isAdmin, myMemberships]);
+  }, [projects, search, statusFilter, isAdmin, myMemberships]);
 
   const getMemberRole = (projectId: string) => {
     const m = myMemberships?.find((m) => m.project_id === projectId);
@@ -104,7 +94,6 @@ export default function ProjectsPage() {
                 <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
               </div>
               <h3 className="font-semibold">{p.name}</h3>
-              <p className="text-sm text-muted-foreground">{(p.clients as any)?.name}</p>
               <Badge variant="outline" className="mt-2 text-xs">{getMemberRole(p.id)}</Badge>
             </Card>
           ))}
@@ -136,13 +125,6 @@ export default function ProjectsPage() {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
-        <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="All Clients" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Clients</SelectItem>
-            {clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
       </div>
 
       <Card>
@@ -150,19 +132,17 @@ export default function ProjectsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
-              <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Team</TableHead>
               <TableHead>Hours</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
+            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
             {filtered.map((p) => (
               <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${p.id}`)}>
                 <TableCell className="font-medium">{p.name}</TableCell>
-                <TableCell className="text-muted-foreground">{(p.clients as any)?.name || "—"}</TableCell>
                 <TableCell><Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge></TableCell>
                 <TableCell>{projectStats?.teamSize[p.id] || 0}</TableCell>
                 <TableCell>{(projectStats?.totalHours[p.id] || 0).toFixed(1)}h</TableCell>

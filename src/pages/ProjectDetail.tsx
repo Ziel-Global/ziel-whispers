@@ -40,7 +40,7 @@ export default function ProjectDetailPage() {
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("*, clients(id, name)").eq("id", id!).single();
+      const { data, error } = await supabase.from("projects").select("*").eq("id", id!).single();
       if (error) throw error;
       setStatusNote(data.status_note || "");
       return data;
@@ -177,7 +177,7 @@ export default function ProjectDetailPage() {
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
           <div className="flex items-center gap-2 mt-1">
             <Badge className={STATUS_COLORS[project.status] || ""}>{project.status}</Badge>
-            <span className="text-muted-foreground text-sm">{(project.clients as any)?.name}</span>
+
           </div>
         </div>
       </div>
@@ -195,7 +195,7 @@ export default function ProjectDetailPage() {
           <Card className="p-6 space-y-4">
             {project.description && <p className="text-muted-foreground">{project.description}</p>}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div><span className="text-muted-foreground block">Client</span><span className="font-medium">{(project.clients as any)?.name}</span></div>
+
               <div><span className="text-muted-foreground block">Start Date</span><span className="font-medium">{format(new Date(project.start_date), "MMM d, yyyy")}</span></div>
               <div><span className="text-muted-foreground block">End Date</span><span className="font-medium">{project.end_date ? format(new Date(project.end_date), "MMM d, yyyy") : "—"}</span></div>
               <div><span className="text-muted-foreground block">Status</span><span className="font-medium">{project.status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>

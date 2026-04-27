@@ -5,7 +5,10 @@ import { toast } from "sonner";
 
 const ACTIVITY_KEY = "ziel_last_activity";
 const SESSION_ID_KEY = "ziel_session_id";
+const SESSION_START_KEY = "ziel_session_start";
 const STATUS_CHECK_INTERVAL = 30000; // 30 seconds
+const MAX_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24 hours — absolute max, regardless of activity
+const SESSION_AGE_CHECK_INTERVAL = 60000; // check every 60 seconds
 
 type UserProfile = {
   id: string;
@@ -56,6 +59,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionIdRef = useRef<string | null>(null);
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionAgeCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionTimeoutMsRef = useRef<number>(8 * 60 * 60 * 1000);
 
   const fetchProfile = async (userId: string) => {
@@ -113,8 +117,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkInactivityExpiry = useCallback(async () => {
     const last = localStorage.getItem(ACTIVITY_KEY);
     if (last && Date.now() - Number(last) > sessionTimeoutMsRef.current) {
-      toast.error("Your session has expired. Please log in again");
+      toast.error("Your session has expired due to inactivity. Please log in again");
       await supabase.auth.signOut();
+      return true;
+    }
+    return false;
+  }, []);
+
+  // Check if the absolute max session lifetime (24h) has been exceeded
+  const checkMaxSessionLifetime = useCallback(async () => {
+    const start = localStorage.getItem(SESSION_START_KEY);
+    if (start && Date.now() - Number(start) > MAX_SESSION_LIFETIME_MS) {
+      toast.error("Your session has expired. Please log in again.");
+      localStorage.removeItem(SESSION_START_KEY);
+      localStorage.removeItem(SESSION_ID_KEY);
+      localStorage.removeItem(ACTIVITY_KEY);
+      if (statusCheckRef.current) clearInterval(statusCheckRef.current);
+      if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
+      await supabase.auth.signOut();
+      setSession(null);
+      setProfile(null);
       return true;
     }
     return false;
@@ -151,6 +173,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session, resetInactivityTimer]);
 
+  // Periodic check for absolute max session lifetime (every 60s)
+  useEffect(() => {
+    if (!session) {
+      if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
+      return;
+    }
+    sessionAgeCheckRef.current = setInterval(() => {
+      void checkMaxSessionLifetime();
+    }, SESSION_AGE_CHECK_INTERVAL);
+    return () => {
+      if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
+    };
+  }, [session, checkMaxSessionLifetime]);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -169,6 +205,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const newSid = nextSession.access_token.slice(-16);
       sessionIdRef.current = newSid;
       localStorage.setItem(SESSION_ID_KEY, newSid);
+
+      // Record session start time if not already set (first login)
+      if (!localStorage.getItem(SESSION_START_KEY)) {
+        localStorage.setItem(SESSION_START_KEY, Date.now().toString());
+      }
+
+      // Check absolute max session lifetime (24h)
+      const maxExpired = await checkMaxSessionLifetime();
+      if (maxExpired) { setLoading(false); return; }
 
       // Refresh session timeout from settings on each session sync
       sessionTimeoutMsRef.current = await getSessionTimeoutMs();
@@ -194,7 +239,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setLoading(false);
           localStorage.removeItem(SESSION_ID_KEY);
           localStorage.removeItem(ACTIVITY_KEY);
+          localStorage.removeItem(SESSION_START_KEY);
           if (statusCheckRef.current) clearInterval(statusCheckRef.current);
+          if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
           return;
         }
         // Never set loading = true here. The initial useState(true) handles
@@ -214,6 +261,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isMounted = false;
       subscription.unsubscribe();
       if (statusCheckRef.current) clearInterval(statusCheckRef.current);
+      if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
     };
   }, []);
 
@@ -229,7 +277,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     localStorage.removeItem(SESSION_ID_KEY);
     localStorage.removeItem(ACTIVITY_KEY);
+    localStorage.removeItem(SESSION_START_KEY);
     if (statusCheckRef.current) clearInterval(statusCheckRef.current);
+    if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);

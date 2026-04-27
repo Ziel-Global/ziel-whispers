@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -9,10 +9,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { toast } from "sonner";
-import { Plus, Search, FolderKanban, Upload, Trash2 } from "lucide-react";
-import { ProjectCSVImportDialog } from "@/components/projects/ProjectCSVImportDialog";
+import { Plus, Search, FolderKanban } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -24,23 +21,28 @@ const STATUS_COLORS: Record<string, string> = {
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [csvOpen, setCsvOpen] = useState(false);
-  const [projectToDelete, setProjectToDelete] = useState<{ id: string; name: string } | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const [clientFilter, setClientFilter] = useState("all");
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("*").order("name", { ascending: true });
+      const { data, error } = await supabase.from("projects").select("*, clients(name)").order("name", { ascending: true });
       if (error) throw error;
       return data;
     },
   });
 
+  const { data: clients } = useQuery({
+    queryKey: ["clients-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("clients").select("id, name").eq("status", "active").order("name");
+      return data || [];
+    },
+    enabled: isAdmin,
+  });
 
   // For employees, get their memberships
   const { data: myMemberships } = useQuery({
@@ -77,27 +79,14 @@ export default function ProjectsPage() {
       list = list.filter((p) => myProjectIds.has(p.id));
     }
     if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
+    if (clientFilter !== "all") list = list.filter((p) => p.client_id === clientFilter);
     if (search) list = list.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     return list;
-  }, [projects, search, statusFilter, isAdmin, myMemberships]);
+  }, [projects, search, statusFilter, clientFilter, isAdmin, myMemberships]);
 
   const getMemberRole = (projectId: string) => {
     const m = myMemberships?.find((m) => m.project_id === projectId);
     return (m?.project_roles as any)?.name || "Member";
-  };
-
-  const handleDelete = async () => {
-    if (!projectToDelete) return;
-    setDeleting(true);
-    const { error } = await supabase.from("projects").delete().eq("id", projectToDelete.id);
-    setDeleting(false);
-    if (error) {
-      toast.error("Cannot delete project because it is currently in use (has associated logs or team members).");
-    } else {
-      toast.success("Project deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-    }
-    setProjectToDelete(null);
   };
 
   // Employee card view
@@ -115,6 +104,7 @@ export default function ProjectsPage() {
                 <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
               </div>
               <h3 className="font-semibold">{p.name}</h3>
+              <p className="text-sm text-muted-foreground">{(p.clients as any)?.name}</p>
               <Badge variant="outline" className="mt-2 text-xs">{getMemberRole(p.id)}</Badge>
             </Card>
           ))}
@@ -128,12 +118,7 @@ export default function ProjectsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setCsvOpen(true)} className="rounded-button">
-            <Upload className="h-4 w-4 mr-2" />Import CSV
-          </Button>
-          <Button onClick={() => navigate("/projects/new")} className="rounded-button"><Plus className="h-4 w-4 mr-2" />New Project</Button>
-        </div>
+        <Button onClick={() => navigate("/projects/new")} className="rounded-button"><Plus className="h-4 w-4 mr-2" />New Project</Button>
       </div>
 
       <div className="flex gap-3 flex-wrap">
@@ -151,6 +136,13 @@ export default function ProjectsPage() {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
+        <Select value={clientFilter} onValueChange={setClientFilter}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="All Clients" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Clients</SelectItem>
+            {clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
 
       <Card>
@@ -158,52 +150,27 @@ export default function ProjectsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Name</TableHead>
+              <TableHead>Client</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Team</TableHead>
               <TableHead>Hours</TableHead>
-              {isAdmin && <TableHead className="text-right">Actions</TableHead>}
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 5 : 4} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
+            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
             {filtered.map((p) => (
               <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${p.id}`)}>
                 <TableCell className="font-medium">{p.name}</TableCell>
+                <TableCell className="text-muted-foreground">{(p.clients as any)?.name || "—"}</TableCell>
                 <TableCell><Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge></TableCell>
                 <TableCell>{projectStats?.teamSize[p.id] || 0}</TableCell>
                 <TableCell>{(projectStats?.totalHours[p.id] || 0).toFixed(1)}h</TableCell>
-                {isAdmin && (
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10 hover:text-destructive h-8 w-8" onClick={() => setProjectToDelete({ id: p.id, name: p.name })}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </TableCell>
-                )}
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
-
-      {isAdmin && <ProjectCSVImportDialog open={csvOpen} onOpenChange={setCsvOpen} />}
-
-      <AlertDialog open={!!projectToDelete} onOpenChange={(o) => !o && setProjectToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to permanently delete <strong>{projectToDelete?.name}</strong>? This action cannot be undone. If the project has any team members or submitted logs, deletion will be prevented.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
-              {deleting ? "Deleting..." : "Delete Project"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </div>
   );
 }

@@ -34,15 +34,13 @@ export default function ProjectDetailPage() {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [roleInputs, setRoleInputs] = useState<Record<string, string>>({});
   const [statusNote, setStatusNote] = useState("");
-  const [deleteProjectOpen, setDeleteProjectOpen] = useState(false);
-  const [deletingProject, setDeletingProject] = useState(false);
   const [completionWarning, setCompletionWarning] = useState(false);
   const [pendingStatus, setPendingStatus] = useState("");
 
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("*").eq("id", id!).single();
+      const { data, error } = await supabase.from("projects").select("*, clients(id, name)").eq("id", id!).single();
       if (error) throw error;
       setStatusNote(data.status_note || "");
       return data;
@@ -141,20 +139,7 @@ export default function ProjectDetailPage() {
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
 
-  const deleteProject = async () => {
-    setDeletingProject(true);
-    const { error } = await supabase.from("projects").delete().eq("id", id!);
-    setDeletingProject(false);
-    if (error) {
-      toast.error("Cannot delete project because it is currently in use (has associated logs or team members).");
-    } else {
-      toast.success("Project deleted successfully");
-      queryClient.invalidateQueries({ queryKey: ["projects"] });
-      navigate("/projects");
-    }
-  };
-
-  if (isLoading) return <div className="p-8 text-center text-muted-foreground">Loading project details…</div>;
+  if (isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
   if (!project) return <div className="text-center py-12 text-muted-foreground">Project not found</div>;
 
   // Stats data
@@ -188,18 +173,12 @@ export default function ProjectDetailPage() {
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate("/projects")}><ArrowLeft className="h-4 w-4" /></Button>
-        <div className="flex-1 flex justify-between items-start">
-          <div>
-            <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge className={STATUS_COLORS[project.status] || ""}>{project.status}</Badge>
-            </div>
+        <div className="flex-1">
+          <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
+          <div className="flex items-center gap-2 mt-1">
+            <Badge className={STATUS_COLORS[project.status] || ""}>{project.status}</Badge>
+            <span className="text-muted-foreground text-sm">{(project.clients as any)?.name}</span>
           </div>
-          {isAdmin && (
-            <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive hover:bg-destructive/10" onClick={() => setDeleteProjectOpen(true)}>
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
         </div>
       </div>
 
@@ -216,7 +195,7 @@ export default function ProjectDetailPage() {
           <Card className="p-6 space-y-4">
             {project.description && <p className="text-muted-foreground">{project.description}</p>}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-
+              <div><span className="text-muted-foreground block">Client</span><span className="font-medium">{(project.clients as any)?.name}</span></div>
               <div><span className="text-muted-foreground block">Start Date</span><span className="font-medium">{format(new Date(project.start_date), "MMM d, yyyy")}</span></div>
               <div><span className="text-muted-foreground block">End Date</span><span className="font-medium">{project.end_date ? format(new Date(project.end_date), "MMM d, yyyy") : "—"}</span></div>
               <div><span className="text-muted-foreground block">Status</span><span className="font-medium">{project.status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
@@ -396,23 +375,6 @@ export default function ProjectDetailPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => doStatusChange(pendingStatus)}>Complete Project</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={deleteProjectOpen} onOpenChange={setDeleteProjectOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to permanently delete <strong>{project.name}</strong>? This action cannot be undone. If the project has any team members or submitted logs, deletion will be prevented.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deletingProject}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={deleteProject} disabled={deletingProject} className="bg-destructive hover:bg-destructive/90">
-              {deletingProject ? "Deleting..." : "Delete Project"}
-            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -222,11 +222,11 @@ export default function DashboardPage() {
             {(!lateLogs || lateLogs.length === 0) ? (
               <p className="text-sm text-muted-foreground">No late submissions today ✓</p>
             ) : (
-              <div className="space-y-2">
+              <div className="divide-y divide-black/30">
                 {lateLogs.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between text-sm">
-                    <span>{(l.users as any)?.full_name}</span>
-                    <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => navigate("/logs/all?filter=late")}>View</Button>
+                  <div key={l.id} className="flex items-center justify-between text-sm py-2 first:pt-0 last:pb-0">
+                    <span className="font-medium">{(l.users as any)?.full_name}</span>
+                    <Button variant="link" size="sm" className="h-auto p-0 text-xs text-red-600" onClick={() => navigate("/logs/all?filter=late")}>View</Button>
                   </div>
                 ))}
               </div>
@@ -241,12 +241,12 @@ export default function DashboardPage() {
             {(!pendingLeaveList || pendingLeaveList.length === 0) ? (
               <p className="text-sm text-muted-foreground">No pending requests ✓</p>
             ) : (
-              <div className="space-y-3">
+              <div className="divide-y divide-border/100">
                 {pendingLeaveList.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between">
+                  <div key={r.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                     <div className="text-sm">
-                      <span className="font-medium">{(r.users as any)?.full_name}</span>
-                      <span className="text-muted-foreground ml-1">— {(r.leave_types as any)?.name} ({r.days_count}d)</span>
+                      <p className="font-medium">{(r.users as any)?.full_name}</p>
+                      <p className="text-muted-foreground text-xs">{(r.leave_types as any)?.name} ({r.days_count}d)</p>
                     </div>
                     <div className="flex gap-1">
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleLeaveAction(r.id, "approved")}>

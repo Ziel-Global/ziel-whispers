@@ -21,7 +21,7 @@ type ParsedRow = {
   errors: string[];
 };
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 
 function validateRow(row: Record<string, string>): ParsedRow {

@@ -16,7 +16,7 @@ import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { formatLateness, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
@@ -170,9 +170,9 @@ export default function AttendanceAdminPage() {
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
             <h3 className="text-sm font-medium text-yellow-800">Open Sessions</h3>
           </div>
-          <div className="space-y-1">
+          <div className="divide-y divide-black/30">
             {staleOpenSessions.map((s: any) => (
-              <p key={s.id} className="text-sm text-yellow-700">
+              <p key={s.id} className="text-sm text-yellow-700 py-2 first:pt-0 last:pb-0">
                 <strong>{s.users?.full_name}</strong> — Open session since {formatPKTTime(s.clock_in)} on {format(new Date(s.clock_in), "MMM d")}
               </p>
             ))}

@@ -20,7 +20,7 @@ import { Label } from "@/components/ui/label";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const STATUSES = ["active", "inactive", "pending"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 

@@ -190,7 +190,22 @@ export default function LogSubmitPage() {
                 <FormItem>
                   <FormLabel>Hours <span className="text-destructive">*</span></FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.5" min="0.5" max="24" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                    <Input 
+                      type="number" 
+                      step="0.5" 
+                      min="0.5" 
+                      max="24" 
+                      {...field} 
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        if (val > 24) {
+                          e.target.value = "24";
+                          field.onChange(24);
+                        } else {
+                          field.onChange(Number(e.target.value));
+                        }
+                      }} 
+                    />
                   </FormControl>
                   <FormMessage />
                 </FormItem>

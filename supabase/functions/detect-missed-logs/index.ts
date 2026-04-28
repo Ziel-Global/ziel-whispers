@@ -6,7 +6,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Always status 200 — errors surface in the body so supabase-js never swallows them.
 function jsonResponse(body: Record<string, unknown>) {
   return new Response(JSON.stringify(body), {
     status: 200,
@@ -18,6 +17,7 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -25,26 +25,111 @@ Deno.serve(async (req: Request) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    const todayStr = new Date().toISOString().split("T")[0];
-    const dayOfWeek = new Date().getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      return jsonResponse({ ok: true, skipped: "weekend" });
+    const timezone = "Asia/Karachi";
+    const now = new Date();
+    
+    // Get Today in PKT
+    const todayPKT = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now);
+
+    // Skip weekends (6=Saturday, 0=Sunday in JS getDay())
+    // Note: getDay() on 'now' might be different from PKT day if we are near midnight.
+    // Better to derive day of week from todayPKT.
+    const pktDayOfWeek = new Date(todayPKT).getDay();
+    if (pktDayOfWeek === 0 || pktDayOfWeek === 6) {
+      return jsonResponse({ ok: true, skipped: "weekend", todayPKT });
     }
 
-    const { data: users } = await supabase.from("users").select("id, full_name, email").eq("status", "active");
+    // Get current time in PKT
+    const nowInTZ = new Intl.DateTimeFormat("en-GB", { 
+      timeZone: timezone, 
+      hour: "2-digit", 
+      minute: "2-digit", 
+      hour12: false 
+    }).format(now);
+    const [nowHour, nowMin] = nowInTZ.split(":").map(Number);
+    const nowTotalMinutes = nowHour * 60 + nowMin;
+
+    // 1. Fetch global settings
+    const { data: globalSettings } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["default_shift_end"]);
+    
+    const settingsMap = Object.fromEntries((globalSettings || []).map(s => [s.key, s.value]));
+    const defaultShiftEnd = settingsMap.default_shift_end || "18:00";
+    const [defHour, defMin] = defaultShiftEnd.split(":").map(Number);
+    const defaultTotalMinutes = defHour * 60 + defMin;
+
+    // 2. Fetch all active users with their shift settings
+    const { data: users, error: userError } = await supabase
+      .from("users")
+      .select("id, full_name, has_custom_shift, shift_end")
+      .eq("status", "active");
+
+    if (userError) throw userError;
     if (!users) return jsonResponse({ ok: true, missed: 0, message: "No active users" });
 
-    const { data: todayLogs } = await supabase.from("daily_logs").select("user_id").eq("log_date", todayStr);
-    const loggedUserIds = new Set((todayLogs || []).map((l: { user_id: string }) => l.user_id));
+    // 3. Fetch already logged users for today
+    const { data: todayLogs } = await supabase
+      .from("daily_logs")
+      .select("user_id")
+      .eq("log_date", todayPKT);
+    const loggedUserIds = new Set((todayLogs || []).map(l => l.user_id));
 
-    const missedUsers = users.filter((u: { id: string }) => !loggedUserIds.has(u.id));
+    // 4. Fetch users already marked as missed today (to avoid duplicates)
+    const { data: alreadyMissed } = await supabase
+      .from("missed_logs")
+      .select("user_id")
+      .eq("log_date", todayPKT);
+    const alreadyMissedUserIds = new Set((alreadyMissed || []).map(m => m.user_id));
 
-    // Insert missed_logs entries (detection logic kept, emails removed)
-    for (const user of missedUsers) {
-      await supabase.from("missed_logs").insert({ user_id: user.id, log_date: todayStr });
+    const toMarkAsMissed = [];
+
+    for (const user of users) {
+      if (loggedUserIds.has(user.id)) continue;
+      if (alreadyMissedUserIds.has(user.id)) continue;
+
+      // Determine effective shift end time
+      let effectiveMinutes = defaultTotalMinutes;
+      if (user.has_custom_shift && user.shift_end) {
+        const [h, m] = user.shift_end.split(":").map(Number);
+        effectiveMinutes = h * 60 + m;
+      }
+
+      // Check if current time is past shift end
+      if (nowTotalMinutes >= effectiveMinutes) {
+        toMarkAsMissed.push({
+          user_id: user.id,
+          log_date: todayPKT,
+          reason: "Past shift end without log"
+        });
+      }
     }
 
-    return jsonResponse({ ok: true, missed: missedUsers.length });
+    if (toMarkAsMissed.length > 0) {
+      const { error: insertError } = await supabase
+        .from("missed_logs")
+        .insert(toMarkAsMissed.map(({ user_id, log_date }) => ({ user_id, log_date })));
+      
+      if (insertError) {
+        console.error("Error inserting missed logs:", insertError);
+        return jsonResponse({ ok: false, error: insertError.message });
+      }
+    }
+
+    return jsonResponse({ 
+      ok: true, 
+      processed: users.length, 
+      missed: toMarkAsMissed.length,
+      todayPKT,
+      nowPKT: nowInTZ
+    });
+
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("detect-missed-logs error:", message);

@@ -33,7 +33,8 @@ function getShiftHours(shiftStart: string, shiftEnd: string): number {
   const [sh, sm] = shiftStart.split(":").map(Number);
   const [eh, em] = shiftEnd.split(":").map(Number);
   if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
-  return (eh * 60 + em - sh * 60 - sm) / 60;
+  const durationMins = (eh * 60 + em - sh * 60 - sm);
+  return Math.max(0, (durationMins - 60) / 60);
 }
 
 function getInitials(name: string) {
@@ -56,8 +57,7 @@ export default function LogsAdminPage() {
   const [deleting, setDeleting] = useState(false);
 
   const [logEditDays, setLogEditDays] = useState("");
-  const [missedLogTime, setMissedLogTime] = useState("");
-  const [autoClockoutLabel, setAutoClockoutLabel] = useState("");
+  const [autoClockoutTime, setAutoClockoutTime] = useState("");
   const [expectedHours, setExpectedHours] = useState("");
   const [utilLow, setUtilLow] = useState("");
   const [utilHigh, setUtilHigh] = useState("");
@@ -77,8 +77,7 @@ export default function LogsAdminPage() {
   useEffect(() => {
     if (settings) {
       setLogEditDays(settings["log_edit_window_days"] ?? "");
-      setMissedLogTime(settings["missed_log_check_time"] ?? "");
-      setAutoClockoutLabel(settings["auto_clockout_display_time"] ?? "");
+      setAutoClockoutTime(settings["auto_clockout_time"] ?? "");
       setExpectedHours(settings["expected_daily_hours"] ?? "8");
       setUtilLow(settings["utilization_low"] ?? "70");
       setUtilHigh(settings["utilization_high"] ?? "110");
@@ -87,15 +86,14 @@ export default function LogsAdminPage() {
 
   const globalShiftStart = settings?.default_shift_start ?? "";
   const globalShiftEnd = settings?.default_shift_end ?? "";
-  const _missedLogDeadline = settings?.missed_log_check_time ?? "";
 
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
       const entries = [
         { key: "log_edit_window_days", value: logEditDays },
-        { key: "missed_log_check_time", value: missedLogTime },
-        { key: "auto_clockout_display_time", value: autoClockoutLabel },
+        { key: "auto_clockout_time", value: autoClockoutTime },
+        { key: "auto_clockout_display_time", value: formatTime12h(autoClockoutTime) },
         { key: "expected_daily_hours", value: expectedHours },
         { key: "utilization_low", value: utilLow },
         { key: "utilization_high", value: utilHigh },
@@ -112,6 +110,7 @@ export default function LogsAdminPage() {
         target_entity: "system_settings",
       });
       queryClient.invalidateQueries({ queryKey: ["system-settings"] });
+      queryClient.invalidateQueries({ queryKey: ["system-settings-global"] });
       queryClient.invalidateQueries({ queryKey: ["system-setting-log-edit-days"] });
       queryClient.invalidateQueries({ queryKey: ["auto-clockout-display-label"] });
       toast.success("Log Rules saved");
@@ -325,11 +324,11 @@ export default function LogsAdminPage() {
                 {modalData.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">No employees</p>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="divide-y divide-black/30">
                     {modalData.map((emp) => (
-                      <div key={emp.userId} className="flex items-center gap-3 py-2 px-1">
+                      <div key={emp.userId} className="flex items-center gap-3 py-3 px-1">
                         <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{getInitials(emp.name)}</div>
-                        <span className="text-sm">{emp.name}</span>
+                        <span className="text-sm font-medium">{emp.name}</span>
                       </div>
                     ))}
                   </div>
@@ -540,14 +539,9 @@ export default function LogsAdminPage() {
                     <p className="text-xs text-muted-foreground">Employees can submit logs for today and up to this many days in the past</p>
                   </div>
                   <div className="space-y-1">
-                    <Label>Missed Log Detection Time</Label>
-                    <Input type="time" value={missedLogTime} onChange={(e) => setMissedLogTime(e.target.value)} />
-                    <p className="text-xs text-muted-foreground">Currently: {formatTime12h(missedLogTime)}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label>Auto Clock-Out Display Time</Label>
-                    <Input value={autoClockoutLabel} onChange={(e) => setAutoClockoutLabel(e.target.value)} placeholder="12:00 AM" />
-                    <p className="text-xs text-muted-foreground">Label shown to users in missed clock-out alerts</p>
+                    <Label>Auto Clock-Out Time</Label>
+                    <Input type="time" value={autoClockoutTime} onChange={(e) => setAutoClockoutTime(e.target.value)} />
+                    <p className="text-xs text-muted-foreground">Currently: {formatTime12h(autoClockoutTime)}</p>
                   </div>
                 </div>
 

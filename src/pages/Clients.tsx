@@ -19,11 +19,20 @@ interface ClientForm {
   industry: string;
   contact_name: string;
   contact_email: string;
-  contact_phone: string;
+  location: string;
   notes: string;
 }
 
-const emptyForm: ClientForm = { name: "", industry: "", contact_name: "", contact_email: "", contact_phone: "", notes: "" };
+const INDUSTRIES = [
+  "Technology", "Healthcare", "Finance & Banking", "Education",
+  "Retail & E-commerce", "Manufacturing", "Construction", "Real Estate",
+  "Transportation & Logistics", "Media & Entertainment", "Hospitality & Tourism",
+  "Energy & Utilities", "Telecommunications", "Agriculture",
+  "Legal & Professional Services", "Marketing & Advertising", "Non-Profit",
+  "Government", "Automotive", "Food & Beverage", "Other"
+];
+
+const emptyForm: ClientForm = { name: "", industry: "", contact_name: "", contact_email: "", location: "", notes: "" };
 
 export default function ClientsPage() {
   const { profile } = useAuth();
@@ -68,12 +77,20 @@ export default function ClientsPage() {
   const openAdd = () => { setEditId(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (c: any) => {
     setEditId(c.id);
-    setForm({ name: c.name, industry: c.industry || "", contact_name: c.contact_name || "", contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", notes: (c as any).notes || "" });
+    setForm({ 
+      name: c.name, 
+      industry: c.industry || "", 
+      contact_name: c.contact_name || "", 
+      contact_email: c.contact_email || "", 
+      location: c.contact_phone || "", // Mapping contact_phone to location
+      notes: (c as any).notes || "" 
+    });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Client name is required"); return; }
+    if (!form.location.trim()) { toast.error("Location is required"); return; }
     if (form.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact_email)) { toast.error("Invalid email format"); return; }
     setSaving(true);
     try {
@@ -82,7 +99,7 @@ export default function ClientsPage() {
         industry: form.industry || null,
         contact_name: form.contact_name || null,
         contact_email: form.contact_email || null,
-        contact_phone: form.contact_phone || null,
+        contact_phone: form.location.trim() || null, // Storing location in contact_phone field
         notes: form.notes || null,
       };
       if (editId) {
@@ -139,6 +156,7 @@ export default function ClientsPage() {
             <TableRow>
               <TableHead>Name</TableHead>
               <TableHead>Industry</TableHead>
+              <TableHead>Location</TableHead>
               <TableHead>Contact</TableHead>
               <TableHead>Projects</TableHead>
               <TableHead>Status</TableHead>
@@ -157,6 +175,7 @@ export default function ClientsPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-muted-foreground">{c.industry || "—"}</TableCell>
+                <TableCell className="text-sm">{c.contact_phone || "—"}</TableCell>
                 <TableCell>
                   <div className="text-sm">{c.contact_name || "—"}</div>
                   {c.contact_email && <div className="text-xs text-muted-foreground">{c.contact_email}</div>}
@@ -184,12 +203,22 @@ export default function ClientsPage() {
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editId ? "Edit Client" : "Add Client"}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+           <div className="space-y-4">
             <div><Label>Client Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div><Label>Industry</Label><Input value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} placeholder="e.g. Technology, Healthcare" /></div>
+            <div>
+              <Label>Industry</Label>
+              <Select value={form.industry} onValueChange={(v) => setForm({ ...form, industry: v })}>
+                <SelectTrigger><SelectValue placeholder="Select industry" /></SelectTrigger>
+                <SelectContent>
+                  {INDUSTRIES.map((ind) => (
+                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} /></div>
             <div><Label>Contact Email</Label><Input type="email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></div>
-            <div><Label>Contact Phone</Label><Input value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></div>
+            <div><Label>Location *</Label><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Islamabad, Pakistan" /></div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
           </div>
           <DialogFooter>

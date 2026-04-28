@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Plus, Trash2, Download } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Search } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
@@ -33,6 +33,7 @@ export default function ProjectDetailPage() {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [roleInputs, setRoleInputs] = useState<Record<string, string>>({});
+  const [memberSearch, setMemberSearch] = useState("");
   const [statusNote, setStatusNote] = useState("");
   const [completionWarning, setCompletionWarning] = useState(false);
   const [pendingStatus, setPendingStatus] = useState("");
@@ -75,7 +76,11 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
-  const availableEmployees = allEmployees?.filter((e) => !members?.some((m) => (m.users as any)?.id === e.id)) || [];
+  const availableEmployees = allEmployees?.filter((e) => {
+    const notMember = !members?.some((m) => (m.users as any)?.id === e.id);
+    const matchesSearch = e.full_name.toLowerCase().includes(memberSearch.toLowerCase());
+    return notMember && matchesSearch;
+  }) || [];
 
   const toggleUser = (uid: string) => {
     setSelectedUsers((prev) => prev.includes(uid) ? prev.filter((u) => u !== uid) : [...prev, uid]);
@@ -343,7 +348,20 @@ export default function ProjectDetailPage() {
         <SheetContent className="flex flex-col h-full">
           <SheetHeader><SheetTitle>Add Members</SheetTitle></SheetHeader>
           <div className="space-y-3 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
-            {availableEmployees.length === 0 && <p className="text-sm text-muted-foreground">All employees are already on this project.</p>}
+            <div className="relative mb-2">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search employees..."
+                value={memberSearch}
+                onChange={(e) => setMemberSearch(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            {availableEmployees.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                {memberSearch ? "No matching employees found." : "All employees are already on this project."}
+              </p>
+            )}
             {availableEmployees.map((e) => (
               <div key={e.id} className={`p-3 rounded-md border cursor-pointer transition-colors ${selectedUsers.includes(e.id) ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`} onClick={() => toggleUser(e.id)}>
                 <div className="flex items-center justify-between">

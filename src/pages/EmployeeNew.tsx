@@ -15,7 +15,7 @@ import { ArrowLeft } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance","Management", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
@@ -148,7 +148,9 @@ export default function EmployeeNewPage() {
               )} />
               <FormField control={form.control} name="employment_type" render={({ field }) => (
                 <FormItem><FormLabel>Employment Type <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger></FormControl>
+                  <Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select type">
+                    <span className="capitalize">{field.value}</span>
+                  </SelectValue></SelectTrigger></FormControl>
                     <SelectContent>{EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}</SelectContent>
                   </Select><FormMessage />
                 </FormItem>

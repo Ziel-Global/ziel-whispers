@@ -49,18 +49,13 @@ Deno.serve(async (req) => {
     console.log(`Using timezone: ${timezone}; configured autoClockoutTime: ${autoClockoutTime}`);
     console.log(`Current ${timezone} date: ${todayPKT}`);
 
-    // Ensure this function runs only at/near the configured auto clockout time in the target timezone.
-    // This avoids accidental runs if cron timing changes. Allow a 10-minute window.
     const nowInTZ = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(now); // HH:MM
     const [cfgHour, cfgMin] = autoClockoutTime.split(":").map((v) => Number(v));
     const [nowHour, nowMin] = nowInTZ.split(":").map((v) => Number(v));
     const cfgMinutes = cfgHour * 60 + cfgMin;
     const nowMinutes = nowHour * 60 + nowMin;
-    const minutesDiff = Math.abs(nowMinutes - cfgMinutes);
-    if (minutesDiff > 10) {
-      console.log(`Current time ${nowInTZ} is outside allowed window for auto-clockout (${autoClockoutTime}); exiting.`);
-      return jsonResponse({ ok: true, processed: 0, reason: "outside-time-window", nowInTZ, autoClockoutTime });
-    }
+
+    console.log(`Current time (PKT): ${nowInTZ} (${nowMinutes} mins); Auto-clockout time: ${autoClockoutTime} (${cfgMinutes} mins)`);
 
     // 3. Find all open sessions from previous dates only (reduce data transferred)
     const { data: openSessions, error: fetchError } = await adminClient
@@ -74,7 +69,7 @@ Deno.serve(async (req) => {
       `)
       .is("clock_out", null)
       .not("clock_in", "is", null)
-      .lt("date", todayPKT);
+      .lte("date", todayPKT);
 
     if (fetchError) {
       console.error("Error fetching open sessions:", fetchError);
@@ -82,48 +77,37 @@ Deno.serve(async (req) => {
     }
 
     // Filter sessions in-memory for role/night-shift and collect ids to update in bulk
+    console.log(`Found ${openSessions?.length || 0} open sessions total. Filtering for auto-clockout...`);
+
     const toUpdate: Array<{ id: string; sessionDate: string; user_id: string }> = [];
     for (const session of openSessions || []) {
-      const user = (session as any).users as any;
-      if (user?.role === "admin") continue;
-      if (user?.is_night_shift) continue;
-      // session.date is already < todayPKT due to query
+      // If session is from today, only clock out if we are past the target time
+      if (session.date === todayPKT && nowMinutes < cfgMinutes) {
+        continue;
+      }
       toUpdate.push({ id: session.id, sessionDate: session.date, user_id: session.user_id });
     }
 
     if (toUpdate.length === 0) {
-      console.log("No sessions to auto-clockout");
-      return jsonResponse({ ok: true, processed: 0 });
+      console.log("No sessions met the criteria for auto-clockout at this time.");
+      return jsonResponse({ ok: true, processed: 0, reason: "no-sessions-eligible" });
     }
 
-    const ids = toUpdate.map(t => t.id);
-    // Prepare clock_out value as 23:59:59 in configured timezone's offset — assume +05:00 for PKT, but derive offset if timezone differs
-    const tzOffset = (() => {
-      try {
-        // derive offset like +05:00
-        const parts = new Intl.DateTimeFormat("en-US", { timeZone: timezone, timeZoneName: "short" }).formatToParts(new Date());
-        // fallback to +05:00 if we can't derive
-        return "+05:00";
-      } catch (e) {
-        return "+05:00";
-      }
-    })();
-
-    // Use bulk update
-    const updates = toUpdate.map(t => ({
-      id: t.id,
-      clock_out: `${t.sessionDate}T23:59:59${tzOffset}`,
-      auto_clocked_out: true,
-      auto_clockout_notes: "System auto clock-out — employee did not clock out manually.",
-    }));
+    const tzOffset = "+05:00"; // Asia/Karachi fixed offset
+    console.log(`Processing auto-clockout for ${toUpdate.length} sessions...`);
 
     const succeeded: Array<{ id: string; user_id: string; sessionDate: string; clock_out: string }> = [];
     for (const t of toUpdate) {
-      const clockOutValue = `${t.sessionDate}T23:59:59${tzOffset}`;
+      const clockOutValue = `${t.sessionDate}T${autoClockoutTime}:00${tzOffset}`;
+      console.log(`Clocking out session ${t.id} for user ${t.user_id} at ${clockOutValue}`);
       try {
         const { error: updateError } = await adminClient
           .from("attendance")
-          .update({ clock_out: clockOutValue, auto_clocked_out: true, auto_clockout_notes: "System auto clock-out — employee did not clock out manually." })
+          .update({ 
+            clock_out: clockOutValue, 
+            auto_clocked_out: true, 
+            auto_clockout_notes: `System auto clock-out at ${autoClockoutTime}.` 
+          })
           .eq("id", t.id)
           .is("clock_out", null);
         if (!updateError) {

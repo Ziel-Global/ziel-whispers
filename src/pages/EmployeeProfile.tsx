@@ -26,7 +26,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
@@ -106,16 +106,20 @@ export default function EmployeeProfilePage() {
     enabled: !!id && isAdmin,
   });
 
-  // Projects for filter
+  // Projects for display and filter
   const { data: employeeProjects = [] } = useQuery({
-    queryKey: ["employee-projects-filter", id],
+    queryKey: ["employee-projects-tab", id],
     queryFn: async () => {
       const { data } = await supabase
         .from("project_members")
-        .select("projects(id, name)")
+        .select("assigned_at, projects(id, name, status), project_roles(name)")
         .eq("user_id", id!)
         .is("removed_at", null);
-      return (data || []).map((m: any) => m.projects).filter(Boolean);
+      return (data || []).map((m: any) => ({
+        ...m.projects,
+        project_role: m.project_roles?.name,
+        assigned_at: m.assigned_at
+      })).filter(p => p.id);
     },
     enabled: !!id && isAdmin,
   });
@@ -411,6 +415,7 @@ export default function EmployeeProfilePage() {
       <Tabs defaultValue="profile">
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
+          {isAdmin && <TabsTrigger value="projects">Projects</TabsTrigger>}
           {isAdmin && <TabsTrigger value="logs">Work Logs</TabsTrigger>}
         </TabsList>
 
@@ -481,7 +486,9 @@ export default function EmployeeProfilePage() {
                     <FormItem>
                       <FormLabel>Employment Type</FormLabel>
                       <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <FormControl><SelectTrigger><SelectValue>
+                          <span className="capitalize">{field.value}</span>
+                        </SelectValue></SelectTrigger></FormControl>
                         <SelectContent>
                           {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
                         </SelectContent>
@@ -702,6 +709,38 @@ export default function EmployeeProfilePage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="projects">
+            <Card className="p-6">
+              <h3 className="text-lg font-semibold mb-4">Project Assignments</h3>
+              {employeeProjects.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground bg-muted/30 rounded-lg border-2 border-dashed">
+                  This employee is not currently assigned to any active projects.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {employeeProjects.map((project: any) => (
+                    <div key={project.id} className="p-4 border rounded-lg hover:border-primary/50 transition-colors bg-card">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-bold text-black">{project.name}</h4>
+                          <p className="text-sm text-muted-foreground mt-1">Role: <span className="text-foreground capitalize">{project.project_role || "Member"}</span></p>
+                        </div>
+                        <Badge variant={project.status === "active" ? "default" : "secondary"} className="capitalize">
+                          {project.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 pt-3 border-t text-xs text-muted-foreground">
+                        Assigned on: {format(new Date(project.assigned_at), "MMM d, yyyy")}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
           </TabsContent>
         )}
       </Tabs>

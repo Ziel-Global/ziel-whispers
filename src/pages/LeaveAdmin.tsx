@@ -18,7 +18,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Other"];
 
 export default function LeaveAdminPage() {
@@ -344,10 +344,10 @@ export default function LeaveAdminPage() {
               </DialogHeader>
               <div className="p-3">
                 {namesModal?.leaves && namesModal.leaves.length > 0 ? (
-                  <div className="space-y-2">
+                  <div className="divide-y divide-black/30">
                     {namesModal.leaves.map((l: any) => (
-                      <div key={l.id} className="flex items-center gap-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{(l.users?.full_name || "").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0,2)}</div>
+                      <div key={l.id} className="flex items-center gap-3 py-3">
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{(l.users?.full_name || "").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}</div>
                         <div>
                           <p className="text-sm font-medium">{l.users?.full_name}</p>
                           <p className="text-xs text-muted-foreground">{l.leave_types?.name} · {l.days_count} day(s)</p>

@@ -16,7 +16,7 @@ import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 import html2canvas from "html2canvas";
 
 const _CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Management", "Sales", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 
 function exportCSV(rows: Record<string, any>[], filename: string) {
   if (!rows.length) return;

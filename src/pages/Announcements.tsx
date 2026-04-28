@@ -38,6 +38,7 @@ export default function AnnouncementsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 20;
+  alert("Hello");
 
   const { data: announcements, isLoading } = useQuery({
     queryKey: ["announcements", page],

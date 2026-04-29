@@ -61,8 +61,23 @@ export default function ProjectDetailPage() {
   const { data: allEmployees } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, designation").eq("status", "active").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name, designation").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
+    },
+    enabled: isAdmin,
+  });
+
+  const { data: employeeProjects } = useQuery({
+    queryKey: ["employee-projects"],
+    queryFn: async () => {
+      const { data } = await supabase.from("project_members").select("user_id, projects(name)").is("removed_at", null);
+      const map: Record<string, string[]> = {};
+      data?.forEach((m: any) => {
+        if (!m.user_id) return;
+        if (!map[m.user_id]) map[m.user_id] = [];
+        if (m.projects?.name) map[m.user_id].push(m.projects.name);
+      });
+      return map;
     },
     enabled: isAdmin,
   });
@@ -90,7 +105,8 @@ export default function ProjectDetailPage() {
     if (selectedUsers.length === 0) return;
     try {
       for (const uid of selectedUsers) {
-        const roleName = roleInputs[uid]?.trim() || "Member";
+        const emp = allEmployees?.find(e => e.id === uid);
+        const roleName = roleInputs[uid]?.trim() || emp?.designation || "Member";
         let roleId: string | null = null;
         const { data: existingRole } = await supabase.from("project_roles").select("id").eq("project_id", id!).eq("name", roleName).maybeSingle();
         if (existingRole) { roleId = existingRole.id; } else {
@@ -368,6 +384,16 @@ export default function ProjectDetailPage() {
                   <div>
                     <span className="font-medium text-sm">{e.full_name}</span>
                     <span className="text-xs text-muted-foreground block">{e.designation}</span>
+                    {employeeProjects?.[e.id] && employeeProjects[e.id].length > 0 && (
+                      <div className="mt-1.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-black">
+                        <span className="text-[10px] uppercase tracking-wider font-semibold">Active Projects:</span>
+                        {employeeProjects[e.id].map((pName, idx) => (
+                          <span key={idx} className="text-[10px] bg-primary px-1.5 py-0.5 rounded-sm">
+                            {pName}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
                 </div>

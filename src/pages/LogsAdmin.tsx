@@ -135,7 +135,7 @@ export default function LogsAdminPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift").eq("status", "active").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
     },
   });

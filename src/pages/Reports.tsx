@@ -71,7 +71,7 @@ function UtilizationReport() {
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
 
-  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end").eq("status", "active").order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
   const { data: logs } = useQuery({
     queryKey: ["report-logs", startDate, endDate],
     queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate); return data || []; },
@@ -141,7 +141,7 @@ function HeatmapReport() {
   const end = format(endOfMonth(parseISO(start)), "yyyy-MM-dd");
   const days = eachDayOfInterval({ start: parseISO(start), end: parseISO(end) });
 
-  const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department").eq("status", "active"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
   const { data: logs } = useQuery({ queryKey: ["heatmap-logs", start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, log_date, hours").gte("log_date", start).lte("log_date", end); return data || []; } });
 
   const grid = useMemo(() => {
@@ -199,7 +199,7 @@ function MonthlySummaryReport() {
   const [selectedUser, setSelectedUser] = useState(isAdmin ? "" : profile?.id || "");
   const [month, setMonth] = useState(format(subDays(startOfMonth(new Date(getPKTDateString())), 1), "yyyy-MM"));
 
-  const { data: employees } = useQuery({ queryKey: ["summary-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name"); return data || []; }, enabled: isAdmin });
+  const { data: employees } = useQuery({ queryKey: ["summary-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; }, enabled: isAdmin });
 
   const userId = isAdmin ? selectedUser : profile?.id;
   const start = `${month}-01`;
@@ -272,7 +272,7 @@ function AttendanceTrendReport() {
   const [endDate, setEndDate] = useState(getPKTDateString());
   const [dept, setDept] = useState("all");
 
-  const { data: employees } = useQuery({ queryKey: ["att-trend-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name").eq("status", "active"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["att-trend-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
   const { data: attendance } = useQuery({
     queryKey: ["att-trend", startDate, endDate, dept],
     queryFn: async () => {
@@ -330,7 +330,7 @@ function DailyLogsReport() {
   const [endDate, setEndDate] = useState(getPKTDateString());
   const [empFilter, setEmpFilter] = useState("all");
 
-  const { data: employees } = useQuery({ queryKey: ["dlr-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["dlr-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
   const { data: logs } = useQuery({
     queryKey: ["dlr-logs", startDate, endDate, empFilter],
     queryFn: async () => {

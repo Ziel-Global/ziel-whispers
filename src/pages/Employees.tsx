@@ -34,6 +34,7 @@ export default function EmployeesPage() {
   const [deptFilter, setDeptFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
+  const [roleFilter, setRoleFilter] = useState("all");
   const [csvOpen, setCsvOpen] = useState(false);
   const queryClient = useQueryClient();
   const [deletingUser, setDeletingUser] = useState<any | null>(null);
@@ -114,9 +115,10 @@ export default function EmployeesPage() {
       const matchDept = deptFilter === "all" || e.department === deptFilter;
       const matchStatus = statusFilter === "all" || e.status === statusFilter;
       const matchType = typeFilter === "all" || e.employment_type === typeFilter;
-      return matchSearch && matchDept && matchStatus && matchType;
+      const matchRole = roleFilter === "all" || e.role === roleFilter;
+      return matchSearch && matchDept && matchStatus && matchType && matchRole;
     });
-  }, [employees, search, deptFilter, statusFilter, typeFilter]);
+  }, [employees, search, deptFilter, statusFilter, typeFilter, roleFilter]);
 
   const statusBadge = (status: string) => {
     const variants: Record<string, string> = {
@@ -184,6 +186,15 @@ export default function EmployeesPage() {
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={roleFilter} onValueChange={setRoleFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Role" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Roles</SelectItem>
+                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="employee">Employee</SelectItem>
               </SelectContent>
             </Select>
           </div>

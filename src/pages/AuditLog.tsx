@@ -50,21 +50,24 @@ const ACTION_LABELS: Record<string, string> = {
   "impersonation.ended": "Impersonation Ended",
 };
 
-const formatMetadata = (metadata: any): string => {
+const formatMetadata = (metadata: any, userMap?: Record<string, string>): string => {
   if (!metadata) return "—";
   if (typeof metadata === "string") return metadata;
   
+  const resolveValue = (val: any) => {
+    if (typeof val === "string" && userMap && userMap[val]) return userMap[val];
+    return typeof val === "object" ? JSON.stringify(val) : String(val);
+  };
+
   if (Array.isArray(metadata)) {
-    return metadata.map(item => 
-      typeof item === "object" ? JSON.stringify(item) : String(item)
-    ).join(", ");
+    return metadata.map(resolveValue).join(", ");
   }
 
   if (typeof metadata === "object") {
     return Object.entries(metadata)
       .map(([key, value]) => {
         const formattedKey = key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
-        const formattedValue = typeof value === "object" ? JSON.stringify(value) : String(value);
+        const formattedValue = resolveValue(value);
         return `${formattedKey}: ${formattedValue}`;
       })
       .join(" | ");
@@ -82,12 +85,22 @@ export default function AuditLogPage() {
   const [page, setPage] = useState(0);
   const [selectedLog, setSelectedLog] = useState<any>(null);
 
+  const { data: userNamesMap } = useQuery({
+    queryKey: ["user-names-map"],
+    queryFn: async () => {
+      const { data } = await supabase.from("users").select("id, full_name");
+      const map: Record<string, string> = {};
+      data?.forEach(u => map[u.id] = u.full_name);
+      return map;
+    },
+  });
+
   const { data: logs, isLoading } = useQuery({
     queryKey: ["audit-logs", page, actionFilter],
     queryFn: async () => {
       let q = supabase
         .from("audit_logs")
-        .select("*, users:actor_id(full_name, avatar_url)")
+        .select("*, users:actor_id(full_name, avatar_url, designation, department, role)")
         .order("created_at", { ascending: false });
 
       if (actionFilter !== "all") {
@@ -205,8 +218,8 @@ export default function AuditLogPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">{l.target_entity || "—"}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={formatMetadata(l.metadata)}>
-                    {formatMetadata(l.metadata)}
+                  <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={formatMetadata(l.metadata, userNamesMap)}>
+                    {formatMetadata(l.metadata, userNamesMap)}
                   </TableCell>
                   <TableCell className="text-right">
                     <DropdownMenu>
@@ -239,35 +252,64 @@ export default function AuditLogPage() {
           <DialogHeader>
             <DialogTitle>Audit Log Details</DialogTitle>
           </DialogHeader>
-          <div className="py-4 space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Action</p>
-                <p>{selectedLog ? ACTION_LABELS[selectedLog.action] || selectedLog.action : "—"}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Actor</p>
-                <p>{selectedLog?.users?.full_name || "System"}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Target</p>
-                <p>{selectedLog?.target_entity || "—"}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Timestamp</p>
-                <p>{selectedLog ? format(new Date(selectedLog.created_at), "PPpp") : "—"}</p>
+          <div className="py-4 space-y-6">
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">Actor Information</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Full Name</p>
+                  <p className="text-sm">{selectedLog?.users?.full_name || "System"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Designation</p>
+                  <p className="text-sm">{selectedLog?.users?.designation || "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Department</p>
+                  <p className="text-sm">{selectedLog?.users?.department || "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Role</p>
+                  <Badge variant="outline" className="capitalize text-[10px] h-5">{selectedLog?.users?.role || "—"}</Badge>
+                </div>
               </div>
             </div>
-            <div>
-              <p className="text-sm font-medium text-muted-foreground mb-2">Metadata Details</p>
+
+            <div className="space-y-4">
+              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">Action Details</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Action Type</p>
+                  <p className="text-sm">{selectedLog ? ACTION_LABELS[selectedLog.action] || selectedLog.action : "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Target Entity</p>
+                  <p className="text-sm font-mono">{selectedLog?.target_entity || "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Target ID</p>
+                  <p className="text-sm font-mono text-muted-foreground truncate" title={selectedLog?.target_id}>{selectedLog?.target_id || "—"}</p>
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Timestamp</p>
+                  <p className="text-sm">{selectedLog ? format(new Date(selectedLog.created_at), "PPpp") : "—"}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">Metadata Detail</h3>
               {selectedLog?.metadata ? (
-                <div className="bg-muted p-4 rounded-md overflow-auto text-sm max-h-[300px]">
+                <div className="bg-muted p-4 rounded-md overflow-auto text-xs max-h-[250px] border">
                   <pre className="whitespace-pre-wrap font-mono">
-                    {JSON.stringify(selectedLog.metadata, null, 2)}
+                    {JSON.stringify(selectedLog.metadata, (key, value) => {
+                      if (userNamesMap && userNamesMap[value]) return `${userNamesMap[value]} (${value})`;
+                      return value;
+                    }, 2)}
                   </pre>
                 </div>
               ) : (
-                <p className="text-sm">No additional metadata available.</p>
+                <p className="text-xs text-muted-foreground italic">No additional metadata available.</p>
               )}
             </div>
           </div>

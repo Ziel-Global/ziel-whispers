@@ -36,7 +36,7 @@ export default function AttendanceAdminPage() {
   const { data: allEmployees = [] } = useQuery({
     queryKey: ["all-employees-for-filter"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
     },
   });

@@ -177,7 +177,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/employees")}>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10"><Users className="h-5 w-5 text-primary-foreground" style={{ color: "hsl(82,100%,40%)" }} /></div>
+              <div className="p-2 rounded-md bg-primary/10"><Users className="h-5 w-5" /></div>
               <div><p className="text-sm text-muted-foreground">Active Employees</p><p className="text-2xl font-bold">{stats?.activeEmployees ?? "—"}</p></div>
             </div>
           </Card>

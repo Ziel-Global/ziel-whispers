@@ -85,7 +85,7 @@ export default function AttendanceAdminPage() {
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
     if (!clockOut) return "Active";
-    const secs = Math.floor((new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 1000);
+    const secs = Math.max(0, Math.floor((new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
     return `${h}h ${m}m`;

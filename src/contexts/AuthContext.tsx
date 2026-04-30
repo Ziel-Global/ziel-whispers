@@ -278,6 +278,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_ID_KEY);
     localStorage.removeItem(ACTIVITY_KEY);
     localStorage.removeItem(SESSION_START_KEY);
+    sessionStorage.clear();
     if (statusCheckRef.current) clearInterval(statusCheckRef.current);
     if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
     await supabase.auth.signOut();

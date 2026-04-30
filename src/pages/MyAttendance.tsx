@@ -116,10 +116,11 @@ export default function MyAttendancePage() {
   }, [openSession]);
 
   const formatDuration = (secs: number) => {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    const s = Math.max(0, secs);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
   const performClockIn = async () => {
@@ -346,7 +347,7 @@ export default function MyAttendancePage() {
               <strong>Clock In:</strong> {selectedRecord.clock_in ? formatPKTTime(selectedRecord.clock_in) : "—"}
               {selectedRecord.is_late && (
                 <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
-                  Late by {formatLateness((selectedRecord as any).hours_late, selectedRecord.minutes_late)}
+                  Late by {formatLateness(selectedRecord.minutes_late)}
                 </Badge>
               )}
             </p>

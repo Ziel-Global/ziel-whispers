@@ -57,49 +57,49 @@ Deno.serve(async (req) => {
 
     console.log(`Current time (PKT): ${nowInTZ} (${nowMinutes} mins); Auto-clockout time: ${autoClockoutTime} (${cfgMinutes} mins)`);
 
-    // 3. Find all open sessions from previous dates only (reduce data transferred)
+    // 3. Find all open sessions from PREVIOUS dates only
+    // FIX: Using .lt (strictly less than) instead of .lte to prevent immediate clock-out of today's sessions
     const { data: openSessions, error: fetchError } = await adminClient
       .from("attendance")
       .select(`
         id,
         user_id,
         clock_in,
-        date,
-        users!attendance_user_id_fkey(role, is_night_shift)
+        date
       `)
       .is("clock_out", null)
       .not("clock_in", "is", null)
-      .lte("date", todayPKT);
+      .lt("date", todayPKT);
 
     if (fetchError) {
       console.error("Error fetching open sessions:", fetchError);
       return jsonResponse({ ok: false, error: fetchError.message });
     }
 
-    // Filter sessions in-memory for role/night-shift and collect ids to update in bulk
-    console.log(`Found ${openSessions?.length || 0} open sessions total. Filtering for auto-clockout...`);
-
-    const toUpdate: Array<{ id: string; sessionDate: string; user_id: string }> = [];
-    for (const session of openSessions || []) {
-      // If session is from today, only clock out if we are past the target time
-      if (session.date === todayPKT && nowMinutes < cfgMinutes) {
-        continue;
-      }
-      toUpdate.push({ id: session.id, sessionDate: session.date, user_id: session.user_id });
-    }
-
-    if (toUpdate.length === 0) {
-      console.log("No sessions met the criteria for auto-clockout at this time.");
-      return jsonResponse({ ok: true, processed: 0, reason: "no-sessions-eligible" });
-    }
+    console.log(`Found ${openSessions?.length || 0} open stale sessions. Processing...`);
 
     const tzOffset = "+05:00"; // Asia/Karachi fixed offset
-    console.log(`Processing auto-clockout for ${toUpdate.length} sessions...`);
-
     const succeeded: Array<{ id: string; user_id: string; sessionDate: string; clock_out: string }> = [];
-    for (const t of toUpdate) {
-      const clockOutValue = `${t.sessionDate}T${autoClockoutTime}:00${tzOffset}`;
-      console.log(`Clocking out session ${t.id} for user ${t.user_id} at ${clockOutValue}`);
+    
+    for (const session of openSessions || []) {
+      // Calculate clock out based on session date + config time
+      // FIX: If autoClockoutTime is 00:00, it refers to the midnight at the END of that session date.
+      // We calculate a timestamp and ensure it's after the clock_in.
+      
+      const clockInTime = new Date(session.clock_in);
+      let clockOutDateStr = session.date;
+      let clockOutTimestamp = new Date(`${clockOutDateStr}T${autoClockoutTime}:00${tzOffset}`);
+      
+      // If the calculated clock-out is before or equal to clock-in (e.g. 00:00 on the same day), 
+      // move it to the next day to ensure a positive duration.
+      if (clockOutTimestamp <= clockInTime) {
+        console.log(`Clock-out ${clockOutTimestamp.toISOString()} is before clock-in ${clockInTime.toISOString()}. Advancing by 24h.`);
+        clockOutTimestamp = new Date(clockOutTimestamp.getTime() + 24 * 60 * 60 * 1000);
+      }
+
+      const clockOutValue = clockOutTimestamp.toISOString();
+      console.log(`Clocking out session ${session.id} for user ${session.user_id} at ${clockOutValue}`);
+      
       try {
         const { error: updateError } = await adminClient
           .from("attendance")
@@ -108,15 +108,16 @@ Deno.serve(async (req) => {
             auto_clocked_out: true, 
             auto_clockout_notes: `System auto clock-out at ${autoClockoutTime}.` 
           })
-          .eq("id", t.id)
+          .eq("id", session.id)
           .is("clock_out", null);
+          
         if (!updateError) {
-          succeeded.push({ id: t.id, user_id: t.user_id, sessionDate: t.sessionDate, clock_out: clockOutValue });
+          succeeded.push({ id: session.id, user_id: session.user_id, sessionDate: session.date, clock_out: clockOutValue });
         } else {
-          console.error(`Failed to update attendance ${t.id}:`, updateError);
+          console.error(`Failed to update attendance ${session.id}:`, updateError);
         }
       } catch (e) {
-        console.error(`Exception updating attendance ${t.id}:`, e instanceof Error ? e.message : String(e));
+        console.error(`Exception updating attendance ${session.id}:`, e instanceof Error ? e.message : String(e));
       }
     }
 
@@ -127,7 +128,13 @@ Deno.serve(async (req) => {
         action: "attendance.auto_clockout",
         target_entity: "attendance",
         target_id: s.id,
-        metadata: { user_id: s.user_id, clock_in_date: s.sessionDate, clock_out_recorded: s.clock_out, timezone_used: timezone, suppress_notifications: true },
+        metadata: { 
+          user_id: s.user_id, 
+          clock_in_date: s.sessionDate, 
+          clock_out_recorded: s.clock_out, 
+          timezone_used: timezone, 
+          suppress_notifications: true 
+        },
       }));
       await adminClient.from("audit_logs").insert(auditRows);
     }

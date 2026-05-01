@@ -11,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
 
 export default function MyAttendancePage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const { shiftStart, shiftEnd } = useWorkSettings();
   const [workMode, setWorkMode] = useState("");
@@ -29,7 +30,7 @@ export default function MyAttendancePage() {
    const today = getPKTDateString();
 
   // Check for any open (unclosed) attendance session
-  const { data: openSession } = useQuery({
+  const { data: openSession, isLoading: isLoadingOpen } = useQuery({
     queryKey: ["attendance-open-session", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -48,7 +49,7 @@ export default function MyAttendancePage() {
   });
 
   // Today's attendance
-  const { data: todayRecord } = useQuery({
+  const { data: todayRecord, isLoading: isLoadingToday } = useQuery({
     queryKey: ["attendance-today", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -192,7 +193,14 @@ export default function MyAttendancePage() {
     if (isWeekend(d)) return "bg-muted text-muted-foreground";
     const rec = getRecordForDay(d);
     if (!rec) {
-      if (d < new Date() && isSameMonth(d, calMonth)) return "bg-red-100 text-red-700";
+      // Only show as absent (red) if the date is on or after join_date
+      const dateStr = format(d, "yyyy-MM-dd");
+      const joinDate = profile?.join_date;
+      
+      if (d < new Date() && isSameMonth(d, calMonth)) {
+        if (joinDate && dateStr < joinDate) return ""; // Not employed yet
+        return "bg-red-100 text-red-700";
+      }
       return "";
     }
     if (rec.is_late) return "bg-yellow-100 text-yellow-700";
@@ -207,7 +215,11 @@ export default function MyAttendancePage() {
     const isPast = d < new Date() && !isSameDay(d, new Date());
 
     if (!logInfo || logInfo.count === 0) {
-      if (isPast) return { label: "No Log", color: "text-red-500" };
+      if (isPast) {
+        const joinDate = profile?.join_date;
+        if (joinDate && dateStr < joinDate) return null; // Not employed yet
+        return { label: "No Log", color: "text-red-500" };
+      }
       return null;
     }
     if (logInfo.hasLate) return { label: "Late", color: "text-amber-600" };
@@ -236,7 +248,15 @@ export default function MyAttendancePage() {
       {/* Clock In/Out Widget */}
       <Card className="p-6">
         <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
+          {(isLoadingOpen || isLoadingToday) ? (
+            <div className="flex flex-col items-center gap-4 w-full py-4">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-12 w-12 rounded-full" />
+              <Skeleton className="h-10 w-full max-w-xs" />
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
 
           {hasOpenSession && (
             <>
@@ -286,12 +306,14 @@ export default function MyAttendancePage() {
                   <Label>Notes (optional)</Label>
                   <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes…" rows={2} />
                 </div>
-                <Button onClick={handleClockIn} disabled={loading} size="lg" className="w-full rounded-button">
-                  <LogIn className="h-5 w-5 mr-2" />
-                  Clock In
-                </Button>
-              </div>
-            </>
+                  <Button onClick={handleClockIn} disabled={loading} size="lg" className="w-full rounded-button">
+                    <LogIn className="h-5 w-5 mr-2" />
+                    Clock In
+                  </Button>
+                </div>
+              </>
+            )}
+          </>
           )}
         </div>
       </Card>

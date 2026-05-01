@@ -20,8 +20,14 @@ export function MissingLogAlert() {
   const yesterdayStr = getPKTDateString(yesterday);
 
   const { data: logsData } = useQuery({
-    queryKey: ["missing-log-check", user?.id, yesterdayStr],
+    queryKey: ["missing-log-check", user?.id, yesterdayStr, profile?.join_date],
     queryFn: async () => {
+      // FIX: Check if employee had even joined by yesterday
+      const joinDate = profile?.join_date;
+      if (joinDate && yesterdayStr < joinDate) {
+        return { totalLogged: 8, expectedHours: 8 }; // Fake a full log to suppress alert
+      }
+
       // 1. Get logs for yesterday
       const { data: logs } = await supabase
         .from("daily_logs")

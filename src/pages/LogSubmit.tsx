@@ -22,7 +22,7 @@ import { format, parseISO } from "date-fns";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
 const NO_PROJECT = "__none__";
-const LOCAL_STORAGE_KEY = "ziel_pending_logs";
+const getStorageKey = (userId: string) => `ziel_pending_logs_${userId}`;
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -51,22 +51,28 @@ export default function LogSubmitPage() {
 
   const today = getPKTDateString();
 
-  // Load pending logs from local storage on mount
+  // Load pending logs from local storage on mount/user change
   useEffect(() => {
-    const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+    if (!user?.id) return;
+    const key = getStorageKey(user.id);
+    const saved = localStorage.getItem(key);
     if (saved) {
       try {
         setPendingLogs(JSON.parse(saved));
       } catch (e) {
         console.error("Failed to parse saved logs", e);
       }
+    } else {
+      setPendingLogs([]);
     }
-  }, []);
+  }, [user?.id]);
 
   // Save pending logs to local storage whenever they change
   useEffect(() => {
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(pendingLogs));
-  }, [pendingLogs]);
+    if (!user?.id) return;
+    const key = getStorageKey(user.id);
+    localStorage.setItem(key, JSON.stringify(pendingLogs));
+  }, [pendingLogs, user?.id]);
 
   const { data: logEditDays = 3 } = useQuery({
     queryKey: ["system-setting-log-edit-days"],
@@ -199,7 +205,7 @@ export default function LogSubmitPage() {
 
       toast.success(`${logsToInsert.length} logs submitted successfully`);
       setPendingLogs([]);
-      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      if (user?.id) localStorage.removeItem(getStorageKey(user.id));
       form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-date"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });

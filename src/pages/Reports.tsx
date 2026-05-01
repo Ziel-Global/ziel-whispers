@@ -71,7 +71,7 @@ function UtilizationReport() {
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
 
-  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end, join_date").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
   const { data: logs } = useQuery({
     queryKey: ["report-logs", startDate, endDate],
     queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate); return data || []; },
@@ -84,7 +84,15 @@ function UtilizationReport() {
     logs.forEach((l) => { if (l.user_id) loggedByUser[l.user_id] = (loggedByUser[l.user_id] || 0) + Number(l.hours); });
 
     return employees.map((e) => {
-      const available = workingDays * 8;
+      const effectiveStart = e.join_date && e.join_date > startDate ? e.join_date : startDate;
+      const effectiveEnd = endDate;
+      
+      let available = 0;
+      if (effectiveStart <= effectiveEnd) {
+        const effectiveWorkingDays = getWorkingDays(parseISO(effectiveStart), parseISO(effectiveEnd));
+        available = effectiveWorkingDays * 8;
+      }
+
       const logged = loggedByUser[e.id] || 0;
       const pct = available > 0 ? (logged / available) * 100 : 0;
       return { id: e.id, name: e.full_name, department: e.department, available, logged: Math.round(logged * 10) / 10, pct: Math.round(pct), status: pct < 70 ? "Low" : pct > 110 ? "Over" : "Good" };
@@ -141,7 +149,7 @@ function HeatmapReport() {
   const end = format(endOfMonth(parseISO(start)), "yyyy-MM-dd");
   const days = eachDayOfInterval({ start: parseISO(start), end: parseISO(end) });
 
-  const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department, join_date").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
   const { data: logs } = useQuery({ queryKey: ["heatmap-logs", start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, log_date, hours").gte("log_date", start).lte("log_date", end); return data || []; } });
 
   const grid = useMemo(() => {
@@ -174,8 +182,17 @@ function HeatmapReport() {
               {days.map((d) => {
                 const dateStr = format(d, "yyyy-MM-dd");
                 const h = row.hours[dateStr] || 0;
+                
+                // FIX: Check if employee had joined yet
+                const emp = employees?.find(e => e.id === row.id);
+                const notJoined = emp?.join_date && dateStr < emp.join_date;
+
                 return (
-                  <div key={dateStr} className={`w-7 h-6 m-px rounded-sm ${isWeekend(d) ? "bg-muted/30" : cellColor(h)}`} title={`${row.name} · ${format(d, "MMM d")} · ${h}h`} />
+                  <div 
+                    key={dateStr} 
+                    className={`w-7 h-6 m-px rounded-sm ${isWeekend(d) ? "bg-muted/30" : notJoined ? "bg-gray-50/50" : cellColor(h)}`} 
+                    title={`${row.name} · ${format(d, "MMM d")} · ${notJoined ? 'Not Employed' : h + 'h'}`} 
+                  />
                 );
               })}
             </div>
@@ -199,7 +216,7 @@ function MonthlySummaryReport() {
   const [selectedUser, setSelectedUser] = useState(isAdmin ? "" : profile?.id || "");
   const [month, setMonth] = useState(format(subDays(startOfMonth(new Date(getPKTDateString())), 1), "yyyy-MM"));
 
-  const { data: employees } = useQuery({ queryKey: ["summary-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; }, enabled: isAdmin });
+  const { data: employees } = useQuery({ queryKey: ["summary-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, join_date").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; }, enabled: isAdmin });
 
   const userId = isAdmin ? selectedUser : profile?.id;
   const start = `${month}-01`;
@@ -209,7 +226,15 @@ function MonthlySummaryReport() {
   const { data: leave } = useQuery({ queryKey: ["summary-leave", userId, start, end], queryFn: async () => { const { data } = await supabase.from("leave_requests").select("*, leave_types(name)").eq("user_id", userId!).eq("status", "approved").gte("start_date", start).lte("end_date", end); return data || []; }, enabled: !!userId });
   const { data: attendance } = useQuery({ queryKey: ["summary-att", userId, start, end], queryFn: async () => { const { data } = await supabase.from("attendance").select("date, work_mode").eq("user_id", userId!).gte("date", start).lte("date", end); return data || []; }, enabled: !!userId });
 
-  const workingDays = getWorkingDays(parseISO(start), parseISO(end));
+  const empData = employees?.find(e => e.id === userId);
+  const effectiveStart = empData?.join_date && empData.join_date > start ? empData.join_date : start;
+  const effectiveEnd = end;
+  
+  let workingDays = 0;
+  if (effectiveStart <= effectiveEnd) {
+    workingDays = getWorkingDays(parseISO(effectiveStart), parseISO(effectiveEnd));
+  }
+  
   const totalHours = logs?.reduce((s, l) => s + Number(l.hours), 0) || 0;
   const lateLogs = logs?.filter((l) => l.is_late).length || 0;
   const onsiteDays = attendance?.filter((a) => a.work_mode === "onsite").length || 0;
@@ -397,7 +422,7 @@ function MissedLogsReport() {
   const { data: missed } = useQuery({
     queryKey: ["missed-report", startDate, endDate],
     queryFn: async () => {
-      const { data } = await supabase.from("missed_logs").select("*, users(full_name)").gte("log_date", startDate).lte("log_date", endDate).order("log_date", { ascending: false });
+      const { data } = await supabase.from("missed_logs").select("*, users(full_name, join_date)").gte("log_date", startDate).lte("log_date", endDate).order("log_date", { ascending: false });
       return data || [];
     },
   });
@@ -411,7 +436,11 @@ function MissedLogsReport() {
       </div>
       <Card><Table>
         <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Detected At</TableHead></TableRow></TableHeader>
-        <TableBody>{(missed || []).map((m) => (
+        <TableBody>{(missed || []).filter(m => {
+          const joinDate = (m.users as any)?.join_date;
+          if (joinDate && m.log_date < joinDate) return false;
+          return true;
+        }).map((m) => (
           <TableRow key={m.id} className="bg-red-50/30"><TableCell>{(m.users as any)?.full_name}</TableCell><TableCell>{format(parseISO(m.log_date), "MMM d, yyyy")}</TableCell><TableCell className="text-muted-foreground">{formatPKTTime(m.detected_at)}</TableCell></TableRow>
         ))}{(!missed || missed.length === 0) && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No missed logs found</TableCell></TableRow>}</TableBody>
       </Table></Card>

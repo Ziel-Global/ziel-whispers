@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useWorkSettings, formatShiftTime, formatLateness } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString } from "@/hooks/useWorkSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
-  const today = new Date().toISOString().split("T")[0];
+  const today = getPKTDateString();
   const { annualLeaveEntitlement, shiftStart } = useWorkSettings();
 
   // ——— Shared queries ———
@@ -34,7 +34,7 @@ export default function DashboardPage() {
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult, lateAttendanceResult] = await Promise.all([
-        supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active").lte("join_date", today),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
@@ -345,6 +345,8 @@ export default function DashboardPage() {
           <p className="text-sm">
             {hasSubmittedLog ? (
               <span className="text-green-700">Submitted ({todayLogs!.length} {todayLogs!.length === 1 ? "entry" : "entries"})</span>
+            ) : (profile?.join_date && today < profile.join_date) ? (
+              <span className="text-muted-foreground">Not yet started</span>
             ) : (
               <span className="text-red-600">Not submitted yet</span>
             )}

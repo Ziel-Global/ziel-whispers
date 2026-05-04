@@ -85,7 +85,7 @@ export default function AttendanceAdminPage() {
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
     if (!clockOut) return "Active";
-    const secs = Math.floor((new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 1000);
+    const secs = Math.max(0, Math.floor((new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
     return `${h}h ${m}m`;
@@ -127,6 +127,13 @@ export default function AttendanceAdminPage() {
         action: "attendance.edited",
         target_entity: "attendance",
         target_id: editRecord.id,
+        metadata: {
+          employee: editRecord.users?.full_name || editRecord.user_id,
+          date: editRecord.date,
+          new_clock_in: clockIn,
+          new_clock_out: clockOut || null,
+          notes: editNotes || null,
+        },
       });
 
       toast.success("Attendance updated");

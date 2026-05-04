@@ -68,7 +68,7 @@ Deno.serve(async (req: Request) => {
     // 2. Fetch all active users with their shift settings
     const { data: users, error: userError } = await supabase
       .from("users")
-      .select("id, full_name, has_custom_shift, shift_end")
+      .select("id, full_name, has_custom_shift, shift_end, join_date")
       .eq("status", "active");
 
     if (userError) throw userError;
@@ -93,6 +93,12 @@ Deno.serve(async (req: Request) => {
     for (const user of users) {
       if (loggedUserIds.has(user.id)) continue;
       if (alreadyMissedUserIds.has(user.id)) continue;
+
+      // FIX: Only mark as missed if the log_date is on or after the user's join_date
+      if (user.join_date && todayPKT < user.join_date) {
+        console.log(`Skipping missed log for ${user.full_name} - Joined on ${user.join_date}, checking for ${todayPKT}`);
+        continue;
+      }
 
       // Determine effective shift end time
       let effectiveMinutes = defaultTotalMinutes;

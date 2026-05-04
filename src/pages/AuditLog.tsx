@@ -35,6 +35,8 @@ const ACTION_LABELS: Record<string, string> = {
   "log.locked": "Log Locked",
   "attendance.clocked_in": "Clocked In",
   "attendance.clocked_out": "Clocked Out",
+  "attendance.clock_in": "Clocked In",   // legacy key alias
+  "attendance.clock_out": "Clocked Out", // legacy key alias
   "attendance.edited": "Attendance Edited",
   "leave.requested": "Leave Requested",
   "leave.approved": "Leave Approved",

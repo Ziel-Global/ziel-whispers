@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, useRef, useCallback, Re
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const ACTIVITY_KEY = "ziel_last_activity";
 const SESSION_ID_KEY = "ziel_session_id";
@@ -20,6 +21,8 @@ type UserProfile = {
   avatar_url: string | null;
   status: string;
   must_change_password: boolean;
+  join_date: string | null;
+  created_at: string;
 };
 
 type AuthContextType = {
@@ -61,11 +64,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const statusCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionAgeCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionTimeoutMsRef = useRef<number>(8 * 60 * 60 * 1000);
+  const queryClient = useQueryClient();
 
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from("users")
-      .select("id, full_name, email, role, department, designation, avatar_url, status, must_change_password")
+      .select("id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at")
       .eq("id", userId)
       .maybeSingle();
 
@@ -278,6 +282,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem(SESSION_ID_KEY);
     localStorage.removeItem(ACTIVITY_KEY);
     localStorage.removeItem(SESSION_START_KEY);
+    sessionStorage.clear();
+    queryClient.clear();
     if (statusCheckRef.current) clearInterval(statusCheckRef.current);
     if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
     await supabase.auth.signOut();

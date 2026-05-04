@@ -21,6 +21,7 @@ const schema = z.object({
   client_id: z.string().min(1, "Required"),
   start_date: z.string().min(1, "Required"),
   end_date: z.string().optional(),
+  document_link: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 });
 
 export default function ProjectNewPage() {
@@ -36,7 +37,7 @@ export default function ProjectNewPage() {
     },
   });
 
-  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", client_id: "", start_date: new Date().toISOString().split("T")[0], end_date: "" } });
+  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", client_id: "", start_date: new Date().toISOString().split("T")[0], end_date: "", document_link: "" } });
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSaving(true);
@@ -47,6 +48,7 @@ export default function ProjectNewPage() {
         client_id: data.client_id,
         start_date: data.start_date,
         end_date: data.end_date || null,
+        document_link: data.document_link || null,
         created_by: profile?.id,
       }).select("id").single();
       if (error) throw error;
@@ -88,6 +90,9 @@ export default function ProjectNewPage() {
                 <FormItem><FormLabel>End Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
+            <FormField control={form.control} name="document_link" render={({ field }) => (
+              <FormItem><FormLabel>Document Link <span className="text-muted-foreground font-normal">(optional)</span></FormLabel><FormControl><Input {...field} placeholder="https://drive.google.com/..." /></FormControl><FormMessage /></FormItem>
+            )} />
             <div className="flex justify-end pt-2">
               <Button type="submit" disabled={saving} className="rounded-button">{saving ? "Creating…" : "Create Project"}</Button>
             </div>

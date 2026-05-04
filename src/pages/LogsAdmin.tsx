@@ -135,7 +135,7 @@ export default function LogsAdminPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift").eq("status", "active").neq("role", "admin").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
     },
   });
@@ -163,7 +163,13 @@ export default function LogsAdminPage() {
       if (a.user_id) attByUser[a.user_id] = a;
     });
 
-    const allRows = employees.map((emp: any) => {
+    const allRows = employees.filter((emp: any) => {
+      // Only show employees whose account existed on the selected date.
+      // created_at is used, NOT join_date, because join_date can be backdated by admins.
+      const createdAtDate = emp.created_at ? emp.created_at.split("T")[0] : null;
+      if (createdAtDate && selectedDate < createdAtDate) return false;
+      return true;
+    }).map((emp: any) => {
       const empLogs = logsByUser[emp.id] || [];
       const totalHours = empLogs.reduce((s: number, l: any) => s + Number(l.hours), 0);
       const empShiftStart = emp.has_custom_shift ? emp.shift_start : globalShiftStart;
@@ -214,7 +220,11 @@ export default function LogsAdminPage() {
       if (!logsByUser[l.user_id]) logsByUser[l.user_id] = [];
       logsByUser[l.user_id].push(l);
     });
-    return employees.map((emp: any) => {
+    return employees.filter((emp: any) => {
+      const createdAtDate = emp.created_at ? emp.created_at.split("T")[0] : null;
+      if (createdAtDate && selectedDate < createdAtDate) return false;
+      return true;
+    }).map((emp: any) => {
       const empLogs = logsByUser[emp.id] || [];
       const hasLogs = empLogs.length > 0;
       const hasLateLog = empLogs.some((l: any) => l.is_late);

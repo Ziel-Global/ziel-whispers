@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useWorkSettings, formatShiftTime, formatLateness } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString } from "@/hooks/useWorkSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,7 +15,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
-  const today = new Date().toISOString().split("T")[0];
+  const today = getPKTDateString();
   const { annualLeaveEntitlement, shiftStart } = useWorkSettings();
 
   // ——— Shared queries ———
@@ -34,7 +34,7 @@ export default function DashboardPage() {
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult, lateAttendanceResult] = await Promise.all([
-        supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active"),
+        supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active").lte("join_date", today),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
@@ -135,11 +135,11 @@ export default function DashboardPage() {
   const { data: urgentAnnouncements } = useQuery({
     queryKey: ["dashboard-urgent", user?.id],
     queryFn: async () => {
-      const { data: announcements, error } = await supabase.from("announcements").select("*, announcement_reads(dismissed)").eq("priority", "urgent").lte("publish_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(5);
+      const { data: announcements, error } = await supabase.from("announcements").select("*, announcement_reads(user_id, dismissed)").eq("priority", "urgent").lte("publish_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(5);
       if (error) throw error;
       return (announcements || []).filter((a) => {
         const reads = a.announcement_reads as any[];
-        return !reads?.some((r: any) => r.dismissed);
+        return !reads?.some((r: any) => r.user_id === user!.id && r.dismissed);
       });
     },
     enabled: !isAdmin && hasProfile && !!user?.id,
@@ -177,7 +177,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
           <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/employees")}>
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10"><Users className="h-5 w-5 text-primary-foreground" style={{ color: "hsl(82,100%,40%)" }} /></div>
+              <div className="p-2 rounded-md bg-primary/10"><Users className="h-5 w-5" /></div>
               <div><p className="text-sm text-muted-foreground">Active Employees</p><p className="text-2xl font-bold">{stats?.activeEmployees ?? "—"}</p></div>
             </div>
           </Card>
@@ -345,6 +345,8 @@ export default function DashboardPage() {
           <p className="text-sm">
             {hasSubmittedLog ? (
               <span className="text-green-700">Submitted ({todayLogs!.length} {todayLogs!.length === 1 ? "entry" : "entries"})</span>
+            ) : (profile?.created_at && today <= profile.created_at.split("T")[0]) ? (
+              <span className="text-muted-foreground">Not yet started</span>
             ) : (
               <span className="text-red-600">Not submitted yet</span>
             )}

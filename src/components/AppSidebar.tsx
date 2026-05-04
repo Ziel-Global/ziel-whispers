@@ -66,6 +66,7 @@ const employeeNav = [
   { title: "My Logs", url: "/logs/my", icon: ClipboardList },
   { title: "My Attendance", url: "/attendance/my", icon: Clock },
   { title: "My Leave", url: "/leave/my", icon: CalendarCheck },
+  { title: "My Projects", url: "/my-projects", icon: FolderKanban },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
   { title: "Profile", url: "/profile", icon: User },
 ];

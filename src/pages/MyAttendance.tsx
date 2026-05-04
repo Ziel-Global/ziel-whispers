@@ -11,11 +11,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle } from "lucide-react";
+import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
 
 export default function MyAttendancePage() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const { shiftStart, shiftEnd } = useWorkSettings();
   const [workMode, setWorkMode] = useState("");
@@ -29,7 +30,7 @@ export default function MyAttendancePage() {
    const today = getPKTDateString();
 
   // Check for any open (unclosed) attendance session
-  const { data: openSession } = useQuery({
+  const { data: openSession, isLoading: isLoadingOpen } = useQuery({
     queryKey: ["attendance-open-session", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -48,7 +49,7 @@ export default function MyAttendancePage() {
   });
 
   // Today's attendance
-  const { data: todayRecord } = useQuery({
+  const { data: todayRecord, isLoading: isLoadingToday } = useQuery({
     queryKey: ["attendance-today", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -116,10 +117,11 @@ export default function MyAttendancePage() {
   }, [openSession]);
 
   const formatDuration = (secs: number) => {
-    const h = Math.floor(secs / 3600);
-    const m = Math.floor((secs % 3600) / 60);
-    const s = secs % 60;
-    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+    const s = Math.max(0, secs);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
   const performClockIn = async () => {
@@ -135,7 +137,15 @@ export default function MyAttendancePage() {
       });
       if (error) throw error;
       await supabase.from("audit_logs").insert({
-        actor_id: user!.id, action: "attendance.clock_in", target_entity: "attendance",
+        actor_id: user!.id,
+        action: "attendance.clocked_in",
+        target_entity: "attendance",
+        metadata: {
+          clock_in: getPKTISOString(),
+          work_mode: workMode,
+          notes: notes || null,
+          date: today,
+        },
       });
       toast.success("Clocked in successfully");
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
@@ -167,7 +177,14 @@ export default function MyAttendancePage() {
         .eq("id", openSession.id);
       if (error) throw error;
       await supabase.from("audit_logs").insert({
-        actor_id: user!.id, action: "attendance.clock_out", target_entity: "attendance",
+        actor_id: user!.id,
+        action: "attendance.clocked_out",
+        target_entity: "attendance",
+        target_id: openSession.id,
+        metadata: {
+          clock_out: getPKTISOString(),
+          date: today,
+        },
       });
       toast.success("Clocked out successfully");
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
@@ -191,7 +208,15 @@ export default function MyAttendancePage() {
     if (isWeekend(d)) return "bg-muted text-muted-foreground";
     const rec = getRecordForDay(d);
     if (!rec) {
-      if (d < new Date() && isSameMonth(d, calMonth)) return "bg-red-100 text-red-700";
+      // Only show as absent (red) if the date is strictly AFTER the account creation date.
+      // created_at is the definitive boundary — join_date can be backdated by admins.
+      const dateStr = format(d, "yyyy-MM-dd");
+      const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
+      
+      if (d < new Date() && isSameMonth(d, calMonth)) {
+        if (createdAtDate && dateStr <= createdAtDate) return ""; // Account didn't exist yet
+        return "bg-red-100 text-red-700";
+      }
       return "";
     }
     if (rec.is_late) return "bg-yellow-100 text-yellow-700";
@@ -206,7 +231,12 @@ export default function MyAttendancePage() {
     const isPast = d < new Date() && !isSameDay(d, new Date());
 
     if (!logInfo || logInfo.count === 0) {
-      if (isPast) return { label: "No Log", color: "text-red-500" };
+      if (isPast) {
+        // Use created_at as the boundary — not join_date which admins can backdate.
+        const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
+        if (createdAtDate && dateStr <= createdAtDate) return null; // Account didn't exist yet
+        return { label: "No Log", color: "text-red-500" };
+      }
       return null;
     }
     if (logInfo.hasLate) return { label: "Late", color: "text-amber-600" };
@@ -235,7 +265,15 @@ export default function MyAttendancePage() {
       {/* Clock In/Out Widget */}
       <Card className="p-6">
         <div className="flex flex-col items-center gap-4">
-          <p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
+          {(isLoadingOpen || isLoadingToday) ? (
+            <div className="flex flex-col items-center gap-4 w-full py-4">
+              <Skeleton className="h-4 w-48" />
+              <Skeleton className="h-12 w-12 rounded-full" />
+              <Skeleton className="h-10 w-full max-w-xs" />
+            </div>
+          ) : (
+            <>
+              <p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
 
           {hasOpenSession && (
             <>
@@ -285,12 +323,14 @@ export default function MyAttendancePage() {
                   <Label>Notes (optional)</Label>
                   <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes…" rows={2} />
                 </div>
-                <Button onClick={handleClockIn} disabled={loading} size="lg" className="w-full rounded-button">
-                  <LogIn className="h-5 w-5 mr-2" />
-                  Clock In
-                </Button>
-              </div>
-            </>
+                  <Button onClick={handleClockIn} disabled={loading} size="lg" className="w-full rounded-button">
+                    <LogIn className="h-5 w-5 mr-2" />
+                    Clock In
+                  </Button>
+                </div>
+              </>
+            )}
+          </>
           )}
         </div>
       </Card>
@@ -346,7 +386,7 @@ export default function MyAttendancePage() {
               <strong>Clock In:</strong> {selectedRecord.clock_in ? formatPKTTime(selectedRecord.clock_in) : "—"}
               {selectedRecord.is_late && (
                 <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
-                  Late by {formatLateness((selectedRecord as any).hours_late, selectedRecord.minutes_late)}
+                  Late by {formatLateness(selectedRecord.minutes_late)}
                 </Badge>
               )}
             </p>

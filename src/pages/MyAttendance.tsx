@@ -193,12 +193,13 @@ export default function MyAttendancePage() {
     if (isWeekend(d)) return "bg-muted text-muted-foreground";
     const rec = getRecordForDay(d);
     if (!rec) {
-      // Only show as absent (red) if the date is on or after join_date
+      // Only show as absent (red) if the date is strictly AFTER the account creation date.
+      // created_at is the definitive boundary — join_date can be backdated by admins.
       const dateStr = format(d, "yyyy-MM-dd");
-      const joinDate = profile?.join_date;
+      const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
       
       if (d < new Date() && isSameMonth(d, calMonth)) {
-        if (joinDate && dateStr < joinDate) return ""; // Not employed yet
+        if (createdAtDate && dateStr <= createdAtDate) return ""; // Account didn't exist yet
         return "bg-red-100 text-red-700";
       }
       return "";
@@ -216,8 +217,9 @@ export default function MyAttendancePage() {
 
     if (!logInfo || logInfo.count === 0) {
       if (isPast) {
-        const joinDate = profile?.join_date;
-        if (joinDate && dateStr < joinDate) return null; // Not employed yet
+        // Use created_at as the boundary — not join_date which admins can backdate.
+        const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
+        if (createdAtDate && dateStr <= createdAtDate) return null; // Account didn't exist yet
         return { label: "No Log", color: "text-red-500" };
       }
       return null;

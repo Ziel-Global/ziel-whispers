@@ -135,7 +135,7 @@ export default function LogsAdminPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, join_date").eq("status", "active").neq("role", "admin").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
     },
   });
@@ -164,8 +164,10 @@ export default function LogsAdminPage() {
     });
 
     const allRows = employees.filter((emp: any) => {
-      // FIX: Only show employees who had already joined on the selected date
-      if (emp.join_date && selectedDate < emp.join_date) return false;
+      // Only show employees whose account existed on the selected date.
+      // created_at is used, NOT join_date, because join_date can be backdated by admins.
+      const createdAtDate = emp.created_at ? emp.created_at.split("T")[0] : null;
+      if (createdAtDate && selectedDate < createdAtDate) return false;
       return true;
     }).map((emp: any) => {
       const empLogs = logsByUser[emp.id] || [];
@@ -219,7 +221,8 @@ export default function LogsAdminPage() {
       logsByUser[l.user_id].push(l);
     });
     return employees.filter((emp: any) => {
-      if (emp.join_date && selectedDate < emp.join_date) return false;
+      const createdAtDate = emp.created_at ? emp.created_at.split("T")[0] : null;
+      if (createdAtDate && selectedDate < createdAtDate) return false;
       return true;
     }).map((emp: any) => {
       const empLogs = logsByUser[emp.id] || [];

@@ -20,12 +20,14 @@ export function MissingLogAlert() {
   const yesterdayStr = getPKTDateString(yesterday);
 
   const { data: logsData } = useQuery({
-    queryKey: ["missing-log-check", user?.id, yesterdayStr, profile?.join_date],
+    queryKey: ["missing-log-check", user?.id, yesterdayStr, profile?.created_at],
     queryFn: async () => {
-      // FIX: Check if employee had even joined by yesterday
-      const joinDate = profile?.join_date;
-      if (joinDate && yesterdayStr < joinDate) {
-        return { totalLogged: 8, expectedHours: 8 }; // Fake a full log to suppress alert
+      // Use created_at (not join_date) as the strict boundary.
+      // join_date can be backdated by admins and should NOT affect this check.
+      const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
+      if (createdAtDate && yesterdayStr <= createdAtDate) {
+        // Account was created on or after yesterday — user cannot have missed any logs yet
+        return { totalLogged: 8, expectedHours: 8 }; // Suppress alert
       }
 
       // 1. Get logs for yesterday

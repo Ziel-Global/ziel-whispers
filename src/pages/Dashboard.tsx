@@ -135,11 +135,11 @@ export default function DashboardPage() {
   const { data: urgentAnnouncements } = useQuery({
     queryKey: ["dashboard-urgent", user?.id],
     queryFn: async () => {
-      const { data: announcements, error } = await supabase.from("announcements").select("*, announcement_reads(dismissed)").eq("priority", "urgent").lte("publish_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(5);
+      const { data: announcements, error } = await supabase.from("announcements").select("*, announcement_reads(user_id, dismissed)").eq("priority", "urgent").lte("publish_at", new Date().toISOString()).order("created_at", { ascending: false }).limit(5);
       if (error) throw error;
       return (announcements || []).filter((a) => {
         const reads = a.announcement_reads as any[];
-        return !reads?.some((r: any) => r.dismissed);
+        return !reads?.some((r: any) => r.user_id === user!.id && r.dismissed);
       });
     },
     enabled: !isAdmin && hasProfile && !!user?.id,
@@ -345,7 +345,7 @@ export default function DashboardPage() {
           <p className="text-sm">
             {hasSubmittedLog ? (
               <span className="text-green-700">Submitted ({todayLogs!.length} {todayLogs!.length === 1 ? "entry" : "entries"})</span>
-            ) : (profile?.join_date && today < profile.join_date) ? (
+            ) : (profile?.created_at && today <= profile.created_at.split("T")[0]) ? (
               <span className="text-muted-foreground">Not yet started</span>
             ) : (
               <span className="text-red-600">Not submitted yet</span>

@@ -137,7 +137,15 @@ export default function MyAttendancePage() {
       });
       if (error) throw error;
       await supabase.from("audit_logs").insert({
-        actor_id: user!.id, action: "attendance.clock_in", target_entity: "attendance",
+        actor_id: user!.id,
+        action: "attendance.clocked_in",
+        target_entity: "attendance",
+        metadata: {
+          clock_in: getPKTISOString(),
+          work_mode: workMode,
+          notes: notes || null,
+          date: today,
+        },
       });
       toast.success("Clocked in successfully");
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
@@ -169,7 +177,14 @@ export default function MyAttendancePage() {
         .eq("id", openSession.id);
       if (error) throw error;
       await supabase.from("audit_logs").insert({
-        actor_id: user!.id, action: "attendance.clock_out", target_entity: "attendance",
+        actor_id: user!.id,
+        action: "attendance.clocked_out",
+        target_entity: "attendance",
+        target_id: openSession.id,
+        metadata: {
+          clock_out: getPKTISOString(),
+          date: today,
+        },
       });
       toast.success("Clocked out successfully");
       queryClient.invalidateQueries({ queryKey: ["attendance-today"] });

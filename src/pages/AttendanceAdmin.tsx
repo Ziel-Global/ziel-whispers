@@ -127,6 +127,13 @@ export default function AttendanceAdminPage() {
         action: "attendance.edited",
         target_entity: "attendance",
         target_id: editRecord.id,
+        metadata: {
+          employee: editRecord.users?.full_name || editRecord.user_id,
+          date: editRecord.date,
+          new_clock_in: clockIn,
+          new_clock_out: clockOut || null,
+          notes: editNotes || null,
+        },
       });
 
       toast.success("Attendance updated");

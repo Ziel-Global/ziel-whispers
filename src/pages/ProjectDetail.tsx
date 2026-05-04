@@ -15,7 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, Plus, Trash2, Download, Search } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
@@ -206,12 +206,11 @@ export default function ProjectDetailPage() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          {isAdmin && <TabsTrigger value="members">Members ({members?.length || 0})</TabsTrigger>}
-          <TabsTrigger value="logs">Logs</TabsTrigger>
-          <TabsTrigger value="stats">Stats</TabsTrigger>
+          <TabsTrigger value="members">Members ({members?.length || 0})</TabsTrigger>
+          {isAdmin && <TabsTrigger value="logs">Logs</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="stats">Stats</TabsTrigger>}
         </TabsList>
 
-        {/* OVERVIEW */}
         <TabsContent value="overview">
           <Card className="p-6 space-y-4">
             {project.description && <p className="text-muted-foreground">{project.description}</p>}
@@ -221,6 +220,20 @@ export default function ProjectDetailPage() {
               <div><span className="text-muted-foreground block">End Date</span><span className="font-medium">{project.end_date ? format(new Date(project.end_date), "MMM d, yyyy") : "—"}</span></div>
               <div><span className="text-muted-foreground block">Status</span><span className="font-medium">{project.status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
             </div>
+            {(project as any).document_link && (
+              <div className="pt-2">
+                <span className="text-sm text-muted-foreground block mb-1">Document / Drive Link</span>
+                <a
+                  href={(project as any).document_link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline font-medium"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Open Document
+                </a>
+              </div>
+            )}
             {isAdmin && (
               <div className="space-y-3 pt-4 border-t">
                 <div className="flex gap-3 items-end">
@@ -247,116 +260,123 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* MEMBERS */}
+        {/* MEMBERS — Admin: full management; Employee: view-only */}
+        <TabsContent value="members">
+          <Card>
+            <div className="p-4 flex justify-between items-center border-b">
+              <span className="font-medium">{members?.length || 0} members</span>
+              {isAdmin && (
+                <Button size="sm" onClick={() => setAddMemberOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Member</Button>
+              )}
+            </div>
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Role</TableHead>
+                {isAdmin && <><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead></>}
+              </TableRow></TableHeader>
+              <TableBody>
+                {members?.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7"><AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback></Avatar>
+                        {(m.users as any)?.full_name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{(m.users as any)?.designation}</TableCell>
+                    <TableCell><Badge variant="outline">{(m.project_roles as any)?.name || "Member"}</Badge></TableCell>
+                    {isAdmin && (
+                      <>
+                        <TableCell className="text-muted-foreground">{format(new Date(m.assigned_at), "MMM d, yyyy")}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => removeMember(m.id, (m.users as any)?.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                ))}
+                {(!members || members.length === 0) && <TableRow><TableCell colSpan={isAdmin ? 5 : 3} className="text-center text-muted-foreground py-8">No members assigned</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* LOGS — admin only */}
         {isAdmin && (
-          <TabsContent value="members">
+          <TabsContent value="logs">
             <Card>
               <div className="p-4 flex justify-between items-center border-b">
-                <span className="font-medium">{members?.length || 0} members</span>
-                <Button size="sm" onClick={() => setAddMemberOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Member</Button>
+                <span className="font-medium">{logs?.length || 0} logs · {formatHours(totalHours)} total</span>
+                <Button variant="outline" size="sm" onClick={() => exportCSV(
+                  (logs || []).map((l) => ({ Date: l.log_date, Employee: (l.users as any)?.full_name, Category: l.category, Hours: l.hours, Description: l.description })),
+                  `${project.name}-logs.csv`
+                )}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
               </div>
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Role</TableHead><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead>
+                  <TableHead>Date</TableHead><TableHead>Employee</TableHead><TableHead>Category</TableHead><TableHead>Hours</TableHead><TableHead>Description</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
-                  {members?.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
-                    <TableRow key={m.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Avatar className="h-7 w-7"><AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback></Avatar>
-                          {(m.users as any)?.full_name}
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">{(m.users as any)?.designation}</TableCell>
-                      <TableCell><Badge variant="outline">{(m.project_roles as any)?.name || "Member"}</Badge></TableCell>
-                      <TableCell className="text-muted-foreground">{format(new Date(m.assigned_at), "MMM d, yyyy")}</TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => removeMember(m.id, (m.users as any)?.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </TableCell>
+                  {logs?.map((l) => (
+                    <TableRow key={l.id}>
+                      <TableCell>{format(new Date(l.log_date), "MMM d")}</TableCell>
+                      <TableCell>{(l.users as any)?.full_name}</TableCell>
+                      <TableCell><Badge variant="outline">{l.category}</Badge></TableCell>
+                      <TableCell>{formatHours(Number(l.hours))}</TableCell>
+                      <TableCell className="max-w-xs truncate">{l.description}</TableCell>
                     </TableRow>
                   ))}
-                  {(!members || members.length === 0) && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No members assigned</TableCell></TableRow>}
+                  {(!logs || logs.length === 0) && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No logs yet</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </Card>
           </TabsContent>
         )}
 
-        {/* LOGS */}
-        <TabsContent value="logs">
-          <Card>
-            <div className="p-4 flex justify-between items-center border-b">
-              <span className="font-medium">{logs?.length || 0} logs · {formatHours(totalHours)} total</span>
-              <Button variant="outline" size="sm" onClick={() => exportCSV(
-                (logs || []).map((l) => ({ Date: l.log_date, Employee: (l.users as any)?.full_name, Category: l.category, Hours: l.hours, Description: l.description })),
-                `${project.name}-logs.csv`
-              )}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+        {/* STATS — admin only */}
+        {isAdmin && (
+          <TabsContent value="stats">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Total Hours</p><p className="text-3xl font-bold">{formatHours(totalHours)}</p></Card>
+              <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Team Members</p><p className="text-3xl font-bold">{members?.length || 0}</p></Card>
+              <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Log Entries</p><p className="text-3xl font-bold">{logs?.length || 0}</p></Card>
             </div>
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead>Date</TableHead><TableHead>Employee</TableHead><TableHead>Category</TableHead><TableHead>Hours</TableHead><TableHead>Description</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {logs?.map((l) => (
-                  <TableRow key={l.id}>
-                    <TableCell>{format(new Date(l.log_date), "MMM d")}</TableCell>
-                    <TableCell>{(l.users as any)?.full_name}</TableCell>
-                    <TableCell><Badge variant="outline">{l.category}</Badge></TableCell>
-                    <TableCell>{formatHours(Number(l.hours))}</TableCell>
-                    <TableCell className="max-w-xs truncate">{l.description}</TableCell>
-                  </TableRow>
-                ))}
-                {(!logs || logs.length === 0) && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No logs yet</TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
-
-        {/* STATS */}
-        <TabsContent value="stats">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Total Hours</p><p className="text-3xl font-bold">{formatHours(totalHours)}</p></Card>
-            <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Team Members</p><p className="text-3xl font-bold">{members?.length || 0}</p></Card>
-            <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Log Entries</p><p className="text-3xl font-bold">{logs?.length || 0}</p></Card>
-          </div>
-
-          {hoursByMember.length > 0 && (
-            <Card className="p-5 mb-4">
-              <h3 className="font-medium mb-3">Hours by Team Member</h3>
-              <ResponsiveContainer width="100%" height={Math.max(200, hoursByMember.length * 40)}>
-                <BarChart data={hoursByMember} layout="vertical" margin={{ left: 100 }}>
-                  <XAxis type="number" /><YAxis type="category" dataKey="name" width={90} />
-                  <Tooltip /><Bar dataKey="hours" fill="hsl(82,100%,72%)" radius={[0, 4, 4, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </Card>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {categoryBreakdown.length > 0 && (
-              <Card className="p-5">
-                <h3 className="font-medium mb-3">Category Breakdown</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <PieChart>
-                    <Pie data={categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                      {categoryBreakdown.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
+            {hoursByMember.length > 0 && (
+              <Card className="p-5 mb-4">
+                <h3 className="font-medium mb-3">Hours by Team Member</h3>
+                <ResponsiveContainer width="100%" height={Math.max(200, hoursByMember.length * 40)}>
+                  <BarChart data={hoursByMember} layout="vertical" margin={{ left: 100 }}>
+                    <XAxis type="number" /><YAxis type="category" dataKey="name" width={90} />
+                    <Tooltip /><Bar dataKey="hours" fill="hsl(82,100%,72%)" radius={[0, 4, 4, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </Card>
             )}
-            {weeklyLogs.length > 0 && (
-              <Card className="p-5">
-                <h3 className="font-medium mb-3">Weekly Hours</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={weeklyLogs}><XAxis dataKey="week" /><YAxis /><Tooltip /><Line type="monotone" dataKey="hours" stroke="hsl(82,100%,72%)" strokeWidth={2} /></LineChart>
-                </ResponsiveContainer>
-              </Card>
-            )}
-          </div>
-        </TabsContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {categoryBreakdown.length > 0 && (
+                <Card className="p-5">
+                  <h3 className="font-medium mb-3">Category Breakdown</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <PieChart>
+                      <Pie data={categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                        {categoryBreakdown.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </Card>
+              )}
+              {weeklyLogs.length > 0 && (
+                <Card className="p-5">
+                  <h3 className="font-medium mb-3">Weekly Hours</h3>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={weeklyLogs}><XAxis dataKey="week" /><YAxis /><Tooltip /><Line type="monotone" dataKey="hours" stroke="hsl(82,100%,72%)" strokeWidth={2} /></LineChart>
+                  </ResponsiveContainer>
+                </Card>
+              )}
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Add Member Sheet */}

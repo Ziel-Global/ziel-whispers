@@ -16,6 +16,7 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
+  const isWeekendDay = new Date(today + "T00:00:00").getDay() === 0 || new Date(today + "T00:00:00").getDay() === 6;
   const { annualLeaveEntitlement, shiftStart } = useWorkSettings();
 
   // ——— Shared queries ———
@@ -329,6 +330,8 @@ export default function DashboardPage() {
             </>
           ) : todayAttendance?.clock_out ? (
             <p className="text-sm text-muted-foreground">Completed today</p>
+          ) : isWeekendDay ? (
+            <p className="text-sm text-muted-foreground">Weekend (Off)</p>
           ) : (
             <p className="text-sm text-muted-foreground">Not clocked in</p>
           )}
@@ -347,11 +350,13 @@ export default function DashboardPage() {
               <span className="text-green-700">Submitted ({todayLogs!.length} {todayLogs!.length === 1 ? "entry" : "entries"})</span>
             ) : (profile?.created_at && today <= profile.created_at.split("T")[0]) ? (
               <span className="text-muted-foreground">Not yet started</span>
+            ) : isWeekendDay ? (
+              <span className="text-muted-foreground">Weekend (Off)</span>
             ) : (
               <span className="text-red-600">Not submitted yet</span>
             )}
           </p>
-          <Button size="sm" variant={hasSubmittedLog ? "outline" : "default"} className="mt-3 rounded-button w-full" onClick={() => navigate("/logs/submit")}>
+          <Button size="sm" variant={hasSubmittedLog ? "outline" : "default"} disabled={!hasSubmittedLog && isWeekendDay} className="mt-3 rounded-button w-full" onClick={() => navigate("/logs/submit")}>
             {hasSubmittedLog ? "Add Another" : "Submit Log"}
           </Button>
         </Card>

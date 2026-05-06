@@ -20,7 +20,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Trash2, Pencil, CheckCircle2, History, Send, ListPlus, AlertCircle, CalendarClock, Lock } from "lucide-react";
 import { format, parseISO } from "date-fns";
 
-const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
+const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
 const NO_PROJECT = "__none__";
 const getStorageKey = (userId: string) => `ziel_pending_logs_${userId}`;
 
@@ -90,6 +90,9 @@ export default function LogSubmitPage() {
     hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
     description: z.string().min(20, "Min 20 characters"),
     log_date: z.string().min(1, "Date is required").refine((v) => {
+      const day = new Date(v + "T00:00:00").getDay();
+      return day !== 0 && day !== 6;
+    }, "Cannot submit logs for Saturday or Sunday").refine((v) => {
       return v >= minDate && v <= today;
     }, `You can only submit logs for today or up to ${logEditDays} days in the past`),
   });
@@ -300,7 +303,17 @@ export default function LogSubmitPage() {
               <FormField control={form.control} name="log_date" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Log Date</FormLabel>
-                  <FormControl><Input type="date" className="bg-background" {...field} min={minDate} max={today} /></FormControl>
+                  <FormControl><Input type="date" className="bg-background" {...field} onChange={(e) => {
+                    const v = e.target.value;
+                    if (v) {
+                      const day = new Date(v + "T00:00:00").getDay();
+                      if (day === 0 || day === 6) {
+                        toast.error("Cannot select Saturday or Sunday for logs");
+                        return;
+                      }
+                    }
+                    field.onChange(e);
+                  }} min={minDate} max={today} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />

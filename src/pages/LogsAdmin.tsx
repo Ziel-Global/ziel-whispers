@@ -180,9 +180,11 @@ export default function LogsAdminPage() {
       // Log status: missed / added / late
       const hasLogs = empLogs.length > 0;
       const hasLateLog = empLogs.some((l: any) => l.is_late);
-      let logStatus: "missed" | "added" | "late" = "missed";
+      const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
+      let logStatus: "missed" | "added" | "late" | "none" = "missed";
       if (hasLogs && hasLateLog) logStatus = "late";
       else if (hasLogs) logStatus = "added";
+      else if (isWeekend) logStatus = "none";
 
       // Has any flagged log
       const hasFlaggedLog = empLogs.some((l: any) => l.admin_flagged);
@@ -207,6 +209,8 @@ export default function LogsAdminPage() {
         (statusFilter === "missed" && r.logStatus === "missed") ||
         (statusFilter === "added" && r.logStatus === "added") ||
         (statusFilter === "late" && r.logStatus === "late");
+      // If status filter is missed, we don't show "none"
+      if (r.logStatus === "none" && statusFilter !== "all") return false;
       const matchSearch = !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || r.logs.some((l: any) => l.description?.toLowerCase().includes(searchQ.toLowerCase()));
       return matchEmp && matchStatus && matchSearch;
     }).sort((a, b) => a.name.localeCompare(b.name));
@@ -228,9 +232,11 @@ export default function LogsAdminPage() {
       const empLogs = logsByUser[emp.id] || [];
       const hasLogs = empLogs.length > 0;
       const hasLateLog = empLogs.some((l: any) => l.is_late);
-      let logStatus: "missed" | "added" | "late" = "missed";
+      const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
+      let logStatus: "missed" | "added" | "late" | "none" = "missed";
       if (hasLogs && hasLateLog) logStatus = "late";
       else if (hasLogs) logStatus = "added";
+      else if (isWeekend) logStatus = "none";
       return { userId: emp.id, name: emp.full_name, logStatus };
     });
   }, [logs, employees]);
@@ -416,7 +422,8 @@ export default function LogsAdminPage() {
                         <TableCell>
                           {row.logStatus === "missed" ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
                             row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
-                              <Badge className="bg-green-100 text-green-800">Added</Badge>}
+                            row.logStatus === "none" ? <Badge className="bg-gray-100 text-gray-500">N/A</Badge> :
+                                <Badge className="bg-green-100 text-green-800">Added</Badge>}
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2 border border-border rounded-md px-3 py-1.5">

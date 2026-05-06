@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict R3Hui3cWU4dxfGtftwGlUHGGJ4zcs8jXqXYIsf33TpfCWucG3WVmOZ4zkXdfQ7R
+\restrict JKf5ExJv35HGeyJUvIW7UkyO3NsvEeqrWFUocYhaDfKzg2dGMfE8mhIkzZ4jGeo
 
 -- Dumped from database version 17.6
 -- Dumped by pg_dump version 18.3
@@ -127,20 +127,6 @@ CREATE SCHEMA vault;
 
 
 ALTER SCHEMA vault OWNER TO supabase_admin;
-
---
--- Name: pg_graphql; Type: EXTENSION; Schema: -; Owner: -
---
-
-CREATE EXTENSION IF NOT EXISTS pg_graphql WITH SCHEMA graphql;
-
-
---
--- Name: EXTENSION pg_graphql; Type: COMMENT; Schema: -; Owner: 
---
-
-COMMENT ON EXTENSION pg_graphql IS 'pg_graphql: GraphQL support';
-
 
 --
 -- Name: pg_stat_statements; Type: EXTENSION; Schema: -; Owner: -
@@ -798,6 +784,41 @@ COMMENT ON FUNCTION extensions.set_graphql_placeholder() IS 'Reintroduces placeh
 
 
 --
+-- Name: graphql(text, text, jsonb, jsonb); Type: FUNCTION; Schema: graphql_public; Owner: supabase_admin
+--
+
+CREATE FUNCTION graphql_public.graphql("operationName" text DEFAULT NULL::text, query text DEFAULT NULL::text, variables jsonb DEFAULT NULL::jsonb, extensions jsonb DEFAULT NULL::jsonb) RETURNS jsonb
+    LANGUAGE plpgsql
+    AS $$
+            DECLARE
+                server_version float;
+            BEGIN
+                server_version = (SELECT (SPLIT_PART((select version()), ' ', 2))::float);
+
+                IF server_version >= 14 THEN
+                    RETURN jsonb_build_object(
+                        'errors', jsonb_build_array(
+                            jsonb_build_object(
+                                'message', 'pg_graphql extension is not enabled.'
+                            )
+                        )
+                    );
+                ELSE
+                    RETURN jsonb_build_object(
+                        'errors', jsonb_build_array(
+                            jsonb_build_object(
+                                'message', 'pg_graphql is only available on projects running Postgres 14 onwards.'
+                            )
+                        )
+                    );
+                END IF;
+            END;
+        $$;
+
+
+ALTER FUNCTION graphql_public.graphql("operationName" text, query text, variables jsonb, extensions jsonb) OWNER TO supabase_admin;
+
+--
 -- Name: get_auth(text); Type: FUNCTION; Schema: pgbouncer; Owner: supabase_admin
 --
 
@@ -834,60 +855,51 @@ CREATE FUNCTION public.calculate_late_clockin() RETURNS trigger
 DECLARE
   v_shift_start time;
   v_has_custom boolean;
-  v_grace_minutes integer;
-  v_clock_in_time timestamp;
-  v_shift_start_ts timestamp;
-  v_total_late_minutes integer;
+  v_grace_minutes integer := 15;
+  v_clock_in_time time;
+  v_diff_minutes integer;
   v_day_of_week integer;
-  v_timezone text;
+  v_timezone text := 'Asia/Karachi'; -- HARDCODED TO PKT as requested
 BEGIN
+  -- 1. Check if clock_in is present
   IF NEW.clock_in IS NULL THEN
     RETURN NEW;
   END IF;
 
+  -- 2. Skip weekends (6=Saturday, 7=Sunday in ISO)
   v_day_of_week := EXTRACT(ISODOW FROM NEW.date);
   IF v_day_of_week IN (6, 7) THEN
-    NEW.is_late := false;
-    NEW.minutes_late := 0;
-    NEW.hours_late := 0;
     RETURN NEW;
   END IF;
 
-  -- Read grace period from settings (no hardcoded fallback at runtime; seeded by migration)
-  SELECT value::integer INTO v_grace_minutes
+  -- 3. Get grace period from system_settings
+  SELECT COALESCE(value::integer, 15) INTO v_grace_minutes
   FROM public.system_settings WHERE key = 'late_grace_minutes';
-  IF v_grace_minutes IS NULL THEN
-    v_grace_minutes := 15;
-  END IF;
 
-  SELECT value INTO v_timezone
-  FROM public.system_settings WHERE key = 'timezone';
-  IF v_timezone IS NULL THEN
-    v_timezone := 'Asia/Karachi';
-  END IF;
-
+  -- 4. Get employee's shift info
   SELECT has_custom_shift, shift_start INTO v_has_custom, v_shift_start
   FROM public.users WHERE id = NEW.user_id;
 
+  -- 5. Fallback to global shift
   IF NOT COALESCE(v_has_custom, false) THEN
     SELECT value::time INTO v_shift_start
     FROM public.system_settings WHERE key = 'default_shift_start';
+
     IF v_shift_start IS NULL THEN
       v_shift_start := '09:00'::time;
     END IF;
   END IF;
 
-  v_shift_start_ts := (NEW.date || ' ' || v_shift_start::text)::timestamp;
-  v_clock_in_time := (NEW.clock_in AT TIME ZONE v_timezone)::timestamp;
-  v_total_late_minutes := EXTRACT(EPOCH FROM (v_clock_in_time - v_shift_start_ts))::integer / 60;
+  -- 6. Calculate lateness (LOCK TO PKT)
+  -- AT TIME ZONE 'Asia/Karachi' on a timestamptz correctly shifts it to PKT
+  v_clock_in_time := (NEW.clock_in AT TIME ZONE v_timezone)::time;
+  v_diff_minutes := EXTRACT(EPOCH FROM (v_clock_in_time - v_shift_start))::integer / 60;
 
-  IF v_total_late_minutes > v_grace_minutes THEN
+  IF v_diff_minutes > v_grace_minutes THEN
     NEW.is_late := true;
-    NEW.hours_late := FLOOR(v_total_late_minutes / 60)::integer;
-    NEW.minutes_late := v_total_late_minutes % 60;
+    NEW.minutes_late := v_diff_minutes;
   ELSE
     NEW.is_late := false;
-    NEW.hours_late := 0;
     NEW.minutes_late := 0;
   END IF;
 
@@ -970,6 +982,25 @@ $$;
 
 
 ALTER FUNCTION public.handle_new_user_leave_balances() OWNER TO postgres;
+
+--
+-- Name: is_project_member(uuid); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.is_project_member(p_id uuid) RETURNS boolean
+    LANGUAGE sql SECURITY DEFINER
+    SET search_path TO 'public'
+    AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM project_members
+    WHERE project_id = p_id
+      AND user_id = auth.uid()
+      AND removed_at IS NULL
+  );
+$$;
+
+
+ALTER FUNCTION public.is_project_member(p_id uuid) OWNER TO postgres;
 
 --
 -- Name: apply_rls(jsonb, integer); Type: FUNCTION; Schema: realtime; Owner: supabase_admin
@@ -5707,15 +5738,6 @@ CREATE POLICY "Admin/Manager can view all missed logs" ON public.missed_logs FOR
 
 
 --
--- Name: projects Admin/Manager can view all projects; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY "Admin/Manager can view all projects" ON public.projects FOR SELECT USING (((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])) OR (EXISTS ( SELECT 1
-   FROM public.project_members pm
-  WHERE ((pm.project_id = projects.id) AND (pm.user_id = auth.uid()) AND (pm.removed_at IS NULL))))));
-
-
---
 -- Name: users Admin/Manager can view all users; employee own; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -5727,6 +5749,22 @@ CREATE POLICY "Admin/Manager can view all users; employee own" ON public.users F
 --
 
 CREATE POLICY "Admin/Manager can view clients" ON public.clients FOR SELECT USING ((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])));
+
+
+--
+-- Name: clients Admin/Manager/Members can view clients; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Admin/Manager/Members can view clients" ON public.clients FOR SELECT TO authenticated USING (((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])) OR (EXISTS ( SELECT 1
+   FROM public.projects p
+  WHERE ((p.client_id = clients.id) AND public.is_project_member(p.id))))));
+
+
+--
+-- Name: projects Admin/Manager/Members can view projects; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Admin/Manager/Members can view projects" ON public.projects FOR SELECT TO authenticated USING (((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])) OR public.is_project_member(id)));
 
 
 --
@@ -5795,20 +5833,17 @@ CREATE POLICY "Employees can update own unlocked logs" ON public.daily_logs FOR 
 
 
 --
--- Name: clients Employees can view clients of their projects; Type: POLICY; Schema: public; Owner: postgres
+-- Name: project_members Members can view all members of their projects; Type: POLICY; Schema: public; Owner: postgres
 --
 
-CREATE POLICY "Employees can view clients of their projects" ON public.clients FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM (public.project_members pm
-     JOIN public.projects p ON ((p.id = pm.project_id)))
-  WHERE ((p.client_id = clients.id) AND (pm.user_id = auth.uid()) AND (pm.removed_at IS NULL)))));
+CREATE POLICY "Members can view all members of their projects" ON public.project_members FOR SELECT TO authenticated USING (((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])) OR public.is_project_member(project_id)));
 
 
 --
--- Name: project_members Employees can view own project memberships; Type: POLICY; Schema: public; Owner: postgres
+-- Name: daily_logs Users can delete own unlocked logs; Type: POLICY; Schema: public; Owner: postgres
 --
 
-CREATE POLICY "Employees can view own project memberships" ON public.project_members FOR SELECT TO authenticated USING ((user_id = auth.uid()));
+CREATE POLICY "Users can delete own unlocked logs" ON public.daily_logs FOR DELETE USING ((((user_id = auth.uid()) AND (is_locked = false)) OR (public.get_my_role() = 'admin'::text)));
 
 
 --
@@ -6745,6 +6780,15 @@ GRANT ALL ON FUNCTION public.handle_new_user() TO service_role;
 GRANT ALL ON FUNCTION public.handle_new_user_leave_balances() TO anon;
 GRANT ALL ON FUNCTION public.handle_new_user_leave_balances() TO authenticated;
 GRANT ALL ON FUNCTION public.handle_new_user_leave_balances() TO service_role;
+
+
+--
+-- Name: FUNCTION is_project_member(p_id uuid); Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT ALL ON FUNCTION public.is_project_member(p_id uuid) TO anon;
+GRANT ALL ON FUNCTION public.is_project_member(p_id uuid) TO authenticated;
+GRANT ALL ON FUNCTION public.is_project_member(p_id uuid) TO service_role;
 
 
 --
@@ -7739,5 +7783,5 @@ ALTER EVENT TRIGGER pgrst_drop_watch OWNER TO supabase_admin;
 -- PostgreSQL database dump complete
 --
 
-\unrestrict R3Hui3cWU4dxfGtftwGlUHGGJ4zcs8jXqXYIsf33TpfCWucG3WVmOZ4zkXdfQ7R
+\unrestrict JKf5ExJv35HGeyJUvIW7UkyO3NsvEeqrWFUocYhaDfKzg2dGMfE8mhIkzZ4jGeo
 

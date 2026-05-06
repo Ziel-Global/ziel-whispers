@@ -22,6 +22,12 @@ export function MissingLogAlert() {
   const { data: logsData } = useQuery({
     queryKey: ["missing-log-check", user?.id, yesterdayStr, profile?.created_at],
     queryFn: async () => {
+      // Skip weekend check
+      const yesterdayDateObj = new Date(yesterdayStr + "T00:00:00");
+      if (yesterdayDateObj.getDay() === 0 || yesterdayDateObj.getDay() === 6) {
+        return { totalLogged: 8, expectedHours: 8 }; // Suppress alert for weekends
+      }
+
       // Use created_at (not join_date) as the strict boundary.
       // join_date can be backdated by admins and should NOT affect this check.
       const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;

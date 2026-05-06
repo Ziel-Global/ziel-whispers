@@ -402,7 +402,12 @@ export default function MyAttendancePage() {
               const logInfo = logsByDate[dateStr];
               if (!logInfo || logInfo.count === 0) {
                 const isPast = selectedDay! < new Date();
-                if (isPast) return <p><strong>Log:</strong> <span className="text-red-600">No log submitted</span></p>;
+                const isWkend = isWeekend(selectedDay!);
+                if (isPast) {
+                  if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
+                  return <p><strong>Log:</strong> <span className="text-red-600">No log submitted</span></p>;
+                }
+                if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
                 return null;
               }
               if (logInfo.hasLate) return <p><strong>Log:</strong> <span className="text-amber-600">Submitted late</span></p>;

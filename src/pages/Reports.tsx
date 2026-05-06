@@ -437,6 +437,8 @@ function MissedLogsReport() {
       <Card><Table>
         <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Detected At</TableHead></TableRow></TableHeader>
         <TableBody>{(missed || []).filter(m => {
+          const day = parseISO(m.log_date).getDay();
+          if (day === 0 || day === 6) return false;
           const createdAtDate = (m.users as any)?.created_at ? (m.users as any).created_at.split("T")[0] : null;
           if (createdAtDate && m.log_date <= createdAtDate) return false;
           return true;

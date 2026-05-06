@@ -3469,7 +3469,7 @@ CREATE TABLE public.daily_logs (
     admin_comment text,
     admin_flagged boolean DEFAULT false NOT NULL,
     created_at timestamp with time zone DEFAULT now() NOT NULL,
-    CONSTRAINT daily_logs_category_check CHECK ((category = ANY (ARRAY['development'::text, 'meeting'::text, 'bug_fix'::text, 'code_review'::text, 'deployment'::text, 'documentation'::text, 'testing'::text, 'other'::text])))
+    CONSTRAINT daily_logs_category_check CHECK ((category = ANY (ARRAY['development'::text, 'meeting'::text, 'bug_fix'::text, 'code_review'::text, 'deployment'::text, 'documentation'::text, 'testing'::text, 'marketing'::text, 'seo'::text, 'research'::text, 'posting'::text, 'designing'::text, 'other'::text])))
 );
 
 

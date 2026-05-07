@@ -31,6 +31,7 @@ export default function AttendanceAdminPage() {
   const [editClockIn, setEditClockIn] = useState("");
   const [editClockOut, setEditClockOut] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editWorkMode, setEditWorkMode] = useState("");
   const [saving, setSaving] = useState(false);
 
   const { data: allEmployees = [] } = useQuery({
@@ -103,6 +104,7 @@ export default function AttendanceAdminPage() {
     setEditRecord(rec);
     setEditClockIn(rec.clock_in ? format(new Date(rec.clock_in), "HH:mm") : "");
     setEditClockOut(rec.clock_out ? format(new Date(rec.clock_out), "HH:mm") : "");
+    setEditWorkMode(rec.work_mode || "onsite");
     setEditNotes(rec.notes || "");
   };
 
@@ -117,6 +119,7 @@ export default function AttendanceAdminPage() {
       const { error } = await supabase.from("attendance").update({
         clock_in: clockIn,
         clock_out: clockOut,
+        work_mode: editWorkMode,
         notes: editNotes || null,
         edited_by: user!.id,
       }).eq("id", editRecord.id);
@@ -132,6 +135,7 @@ export default function AttendanceAdminPage() {
           date: editRecord.date,
           new_clock_in: clockIn,
           new_clock_out: clockOut || null,
+          work_mode: editWorkMode,
           notes: editNotes || null,
         },
       });
@@ -297,6 +301,18 @@ export default function AttendanceAdminPage() {
               <Label>Clock Out</Label>
               <Input type="time" value={editClockOut} onChange={(e) => setEditClockOut(e.target.value)} />
               {editClockOut && <p className="text-xs text-muted-foreground">{to12Hour(editClockOut)}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label>Work Mode</Label>
+              <Select value={editWorkMode} onValueChange={setEditWorkMode}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select work mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="onsite">Onsite</SelectItem>
+                  <SelectItem value="remote">Remote</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Notes</Label>

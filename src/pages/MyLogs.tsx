@@ -24,41 +24,47 @@ function formatHours(h: number) {
 export default function MyLogsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const [range, setRange] = useState("7");
+  const [selectedDate, setSelectedDate] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
-  const [customFrom, setCustomFrom] = useState("");
-  const [customTo, setCustomTo] = useState("");
-
-  const fromDate = range === "custom" ? customFrom : format(subDays(new Date(), Number(range)), "yyyy-MM-dd");
-  const toDate = range === "custom" ? customTo : getPKTDateString();
 
   const { data: logs = [] } = useQuery({
-    queryKey: ["my-logs", user?.id, fromDate, toDate, projectFilter],
+    queryKey: ["my-logs", user?.id, selectedDate, projectFilter],
     queryFn: async () => {
       let query = supabase
         .from("daily_logs")
         .select("*, projects(name)")
         .eq("user_id", user!.id)
-        .gte("log_date", fromDate)
-        .lte("log_date", toDate)
         .order("log_date", { ascending: false })
         .order("created_at", { ascending: false });
-      if (projectFilter !== "all") query = query.eq("project_id", projectFilter);
+      
+      if (selectedDate) {
+        query = query.eq("log_date", selectedDate);
+      }
+      
+      if (projectFilter !== "all") {
+        query = query.eq("project_id", projectFilter);
+      }
+      
       const { data } = await query;
       return data || [];
     },
-    enabled: !!user?.id && !!fromDate && !!toDate,
+    enabled: !!user?.id,
   });
 
   const { data: projects = [] } = useQuery({
-    queryKey: ["my-projects-filter", user?.id],
+    queryKey: ["my-logged-projects", user?.id],
     queryFn: async () => {
-      const { data: memberships } = await supabase
-        .from("project_members")
-        .select("projects(id, name)")
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("project_id, projects(id, name)")
         .eq("user_id", user!.id)
-        .is("removed_at", null);
-      return (memberships || []).map((m: any) => m.projects).filter(Boolean);
+        .not("project_id", "is", null);
+      
+      const uniqueProjects = Array.from(new Set((data || []).map(d => d.project_id)))
+        .map(id => (data || []).find(d => d.project_id === id)?.projects)
+        .filter(Boolean);
+      
+      return uniqueProjects.sort((a: any, b: any) => a.name.localeCompare(b.name));
     },
     enabled: !!user?.id,
   });
@@ -73,28 +79,37 @@ export default function MyLogsPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold tracking-tight">My Log History</h1>
 
-      <div className="flex flex-wrap gap-3">
-        <Select value={range} onValueChange={setRange}>
-          <SelectTrigger className="w-[150px]"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="7">Last 7 days</SelectItem>
-            <SelectItem value="30">Last 30 days</SelectItem>
-            <SelectItem value="custom">Custom range</SelectItem>
-          </SelectContent>
-        </Select>
-        {range === "custom" && (
-          <>
-            <Input type="date" value={customFrom} onChange={(e) => setCustomFrom(e.target.value)} className="w-[160px]" />
-            <Input type="date" value={customTo} onChange={(e) => setCustomTo(e.target.value)} className="w-[160px]" />
-          </>
+      <div className="flex flex-wrap gap-3 items-end">
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Filter by Date</p>
+          <Input 
+            type="date" 
+            value={selectedDate} 
+            onChange={(e) => setSelectedDate(e.target.value)} 
+            className="w-[180px]" 
+          />
+        </div>
+        
+        <div className="space-y-1">
+          <p className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Filter by Project</p>
+          <Select value={projectFilter} onValueChange={setProjectFilter}>
+            <SelectTrigger className="w-[180px]"><SelectValue placeholder="Project" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Projects</SelectItem>
+              {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {(selectedDate || projectFilter !== "all") && (
+          <Button 
+            variant="ghost" 
+            onClick={() => { setSelectedDate(""); setProjectFilter("all"); }}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            Clear Filters
+          </Button>
         )}
-        <Select value={projectFilter} onValueChange={setProjectFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Project" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Projects</SelectItem>
-            {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
-          </SelectContent>
-        </Select>
       </div>
 
       {Object.keys(grouped).length === 0 ? (

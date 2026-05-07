@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2 } from "lucide-react";
+import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
@@ -55,6 +55,40 @@ export default function LogsAdminPage() {
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Fetch all projects for editing
+  const { data: allProjects = [] } = useQuery({
+    queryKey: ["all-projects-for-edit"],
+    queryFn: async () => {
+      const { data } = await supabase.from("projects").select("id, name").order("name");
+      return data || [];
+    },
+    enabled: isAdmin,
+  });
+
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  const [editCategory, setEditCategory] = useState("");
+
+  const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
+
+  const handleEditLog = async (logId: string) => {
+    const { error } = await supabase
+      .from("daily_logs")
+      .update({
+        project_id: editProjectId,
+        category: editCategory,
+      })
+      .eq("id", logId);
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Log updated");
+      setEditingLogId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
+    }
+  };
 
   const [logEditDays, setLogEditDays] = useState("");
   const [autoClockoutTime, setAutoClockoutTime] = useState("");
@@ -485,11 +519,38 @@ export default function LogsAdminPage() {
                                           </div>
                                           <div>
                                             <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
-                                            <p className="text-sm">{log.projects?.name || "—"}</p>
+                                            {editingLogId === log.id ? (
+                                              <Select value={editProjectId || "__none__"} onValueChange={(v) => setEditProjectId(v === "__none__" ? null : v)}>
+                                                <SelectTrigger className="h-8 text-xs">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="__none__">No Project</SelectItem>
+                                                  {allProjects.map((p) => (
+                                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            ) : (
+                                              <p className="text-sm">{log.projects?.name || "—"}</p>
+                                            )}
                                           </div>
                                           <div>
                                             <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>
-                                            <Badge variant="secondary">{log.category}</Badge>
+                                            {editingLogId === log.id ? (
+                                              <Select value={editCategory} onValueChange={setEditCategory}>
+                                                <SelectTrigger className="h-8 text-xs">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {CATEGORIES.map((c) => (
+                                                    <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            ) : (
+                                              <Badge variant="secondary">{log.category}</Badge>
+                                            )}
                                           </div>
                                         </div>
                                         <div className="mb-2">
@@ -508,6 +569,37 @@ export default function LogsAdminPage() {
                                       </div>
                                       {isAdmin && (
                                         <div className="flex gap-1 items-center">
+                                          {editingLogId === log.id ? (
+                                            <>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleEditLog(log.id); }}
+                                                className="shrink-0 p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                                                title="Save Changes"
+                                              >
+                                                <Save className="h-4 w-4" />
+                                              </button>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); setEditingLogId(null); }}
+                                                className="shrink-0 p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
+                                                title="Cancel"
+                                              >
+                                                <FileX className="h-4 w-4" />
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingLogId(log.id);
+                                                setEditProjectId(log.project_id);
+                                                setEditCategory(log.category);
+                                              }}
+                                              className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                                              title="Edit Log"
+                                            >
+                                              <Pencil className="h-4 w-4" />
+                                            </button>
+                                          )}
                                           <button
                                             onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
                                             className="shrink-0 p-1 rounded hover:bg-muted transition-colors"

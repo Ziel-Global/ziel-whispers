@@ -6,7 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarUrl } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -209,6 +210,7 @@ export default function AuditLogPage() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">
+                        <AvatarImage src={getAvatarUrl((l as any).users?.avatar_url)} />
                         <AvatarFallback className="text-[10px]">{((l as any).users?.full_name || "S")[0]}</AvatarFallback>
                       </Avatar>
                       <span className="text-sm font-medium">{(l as any).users?.full_name || "System"}</span>

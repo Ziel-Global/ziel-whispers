@@ -27,7 +27,8 @@ export default function MyAttendancePage() {
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [clockOutConfirmOpen, setClockOutConfirmOpen] = useState(false);
   const [lateConfirmOpen, setLateConfirmOpen] = useState(false);
-   const today = getPKTDateString();
+  const [earlyClockOutInfo, setEarlyClockOutInfo] = useState<{ isEarly: boolean; remainingText: string } | null>(null);
+  const today = getPKTDateString();
 
   // Check for any open (unclosed) attendance session
   const { data: openSession, isLoading: isLoadingOpen } = useQuery({
@@ -106,6 +107,22 @@ export default function MyAttendancePage() {
     return map;
   }, [monthLogs]);
 
+  // Logs for the selected day (detailed)
+  const { data: selectedDayLogs = [] } = useQuery({
+    queryKey: ["my-day-logs", user?.id, selectedDay],
+    queryFn: async () => {
+      if (!selectedDay) return [];
+      const dateStr = format(selectedDay, "yyyy-MM-dd");
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("*, projects(name)")
+        .eq("user_id", user!.id)
+        .eq("log_date", dateStr);
+      return data || [];
+    },
+    enabled: !!user?.id && !!selectedDay,
+  });
+
   // Live timer
   useEffect(() => {
     if (!openSession?.clock_in) return;
@@ -157,14 +174,53 @@ export default function MyAttendancePage() {
 
   const handleClockIn = async () => {
     if (!workMode) { toast.error("Select work mode first"); return; }
-    
+
     const { isLate } = getLatenessInfo(shiftStart);
     if (isLate) {
       setLateConfirmOpen(true);
       return;
     }
-    
+
     await performClockIn();
+  };
+
+  const getEarlyClockOutData = () => {
+    if (!shiftEnd) return { isEarly: false, remainingText: "" };
+    
+    const parts = shiftEnd.split(":");
+    if (parts.length < 2) return { isEarly: false, remainingText: "" };
+    
+    const now = new Date();
+    const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+    const pktNow = new Date(utc + (3600000 * 5));
+    
+    const shiftEndTime = new Date(pktNow);
+    shiftEndTime.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
+    
+    const diffMs = shiftEndTime.getTime() - pktNow.getTime();
+    if (diffMs > 0) {
+      const totalMinutes = Math.floor(diffMs / 60000);
+      const hrs = Math.floor(totalMinutes / 60);
+      const mins = totalMinutes % 60;
+      
+      let text = "";
+      if (hrs > 0) text += `${hrs} hour${hrs > 1 ? "s" : ""} `;
+      if (mins > 0) text += `${mins} minute${mins > 1 ? "s" : ""}`;
+      
+      return { isEarly: true, remainingText: text.trim() };
+    }
+    
+    return { isEarly: false, remainingText: "" };
+  };
+
+  const onClockOutClick = () => {
+    const info = getEarlyClockOutData();
+    if (info.isEarly) {
+      setEarlyClockOutInfo(info);
+      setClockOutConfirmOpen(true);
+    } else {
+      handleClockOut();
+    }
   };
 
   const handleClockOut = async () => {
@@ -212,8 +268,8 @@ export default function MyAttendancePage() {
       // created_at is the definitive boundary — join_date can be backdated by admins.
       const dateStr = format(d, "yyyy-MM-dd");
       const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
-      
-      if (d < new Date() && isSameMonth(d, calMonth)) {
+
+      if (d < new Date() && !isSameDay(d, new Date()) && isSameMonth(d, calMonth)) {
         if (createdAtDate && dateStr <= createdAtDate) return ""; // Account didn't exist yet
         return "bg-red-100 text-red-700";
       }
@@ -235,7 +291,7 @@ export default function MyAttendancePage() {
         // Use created_at as the boundary — not join_date which admins can backdate.
         const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
         if (createdAtDate && dateStr <= createdAtDate) return null; // Account didn't exist yet
-        return { label: "No Log", color: "text-red-500" };
+        return { label: "No Log - Absent", color: "text-red-500" };
       }
       return null;
     }
@@ -275,62 +331,62 @@ export default function MyAttendancePage() {
             <>
               <p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
 
-          {hasOpenSession && (
-            <>
-              {isOpenSessionFromDifferentDay && (
-                <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 w-full max-w-md">
-                  <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
-                  <p className="text-sm text-yellow-800">
-                    You have an open session from <strong>{formatPKTTime(openSession!.clock_in!)} on {format(new Date(openSession!.clock_in!), "MMM d")}</strong>. Please clock out to close it.
+              {hasOpenSession && (
+                <>
+                  {isOpenSessionFromDifferentDay && (
+                    <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 w-full max-w-md">
+                      <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
+                      <p className="text-sm text-yellow-800">
+                        You have an open session from <strong>{formatPKTTime(openSession!.clock_in!)} on {format(new Date(openSession!.clock_in!), "MMM d")}</strong>. Please clock out to close it.
+                      </p>
+                    </div>
+                  )}
+                  <div className="text-5xl font-mono font-bold text-foreground">{formatDuration(elapsed)}</div>
+                  <Badge className="bg-green-100 text-green-800">Active Session · {openSession?.work_mode}</Badge>
+                  <Button onClick={onClockOutClick} disabled={loading} variant="destructive" size="lg" className="rounded-button">
+                    <LogOut className="h-5 w-5 mr-2" />
+                    Clock Out
+                  </Button>
+                </>
+              )}
+
+              {!hasOpenSession && todayCompleted && (
+                <div className="text-center space-y-2">
+                  <Badge className="bg-muted text-muted-foreground">Session Complete</Badge>
+                  <p className="text-sm text-muted-foreground">
+                    {formatPKTTime(todayRecord!.clock_in!)} — {formatPKTTime(todayRecord!.clock_out!)}
+                    {" · "}
+                    {formatDuration(Math.floor((new Date(todayRecord!.clock_out!).getTime() - new Date(todayRecord!.clock_in!).getTime()) / 1000))}
                   </p>
                 </div>
               )}
-              <div className="text-5xl font-mono font-bold text-foreground">{formatDuration(elapsed)}</div>
-              <Badge className="bg-green-100 text-green-800">Active Session · {openSession?.work_mode}</Badge>
-              <Button onClick={() => setClockOutConfirmOpen(true)} disabled={loading} variant="destructive" size="lg" className="rounded-button">
-                <LogOut className="h-5 w-5 mr-2" />
-                Clock Out
-              </Button>
+
+              {canClockIn && (
+                <>
+                  <Clock className="h-12 w-12 text-muted-foreground" />
+                  <div className="w-full max-w-xs space-y-3">
+                    <div className="space-y-1">
+                      <Label>Work Mode *</Label>
+                      <Select value={workMode} onValueChange={setWorkMode}>
+                        <SelectTrigger><SelectValue placeholder="Select mode" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="onsite">Onsite</SelectItem>
+                          <SelectItem value="remote">Remote</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Notes (optional)</Label>
+                      <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes…" rows={2} />
+                    </div>
+                    <Button onClick={handleClockIn} disabled={loading} size="lg" className="w-full rounded-button">
+                      <LogIn className="h-5 w-5 mr-2" />
+                      Clock In
+                    </Button>
+                  </div>
+                </>
+              )}
             </>
-          )}
-
-          {!hasOpenSession && todayCompleted && (
-            <div className="text-center space-y-2">
-              <Badge className="bg-muted text-muted-foreground">Session Complete</Badge>
-              <p className="text-sm text-muted-foreground">
-                {formatPKTTime(todayRecord!.clock_in!)} — {formatPKTTime(todayRecord!.clock_out!)}
-                {" · "}
-                {formatDuration(Math.floor((new Date(todayRecord!.clock_out!).getTime() - new Date(todayRecord!.clock_in!).getTime()) / 1000))}
-              </p>
-            </div>
-          )}
-
-          {canClockIn && (
-            <>
-              <Clock className="h-12 w-12 text-muted-foreground" />
-              <div className="w-full max-w-xs space-y-3">
-                <div className="space-y-1">
-                  <Label>Work Mode *</Label>
-                  <Select value={workMode} onValueChange={setWorkMode}>
-                    <SelectTrigger><SelectValue placeholder="Select mode" /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="onsite">Onsite</SelectItem>
-                      <SelectItem value="remote">Remote</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <Label>Notes (optional)</Label>
-                  <Textarea value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Any notes…" rows={2} />
-                </div>
-                  <Button onClick={handleClockIn} disabled={loading} size="lg" className="w-full rounded-button">
-                    <LogIn className="h-5 w-5 mr-2" />
-                    Clock In
-                  </Button>
-                </div>
-              </>
-            )}
-          </>
           )}
         </div>
       </Card>
@@ -339,15 +395,24 @@ export default function MyAttendancePage() {
       <AlertDialog open={clockOutConfirmOpen} onOpenChange={setClockOutConfirmOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to clock out?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action is irreversible. Once clocked out, you cannot undo this or modify your clock-out time.
+            <AlertDialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              Early Clock Out Warning
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3">
+              <p>You are clocking out before your shift officially ends.</p>
+              <div className="p-3 bg-red-50 border border-red-100 rounded text-red-900 font-medium">
+                You still have <strong>{earlyClockOutInfo?.remainingText}</strong> remaining in your shift.
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This action is irreversible and will be recorded as an early departure.
+              </p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleClockOut} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Yes, Clock Out
+              Clock Out Anyway
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -396,22 +461,25 @@ export default function MyAttendancePage() {
             )}
             <p><strong>Mode:</strong> {selectedRecord.work_mode || "—"}</p>
             {selectedRecord.notes && <p><strong>Notes:</strong> {selectedRecord.notes}</p>}
-            {/* Log status for selected day */}
             {(() => {
               const dateStr = format(selectedDay!, "yyyy-MM-dd");
-              const logInfo = logsByDate[dateStr];
-              if (!logInfo || logInfo.count === 0) {
-                const isPast = selectedDay! < new Date();
-                const isWkend = isWeekend(selectedDay!);
+              const isPast = selectedDay! < new Date() && !isSameDay(selectedDay!, new Date());
+              const isWkend = isWeekend(selectedDay!);
+
+              if (selectedDayLogs.length === 0) {
                 if (isPast) {
                   if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
-                  return <p><strong>Log:</strong> <span className="text-red-600">No log submitted</span></p>;
+                  return <p><strong>Log:</strong> <span className="text-red-600 font-medium">No log submitted - Marked as Absent</span></p>;
                 }
                 if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
-                return null;
+                return <p><strong>Log:</strong> <span className="text-muted-foreground">Not submitted yet</span></p>;
               }
-              if (logInfo.hasLate) return <p><strong>Log:</strong> <span className="text-amber-600">Submitted late</span></p>;
-              return <p><strong>Log:</strong> <span className="text-green-600">Submitted on time</span></p>;
+
+              return selectedDayLogs.map((log: any, idx: number) => (
+                <p key={log.id}>
+                  <strong>Log {selectedDayLogs.length > 1 ? idx + 1 : ""}:</strong> Submitted at {formatPKTTime(log.submitted_at)}
+                </p>
+              ));
             })()}
           </div>
         )}

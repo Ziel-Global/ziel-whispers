@@ -24,7 +24,7 @@ const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "
 const STATUSES = ["active", "inactive", "pending"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+import { getAvatarUrl } from "@/lib/utils";
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
@@ -127,11 +127,6 @@ export default function EmployeesPage() {
       pending: "bg-yellow-100 text-yellow-800",
     };
     return <Badge className={`${variants[status] || ""} capitalize font-medium`}>{status}</Badge>;
-  };
-
-  const getAvatarUrl = (avatarUrl: string | null) => {
-    if (!avatarUrl) return undefined;
-    return `${SUPABASE_URL}/storage/v1/object/public/avatars/${avatarUrl}`;
   };
 
   return (

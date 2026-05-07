@@ -12,8 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { PasswordInput } from "@/components/ui/password-input";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+import { getAvatarUrl } from "@/lib/utils";
 
 const profileSchema = z.object({
   phone: z.string().optional().refine((v) => !v || /^03\d{9}$/.test(v), "Please enter a valid Pakistani phone number (03XXXXXXXXX)"),
@@ -49,7 +48,7 @@ export default function MyProfilePage() {
     if (employee?.phone) setPhone(employee.phone);
   });
 
-  const avatarUrl = employee?.avatar_url ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${employee.avatar_url}` : undefined;
+  const avatarUrl = getAvatarUrl(employee?.avatar_url);
 
   const onSave = async () => {
     if (!employee) return;

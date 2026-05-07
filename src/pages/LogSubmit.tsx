@@ -42,7 +42,7 @@ export default function LogSubmitPage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const { shiftEnd: resolvedShiftEnd } = useWorkSettings();
+  const { shiftStart, shiftEnd: resolvedShiftEnd } = useWorkSettings();
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [pendingLogs, setPendingLogs] = useState<any[]>([]);
@@ -178,13 +178,20 @@ export default function LogSubmitPage() {
     setSubmitting(true);
     try {
       const nowPKT = new Date(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }).format(new Date()));
-      const [h, m] = resolvedShiftEnd.split(":").map(Number);
-      const shiftEndTime = new Date(nowPKT);
-      shiftEndTime.setHours(h, m, 0);
+      
+      // Construct the deadline for TODAY
+      const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date());
+      const todayDeadline = new Date(`${todayStr}T${resolvedShiftEnd}`);
+      
+      // Handle overnight shifts for TODAY'S deadline
+      if (shiftStart && resolvedShiftEnd && resolvedShiftEnd < shiftStart) {
+        todayDeadline.setDate(todayDeadline.getDate() + 1);
+      }
+      
+      // A log is late ONLY if submitted after the shift end of the SUBMISSION day
+      const isLate = nowPKT > todayDeadline;
 
       const logsToInsert = pendingLogs.map((log) => {
-        const isLate = log.log_date === today && nowPKT > shiftEndTime;
-        const isPastDate = log.log_date < today;
         return {
           user_id: user!.id,
           project_id: log.project_id === NO_PROJECT ? null : log.project_id || null,
@@ -192,7 +199,7 @@ export default function LogSubmitPage() {
           hours: log.hours,
           description: log.description,
           log_date: log.log_date,
-          is_late: isLate || isPastDate,
+          is_late: isLate,
         };
       });
 

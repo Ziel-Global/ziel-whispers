@@ -6,8 +6,12 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNavigate } from "react-router-dom";
-import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle } from "lucide-react";
+import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow } from "date-fns";
+import { getAvatarUrl } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();
@@ -145,10 +149,73 @@ export default function DashboardPage() {
     },
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
+ 
+  const { data: unnotifiedProjects } = useQuery({
+    queryKey: ["dashboard-unnotified-projects", user?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("project_members")
+        .select("project_id, projects(name)")
+        .eq("user_id", user!.id)
+        .eq("notified", false)
+        .is("removed_at", null);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !isAdmin && hasProfile && !!user?.id,
+  });
+
+  const { data: teamStatus } = useQuery({
+    queryKey: ["dashboard-team-today"],
+    queryFn: async () => {
+      const [{ data: users }, { data: attendance }] = await Promise.all([
+        supabase.from("users").select("id, full_name, designation, avatar_url, role").neq("role", "admin").eq("status", "active"),
+        supabase.from("attendance").select("user_id, work_mode, clock_in").eq("date", today)
+      ]);
+      
+      const attendanceMap = (attendance || []).reduce((acc: any, curr) => {
+        acc[curr.user_id] = curr;
+        return acc;
+      }, {});
+
+      const team = (users || []).map(u => ({
+        ...u,
+        attendance: attendanceMap[u.id] || null
+      }));
+
+      return team.sort((a, b) => {
+        const aClocked = !!a.attendance?.clock_in;
+        const bClocked = !!b.attendance?.clock_in;
+        if (aClocked && !bClocked) return -1;
+        if (!aClocked && bClocked) return 1;
+        return a.full_name.localeCompare(b.full_name);
+      });
+    },
+    enabled: hasProfile,
+    refetchInterval: 30000,
+  });
+
+  const getInitials = (name: string) => {
+    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
+  };
 
   const dismissAnnouncement = async (announcementId: string) => {
     await supabase.from("announcement_reads").upsert({ announcement_id: announcementId, user_id: user!.id, dismissed: true }, { onConflict: "announcement_id,user_id" as any });
     queryClient.invalidateQueries({ queryKey: ["dashboard-urgent"] });
+  };
+ 
+  const dismissProjectNotification = async () => {
+    if (!unnotifiedProjects || unnotifiedProjects.length === 0) return;
+    const projectIds = unnotifiedProjects.map((p: any) => p.project_id);
+    const { error } = await supabase
+      .from("project_members")
+      .update({ notified: true })
+      .in("project_id", projectIds)
+      .eq("user_id", user!.id);
+    if (!error) {
+      queryClient.invalidateQueries({ queryKey: ["dashboard-unnotified-projects"] });
+      toast.success("Notification dismissed");
+    }
   };
 
   const handleLeaveAction = async (requestId: string, action: "approved" | "rejected") => {
@@ -314,6 +381,25 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
+ 
+      {unnotifiedProjects && unnotifiedProjects.length > 0 && (
+        <div className="bg-black border border-black/10 rounded-xl p-5 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top duration-500">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-full">
+              <FolderKanban className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white tracking-tight">New Project Assignment</p>
+              <p className="text-xs text-white/70 mt-0.5">
+                You've been added to: <span className="font-bold text-white uppercase tracking-wider">{unnotifiedProjects.map((p: any) => p.projects?.name).join(", ")}</span>
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" className="rounded-button bg-white text-black hover:bg-white/90 border-none font-bold px-6 shadow-sm" onClick={dismissProjectNotification}>
+            <CheckCircle className="h-4 w-4 mr-2" /> Got it
+          </Button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-5">
@@ -370,6 +456,80 @@ export default function DashboardPage() {
           <p className="text-xs text-muted-foreground">{usedLeaveDays} used / {annualLeaveEntitlement} total</p>
           <Button size="sm" variant="outline" className="mt-3 rounded-button w-full" onClick={() => navigate("/leave/my")}>Apply Leave</Button>
         </Card>
+      </div>
+
+      <div>
+        <Dialog>
+          <DialogTrigger asChild>
+            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow group">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-md bg-purple-50 group-hover:bg-purple-100 transition-colors">
+                    <Users className="h-5 w-5 text-purple-600" />
+                  </div>
+                  <div>
+                    <h2 className="text-sm font-medium">Team Today</h2>
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      {teamStatus?.filter((m: any) => !!m.attendance?.clock_in).length || 0} active now
+                    </p>
+                  </div>
+                </div>
+                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
+              </div>
+            </Card>
+          </DialogTrigger>
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+            <DialogHeader className="p-4 pb-2 border-b">
+              <DialogTitle className="flex items-center gap-2 text-lg">
+                <Users className="h-5 w-5 text-purple-600" />
+                Team Status Today
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh]">
+              <div className="divide-y">
+                {!teamStatus || teamStatus.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-sm">No team members found.</div>
+                ) : (
+                  teamStatus.map((member: any) => {
+                    const clockedIn = !!member.attendance?.clock_in;
+                    const mode = member.attendance?.work_mode;
+                    
+                    return (
+                      <div key={member.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 border">
+                            <AvatarImage src={getAvatarUrl(member.avatar_url)} />
+                            <AvatarFallback>{getInitials(member.full_name)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-semibold">{member.full_name}</p>
+                            <p className="text-[11px] text-muted-foreground leading-tight">{member.designation || "Team Member"}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          {!clockedIn ? (
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
+                              Not Clocked In
+                            </Badge>
+                          ) : mode === "onsite" ? (
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none flex items-center gap-1 text-[10px] font-medium">
+                              <Building2 className="h-3 w-3" /> On-site
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none flex items-center gap-1 text-[10px] font-medium">
+                              <Monitor className="h-3 w-3" /> Remote
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {myProjects && myProjects.length > 0 && (

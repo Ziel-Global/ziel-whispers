@@ -25,12 +25,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
+import { getAvatarUrl } from "@/lib/utils";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -174,7 +174,7 @@ export default function EmployeeProfilePage() {
     }
   }, [employee, form]);
 
-  const avatarUrl = employee?.avatar_url ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${employee.avatar_url}` : undefined;
+  const avatarUrl = getAvatarUrl(employee?.avatar_url);
 
   const onSubmit = async (data: z.infer<typeof adminSchema>) => {
     if (!employee) return;

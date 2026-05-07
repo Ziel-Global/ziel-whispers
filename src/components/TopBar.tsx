@@ -11,8 +11,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+import { getAvatarUrl } from "@/lib/utils";
 
 export function TopBar() {
   const { profile, signOut } = useAuth();
@@ -30,9 +29,7 @@ export function TopBar() {
     navigate("/login", { replace: true });
   };
 
-  const avatarUrl = (profile as any)?.avatar_url
-    ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${(profile as any).avatar_url}`
-    : undefined;
+  const avatarUrl = getAvatarUrl((profile as any)?.avatar_url);
 
   return (
     <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">

@@ -8,7 +8,7 @@ const ACTIVITY_KEY = "ziel_last_activity";
 const SESSION_ID_KEY = "ziel_session_id";
 const SESSION_START_KEY = "ziel_session_start";
 const STATUS_CHECK_INTERVAL = 30000; // 30 seconds
-const MAX_SESSION_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24 hours — absolute max, regardless of activity
+const MAX_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000; // 12 hours — absolute max, regardless of activity
 const SESSION_AGE_CHECK_INTERVAL = 60000; // check every 60 seconds
 
 type UserProfile = {
@@ -50,8 +50,8 @@ async function getSessionTimeoutMs(): Promise<number> {
     .eq("key", "session_timeout_hours")
     .maybeSingle();
   const hours = Number(data?.value);
-  // If setting is missing or invalid, fall back to 8h to avoid locking users out
-  if (!hours || Number.isNaN(hours) || hours <= 0) return 8 * 60 * 60 * 1000;
+  // If setting is missing or invalid, fall back to 12h to avoid locking users out
+  if (!hours || Number.isNaN(hours) || hours <= 0) return 12 * 60 * 60 * 1000;
   return hours * 60 * 60 * 1000;
 }
 
@@ -63,7 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const sessionAgeCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sessionTimeoutMsRef = useRef<number>(8 * 60 * 60 * 1000);
+  const sessionTimeoutMsRef = useRef<number>(12 * 60 * 60 * 1000);
   const queryClient = useQueryClient();
 
   const fetchProfile = async (userId: string) => {

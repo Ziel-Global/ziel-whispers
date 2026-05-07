@@ -13,68 +13,76 @@ export function MissingLogAlert() {
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
-  // Get yesterday's date in PKT
+  // 1. Determine the previous working day in PKT
+  // Monday -> Friday; Tue-Fri -> Yesterday; Sat/Sun -> No alert
   const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(yesterday.getDate() - 1);
-  const yesterdayStr = getPKTDateString(yesterday);
+  const todayPKTStr = getPKTDateString(today);
+  const todayPKT = new Date(todayPKTStr + "T00:00:00");
+  const dayOfWeek = todayPKT.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+
+  // Weekends: Suppress alert entirely
+  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+  let daysToSubtract = 1;
+  if (dayOfWeek === 1) daysToSubtract = 3; // Monday -> Friday
+  else if (dayOfWeek === 0) daysToSubtract = 2; // Sunday -> Friday (but we skip weekends anyway)
+
+  const targetDate = new Date(todayPKT);
+  targetDate.setDate(targetDate.getDate() - daysToSubtract);
+  const targetDateStr = getPKTDateString(targetDate);
 
   const { data: logsData } = useQuery({
-    queryKey: ["missing-log-check", user?.id, yesterdayStr, profile?.created_at],
+    queryKey: ["missing-log-check", user?.id, targetDateStr, profile?.created_at],
     queryFn: async () => {
-      // Skip weekend check
-      const yesterdayDateObj = new Date(yesterdayStr + "T00:00:00");
-      if (yesterdayDateObj.getDay() === 0 || yesterdayDateObj.getDay() === 6) {
-        return { totalLogged: 8, expectedHours: 8 }; // Suppress alert for weekends
-      }
+      if (isWeekend) return { totalLogged: 8, expectedHours: 8 };
 
-      // Use created_at (not join_date) as the strict boundary.
-      // join_date can be backdated by admins and should NOT affect this check.
+      // Use created_at as the strict boundary
       const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
-      if (createdAtDate && yesterdayStr <= createdAtDate) {
-        // Account was created on or after yesterday — user cannot have missed any logs yet
+      if (createdAtDate && targetDateStr <= createdAtDate) {
         return { totalLogged: 8, expectedHours: 8 }; // Suppress alert
       }
 
-      // 1. Get logs for yesterday
+      // 1. Get logs for the target day
       const { data: logs } = await supabase
         .from("daily_logs")
         .select("hours")
         .eq("user_id", user!.id)
-        .eq("log_date", yesterdayStr);
+        .eq("log_date", targetDateStr);
       
       const totalLogged = (logs || []).reduce((sum, log) => sum + Number(log.hours), 0);
-
-      // 2. Target work hours is 8 (Total shift is 9, but 1 hour is break)
       const expectedHours = 8;
 
       return { totalLogged, expectedHours };
     },
-    enabled: !!user?.id && !!profile && profile.role !== "admin", // Explicitly exclude admins and wait for profile
+    enabled: !!user?.id && !!profile && profile.role !== "admin" && !isWeekend,
   });
 
   useEffect(() => {
     if (logsData) {
       const { totalLogged, expectedHours } = logsData;
+      // Requirement: Only show if logged less than 8 hours
       if (totalLogged < expectedHours) {
-        // Check if already shown this session
-        const sessionKey = `missing_log_alert_${yesterdayStr}`;
-        const alreadyShown = sessionStorage.getItem(sessionKey);
-        if (!alreadyShown) {
+        // Requirement: Track dismissal in localStorage (once per day)
+        const storageKey = `missing_log_alert_dismissed_${user?.id}`;
+        const lastDismissedDate = localStorage.getItem(storageKey);
+        
+        if (lastDismissedDate !== todayPKTStr) {
           setOpen(true);
         }
       }
     }
-  }, [logsData, yesterdayStr]);
+  }, [logsData, todayPKTStr, user?.id]);
 
   const handleGoToLogs = () => {
-    sessionStorage.setItem(`missing_log_alert_${yesterdayStr}`, "true");
+    const storageKey = `missing_log_alert_dismissed_${user?.id}`;
+    localStorage.setItem(storageKey, todayPKTStr);
     setOpen(false);
     navigate("/logs/submit");
   };
 
   const handleClose = () => {
-    sessionStorage.setItem(`missing_log_alert_${yesterdayStr}`, "true");
+    const storageKey = `missing_log_alert_dismissed_${user?.id}`;
+    localStorage.setItem(storageKey, todayPKTStr);
     setOpen(false);
   };
 
@@ -82,6 +90,7 @@ export function MissingLogAlert() {
 
   const { totalLogged, expectedHours } = logsData;
   const missingHours = Math.max(0, expectedHours - totalLogged);
+  const dateLabel = dayOfWeek === 1 ? "Friday" : "yesterday";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -94,7 +103,7 @@ export function MissingLogAlert() {
         </DialogHeader>
         <div className="space-y-4 py-2">
           <p className="text-sm text-muted-foreground">
-            Our records show that your work logs for yesterday (<strong>{yesterdayStr}</strong>) are incomplete.
+            Our records show that your work logs for {dateLabel} (<strong>{targetDateStr}</strong>) are incomplete.
           </p>
           
           <div className="bg-red-50 p-4 rounded-lg border border-red-100 space-y-2">
@@ -110,7 +119,7 @@ export function MissingLogAlert() {
             </div>
             <p className="text-xs text-red-600 mt-2">
               {totalLogged === 0 
-                ? `You missed yesterday's log entirely.`
+                ? `You missed ${dateLabel}'s log entirely.`
                 : `You logged ${totalLogged.toFixed(1)}h out of the expected ${expectedHours}h.`}
             </p>
           </div>
@@ -132,3 +141,4 @@ export function MissingLogAlert() {
     </Dialog>
   );
 }
+

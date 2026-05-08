@@ -26,7 +26,6 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
 import { getAvatarUrl } from "@/lib/utils";
-import { AttendanceCalendar } from "@/components/AttendanceCalendar";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
@@ -417,7 +416,6 @@ export default function EmployeeProfilePage() {
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
           {isAdmin && <TabsTrigger value="projects">Projects</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="attendance">Attendance</TabsTrigger>}
           {isAdmin && <TabsTrigger value="logs">Work Logs</TabsTrigger>}
         </TabsList>
 
@@ -711,15 +709,6 @@ export default function EmployeeProfilePage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          </TabsContent>
-        )}
-
-        {isAdmin && (
-          <TabsContent value="attendance">
-            <Card className="p-6">
-              <h3 className="text-lg font-semibold mb-4">Attendance History</h3>
-              <AttendanceCalendar userId={id!} createdAt={employee.created_at} />
-            </Card>
           </TabsContent>
         )}
 

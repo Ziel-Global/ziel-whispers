@@ -55,6 +55,18 @@ export default function AttendanceAdminPage() {
     },
   });
 
+  const { data: dayLogs = [] } = useQuery({
+    queryKey: ["admin-day-logs", selectedDate],
+    queryFn: async () => {
+      const { data } = await supabase.from("daily_logs").select("user_id, is_late").eq("log_date", selectedDate);
+      return data || [];
+    },
+  });
+
+  const lateLogUserIds = useMemo(() => {
+    return new Set(dayLogs.filter(l => l.is_late).map(l => l.user_id));
+  }, [dayLogs]);
+
   const { data: openSessions = [] } = useQuery({
     queryKey: ["admin-open-sessions"],
     queryFn: async () => {
@@ -255,7 +267,12 @@ export default function AttendanceAdminPage() {
                     {r.clock_in ? formatPKTTime(r.clock_in) : "—"}
                     {r.is_late && (
                       <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">
-                        Late by {formatLateness(r.minutes_late)}
+                        Late Clock-in ({formatLateness(r.minutes_late)})
+                      </Badge>
+                    )}
+                    {lateLogUserIds.has(r.user_id) && (
+                      <Badge className="ml-1 bg-amber-100 text-amber-800 text-[10px] border-amber-200">
+                        Late Submission
                       </Badge>
                     )}
                   </TableCell>

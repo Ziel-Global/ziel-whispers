@@ -14,6 +14,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
+import { AttendanceCalendar } from "@/components/AttendanceCalendar";
 
 export default function MyAttendancePage() {
   const { user, profile } = useAuth();
@@ -24,7 +25,6 @@ export default function MyAttendancePage() {
   const [loading, setLoading] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [calMonth, setCalMonth] = useState(new Date());
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [clockOutConfirmOpen, setClockOutConfirmOpen] = useState(false);
   const [lateConfirmOpen, setLateConfirmOpen] = useState(false);
   const [earlyClockOutInfo, setEarlyClockOutInfo] = useState<{ isEarly: boolean; remainingText: string } | null>(null);
@@ -62,65 +62,6 @@ export default function MyAttendancePage() {
       return data;
     },
     enabled: !!user?.id,
-  });
-
-  // Monthly attendance
-  const monthStart = format(startOfMonth(calMonth), "yyyy-MM-dd");
-  const monthEnd = format(endOfMonth(calMonth), "yyyy-MM-dd");
-  const { data: monthRecords = [] } = useQuery({
-    queryKey: ["attendance-month", user?.id, monthStart],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("attendance")
-        .select("*")
-        .eq("user_id", user!.id)
-        .gte("date", monthStart)
-        .lte("date", monthEnd);
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
-
-  // Monthly logs for log status indicators
-  const { data: monthLogs = [] } = useQuery({
-    queryKey: ["my-month-logs", user?.id, monthStart],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("daily_logs")
-        .select("log_date, is_late")
-        .eq("user_id", user!.id)
-        .gte("log_date", monthStart)
-        .lte("log_date", monthEnd);
-      return data || [];
-    },
-    enabled: !!user?.id,
-  });
-
-  // Group logs by date
-  const logsByDate = useMemo(() => {
-    const map: Record<string, { count: number; hasLate: boolean }> = {};
-    monthLogs.forEach((l: any) => {
-      if (!map[l.log_date]) map[l.log_date] = { count: 0, hasLate: false };
-      map[l.log_date].count++;
-      if (l.is_late) map[l.log_date].hasLate = true;
-    });
-    return map;
-  }, [monthLogs]);
-
-  // Logs for the selected day (detailed)
-  const { data: selectedDayLogs = [] } = useQuery({
-    queryKey: ["my-day-logs", user?.id, selectedDay],
-    queryFn: async () => {
-      if (!selectedDay) return [];
-      const dateStr = format(selectedDay, "yyyy-MM-dd");
-      const { data } = await supabase
-        .from("daily_logs")
-        .select("*, projects(name)")
-        .eq("user_id", user!.id)
-        .eq("log_date", dateStr);
-      return data || [];
-    },
-    enabled: !!user?.id && !!selectedDay,
   });
 
   // Live timer
@@ -255,50 +196,6 @@ export default function MyAttendancePage() {
   const todayCompleted = !!todayRecord?.clock_out;
   const canClockIn = !hasOpenSession && !todayCompleted;
 
-  // Calendar
-  const days = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) });
-  const getRecordForDay = (d: Date) => monthRecords.find((r) => r.date === format(d, "yyyy-MM-dd"));
-  const selectedRecord = selectedDay ? getRecordForDay(selectedDay) : null;
-
-  const getDayColor = (d: Date) => {
-    if (isWeekend(d)) return "bg-muted text-muted-foreground";
-    const rec = getRecordForDay(d);
-    if (!rec) {
-      // Only show as absent (red) if the date is strictly AFTER the account creation date.
-      // created_at is the definitive boundary — join_date can be backdated by admins.
-      const dateStr = format(d, "yyyy-MM-dd");
-      const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
-
-      if (d < new Date() && !isSameDay(d, new Date()) && isSameMonth(d, calMonth)) {
-        if (createdAtDate && dateStr <= createdAtDate) return ""; // Account didn't exist yet
-        return "bg-red-100 text-red-700";
-      }
-      return "";
-    }
-    if (rec.is_late) return "bg-yellow-100 text-yellow-700";
-    if (rec.clock_in) return "bg-green-100 text-green-700";
-    return "";
-  };
-
-  const getLogIndicator = (d: Date) => {
-    if (isWeekend(d)) return null;
-    const dateStr = format(d, "yyyy-MM-dd");
-    const logInfo = logsByDate[dateStr];
-    const isPast = d < new Date() && !isSameDay(d, new Date());
-
-    if (!logInfo || logInfo.count === 0) {
-      if (isPast) {
-        // Use created_at as the boundary — not join_date which admins can backdate.
-        const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
-        if (createdAtDate && dateStr <= createdAtDate) return null; // Account didn't exist yet
-        return { label: "No Log - Absent", color: "text-red-500" };
-      }
-      return null;
-    }
-    if (logInfo.hasLate) return { label: "Late", color: "text-amber-600" };
-    return { label: "Logged", color: "text-green-600" };
-  };
-
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -418,71 +315,8 @@ export default function MyAttendancePage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Calendar */}
       <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <Button variant="ghost" size="icon" onClick={() => setCalMonth(subMonths(calMonth, 1))}><ChevronLeft className="h-4 w-4" /></Button>
-          <h3 className="font-semibold">{format(calMonth, "MMMM yyyy")}</h3>
-          <Button variant="ghost" size="icon" onClick={() => setCalMonth(addMonths(calMonth, 1))}><ChevronRight className="h-4 w-4" /></Button>
-        </div>
-        <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground mb-2">
-          {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d}>{d}</div>)}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {Array.from({ length: days[0].getDay() }).map((_, i) => <div key={`pad-${i}`} />)}
-          {days.map((d) => {
-            const indicator = getLogIndicator(d);
-            return (
-              <button
-                key={d.toISOString()}
-                onClick={() => setSelectedDay(d)}
-                className={`min-h-[44px] rounded text-sm font-medium transition-colors flex flex-col items-center justify-center gap-0.5 ${getDayColor(d)} ${selectedDay && isSameDay(d, selectedDay) ? "ring-2 ring-primary" : ""} hover:ring-1 hover:ring-border`}
-              >
-                <span>{d.getDate()}</span>
-                {indicator && <span className={`text-[9px] leading-none font-medium ${indicator.color}`}>{indicator.label}</span>}
-              </button>
-            );
-          })}
-        </div>
-
-        {selectedRecord && (
-          <div className="mt-4 p-3 bg-muted rounded-md space-y-1 text-sm">
-            <p>
-              <strong>Clock In:</strong> {selectedRecord.clock_in ? formatPKTTime(selectedRecord.clock_in) : "—"}
-              {selectedRecord.is_late && (
-                <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
-                  Late by {formatLateness(selectedRecord.minutes_late)}
-                </Badge>
-              )}
-            </p>
-            <p><strong>Clock Out:</strong> {selectedRecord.clock_out ? formatPKTTime(selectedRecord.clock_out) : "—"}</p>
-            {selectedRecord.clock_in && selectedRecord.clock_out && (
-              <p><strong>Duration:</strong> {formatDuration(Math.floor((new Date(selectedRecord.clock_out).getTime() - new Date(selectedRecord.clock_in).getTime()) / 1000))}</p>
-            )}
-            <p><strong>Mode:</strong> {selectedRecord.work_mode || "—"}</p>
-            {selectedRecord.notes && <p><strong>Notes:</strong> {selectedRecord.notes}</p>}
-            {(() => {
-              const dateStr = format(selectedDay!, "yyyy-MM-dd");
-              const isPast = selectedDay! < new Date() && !isSameDay(selectedDay!, new Date());
-              const isWkend = isWeekend(selectedDay!);
-
-              if (selectedDayLogs.length === 0) {
-                if (isPast) {
-                  if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
-                  return <p><strong>Log:</strong> <span className="text-red-600 font-medium">No log submitted - Marked as Absent</span></p>;
-                }
-                if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
-                return <p><strong>Log:</strong> <span className="text-muted-foreground">Not submitted yet</span></p>;
-              }
-
-              return selectedDayLogs.map((log: any, idx: number) => (
-                <p key={log.id}>
-                  <strong>Log {selectedDayLogs.length > 1 ? idx + 1 : ""}:</strong> Submitted at {formatPKTTime(log.submitted_at)}
-                </p>
-              ));
-            })()}
-          </div>
-        )}
+        <AttendanceCalendar userId={user!.id} createdAt={profile?.created_at} />
       </Card>
 
       {/* Late Clock-in Confirmation */}

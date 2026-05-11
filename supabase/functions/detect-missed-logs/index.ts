@@ -36,13 +36,7 @@ Deno.serve(async (req: Request) => {
       day: "2-digit",
     }).format(now);
 
-    // Skip weekends (6=Saturday, 0=Sunday in JS getDay())
-    // Note: getDay() on 'now' might be different from PKT day if we are near midnight.
-    // Better to derive day of week from todayPKT.
     const pktDayOfWeek = new Date(todayPKT).getDay();
-    if (pktDayOfWeek === 0 || pktDayOfWeek === 6) {
-      return jsonResponse({ ok: true, skipped: "weekend", todayPKT });
-    }
 
     // Get current time in PKT
     const nowInTZ = new Intl.DateTimeFormat("en-GB", { 
@@ -68,7 +62,7 @@ Deno.serve(async (req: Request) => {
     // 2. Fetch all active users with their shift settings
     const { data: users, error: userError } = await supabase
       .from("users")
-      .select("id, full_name, has_custom_shift, shift_end, join_date")
+      .select("id, full_name, has_custom_shift, shift_end, created_at, working_days")
       .eq("status", "active");
 
     if (userError) throw userError;
@@ -94,10 +88,28 @@ Deno.serve(async (req: Request) => {
       if (loggedUserIds.has(user.id)) continue;
       if (alreadyMissedUserIds.has(user.id)) continue;
 
-      // FIX: Only mark as missed if the log_date is on or after the user's join_date
-      if (user.join_date && todayPKT < user.join_date) {
-        console.log(`Skipping missed log for ${user.full_name} - Joined on ${user.join_date}, checking for ${todayPKT}`);
+      const createdAtDate = user.created_at ? user.created_at.split("T")[0] : null;
+      if (createdAtDate && todayPKT < createdAtDate) {
+        console.log(`Skipping missed log for ${user.full_name} - Created on ${createdAtDate}, checking for ${todayPKT}`);
         continue;
+      }
+
+      const userWorkingDays = Number(user.working_days || 5);
+      
+      // Rule: Sunday is always skipped for everyone
+      if (pktDayOfWeek === 0) {
+        if (user.id === users[0].id) console.log("Skipping all users - Sunday is always a holiday");
+        continue;
+      }
+      
+      // Rule: Saturday is skipped for 5-day workers, but checked for 6-day workers
+      if (pktDayOfWeek === 6 && userWorkingDays === 5) {
+        console.log(`Skipping ${user.full_name} - Saturday is weekend for 5-day workers`);
+        continue;
+      }
+
+      if (pktDayOfWeek === 6 && userWorkingDays === 6) {
+        console.log(`Checking ${user.full_name} for Saturday (6-day worker)`);
       }
 
       // Determine effective shift end time

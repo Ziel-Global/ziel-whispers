@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2 } from "lucide-react";
+import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
@@ -55,6 +55,40 @@ export default function LogsAdminPage() {
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  // Fetch all projects for editing
+  const { data: allProjects = [] } = useQuery({
+    queryKey: ["all-projects-for-edit"],
+    queryFn: async () => {
+      const { data } = await supabase.from("projects").select("id, name").order("name");
+      return data || [];
+    },
+    enabled: isAdmin,
+  });
+
+  const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  const [editCategory, setEditCategory] = useState("");
+
+  const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
+
+  const handleEditLog = async (logId: string) => {
+    const { error } = await supabase
+      .from("daily_logs")
+      .update({
+        project_id: editProjectId,
+        category: editCategory,
+      })
+      .eq("id", logId);
+
+    if (error) {
+      toast.error(error.message);
+    } else {
+      toast.success("Log updated");
+      setEditingLogId(null);
+      queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
+    }
+  };
 
   const [logEditDays, setLogEditDays] = useState("");
   const [autoClockoutTime, setAutoClockoutTime] = useState("");
@@ -149,7 +183,14 @@ export default function LogsAdminPage() {
     },
   });
 
-  // Group logs by employee — compute log status
+  // Fetch standups for the selected date
+  const { data: standupRecords = [] } = useQuery({
+    queryKey: ["admin-standups", selectedDate],
+    queryFn: async () => {
+      const { data } = await supabase.from("daily_standups").select("*").eq("date", selectedDate);
+      return data || [];
+    },
+  });
   const groupedRows = useMemo(() => {
     const logsByUser: Record<string, any[]> = {};
     logs.forEach((l: any) => {
@@ -161,6 +202,11 @@ export default function LogsAdminPage() {
     const attByUser: Record<string, any> = {};
     attendanceRecords.forEach((a: any) => {
       if (a.user_id) attByUser[a.user_id] = a;
+    });
+
+    const standupByUser: Record<string, boolean> = {};
+    standupRecords.forEach((s: any) => {
+      if (s.user_id) standupByUser[s.user_id] = s.is_done;
     });
 
     const allRows = employees.filter((emp: any) => {
@@ -199,6 +245,7 @@ export default function LogsAdminPage() {
         logCount: empLogs.length,
         logStatus,
         hasFlaggedLog,
+        standupDone: standupByUser[emp.id] ?? true,
       };
     });
 
@@ -214,7 +261,7 @@ export default function LogsAdminPage() {
       const matchSearch = !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || r.logs.some((l: any) => l.description?.toLowerCase().includes(searchQ.toLowerCase()));
       return matchEmp && matchStatus && matchSearch;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [logs, employees, attendanceRecords, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
+  }, [logs, employees, attendanceRecords, standupRecords, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
 
   // Stat card counts (unfiltered)
   const allUnfilteredRows = useMemo(() => {
@@ -250,6 +297,22 @@ export default function LogsAdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
   };
 
+  const toggleStandup = async (userId: string, date: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from("daily_standups")
+      .upsert({ 
+        user_id: userId, 
+        date: date, 
+        is_done: !currentStatus 
+      }, { onConflict: "user_id, date" });
+    
+    if (error) {
+      toast.error(error.message);
+    } else {
+      queryClient.invalidateQueries({ queryKey: ["admin-standups"] });
+    }
+  };
+
   const toggleLock = async (log: any) => {
     await supabase.from("daily_logs").update({ is_locked: !log.is_locked }).eq("id", log.id);
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
@@ -274,9 +337,9 @@ export default function LogsAdminPage() {
   };
 
   const exportCSV = () => {
-    const header = "Employee,Logged Hours,Unlogged Hours,Log Status,Log Count\n";
+    const header = "Employee,Logged Hours,Unlogged Hours,Log Status,Standup Status\n";
     const rows = groupedRows.map((r) =>
-      `"${r.name}",${r.loggedHours.toFixed(1)},${r.unloggedHours.toFixed(1)},"${r.logStatus}",${r.logCount}`
+      `"${r.name}",${r.loggedHours.toFixed(1)},${r.unloggedHours.toFixed(1)},"${r.logStatus}","${r.standupDone ? "Done" : "Missed"}"`
     ).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
@@ -390,7 +453,7 @@ export default function LogsAdminPage() {
                   <TableHead>Logged Hours</TableHead>
                   <TableHead>Unlogged Hours</TableHead>
                   <TableHead>Log Status</TableHead>
-                  <TableHead>Log Count</TableHead>
+                  <TableHead>Standup</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -425,14 +488,12 @@ export default function LogsAdminPage() {
                             row.logStatus === "none" ? <Badge className="bg-gray-100 text-gray-500">N/A</Badge> :
                                 <Badge className="bg-green-100 text-green-800">Added</Badge>}
                         </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2 border border-border rounded-md px-3 py-1.5">
-                            {row.logCount > 0 ? (
-                              <span className="text-sm">{row.logCount} log{row.logCount > 1 ? "s" : ""}</span>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">No Logs</span>
-                            )}
-                          </div>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Switch 
+                            checked={row.standupDone} 
+                            disabled={!isAdmin}
+                            onCheckedChange={() => toggleStandup(row.userId, selectedDate, row.standupDone)}
+                          />
                         </TableCell>
                       </TableRow>
                       {expandedId === row.userId && (
@@ -458,11 +519,38 @@ export default function LogsAdminPage() {
                                           </div>
                                           <div>
                                             <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
-                                            <p className="text-sm">{log.projects?.name || "—"}</p>
+                                            {editingLogId === log.id ? (
+                                              <Select value={editProjectId || "__none__"} onValueChange={(v) => setEditProjectId(v === "__none__" ? null : v)}>
+                                                <SelectTrigger className="h-8 text-xs">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  <SelectItem value="__none__">No Project</SelectItem>
+                                                  {allProjects.map((p) => (
+                                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            ) : (
+                                              <p className="text-sm">{log.projects?.name || "—"}</p>
+                                            )}
                                           </div>
                                           <div>
                                             <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>
-                                            <Badge variant="secondary">{log.category}</Badge>
+                                            {editingLogId === log.id ? (
+                                              <Select value={editCategory} onValueChange={setEditCategory}>
+                                                <SelectTrigger className="h-8 text-xs">
+                                                  <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                  {CATEGORIES.map((c) => (
+                                                    <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
+                                                  ))}
+                                                </SelectContent>
+                                              </Select>
+                                            ) : (
+                                              <Badge variant="secondary">{log.category}</Badge>
+                                            )}
                                           </div>
                                         </div>
                                         <div className="mb-2">
@@ -481,6 +569,37 @@ export default function LogsAdminPage() {
                                       </div>
                                       {isAdmin && (
                                         <div className="flex gap-1 items-center">
+                                          {editingLogId === log.id ? (
+                                            <>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); handleEditLog(log.id); }}
+                                                className="shrink-0 p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                                                title="Save Changes"
+                                              >
+                                                <Save className="h-4 w-4" />
+                                              </button>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); setEditingLogId(null); }}
+                                                className="shrink-0 p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
+                                                title="Cancel"
+                                              >
+                                                <FileX className="h-4 w-4" />
+                                              </button>
+                                            </>
+                                          ) : (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setEditingLogId(log.id);
+                                                setEditProjectId(log.project_id);
+                                                setEditCategory(log.category);
+                                              }}
+                                              className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                                              title="Edit Log"
+                                            >
+                                              <Pencil className="h-4 w-4" />
+                                            </button>
+                                          )}
                                           <button
                                             onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
                                             className="shrink-0 p-1 rounded hover:bg-muted transition-colors"

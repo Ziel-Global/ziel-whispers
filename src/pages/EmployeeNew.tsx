@@ -33,6 +33,7 @@ const schema = z.object({
   shift_end: z.string().min(1, "Shift end required"),
   reminder_offset_minutes: z.number().min(1),
   password: z.string().min(8, "Min 8 characters").regex(/[0-9]/, "Must contain a number").regex(/[^a-zA-Z0-9]/, "Must contain a special character"),
+  working_days: z.number().min(5).max(6),
 });
 
 type FormData = z.infer<typeof schema>;
@@ -66,6 +67,7 @@ export default function EmployeeNewPage() {
       join_date: "", employment_type: "", role: "employee",
       shift_start: "", shift_end: "", reminder_offset_minutes: 0,
       password: "",
+      working_days: 5,
     },
   });
 
@@ -86,6 +88,7 @@ export default function EmployeeNewPage() {
       shift_start: defaultShiftStart, shift_end: defaultShiftEnd,
       reminder_offset_minutes: defaultReminder,
       password: "",
+      working_days: 5,
     });
   };
 
@@ -191,6 +194,19 @@ export default function EmployeeNewPage() {
                   <FormControl>
                     <PasswordInput {...field} placeholder="Min 8 characters" showStrength />
                   </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+              <FormField control={form.control} name="working_days" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Working Days <span className="text-destructive">*</span></FormLabel>
+                  <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)}>
+                    <FormControl><SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger></FormControl>
+                    <SelectContent>
+                      <SelectItem value="5">5 Days (Mon-Fri)</SelectItem>
+                      <SelectItem value="6">6 Days (Mon-Sat)</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )} />

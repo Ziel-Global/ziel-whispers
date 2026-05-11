@@ -24,6 +24,13 @@ type ParsedRow = {
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
+
 function validateRow(row: Record<string, string>): ParsedRow {
   const errors: string[] = [];
   const full_name = row["full_name"]?.trim() || "";
@@ -107,7 +114,7 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
     let success = 0, failed = 0;
     const failedList: Array<{ full_name: string; email: string; reason: string }> = [];
     for (const row of valid) {
-      const passwordToUse = useDefault ? defaultPassword : crypto.randomUUID().slice(0, 12) + "A1!";
+      const passwordToUse = useDefault ? defaultPassword : generateId().slice(0, 12) + "A1!";
       try {
         const res = await supabase.functions.invoke("invite-user", { body: { ...row, password: passwordToUse } });
         const { data, error } = res as any;

@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import { useWorkSettings, getPKTDateString } from "@/hooks/useWorkSettings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -14,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { getAvatarUrl } from "@/lib/utils";
 import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -37,6 +39,7 @@ export default function ProjectDetailPage() {
   const [statusNote, setStatusNote] = useState("");
   const [completionWarning, setCompletionWarning] = useState(false);
   const [pendingStatus, setPendingStatus] = useState("");
+  const [logFilterDate, setLogFilterDate] = useState<string>(getPKTDateString());
 
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
@@ -279,7 +282,10 @@ export default function ProjectDetailPage() {
                   <TableRow key={m.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7"><AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback></Avatar>
+                        <Avatar className="h-7 w-7">
+                          <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
+                          <AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback>
+                        </Avatar>
                         {(m.users as any)?.full_name}
                       </div>
                     </TableCell>
@@ -304,31 +310,88 @@ export default function ProjectDetailPage() {
         {/* LOGS — admin only */}
         {isAdmin && (
           <TabsContent value="logs">
-            <Card>
-              <div className="p-4 flex justify-between items-center border-b">
-                <span className="font-medium">{logs?.length || 0} logs · {formatHours(totalHours)} total</span>
+            <Card className="p-0 overflow-hidden">
+              <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b bg-muted/30">
+                <div className="flex items-center gap-4">
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Filter by Date</span>
+                    <Input 
+                      type="date" 
+                      value={logFilterDate} 
+                      onChange={(e) => setLogFilterDate(e.target.value)}
+                      className="h-9 w-[180px] bg-background"
+                    />
+                  </div>
+                  <div className="pt-5">
+                    <span className="text-sm font-medium">
+                      {(logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).length} logs found
+                    </span>
+                  </div>
+                </div>
                 <Button variant="outline" size="sm" onClick={() => exportCSV(
-                  (logs || []).map((l) => ({ Date: l.log_date, Employee: (l.users as any)?.full_name, Category: l.category, Hours: l.hours, Description: l.description })),
-                  `${project.name}-logs.csv`
+                  (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).map((l) => ({ Date: l.log_date, Employee: (l.users as any)?.full_name, Category: l.category, Hours: l.hours, Description: l.description })),
+                  `${project.name}-logs-${logFilterDate || "all"}.csv`
                 )}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
               </div>
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Date</TableHead><TableHead>Employee</TableHead><TableHead>Category</TableHead><TableHead>Hours</TableHead><TableHead>Description</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {logs?.map((l) => (
-                    <TableRow key={l.id}>
-                      <TableCell>{format(new Date(l.log_date), "MMM d")}</TableCell>
-                      <TableCell>{(l.users as any)?.full_name}</TableCell>
-                      <TableCell><Badge variant="outline">{l.category}</Badge></TableCell>
-                      <TableCell>{formatHours(Number(l.hours))}</TableCell>
-                      <TableCell className="max-w-xs truncate">{l.description}</TableCell>
-                    </TableRow>
-                  ))}
-                  {(!logs || logs.length === 0) && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No logs yet</TableCell></TableRow>}
-                </TableBody>
-              </Table>
+
+              <div className="divide-y">
+                {(() => {
+                  const filtered = (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate);
+                  
+                  // Group by member
+                  const memberMap: Record<string, { full_name: string; logs: any[] }> = {};
+                  members?.forEach(m => {
+                    const u = m.users as any;
+                    if (u) memberMap[u.id] = { full_name: u.full_name, logs: [] };
+                  });
+
+                  filtered.forEach(l => {
+                    if (memberMap[l.user_id]) {
+                      memberMap[l.user_id].logs.push(l);
+                    } else {
+                      memberMap[l.user_id] = { full_name: (l.users as any)?.full_name || "Unknown", logs: [l] };
+                    }
+                  });
+
+                  const sortedMembers = Object.values(memberMap).sort((a, b) => a.full_name.localeCompare(b.full_name));
+
+                  if (sortedMembers.length === 0) {
+                    return <div className="py-12 text-center text-muted-foreground">No members assigned to this project</div>;
+                  }
+
+                  return sortedMembers.map((m, idx) => (
+                    <div key={idx} className="p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                          <h3 className="font-bold text-sm uppercase tracking-wide">{m.full_name}</h3>
+                        </div>
+                        {m.logs.length > 0 && (
+                          <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                            {formatHours(m.logs.reduce((sum, l) => sum + Number(l.hours), 0))}
+                          </Badge>
+                        )}
+                      </div>
+
+                      {m.logs.length > 0 ? (
+                        <div className="grid gap-2 pl-3">
+                          {m.logs.map(log => (
+                            <div key={log.id} className="bg-muted/50 rounded-lg p-3 border border-border/50">
+                              <div className="flex items-center justify-between mb-1">
+                                <Badge variant="outline" className="text-[10px] uppercase">{log.category}</Badge>
+                                <span className="text-xs font-bold text-primary">{formatHours(Number(log.hours))}</span>
+                              </div>
+                              <p className="text-sm text-foreground leading-relaxed">{log.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground pl-3 italic">No logs submitted for this date</p>
+                      )}
+                    </div>
+                  ));
+                })()}
+              </div>
             </Card>
           </TabsContent>
         )}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,7 +16,10 @@ import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle, Loader2
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
 
+const getStorageKey = (userId: string) => `ziel_pending_logs_${userId}`;
+
 export default function MyAttendancePage() {
+  const navigate = useNavigate();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const { shiftStart, shiftEnd } = useWorkSettings();
@@ -87,7 +91,7 @@ export default function MyAttendancePage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("daily_logs")
-        .select("log_date, is_late")
+        .select("log_date, is_late, hours, submitted_at")
         .eq("user_id", user!.id)
         .gte("log_date", monthStart)
         .lte("log_date", monthEnd);
@@ -98,11 +102,15 @@ export default function MyAttendancePage() {
 
   // Group logs by date
   const logsByDate = useMemo(() => {
-    const map: Record<string, { count: number; hasLate: boolean }> = {};
+    const map: Record<string, { count: number; hasLate: boolean; totalHours: number; lastSubmittedAt: string | null }> = {};
     monthLogs.forEach((l: any) => {
-      if (!map[l.log_date]) map[l.log_date] = { count: 0, hasLate: false };
+      if (!map[l.log_date]) map[l.log_date] = { count: 0, hasLate: false, totalHours: 0, lastSubmittedAt: null };
       map[l.log_date].count++;
       if (l.is_late) map[l.log_date].hasLate = true;
+      map[l.log_date].totalHours += Number(l.hours);
+      if (!map[l.log_date].lastSubmittedAt || new Date(l.submitted_at) > new Date(map[l.log_date].lastSubmittedAt)) {
+        map[l.log_date].lastSubmittedAt = l.submitted_at;
+      }
     });
     return map;
   }, [monthLogs]);
@@ -214,6 +222,23 @@ export default function MyAttendancePage() {
   };
 
   const onClockOutClick = () => {
+    // Check for pending logs
+    if (user?.id) {
+      const saved = localStorage.getItem(getStorageKey(user.id));
+      if (saved) {
+        try {
+          const logs = JSON.parse(saved);
+          if (Array.isArray(logs) && logs.length > 0) {
+            toast.error("You have unsubmitted logs. Please submit your logs before clocking out.");
+            navigate("/logs/submit");
+            return;
+          }
+        } catch (e) {
+          console.error("Failed to check pending logs", e);
+        }
+      }
+    }
+
     const info = getEarlyClockOutData();
     if (info.isEarly) {
       setEarlyClockOutInfo(info);
@@ -285,18 +310,24 @@ export default function MyAttendancePage() {
     const dateStr = format(d, "yyyy-MM-dd");
     const logInfo = logsByDate[dateStr];
     const isPast = d < new Date() && !isSameDay(d, new Date());
+    const isFuture = d > new Date() && !isSameDay(d, new Date());
+
+    if (isFuture) return null;
+
+    // Account boundary check
+    const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
+    if (createdAtDate && dateStr < createdAtDate) return null;
 
     if (!logInfo || logInfo.count === 0) {
       if (isPast) {
-        // Use created_at as the boundary — not join_date which admins can backdate.
-        const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
-        if (createdAtDate && dateStr <= createdAtDate) return null; // Account didn't exist yet
-        return { label: "No Log - Absent", color: "text-red-500" };
+        return { label: "Missed \u2014 Day marked as absent", color: "text-red-500" };
       }
-      return null;
+      return { label: "Missed", color: "text-red-500" };
     }
-    if (logInfo.hasLate) return { label: "Late", color: "text-amber-600" };
-    return { label: "Logged", color: "text-green-600" };
+
+    const statusPrefix = logInfo.hasLate ? "Submitted late" : "Submitted on time";
+    const timeStr = logInfo.lastSubmittedAt ? formatPKTTime(logInfo.lastSubmittedAt) : "";
+    return { label: `${statusPrefix} \u2014 Submitted at ${timeStr}`, color: logInfo.hasLate ? "text-amber-600" : "text-green-600" };
   };
 
   return (
@@ -436,10 +467,10 @@ export default function MyAttendancePage() {
               <button
                 key={d.toISOString()}
                 onClick={() => setSelectedDay(d)}
-                className={`min-h-[44px] rounded text-sm font-medium transition-colors flex flex-col items-center justify-center gap-0.5 ${getDayColor(d)} ${selectedDay && isSameDay(d, selectedDay) ? "ring-2 ring-primary" : ""} hover:ring-1 hover:ring-border`}
+                className={`min-h-[60px] p-1 rounded text-sm font-medium transition-colors flex flex-col items-center justify-center gap-0.5 ${getDayColor(d)} ${selectedDay && isSameDay(d, selectedDay) ? "ring-2 ring-primary" : ""} hover:ring-1 hover:ring-border`}
               >
                 <span>{d.getDate()}</span>
-                {indicator && <span className={`text-[9px] leading-none font-medium ${indicator.color}`}>{indicator.label}</span>}
+                {indicator && <span className={`text-[8px] leading-[1.1] font-medium text-center px-0.5 ${indicator.color}`}>{indicator.label}</span>}
               </button>
             );
           })}
@@ -463,23 +494,19 @@ export default function MyAttendancePage() {
             {selectedRecord.notes && <p><strong>Notes:</strong> {selectedRecord.notes}</p>}
             {(() => {
               const dateStr = format(selectedDay!, "yyyy-MM-dd");
-              const isPast = selectedDay! < new Date() && !isSameDay(selectedDay!, new Date());
-              const isWkend = isWeekend(selectedDay!);
-
-              if (selectedDayLogs.length === 0) {
-                if (isPast) {
-                  if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
-                  return <p><strong>Log:</strong> <span className="text-red-600 font-medium">No log submitted - Marked as Absent</span></p>;
-                }
-                if (isWkend) return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
-                return <p><strong>Log:</strong> <span className="text-muted-foreground">Not submitted yet</span></p>;
+              const indicator = getLogIndicator(selectedDay!);
+              
+              if (isWeekend(selectedDay!)) {
+                return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
               }
 
-              return selectedDayLogs.map((log: any, idx: number) => (
-                <p key={log.id}>
-                  <strong>Log {selectedDayLogs.length > 1 ? idx + 1 : ""}:</strong> Submitted at {formatPKTTime(log.submitted_at)}
+              if (!indicator) return null;
+
+              return (
+                <p>
+                  <strong>Log:</strong> <span className={`${indicator.color} font-medium`}>{indicator.label}</span>
                 </p>
-              ));
+              );
             })()}
           </div>
         )}

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkSettings, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
@@ -87,7 +87,7 @@ export default function LogSubmitPage() {
   const schema = z.object({
     project_id: z.string().min(1, "Please select a project").refine(v => v !== NO_PROJECT, "Please select a project"),
     category: z.string().min(1, "Category is required"),
-    hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
+    hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
     description: z.string().min(20, "Min 20 characters"),
     log_date: z.string().min(1, "Date is required").refine((v) => {
       const day = new Date(v + "T00:00:00").getDay();
@@ -137,9 +137,23 @@ export default function LogSubmitPage() {
     enabled: !!user?.id && !!selectedDate,
   });
 
-  const isSubmitted = dateLogs.length > 0 && profile?.role !== "admin";
+  const submittedHours = useMemo(() => dateLogs.reduce((sum, l) => sum + Number(l.hours), 0), [dateLogs]);
+  const pendingHoursForSelectedDate = useMemo(() => 
+    pendingLogs.filter(p => p.log_date === selectedDate && p.tempId !== editId).reduce((sum, l) => sum + Number(l.hours), 0),
+    [pendingLogs, selectedDate, editId]
+  );
+  
+  const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
+  const remainingFor8 = Math.max(0, 8 - totalHoursForSelectedDate);
+  const isLocked = submittedHours >= 8 && profile?.role !== "admin";
 
   const onAddLog = (data: z.infer<typeof schema>) => {
+    const currentHours = Number(data.hours);
+    if (submittedHours + pendingHoursForSelectedDate + currentHours > 8.01 && profile?.role !== "admin") {
+      toast.error(`You can only log up to 8 hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
+      return;
+    }
+
     if (editId) {
       setPendingLogs(prev => prev.map(p => p.tempId === editId ? { ...data, tempId: editId } : p));
       setEditId(null);
@@ -148,7 +162,7 @@ export default function LogSubmitPage() {
       setPendingLogs((prev) => [...prev, { ...data, tempId: crypto.randomUUID() }]);
       toast.success("Log added to list");
     }
-    form.reset({ ...form.getValues(), hours: 1, description: "" });
+    form.reset({ ...form.getValues(), hours: Math.min(1, Math.max(0.25, 8 - (submittedHours + pendingHoursForSelectedDate + (editId ? 0 : 0)))), description: "" });
   };
 
   const startEdit = (log: any) => {
@@ -179,16 +193,13 @@ export default function LogSubmitPage() {
     try {
       const nowPKT = new Date(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }).format(new Date()));
       
-      // Construct the deadline for TODAY
       const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date());
       const todayDeadline = new Date(`${todayStr}T${resolvedShiftEnd}`);
       
-      // Handle overnight shifts for TODAY'S deadline
       if (shiftStart && resolvedShiftEnd && resolvedShiftEnd < shiftStart) {
         todayDeadline.setDate(todayDeadline.getDate() + 1);
       }
       
-      // A log is late ONLY if submitted after the shift end of the SUBMISSION day
       const isLate = nowPKT > todayDeadline;
 
       const logsToInsert = pendingLogs.map((log) => {
@@ -214,6 +225,46 @@ export default function LogSubmitPage() {
       });
 
       toast.success(`${logsToInsert.length} logs submitted successfully`);
+      
+      // Auto Clock Out logic - Check total hours for TODAY in the database
+      try {
+        const { data: todayLogs } = await supabase
+          .from("daily_logs")
+          .select("hours")
+          .eq("user_id", user!.id)
+          .eq("log_date", today);
+        
+        const totalToday = (todayLogs || []).reduce((sum, l) => sum + Number(l.hours), 0);
+
+        if (totalToday >= 7.99) { // Using 7.99 to handle potential float precision issues
+          const { data: openSession } = await supabase
+            .from("attendance")
+            .select("*")
+            .eq("user_id", user!.id)
+            .is("clock_out", null)
+            .order("clock_in", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (openSession) {
+            const clockOutTime = getPKTISOString();
+            await supabase.from("attendance").update({ clock_out: clockOutTime }).eq("id", openSession.id);
+            await supabase.from("audit_logs").insert({
+              actor_id: user!.id,
+              action: "attendance.auto_clocked_out",
+              target_entity: "attendance",
+              target_id: openSession.id,
+              metadata: { reason: "reached_8_hour_log_limit", clock_out: clockOutTime, total_today: totalToday }
+            });
+            toast.info("Auto clocked out as you reached 8 hours of logs today.");
+            queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
+            queryClient.invalidateQueries({ queryKey: ["attendance-open-session"] });
+          }
+        }
+      } catch (autoErr) {
+        console.error("Auto clock-out failed", autoErr);
+      }
+
       setPendingLogs([]);
       if (user?.id) localStorage.removeItem(getStorageKey(user.id));
       form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
@@ -228,7 +279,6 @@ export default function LogSubmitPage() {
     }
   };
 
-  const totalHoursForSelectedDate = [...dateLogs, ...pendingLogs.filter(p => p.log_date === selectedDate)].reduce((sum, l) => sum + Number(l.hours), 0);
   const progressPercentage = Math.min((totalHoursForSelectedDate / 8) * 100, 100);
   const remainingHoursForTarget = Math.max(8 - totalHoursForSelectedDate, 0);
 
@@ -256,11 +306,14 @@ export default function LogSubmitPage() {
           </div>
           <Progress value={progressPercentage} className="h-2 bg-gray-200" />
           <div className="flex justify-between items-center mt-2 text-xs">
-            <p className="font-medium">{totalHoursForSelectedDate} of 8 hours logged</p>
+            <div>
+              <p className="font-medium text-black">{totalHoursForSelectedDate} of 8 hours total</p>
+              {submittedHours > 0 && <p className="text-[10px] text-muted-foreground">({submittedHours}h already submitted)</p>}
+            </div>
             {remainingHoursForTarget > 0 ? (
-              <p className="text-muted-foreground">{remainingHoursForTarget} {remainingHoursForTarget === 1 ? 'hour' : 'hours'} remaining</p>
+              <p className="text-muted-foreground">{remainingHoursForTarget}h remaining</p>
             ) : (
-              <p className="text-green-600 font-bold flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Goal Reached</p>
+              <p className="text-green-600 font-bold flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Day Limit Reached</p>
             )}
           </div>
         </div>
@@ -277,7 +330,7 @@ export default function LogSubmitPage() {
               <FormField control={form.control} name="project_id" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Project</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitted}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLocked}>
                     <FormControl><SelectTrigger className="bg-background"><SelectValue placeholder="Select project" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
@@ -289,7 +342,7 @@ export default function LogSubmitPage() {
               <FormField control={form.control} name="category" render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isSubmitted}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLocked}>
                     <FormControl><SelectTrigger className="bg-background"><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
@@ -302,7 +355,7 @@ export default function LogSubmitPage() {
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duration (Hours)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.5" className="bg-background" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isSubmitted} />
+                    <Input type="number" step="0.25" min="0.25" className="bg-background" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isLocked} max={remainingFor8} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -328,7 +381,7 @@ export default function LogSubmitPage() {
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</FormLabel>
-                <FormControl><Textarea {...field} rows={3} className="bg-background resize-none" placeholder="Explain your progress..." disabled={isSubmitted} /></FormControl>
+                <FormControl><Textarea {...field} rows={3} className="bg-background resize-none" placeholder="Explain your progress..." disabled={isLocked} /></FormControl>
                 <div className="flex justify-between items-center px-1">
                   <FormMessage />
                   <span className={`text-[10px] font-mono ${descValue?.length < 20 ? "text-destructive" : "text-muted-foreground"}`}>{descValue?.length || 0} / 20 chars min</span>
@@ -336,12 +389,12 @@ export default function LogSubmitPage() {
               </FormItem>
             )} />
 
-            {isSubmitted ? (
+            {isLocked ? (
               <div className="bg-muted p-6 rounded-xl border-2 border-dashed flex flex-col items-center text-center space-y-3">
                 <div className="p-3 bg-primary/10 rounded-full"><Lock className="h-6 w-6 text-primary" /></div>
                 <div>
-                  <p className="font-bold">Logs Already Submitted</p>
-                  <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
+                  <p className="font-bold">Daily Limit Reached</p>
+                  <p className="text-sm text-muted-foreground">You have already submitted 8 or more hours for {format(parseISO(selectedDate), "MMM do")}.</p>
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={() => navigate("/logs/my")} className="rounded-button">Go to My Logs</Button>
               </div>
@@ -350,7 +403,7 @@ export default function LogSubmitPage() {
                 {editId && (
                   <Button type="button" variant="ghost" onClick={cancelEdit} className="rounded-button">Cancel Edit</Button>
                 )}
-                <Button type="submit" className="rounded-button px-8">
+                <Button type="submit" className="rounded-button px-8" disabled={totalHoursForSelectedDate >= 8 && !editId}>
                   {editId ? "Update Log Entry" : "Add Log Entry"}
                 </Button>
               </div>
@@ -433,7 +486,7 @@ export default function LogSubmitPage() {
       {/* Help Info */}
       <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-xl border-black border border-2 border-dashed text-muted-foreground">
         <AlertCircle className="h-5 w-5 shrink-0" />
-        <p className="text-xs">Tip: You can select a past date to submit logs you might have missed. Once a day is submitted, it is locked for changes.</p>
+        <p className="text-xs">Tip: You can select a past date to submit logs you might have missed. You can submit multiple logs for the same day until you reach the 8-hour limit.</p>
       </div>
 
       <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
@@ -444,7 +497,7 @@ export default function LogSubmitPage() {
               <p className="font-semibold text-foreground">Are you sure you want to submit all {pendingLogs.length} logs?</p>
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-800 text-xs flex gap-3">
                 <AlertCircle className="h-5 w-5 shrink-0" />
-                <p><strong>Warning:</strong> This action is irreversible and you can only submit logs once per day, so make sure all the logs of the day are added.</p>
+                <p><strong>Warning:</strong> Make sure all the logs for the day are added. You can submit multiple times until you reach 8 hours total for a day.</p>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>

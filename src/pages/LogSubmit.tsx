@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkSettings, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, formatPKTTime, getPKTISOString } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -17,12 +17,22 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trash2, Pencil, CheckCircle2, History, Send, ListPlus, AlertCircle, CalendarClock, Lock } from "lucide-react";
-import { format, parseISO } from "date-fns";
+import { Trash2, Pencil, CheckCircle2, History, Send, ListPlus, AlertCircle, CalendarClock, Lock, Calendar as CalendarIcon } from "lucide-react";
+import { format, parseISO, startOfDay, subDays, isSameDay } from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn } from "@/lib/utils";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
 const NO_PROJECT = "__none__";
 const getStorageKey = (userId: string) => `ziel_pending_logs_${userId}`;
+
+const generateId = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -42,7 +52,7 @@ export default function LogSubmitPage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const { shiftStart, shiftEnd: resolvedShiftEnd } = useWorkSettings();
+  const { shiftStart, shiftEnd: resolvedShiftEnd, workingDays } = useWorkSettings();
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [pendingLogs, setPendingLogs] = useState<any[]>([]);
@@ -82,7 +92,35 @@ export default function LogSubmitPage() {
     },
   });
 
-  const minDate = getMinDateStr(logEditDays);
+  const minDate = getMinDateStr(10);
+
+  const { data: logsTotals = {} } = useQuery({
+    queryKey: ["my-logs-totals-range", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("log_date, hours")
+        .eq("user_id", user!.id)
+        .gte("log_date", minDate);
+      
+      const totals: Record<string, number> = {};
+      data?.forEach((l: any) => {
+        totals[l.log_date] = (totals[l.log_date] || 0) + Number(l.hours);
+      });
+      return totals;
+    },
+    enabled: !!user?.id,
+  });
+
+  const getPrevWorkingDay = () => {
+    let d = new Date(today + "T00:00:00");
+    do {
+      d.setDate(d.getDate() - 1);
+    } while (d.getDay() === 0 || (d.getDay() === 6 && workingDays === 5));
+    return format(d, "yyyy-MM-dd");
+  };
+
+  const prevWorkingDay = getPrevWorkingDay();
 
   const schema = z.object({
     project_id: z.string().min(1, "Please select a project").refine(v => v !== NO_PROJECT, "Please select a project"),
@@ -91,10 +129,17 @@ export default function LogSubmitPage() {
     description: z.string().min(20, "Min 20 characters"),
     log_date: z.string().min(1, "Date is required").refine((v) => {
       const day = new Date(v + "T00:00:00").getDay();
-      return day !== 0 && day !== 6;
-    }, "Cannot submit logs for Saturday or Sunday").refine((v) => {
-      return v >= minDate && v <= today;
-    }, `You can only submit logs for today or up to ${logEditDays} days in the past`),
+      if (day === 0) return false;
+      if (day === 6 && workingDays === 5) return false;
+      return true;
+    }, "Cannot submit logs for this day").refine((v) => {
+      const isToday = v === today;
+      const isPrevWorking = v === prevWorkingDay;
+      return isToday || isPrevWorking;
+    }, "Only today and the previous working day are available for logs").refine((v) => {
+      const total = logsTotals[v] || 0;
+      return total < 8;
+    }, "This day already has 8 or more hours logged"),
   });
 
   const { data: projects = [] } = useQuery({
@@ -159,7 +204,7 @@ export default function LogSubmitPage() {
       setEditId(null);
       toast.success("Log updated");
     } else {
-      setPendingLogs((prev) => [...prev, { ...data, tempId: crypto.randomUUID() }]);
+      setPendingLogs((prev) => [...prev, { ...data, tempId: generateId() }]);
       toast.success("Log added to list");
     }
     form.reset({ ...form.getValues(), hours: Math.min(1, Math.max(0.25, 8 - (submittedHours + pendingHoursForSelectedDate + (editId ? 0 : 0)))), description: "" });
@@ -191,16 +236,23 @@ export default function LogSubmitPage() {
     if (pendingLogs.length === 0) return;
     setSubmitting(true);
     try {
-      const nowPKT = new Date(new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" }).format(new Date()));
+      // Safer PKT now calculation
+      const nowPKTStr = getPKTISOString();
+      const nowPKT = new Date(nowPKTStr);
       
-      const todayStr = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Karachi" }).format(new Date());
-      const todayDeadline = new Date(`${todayStr}T${resolvedShiftEnd}`);
+      const todayStr = getPKTDateString();
       
-      if (shiftStart && resolvedShiftEnd && resolvedShiftEnd < shiftStart) {
-        todayDeadline.setDate(todayDeadline.getDate() + 1);
+      // Handle potential empty or invalid shiftEnd
+      let isLate = false;
+      if (resolvedShiftEnd && resolvedShiftEnd.includes(":")) {
+        const todayDeadline = new Date(`${todayStr}T${resolvedShiftEnd}`);
+        
+        if (shiftStart && resolvedShiftEnd < shiftStart) {
+          todayDeadline.setDate(todayDeadline.getDate() + 1);
+        }
+        
+        isLate = nowPKT > todayDeadline;
       }
-      
-      const isLate = nowPKT > todayDeadline;
 
       const logsToInsert = pendingLogs.map((log) => {
         return {
@@ -361,19 +413,59 @@ export default function LogSubmitPage() {
                 </FormItem>
               )} />
               <FormField control={form.control} name="log_date" render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Log Date</FormLabel>
-                  <FormControl><Input type="date" className="bg-background" {...field} onChange={(e) => {
-                    const v = e.target.value;
-                    if (v) {
-                      const day = new Date(v + "T00:00:00").getDay();
-                      if (day === 0 || day === 6) {
-                        toast.error("Cannot select Saturday or Sunday for logs");
-                        return;
-                      }
-                    }
-                    field.onChange(e);
-                  }} min={minDate} max={today} /></FormControl>
+                <FormItem className="flex flex-col">
+                  <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Log Date</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal bg-background h-10",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={isLocked}
+                        >
+                          {field.value ? format(parseISO(field.value), "PPP") : <span>Pick a date</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value ? parseISO(field.value) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(format(date, "yyyy-MM-dd"));
+                          }
+                        }}
+                        disabled={(date) => {
+                          const dateStr = format(date, "yyyy-MM-dd");
+                          const day = date.getDay();
+                          
+                          // Disable Sunday
+                          if (day === 0) return true;
+                          // Disable Saturday if 5-day worker
+                          if (day === 6 && workingDays === 5) return true;
+                          
+                          // Only Today and Previous Working Day are allowed
+                          const isToday = dateStr === today;
+                          const isPrevWorking = dateStr === prevWorkingDay;
+                          if (!isToday && !isPrevWorking) return true;
+                          
+                          // Disable if already has 8+ hours
+                          if ((logsTotals[dateStr] || 0) >= 8) return true;
+                          
+                          // Future dates (just in case)
+                          if (date > new Date()) return true;
+
+                          return false;
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )} />

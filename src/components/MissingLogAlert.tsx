@@ -14,7 +14,6 @@ export function MissingLogAlert() {
   const [open, setOpen] = useState(false);
 
   // 1. Determine the previous working day in PKT
-  // Monday -> Friday; Tue-Fri -> Yesterday; Sat/Sun -> No alert
   const today = new Date();
   const todayPKTStr = getPKTDateString(today);
   const todayPKT = new Date(todayPKTStr + "T00:00:00");
@@ -23,18 +22,29 @@ export function MissingLogAlert() {
   // Weekends: Suppress alert entirely
   const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
+  // Determine the previous working day in PKT
+  // For 5-day: Mon -> Fri (sub 3), Tue-Sat -> Yesterday (sub 1)
+  // For 6-day: Mon -> Sat (sub 2), Tue-Sun -> Yesterday (sub 1)
+  const workingDays = Number(profile?.working_days || 5);
   let daysToSubtract = 1;
-  if (dayOfWeek === 1) daysToSubtract = 3; // Monday -> Friday
-  else if (dayOfWeek === 0) daysToSubtract = 2; // Sunday -> Friday (but we skip weekends anyway)
+  if (workingDays === 5) {
+    if (dayOfWeek === 1) daysToSubtract = 3; // Monday -> Friday
+    else if (dayOfWeek === 0) daysToSubtract = 2; // Sunday -> Friday
+  } else if (workingDays === 6) {
+    if (dayOfWeek === 1) daysToSubtract = 2; // Monday -> Saturday
+    // Sunday is handled by the sub 1 (Sun -> Sat) but alerts are suppressed on Sun anyway
+  }
 
   const targetDate = new Date(todayPKT);
   targetDate.setDate(targetDate.getDate() - daysToSubtract);
   const targetDateStr = getPKTDateString(targetDate);
+  const targetDayOfWeek = targetDate.getDay();
 
   const { data: logsData } = useQuery({
-    queryKey: ["missing-log-check", user?.id, targetDateStr, profile?.created_at],
+    queryKey: ["missing-log-check", user?.id, targetDateStr, profile?.created_at, workingDays],
     queryFn: async () => {
-      if (isWeekend) return { totalLogged: 8, expectedHours: 8 };
+      // Suppress on Sun for everyone, and Sat for 5-day workers
+      if (dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5)) return { totalLogged: 8, expectedHours: 8 };
 
       // Use created_at as the strict boundary
       const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
@@ -90,7 +100,12 @@ export function MissingLogAlert() {
 
   const { totalLogged, expectedHours } = logsData;
   const missingHours = Math.max(0, expectedHours - totalLogged);
-  const dateLabel = dayOfWeek === 1 ? "Friday" : "yesterday";
+  
+  let dateLabel = "yesterday";
+  if (workingDays === 5 && dayOfWeek === 1) dateLabel = "Friday";
+  else if (workingDays === 6 && dayOfWeek === 1) dateLabel = "Saturday";
+  else if (targetDayOfWeek === 5) dateLabel = "Friday";
+  else if (targetDayOfWeek === 6) dateLabel = "Saturday";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>

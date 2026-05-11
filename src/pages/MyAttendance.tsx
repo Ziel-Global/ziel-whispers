@@ -22,7 +22,7 @@ export default function MyAttendancePage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const { shiftStart, shiftEnd } = useWorkSettings();
+  const { shiftStart, shiftEnd, workingDays } = useWorkSettings();
   const [workMode, setWorkMode] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -286,7 +286,10 @@ export default function MyAttendancePage() {
   const selectedRecord = selectedDay ? getRecordForDay(selectedDay) : null;
 
   const getDayColor = (d: Date) => {
-    if (isWeekend(d)) return "bg-muted text-muted-foreground";
+    const day = d.getDay();
+    const isSun = day === 0;
+    const isSat = day === 6;
+    if (isSun || (isSat && workingDays === 5)) return "bg-muted text-muted-foreground";
     const rec = getRecordForDay(d);
     if (!rec) {
       // Only show as absent (red) if the date is strictly AFTER the account creation date.
@@ -306,7 +309,10 @@ export default function MyAttendancePage() {
   };
 
   const getLogIndicator = (d: Date) => {
-    if (isWeekend(d)) return null;
+    const day = d.getDay();
+    const isSun = day === 0;
+    const isSat = day === 6;
+    if (isSun || (isSat && workingDays === 5)) return null;
     const dateStr = format(d, "yyyy-MM-dd");
     const logInfo = logsByDate[dateStr];
     const isPast = d < new Date() && !isSameDay(d, new Date());
@@ -495,8 +501,11 @@ export default function MyAttendancePage() {
             {(() => {
               const dateStr = format(selectedDay!, "yyyy-MM-dd");
               const indicator = getLogIndicator(selectedDay!);
+              const day = selectedDay!.getDay();
+              const isSun = day === 0;
+              const isSat = day === 6;
               
-              if (isWeekend(selectedDay!)) {
+              if (isSun || (isSat && workingDays === 5)) {
                 return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
               }
 

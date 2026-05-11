@@ -8,6 +8,7 @@ type WorkSettings = {
   hasCustomShift: boolean;
   annualLeaveEntitlement: number;
   timezone: string;
+  workingDays: number;
 };
 
 /**
@@ -44,7 +45,7 @@ export function useWorkSettings() {
     queryFn: async () => {
       const { data } = await supabase
         .from("users")
-        .select("shift_start, shift_end, has_custom_shift")
+        .select("shift_start, shift_end, has_custom_shift, working_days")
         .eq("id", user!.id)
         .single();
       return data;
@@ -69,6 +70,7 @@ export function useWorkSettings() {
     hasCustomShift,
     annualLeaveEntitlement,
     timezone,
+    workingDays: Number((userShift as any)?.working_days || 5),
   };
 
   return resolved;
@@ -175,7 +177,7 @@ export function formatPKTTime(dateInput: Date | string | null | undefined): stri
  * Checks if the current time is past the shift start time (in PKT).
  * Matches the logic in the database trigger calculate_late_clockin.
  */
-export function getLatenessInfo(shiftStart: string, graceMinutes: number = 15) {
+export function getLatenessInfo(shiftStart: string, graceMinutes: number = 15, workingDays: number = 5) {
   if (!shiftStart) return { isLate: false, minutesLate: 0 };
   
   const parts = shiftStart.split(":");
@@ -189,7 +191,7 @@ export function getLatenessInfo(shiftStart: string, graceMinutes: number = 15) {
   
   // Skip weekends (0=Sun, 6=Sat in JS)
   const day = pktNow.getDay();
-  if (day === 0 || day === 6) {
+  if (day === 0 || (day === 6 && workingDays === 5)) {
     return { isLate: false, minutesLate: 0 };
   }
   

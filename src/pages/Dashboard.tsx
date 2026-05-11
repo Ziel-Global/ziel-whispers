@@ -20,8 +20,10 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
-  const isWeekendDay = new Date(today + "T00:00:00").getDay() === 0 || new Date(today + "T00:00:00").getDay() === 6;
-  const { annualLeaveEntitlement, shiftStart } = useWorkSettings();
+  const { annualLeaveEntitlement, shiftStart, workingDays } = useWorkSettings();
+  
+  const dayOfWeek = new Date(today + "T00:00:00").getDay();
+  const isWeekendDay = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
 
   // ——— Shared queries ———
   const { data: todayAttendance } = useQuery({

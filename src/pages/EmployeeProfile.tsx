@@ -53,6 +53,7 @@ const adminSchema = z.object({
   shift_end: z.string(),
   reminder_offset_minutes: z.number(),
   is_night_shift: z.boolean(),
+  working_days: z.number().min(5).max(6),
 });
 
 export default function EmployeeProfilePage() {
@@ -152,6 +153,7 @@ export default function EmployeeProfilePage() {
       shift_end: employee?.shift_end || "17:00",
       reminder_offset_minutes: employee?.reminder_offset_minutes || 15,
       is_night_shift: employee?.is_night_shift ?? false,
+      working_days: employee?.working_days || 5,
     },
   });
 
@@ -170,6 +172,7 @@ export default function EmployeeProfilePage() {
         shift_end: employee.shift_end || "17:00",
         reminder_offset_minutes: employee.reminder_offset_minutes || 15,
         is_night_shift: employee.is_night_shift ?? false,
+        working_days: employee.working_days || 5,
       });
     }
   }, [employee, form]);
@@ -211,6 +214,7 @@ export default function EmployeeProfilePage() {
         shift_end: data.shift_end,
         reminder_offset_minutes: data.reminder_offset_minutes,
         is_night_shift: data.is_night_shift,
+        working_days: data.working_days,
         has_custom_shift: hasCustomShift,
       } as any).eq("id", employee.id);
 
@@ -533,6 +537,20 @@ export default function EmployeeProfilePage() {
                           {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}
                         </SelectContent>
                       </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                  <FormField control={form.control} name="working_days" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Working Days</FormLabel>
+                      <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
+                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                        <SelectContent>
+                          <SelectItem value="5">5 Days (Mon-Fri)</SelectItem>
+                          <SelectItem value="6">6 Days (Mon-Sat)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Sets if employee is expected to work on Saturdays.</p>
                       <FormMessage />
                     </FormItem>
                   )} />

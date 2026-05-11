@@ -56,6 +56,8 @@ export default function LogSubmitPage() {
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [pendingLogs, setPendingLogs] = useState<any[]>([]);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
@@ -415,7 +417,7 @@ export default function LogSubmitPage() {
               <FormField control={form.control} name="log_date" render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Log Date</FormLabel>
-                  <Popover>
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -438,6 +440,7 @@ export default function LogSubmitPage() {
                         onSelect={(date) => {
                           if (date) {
                             field.onChange(format(date, "yyyy-MM-dd"));
+                            setIsCalendarOpen(false);
                           }
                         }}
                         disabled={(date) => {

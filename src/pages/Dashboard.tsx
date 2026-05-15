@@ -27,12 +27,12 @@ export default function DashboardPage() {
   const isWeekendDay = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
 
   // ——— Shared queries ———
-  const { data: todayAttendance } = useQuery({
+  const { data: todaySessions = [] } = useQuery({
     queryKey: ["dashboard-attendance", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).maybeSingle();
+      const { data, error } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).order("clock_in", { ascending: true });
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: hasProfile && !!user?.id,
   });
@@ -181,11 +181,24 @@ export default function DashboardPage() {
     queryFn: async () => {
       const [{ data: users }, { data: attendance }] = await Promise.all([
         supabase.from("users").select("id, full_name, designation, avatar_url, role").neq("role", "admin").eq("status", "active"),
-        supabase.from("attendance").select("user_id, work_mode, clock_in").eq("date", today)
+        supabase.from("attendance").select("user_id, work_mode, clock_in, clock_out").eq("date", today)
       ]);
       
       const attendanceMap = (attendance || []).reduce((acc: any, curr) => {
-        acc[curr.user_id] = curr;
+        const existing = acc[curr.user_id];
+        if (!existing) {
+          acc[curr.user_id] = curr;
+        } else {
+          const isCurrActive = !curr.clock_out && !!curr.clock_in;
+          const isExistActive = !existing.clock_out && !!existing.clock_in;
+          if (isCurrActive && !isExistActive) {
+            acc[curr.user_id] = curr;
+          } else if (isCurrActive === isExistActive) {
+            if (new Date(curr.clock_in) > new Date(existing.clock_in)) {
+              acc[curr.user_id] = curr;
+            }
+          }
+        }
         return acc;
       }, {});
 
@@ -249,7 +262,20 @@ export default function DashboardPage() {
     }
   };
 
-  const isClockedIn = !!todayAttendance?.clock_in && !todayAttendance?.clock_out;
+  const activeSession = todaySessions.find(s => !s.clock_out && !!s.clock_in);
+  const isClockedIn = !!activeSession;
+  
+  const todayTotalSeconds = todaySessions.reduce((acc, s) => {
+    if (!s.clock_in || !s.clock_out) return acc;
+    return acc + Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 1000);
+  }, 0);
+
+  const formatDuration = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
   const hasSubmittedLog = (todayLogs?.length || 0) > 0;
 
   // ——— ADMIN DASHBOARD ———
@@ -428,13 +454,17 @@ export default function DashboardPage() {
           </div>
           {isClockedIn ? (
             <>
-              <p className="text-sm">Clocked in since <strong>{format(new Date(todayAttendance!.clock_in!), "h:mm a")}</strong></p>
-              {(todayAttendance as any)?.is_late && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ You're late by {formatLateness((todayAttendance as any)?.minutes_late)}. Your shift starts at {formatShiftTime(shiftStart)}.</p>
+              <p className="text-sm">Clocked in since <strong>{format(new Date(activeSession.clock_in!), "h:mm a")}</strong> ({activeSession.work_mode})</p>
+              {activeSession.is_late && (
+                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(activeSession.minutes_late)}.</p>
               )}
+              <p className="text-xs text-muted-foreground mt-2">Total today: {formatDuration(todayTotalSeconds)}</p>
             </>
-          ) : todayAttendance?.clock_out ? (
-            <p className="text-sm text-muted-foreground">Completed today</p>
+          ) : todaySessions.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-sm text-green-700 font-medium">Clocked Out</p>
+              <p className="text-xs text-muted-foreground">Worked {formatDuration(todayTotalSeconds)} across {todaySessions.length} session{todaySessions.length > 1 ? "s" : ""}</p>
+            </div>
           ) : isWeekendDay ? (
             <p className="text-sm text-muted-foreground">Weekend (Off)</p>
           ) : (
@@ -530,6 +560,10 @@ export default function DashboardPage() {
                           {!clockedIn ? (
                             <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
                               Not Clocked In
+                            </Badge>
+                          ) : member.attendance.clock_out ? (
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
+                              Clocked Out
                             </Badge>
                           ) : mode === "onsite" ? (
                             <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none flex items-center gap-1 text-[10px] font-medium">

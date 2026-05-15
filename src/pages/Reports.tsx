@@ -237,8 +237,18 @@ function MonthlySummaryReport() {
   
   const totalHours = logs?.reduce((s, l) => s + Number(l.hours), 0) || 0;
   const lateLogs = logs?.filter((l) => l.is_late).length || 0;
-  const onsiteDays = attendance?.filter((a) => a.work_mode === "onsite").length || 0;
-  const remoteDays = attendance?.filter((a) => a.work_mode === "remote").length || 0;
+  const attendanceByDate = useMemo(() => {
+    const map: Record<string, { onsite: boolean, remote: boolean }> = {};
+    attendance?.forEach(a => {
+      if (!map[a.date]) map[a.date] = { onsite: false, remote: false };
+      if (a.work_mode === "onsite") map[a.date].onsite = true;
+      if (a.work_mode === "remote") map[a.date].remote = true;
+    });
+    return map;
+  }, [attendance]);
+
+  const onsiteDays = Object.values(attendanceByDate).filter(d => d.onsite).length;
+  const remoteDays = Object.values(attendanceByDate).filter(d => d.remote).length;
 
   const projectHours: Record<string, number> = {};
   logs?.forEach((l) => { const name = (l.projects as any)?.name || "No Project"; projectHours[name] = (projectHours[name] || 0) + Number(l.hours); });
@@ -316,9 +326,25 @@ function AttendanceTrendReport() {
     return days.map((d) => {
       const dateStr = format(d, "yyyy-MM-dd");
       const dayAtt = filtered.filter((a) => a.date === dateStr);
-      const clockIns = dayAtt.filter((a) => a.clock_in).map((a) => new Date(a.clock_in!).getHours() + new Date(a.clock_in!).getMinutes() / 60);
-      const avgClockIn = clockIns.length > 0 ? clockIns.reduce((s, v) => s + v, 0) / clockIns.length : 0;
-      const rate = employees.length > 0 ? (dayAtt.length / employees.length) * 100 : 0;
+      
+      // Calculate average clock-in using only the FIRST clock-in of each user on that day
+      const firstClockInsByUser: Record<string, string> = {};
+      dayAtt.forEach(a => {
+        if (a.clock_in && (!firstClockInsByUser[a.user_id!] || new Date(a.clock_in) < new Date(firstClockInsByUser[a.user_id!]))) {
+          firstClockInsByUser[a.user_id!] = a.clock_in;
+        }
+      });
+      
+      const clockInTimes = Object.values(firstClockInsByUser).map(ci => {
+        const date = new Date(ci);
+        return date.getHours() + date.getMinutes() / 60;
+      });
+
+      const avgClockIn = clockInTimes.length > 0 ? clockInTimes.reduce((s, v) => s + v, 0) / clockInTimes.length : 0;
+      
+      const uniqueUsersCount = new Set(dayAtt.map(a => a.user_id)).size;
+      const rate = employees.length > 0 ? (uniqueUsersCount / employees.length) * 100 : 0;
+      
       const onsite = dayAtt.filter((a) => a.work_mode === "onsite").length;
       const remote = dayAtt.filter((a) => a.work_mode === "remote").length;
       return { date: format(d, "MMM d"), avgClockIn: Math.round(avgClockIn * 100) / 100, rate: Math.round(rate), onsite, remote };

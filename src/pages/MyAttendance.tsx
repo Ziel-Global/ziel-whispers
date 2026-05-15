@@ -53,8 +53,8 @@ export default function MyAttendancePage() {
     refetchInterval: 30000,
   });
 
-  // Today's attendance
-  const { data: todayRecord, isLoading: isLoadingToday } = useQuery({
+  // Today's attendance sessions
+  const { data: todaySessions = [], isLoading: isLoadingToday } = useQuery({
     queryKey: ["attendance-today", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -62,8 +62,8 @@ export default function MyAttendancePage() {
         .select("*")
         .eq("user_id", user!.id)
         .eq("date", today)
-        .maybeSingle();
-      return data;
+        .order("clock_in", { ascending: true });
+      return data || [];
     },
     enabled: !!user?.id,
   });
@@ -277,21 +277,26 @@ export default function MyAttendancePage() {
 
   const hasOpenSession = !!openSession?.clock_in && !openSession?.clock_out;
   const isOpenSessionFromDifferentDay = hasOpenSession && openSession?.date !== today;
-  const todayCompleted = !!todayRecord?.clock_out;
-  const canClockIn = !hasOpenSession && !todayCompleted;
+  const canClockIn = !hasOpenSession;
+
+  // Calculate total hours for today across all sessions
+  const todayTotalSeconds = todaySessions.reduce((acc, s) => {
+    if (!s.clock_in || !s.clock_out) return acc;
+    return acc + Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 1000);
+  }, 0);
 
   // Calendar
   const days = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) });
-  const getRecordForDay = (d: Date) => monthRecords.find((r) => r.date === format(d, "yyyy-MM-dd"));
-  const selectedRecord = selectedDay ? getRecordForDay(selectedDay) : null;
+  const getRecordsForDay = (d: Date) => monthRecords.filter((r) => r.date === format(d, "yyyy-MM-dd"));
+  const selectedRecords = selectedDay ? getRecordsForDay(selectedDay) : [];
 
   const getDayColor = (d: Date) => {
     const day = d.getDay();
     const isSun = day === 0;
     const isSat = day === 6;
     if (isSun || (isSat && workingDays === 5)) return "bg-muted text-muted-foreground";
-    const rec = getRecordForDay(d);
-    if (!rec) {
+    const recs = getRecordsForDay(d);
+    if (recs.length === 0) {
       // Only show as absent (red) if the date is strictly AFTER the account creation date.
       // created_at is the definitive boundary — join_date can be backdated by admins.
       const dateStr = format(d, "yyyy-MM-dd");
@@ -303,8 +308,9 @@ export default function MyAttendancePage() {
       }
       return "";
     }
-    if (rec.is_late) return "bg-yellow-100 text-yellow-700";
-    if (rec.clock_in) return "bg-green-100 text-green-700";
+    const isLate = recs.some(r => r.is_late);
+    if (isLate) return "bg-yellow-100 text-yellow-700";
+    if (recs.some(r => !!r.clock_in)) return "bg-green-100 text-green-700";
     return "";
   };
 
@@ -346,11 +352,11 @@ export default function MyAttendancePage() {
       </div>
 
       {/* Late clock-in alert for today — dynamic duration */}
-      {todayRecord && todayRecord.is_late && (
+      {todaySessions.length > 0 && todaySessions[0].is_late && (
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You're late by <strong>{formatLateness(todayRecord.minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You were late by <strong>{formatLateness(todaySessions[0].minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -380,21 +386,44 @@ export default function MyAttendancePage() {
                   )}
                   <div className="text-5xl font-mono font-bold text-foreground">{formatDuration(elapsed)}</div>
                   <Badge className="bg-green-100 text-green-800">Active Session · {openSession?.work_mode}</Badge>
-                  <Button onClick={onClockOutClick} disabled={loading} variant="destructive" size="lg" className="rounded-button">
+                  
+                  <div className="text-sm text-muted-foreground mt-2">
+                    Total worked today: <strong>{formatDuration(todayTotalSeconds + elapsed)}</strong>
+                  </div>
+
+                  <Button onClick={onClockOutClick} disabled={loading} variant="destructive" size="lg" className="rounded-button w-full max-w-xs mt-2">
                     <LogOut className="h-5 w-5 mr-2" />
                     Clock Out
                   </Button>
                 </>
               )}
 
-              {!hasOpenSession && todayCompleted && (
-                <div className="text-center space-y-2">
-                  <Badge className="bg-muted text-muted-foreground">Session Complete</Badge>
-                  <p className="text-sm text-muted-foreground">
-                    {formatPKTTime(todayRecord!.clock_in!)} — {formatPKTTime(todayRecord!.clock_out!)}
-                    {" · "}
-                    {formatDuration(Math.floor((new Date(todayRecord!.clock_out!).getTime() - new Date(todayRecord!.clock_in!).getTime()) / 1000))}
-                  </p>
+              {!hasOpenSession && todaySessions.length > 0 && (
+                <div className="w-full max-w-md space-y-4">
+                  <div className="text-center space-y-2">
+                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                      Total Today: {formatDuration(todayTotalSeconds)}
+                    </Badge>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">Today's Sessions</p>
+                    <div className="divide-y border rounded-lg overflow-hidden bg-muted/30">
+                      {todaySessions.map((s, idx) => (
+                        <div key={s.id} className="p-3 flex items-center justify-between bg-white/50">
+                          <div className="text-sm">
+                            <p className="font-medium">Session {idx + 1} · <span className="capitalize">{s.work_mode}</span></p>
+                            <p className="text-xs text-muted-foreground">
+                              {formatPKTTime(s.clock_in!)} — {s.clock_out ? formatPKTTime(s.clock_out) : "Active"}
+                            </p>
+                          </div>
+                          <div className="text-sm font-mono text-muted-foreground">
+                            {s.clock_out ? formatDuration(Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in!).getTime()) / 1000)) : "—"}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -482,39 +511,49 @@ export default function MyAttendancePage() {
           })}
         </div>
 
-        {selectedRecord && (
-          <div className="mt-4 p-3 bg-muted rounded-md space-y-1 text-sm">
-            <p>
-              <strong>Clock In:</strong> {selectedRecord.clock_in ? formatPKTTime(selectedRecord.clock_in) : "—"}
-              {selectedRecord.is_late && (
-                <Badge className="ml-2 bg-yellow-100 text-yellow-800 text-[10px]">
-                  Late by {formatLateness(selectedRecord.minutes_late)}
-                </Badge>
-              )}
-            </p>
-            <p><strong>Clock Out:</strong> {selectedRecord.clock_out ? formatPKTTime(selectedRecord.clock_out) : "—"}</p>
-            {selectedRecord.clock_in && selectedRecord.clock_out && (
-              <p><strong>Duration:</strong> {formatDuration(Math.floor((new Date(selectedRecord.clock_out).getTime() - new Date(selectedRecord.clock_in).getTime()) / 1000))}</p>
-            )}
-            <p><strong>Mode:</strong> {selectedRecord.work_mode || "—"}</p>
-            {selectedRecord.notes && <p><strong>Notes:</strong> {selectedRecord.notes}</p>}
+        {selectedRecords.length > 0 && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm font-semibold">Sessions for {format(selectedDay!, "MMM d, yyyy")}</p>
+            {selectedRecords.map((rec, idx) => (
+              <div key={rec.id} className="p-3 bg-muted rounded-md space-y-1 text-sm relative">
+                <Badge variant="outline" className="absolute top-3 right-3 text-[10px] capitalize">{rec.work_mode}</Badge>
+                <p><strong>Session {idx + 1}:</strong> {formatPKTTime(rec.clock_in!)} — {rec.clock_out ? formatPKTTime(rec.clock_out) : "Active"}</p>
+                {rec.clock_in && rec.clock_out && (
+                  <p><strong>Duration:</strong> {formatDuration(Math.floor((new Date(rec.clock_out).getTime() - new Date(rec.clock_in).getTime()) / 1000))}</p>
+                )}
+                {rec.is_late && (
+                  <p className="text-amber-600 font-medium">⚠️ Late by {formatLateness(rec.minutes_late)}</p>
+                )}
+                {rec.notes && <p><strong>Notes:</strong> {rec.notes}</p>}
+              </div>
+            ))}
+            <div className="pt-2 border-t flex justify-between items-center">
+              <span className="text-sm font-medium">Total Duration:</span>
+              <span className="text-sm font-bold">
+                {formatDuration(selectedRecords.reduce((acc, r) => {
+                  if (!r.clock_in || !r.clock_out) return acc;
+                  return acc + Math.floor((new Date(r.clock_out).getTime() - new Date(r.clock_in).getTime()) / 1000);
+                }, 0))}
+              </span>
+            </div>
+            
             {(() => {
-              const dateStr = format(selectedDay!, "yyyy-MM-dd");
               const indicator = getLogIndicator(selectedDay!);
               const day = selectedDay!.getDay();
               const isSun = day === 0;
               const isSat = day === 6;
               
               if (isSun || (isSat && workingDays === 5)) {
-                return <p><strong>Log:</strong> <span className="text-muted-foreground">Weekend (No log expected)</span></p>;
+                return <p className="text-xs text-muted-foreground mt-2 italic">Weekend (No log expected)</p>;
               }
 
               if (!indicator) return null;
 
               return (
-                <p>
-                  <strong>Log:</strong> <span className={`${indicator.color} font-medium`}>{indicator.label}</span>
-                </p>
+                <div className="mt-2 pt-2 border-t flex items-center justify-between">
+                  <span className="text-sm font-medium">Daily Log:</span>
+                  <span className={`${indicator.color} text-sm font-medium`}>{indicator.label.split(" \u2014 ")[0]}</span>
+                </div>
               );
             })()}
           </div>

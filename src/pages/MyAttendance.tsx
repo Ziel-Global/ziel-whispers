@@ -16,7 +16,7 @@ import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle, Loader2
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
 
-const getStorageKey = (userId: string) => `ziel_pending_logs_${userId}`;
+
 
 export default function MyAttendancePage() {
   const navigate = useNavigate();
@@ -93,6 +93,7 @@ export default function MyAttendancePage() {
         .from("daily_logs")
         .select("log_date, is_late, hours, submitted_at")
         .eq("user_id", user!.id)
+        .eq("status", "submitted")
         .gte("log_date", monthStart)
         .lte("log_date", monthEnd);
       return data || [];
@@ -125,7 +126,8 @@ export default function MyAttendancePage() {
         .from("daily_logs")
         .select("*, projects(name)")
         .eq("user_id", user!.id)
-        .eq("log_date", dateStr);
+        .eq("log_date", dateStr)
+        .eq("status", "submitted");
       return data || [];
     },
     enabled: !!user?.id && !!selectedDay,
@@ -221,21 +223,19 @@ export default function MyAttendancePage() {
     return { isEarly: false, remainingText: "" };
   };
 
-  const onClockOutClick = () => {
-    // Check for pending logs
+  const onClockOutClick = async () => {
+    // Check for pending draft logs in database
     if (user?.id) {
-      const saved = localStorage.getItem(getStorageKey(user.id));
-      if (saved) {
-        try {
-          const logs = JSON.parse(saved);
-          if (Array.isArray(logs) && logs.length > 0) {
-            toast.error("You have unsubmitted logs. Please submit your logs before clocking out.");
-            navigate("/logs/submit");
-            return;
-          }
-        } catch (e) {
-          console.error("Failed to check pending logs", e);
-        }
+      const { data: drafts } = await supabase
+        .from("daily_logs")
+        .select("id")
+        .eq("user_id", user.id)
+        .eq("status", "draft")
+        .limit(1);
+      if (drafts && drafts.length > 0) {
+        toast.error("You have unsubmitted logs. Please submit your logs before clocking out.");
+        navigate("/logs/submit");
+        return;
       }
     }
 

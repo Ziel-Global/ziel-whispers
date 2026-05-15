@@ -34,8 +34,8 @@ export default function MyLogsPage() {
         .from("daily_logs")
         .select("*, projects(name)")
         .eq("user_id", user!.id)
-        .order("log_date", { ascending: false })
-        .order("created_at", { ascending: false });
+        .eq("status", "submitted")
+        .order("log_date", { ascending: false });
       
       if (selectedDate) {
         query = query.eq("log_date", selectedDate);
@@ -58,6 +58,7 @@ export default function MyLogsPage() {
         .from("daily_logs")
         .select("project_id, projects(id, name)")
         .eq("user_id", user!.id)
+        .eq("status", "submitted")
         .not("project_id", "is", null);
       
       const uniqueProjects = Array.from(new Set((data || []).map(d => d.project_id)))

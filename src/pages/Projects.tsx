@@ -9,7 +9,10 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, FolderKanban } from "lucide-react";
+import { Plus, Search, FolderKanban, Archive, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 const STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -21,10 +24,13 @@ const STATUS_COLORS: Record<string, string> = {
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -60,7 +66,7 @@ export default function ProjectsPage() {
     queryFn: async () => {
       const [{ data: members }, { data: logs }] = await Promise.all([
         supabase.from("project_members").select("project_id").is("removed_at", null),
-        supabase.from("daily_logs").select("project_id, hours"),
+        supabase.from("daily_logs").select("project_id, hours").eq("status", "submitted"),
       ]);
       const teamSize: Record<string, number> = {};
       const totalHours: Record<string, number> = {};
@@ -87,6 +93,47 @@ export default function ProjectsPage() {
   const getMemberRole = (projectId: string) => {
     const m = myMemberships?.find((m) => m.project_id === projectId);
     return (m?.project_roles as any)?.name || "Member";
+  };
+
+  const toggleArchive = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "archived" ? "active" : "archived";
+    const { error } = await supabase.from("projects").update({ status: newStatus }).eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await supabase.from("audit_logs").insert({
+      actor_id: profile?.id,
+      action: newStatus === "archived" ? "project.archived" : "project.restored",
+      target_entity: "projects",
+      target_id: id,
+    });
+    toast.success(newStatus === "archived" ? "Project archived" : "Project restored");
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      const { error } = await supabase.from("projects").delete().eq("id", deleteId);
+      if (error) throw error;
+      
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "project.deleted",
+        target_entity: "projects",
+        target_id: deleteId,
+      });
+      
+      toast.success("Project deleted permanently");
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   // Employee card view
@@ -154,11 +201,12 @@ export default function ProjectsPage() {
               <TableHead>Status</TableHead>
               <TableHead>Team</TableHead>
               <TableHead>Hours</TableHead>
+              <TableHead className="text-right">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
+            {isLoading && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
+            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
             {filtered.map((p) => (
               <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${p.id}`)}>
                 <TableCell className="font-medium">{p.name}</TableCell>
@@ -166,11 +214,38 @@ export default function ProjectsPage() {
                 <TableCell><Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge></TableCell>
                 <TableCell>{projectStats?.teamSize[p.id] || 0}</TableCell>
                 <TableCell>{(projectStats?.totalHours[p.id] || 0).toFixed(1)}h</TableCell>
+                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                  <div className="flex justify-end gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => toggleArchive(p.id, p.status)} title={p.status === "archived" ? "Restore" : "Archive"}>
+                      <Archive className={`h-4 w-4 ${p.status === "archived" ? "text-blue-600" : ""}`} />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)} className="text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
         </Table>
       </Card>
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this project? This will permanently remove the project and all related data from the system. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? "Deleting…" : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

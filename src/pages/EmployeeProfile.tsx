@@ -54,6 +54,7 @@ const adminSchema = z.object({
   reminder_offset_minutes: z.number(),
   is_night_shift: z.boolean(),
   working_days: z.number().min(5).max(6),
+  overtime_enabled: z.boolean(),
 });
 
 export default function EmployeeProfilePage() {
@@ -97,6 +98,7 @@ export default function EmployeeProfilePage() {
         .from("daily_logs")
         .select("*, projects(name)")
         .eq("user_id", id!)
+        .eq("status", "submitted")
         .order("log_date", { ascending: false })
         .order("created_at", { ascending: false });
       if (logDateFilter) query = query.eq("log_date", logDateFilter);
@@ -154,6 +156,7 @@ export default function EmployeeProfilePage() {
       reminder_offset_minutes: employee?.reminder_offset_minutes || 15,
       is_night_shift: employee?.is_night_shift ?? false,
       working_days: employee?.working_days || 5,
+      overtime_enabled: employee?.overtime_enabled ?? false,
     },
   });
 
@@ -173,6 +176,7 @@ export default function EmployeeProfilePage() {
         reminder_offset_minutes: employee.reminder_offset_minutes || 15,
         is_night_shift: employee.is_night_shift ?? false,
         working_days: employee.working_days || 5,
+        overtime_enabled: employee.overtime_enabled ?? false,
       });
     }
   }, [employee, form]);
@@ -215,6 +219,7 @@ export default function EmployeeProfilePage() {
         reminder_offset_minutes: data.reminder_offset_minutes,
         is_night_shift: data.is_night_shift,
         working_days: data.working_days,
+        overtime_enabled: data.overtime_enabled,
         has_custom_shift: hasCustomShift,
       } as any).eq("id", employee.id);
 
@@ -565,6 +570,20 @@ export default function EmployeeProfilePage() {
                       <div>
                         <FormLabel className="text-sm font-medium">Night Shift Employee</FormLabel>
                         <p className="text-xs text-muted-foreground">Skip automatic midnight clock-out for this employee</p>
+                      </div>
+                    </FormItem>
+                  )} />
+                )}
+
+                {canEdit && (
+                  <FormField control={form.control} name="overtime_enabled" render={({ field }) => (
+                    <FormItem className="flex items-center gap-3 space-y-0">
+                      <FormControl>
+                        <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
+                      </FormControl>
+                      <div>
+                        <FormLabel className="text-sm font-medium">Overtime Enabled</FormLabel>
+                        <p className="text-xs text-muted-foreground">Allow this employee to log overtime hours (beyond 8h) and submit logs on weekends</p>
                       </div>
                     </FormItem>
                   )} />

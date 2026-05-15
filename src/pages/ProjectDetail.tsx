@@ -88,7 +88,7 @@ export default function ProjectDetailPage() {
   const { data: logs } = useQuery({
     queryKey: ["project-logs", id],
     queryFn: async () => {
-      const { data } = await supabase.from("daily_logs").select("*, users(full_name)").eq("project_id", id!).order("log_date", { ascending: false });
+      const { data } = await supabase.from("daily_logs").select("*, users(full_name)").eq("project_id", id!).eq("status", "submitted").order("log_date", { ascending: false });
       return data || [];
     },
     enabled: !!id,
@@ -315,9 +315,9 @@ export default function ProjectDetailPage() {
                 <div className="flex items-center gap-4">
                   <div className="space-y-1">
                     <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Filter by Date</span>
-                    <Input 
-                      type="date" 
-                      value={logFilterDate} 
+                    <Input
+                      type="date"
+                      value={logFilterDate}
                       onChange={(e) => setLogFilterDate(e.target.value)}
                       className="h-9 w-[180px] bg-background"
                     />
@@ -337,7 +337,7 @@ export default function ProjectDetailPage() {
               <div className="divide-y">
                 {(() => {
                   const filtered = (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate);
-                  
+
                   // Group by member
                   const memberMap: Record<string, { full_name: string; logs: any[] }> = {};
                   members?.forEach(m => {
@@ -367,7 +367,7 @@ export default function ProjectDetailPage() {
                           <h3 className="font-bold text-sm uppercase tracking-wide">{m.full_name}</h3>
                         </div>
                         {m.logs.length > 0 && (
-                          <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                          <Badge variant="secondary" className="bg-primary text-black border-primary/20">
                             {formatHours(m.logs.reduce((sum, l) => sum + Number(l.hours), 0))}
                           </Badge>
                         )}
@@ -379,7 +379,7 @@ export default function ProjectDetailPage() {
                             <div key={log.id} className="bg-muted/50 rounded-lg p-3 border border-border/50">
                               <div className="flex items-center justify-between mb-1">
                                 <Badge variant="outline" className="text-[10px] uppercase">{log.category}</Badge>
-                                <span className="text-xs font-bold text-primary">{formatHours(Number(log.hours))}</span>
+                                <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-primary text-black">{formatHours(Number(log.hours))}</span>
                               </div>
                               <p className="text-sm text-foreground leading-relaxed">{log.description}</p>
                             </div>

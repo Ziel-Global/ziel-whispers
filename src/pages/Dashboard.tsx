@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -62,7 +63,7 @@ export default function DashboardPage() {
   const { data: lateLogs } = useQuery({
     queryKey: ["dashboard-late-logs"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("is_late", true).limit(10);
+      const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("is_late", true).eq("status", "submitted").limit(10);
       if (error) throw error;
       return data || [];
     },
@@ -93,7 +94,7 @@ export default function DashboardPage() {
   const { data: todayLogs } = useQuery({
     queryKey: ["dashboard-my-logs", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("log_date", today);
+      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("log_date", today).eq("status", "submitted");
       if (error) throw error;
       return data || [];
     },
@@ -132,7 +133,7 @@ export default function DashboardPage() {
   const { data: recentLogs } = useQuery({
     queryKey: ["dashboard-recent-logs", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).order("log_date", { ascending: false }).limit(5);
+      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("status", "submitted").order("log_date", { ascending: false }).limit(5);
       if (error) throw error;
       return data || [];
     },
@@ -166,6 +167,14 @@ export default function DashboardPage() {
     },
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
+
+  const visibleProjectNotifications = useMemo(() => {
+    if (!unnotifiedProjects || !user?.id) return [];
+    return unnotifiedProjects.filter((p: any) => {
+      const key = `project_notified_${user.id}_${p.project_id}`;
+      return !localStorage.getItem(key);
+    });
+  }, [unnotifiedProjects, user?.id]);
 
   const { data: teamStatus } = useQuery({
     queryKey: ["dashboard-team-today"],
@@ -207,13 +216,21 @@ export default function DashboardPage() {
   };
  
   const dismissProjectNotification = async () => {
-    if (!unnotifiedProjects || unnotifiedProjects.length === 0) return;
-    const projectIds = unnotifiedProjects.map((p: any) => p.project_id);
+    if (!visibleProjectNotifications || visibleProjectNotifications.length === 0) return;
+    
+    // Track in localStorage as requested
+    visibleProjectNotifications.forEach((p: any) => {
+      const key = `project_notified_${user.id}_${p.project_id}`;
+      localStorage.setItem(key, "true");
+    });
+    
+    const projectIds = visibleProjectNotifications.map((p: any) => p.project_id);
     const { error } = await supabase
       .from("project_members")
       .update({ notified: true })
       .in("project_id", projectIds)
       .eq("user_id", user!.id);
+    
     if (!error) {
       queryClient.invalidateQueries({ queryKey: ["dashboard-unnotified-projects"] });
       toast.success("Notification dismissed");
@@ -384,7 +401,7 @@ export default function DashboardPage() {
         </div>
       )}
  
-      {unnotifiedProjects && unnotifiedProjects.length > 0 && (
+      {visibleProjectNotifications && visibleProjectNotifications.length > 0 && (
         <div className="bg-black border border-black/10 rounded-xl p-5 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top duration-500">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-white/10 rounded-full">
@@ -393,7 +410,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm font-bold text-white tracking-tight">New Project Assignment</p>
               <p className="text-xs text-white/70 mt-0.5">
-                You've been added to: <span className="font-bold text-white uppercase tracking-wider">{unnotifiedProjects.map((p: any) => p.projects?.name).join(", ")}</span>
+                You've been added to: <span className="font-bold text-white uppercase tracking-wider">{visibleProjectNotifications.map((p: any) => p.projects?.name).join(", ")}</span>
               </p>
             </div>
           </div>

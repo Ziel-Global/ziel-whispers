@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkSettings, getPKTDateString, formatPKTTime, getPKTISOString } from "@/hooks/useWorkSettings";
@@ -25,14 +25,6 @@ import { cn } from "@/lib/utils";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
 const NO_PROJECT = "__none__";
-const getStorageKey = (userId: string) => `ziel_pending_logs_${userId}`;
-
-const generateId = () => {
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).substring(2) + Date.now().toString(36);
-};
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -53,9 +45,9 @@ export default function LogSubmitPage() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const { shiftStart, shiftEnd: resolvedShiftEnd, workingDays } = useWorkSettings();
+  const overtimeEnabled = profile?.overtime_enabled ?? false;
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [pendingLogs, setPendingLogs] = useState<any[]>([]);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -63,28 +55,20 @@ export default function LogSubmitPage() {
 
   const today = getPKTDateString();
 
-  // Load pending logs from local storage on mount/user change
-  useEffect(() => {
-    if (!user?.id) return;
-    const key = getStorageKey(user.id);
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        setPendingLogs(JSON.parse(saved));
-      } catch (e) {
-        console.error("Failed to parse saved logs", e);
-      }
-    } else {
-      setPendingLogs([]);
-    }
-  }, [user?.id]);
-
-  // Save pending logs to local storage whenever they change
-  useEffect(() => {
-    if (!user?.id) return;
-    const key = getStorageKey(user.id);
-    localStorage.setItem(key, JSON.stringify(pendingLogs));
-  }, [pendingLogs, user?.id]);
+  // Fetch draft logs from database (cross-device sync)
+  const { data: pendingLogs = [] } = useQuery({
+    queryKey: ["my-draft-logs", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("*, projects(name)")
+        .eq("user_id", user!.id)
+        .eq("status", "draft")
+        .order("created_at", { ascending: true });
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
 
   const { data: logEditDays = 3 } = useQuery({
     queryKey: ["system-setting-log-edit-days"],
@@ -103,6 +87,7 @@ export default function LogSubmitPage() {
         .from("daily_logs")
         .select("log_date, hours")
         .eq("user_id", user!.id)
+        .eq("status", "submitted")
         .gte("log_date", minDate);
       
       const totals: Record<string, number> = {};
@@ -118,7 +103,7 @@ export default function LogSubmitPage() {
     let d = new Date(today + "T00:00:00");
     do {
       d.setDate(d.getDate() - 1);
-    } while (d.getDay() === 0 || (d.getDay() === 6 && workingDays === 5));
+    } while (d.getDay() === 0 || (d.getDay() === 6 && workingDays === 5 && !overtimeEnabled));
     return format(d, "yyyy-MM-dd");
   };
 
@@ -131,6 +116,8 @@ export default function LogSubmitPage() {
     description: z.string().min(20, "Min 20 characters"),
     log_date: z.string().min(1, "Date is required").refine((v) => {
       const day = new Date(v + "T00:00:00").getDay();
+      // Overtime users can log on any day (including weekends)
+      if (overtimeEnabled) return true;
       if (day === 0) return false;
       if (day === 6 && workingDays === 5) return false;
       return true;
@@ -139,9 +126,11 @@ export default function LogSubmitPage() {
       const isPrevWorking = v === prevWorkingDay;
       return isToday || isPrevWorking;
     }, "Only today and the previous working day are available for logs").refine((v) => {
+      // Overtime users have no daily cap
+      if (overtimeEnabled) return true;
       const total = logsTotals[v] || 0;
-      return total < 8;
-    }, "This day already has 8 or more hours logged"),
+      return total < 24;
+    }, "This day already has the maximum hours logged"),
   });
 
   const { data: projects = [] } = useQuery({
@@ -168,7 +157,7 @@ export default function LogSubmitPage() {
   const descValue = form.watch("description");
   const selectedDate = form.watch("log_date");
 
-  // Fetch logs for the CURRENTLY SELECTED date in the form
+  // Fetch submitted logs for the CURRENTLY SELECTED date in the form
   const { data: dateLogs = [] } = useQuery({
     queryKey: ["my-logs-date", user?.id, selectedDate],
     queryFn: async () => {
@@ -178,6 +167,7 @@ export default function LogSubmitPage() {
         .select("*, projects(name)")
         .eq("user_id", user!.id)
         .eq("log_date", selectedDate)
+        .eq("status", "submitted")
         .order("created_at", { ascending: false });
       return data || [];
     },
@@ -186,36 +176,62 @@ export default function LogSubmitPage() {
 
   const submittedHours = useMemo(() => dateLogs.reduce((sum, l) => sum + Number(l.hours), 0), [dateLogs]);
   const pendingHoursForSelectedDate = useMemo(() => 
-    pendingLogs.filter(p => p.log_date === selectedDate && p.tempId !== editId).reduce((sum, l) => sum + Number(l.hours), 0),
+    pendingLogs.filter((p: any) => p.log_date === selectedDate && p.id !== editId).reduce((sum: number, l: any) => sum + Number(l.hours), 0),
     [pendingLogs, selectedDate, editId]
   );
   
   const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
-  const remainingFor8 = Math.max(0, 8 - totalHoursForSelectedDate);
-  const isLocked = submittedHours >= 8 && profile?.role !== "admin";
+  const remainingFor8 = overtimeEnabled ? 24 : Math.max(0, 24 - totalHoursForSelectedDate);
+  const isLocked = !overtimeEnabled && submittedHours >= 24 && profile?.role !== "admin";
 
-  const onAddLog = (data: z.infer<typeof schema>) => {
+  const onAddLog = async (data: z.infer<typeof schema>) => {
     const currentHours = Number(data.hours);
-    if (submittedHours + pendingHoursForSelectedDate + currentHours > 8.01 && profile?.role !== "admin") {
-      toast.error(`You can only log up to 8 hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
+    const maxDaily = 24;
+    if (submittedHours + pendingHoursForSelectedDate + currentHours > maxDaily + 0.01 && profile?.role !== "admin") {
+      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
       return;
     }
 
-    if (editId) {
-      setPendingLogs(prev => prev.map(p => p.tempId === editId ? { ...data, tempId: editId } : p));
-      setEditId(null);
-      toast.success("Log updated");
-    } else {
-      setPendingLogs((prev) => [...prev, { ...data, tempId: generateId() }]);
-      toast.success("Log added to list");
+    try {
+      if (editId) {
+        // Update existing draft in database
+        const { error } = await supabase.from("daily_logs").update({
+          project_id: data.project_id === NO_PROJECT ? null : data.project_id || null,
+          category: data.category,
+          hours: data.hours,
+          description: data.description,
+          log_date: data.log_date,
+        }).eq("id", editId).eq("status", "draft");
+        if (error) throw error;
+        setEditId(null);
+        toast.success("Log updated");
+      } else {
+        // Insert new draft into database
+        const { error } = await supabase.from("daily_logs").insert({
+          user_id: user!.id,
+          project_id: data.project_id === NO_PROJECT ? null : data.project_id || null,
+          category: data.category,
+          hours: data.hours,
+          description: data.description,
+          log_date: data.log_date,
+          status: "draft",
+          is_late: false,
+          is_overtime: false,
+        });
+        if (error) throw error;
+        toast.success("Log added to list");
+      }
+      queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
+      form.reset({ ...form.getValues(), hours: 1, description: "" });
+    } catch (err: any) {
+      toast.error(err.message);
     }
-    form.reset({ ...form.getValues(), hours: Math.min(1, Math.max(0.25, 8 - (submittedHours + pendingHoursForSelectedDate + (editId ? 0 : 0)))), description: "" });
   };
 
   const startEdit = (log: any) => {
-    setEditId(log.tempId);
+    setEditId(log.id);
     form.reset({
-      project_id: log.project_id,
+      project_id: log.project_id || "",
       category: log.category,
       hours: log.hours,
       description: log.description,
@@ -229,68 +245,85 @@ export default function LogSubmitPage() {
     form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
   };
 
-  const removePendingLog = (tempId: string) => {
-    setPendingLogs((prev) => prev.filter((p) => p.tempId !== tempId));
-    if (editId === tempId) cancelEdit();
+  const removePendingLog = async (logId: string) => {
+    try {
+      const { error } = await supabase.from("daily_logs").delete().eq("id", logId).eq("status", "draft");
+      if (error) throw error;
+      if (editId === logId) cancelEdit();
+      queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
   };
 
   const handleSubmitAll = async () => {
     if (pendingLogs.length === 0) return;
     setSubmitting(true);
     try {
-      // Safer PKT now calculation
       const nowPKTStr = getPKTISOString();
       const nowPKT = new Date(nowPKTStr);
-      
       const todayStr = getPKTDateString();
       
-      // Handle potential empty or invalid shiftEnd
       let isLate = false;
       if (resolvedShiftEnd && resolvedShiftEnd.includes(":")) {
-        const todayDeadline = new Date(`${todayStr}T${resolvedShiftEnd}`);
-        
+        const todayDeadline = new Date(`${todayStr}T${resolvedShiftEnd}:00+05:00`);
         if (shiftStart && resolvedShiftEnd < shiftStart) {
           todayDeadline.setDate(todayDeadline.getDate() + 1);
         }
-        
-        isLate = nowPKT > todayDeadline;
+        isLate = nowPKT.getTime() > todayDeadline.getTime();
       }
 
-      const logsToInsert = pendingLogs.map((log) => {
-        return {
-          user_id: user!.id,
-          project_id: log.project_id === NO_PROJECT ? null : log.project_id || null,
-          category: log.category,
-          hours: log.hours,
-          description: log.description,
-          log_date: log.log_date,
-          is_late: isLate,
-        };
-      });
+      // Build per-log overtime flags
+      const overtimeFlags: Record<string, boolean> = {};
+      if (overtimeEnabled) {
+        const logsByDate: Record<string, any[]> = {};
+        pendingLogs.forEach((log: any) => {
+          if (!logsByDate[log.log_date]) logsByDate[log.log_date] = [];
+          logsByDate[log.log_date].push(log);
+        });
+        for (const [date, dLogs] of Object.entries(logsByDate)) {
+          const existingTotal = logsTotals[date] || 0;
+          let runningTotal = existingTotal;
+          for (const log of dLogs) {
+            const logHours = Number(log.hours);
+            overtimeFlags[log.id] = runningTotal >= 8 || runningTotal + logHours > 8;
+            runningTotal += logHours;
+          }
+        }
+      }
 
-      const { error } = await supabase.from("daily_logs").insert(logsToInsert);
-      if (error) throw error;
+      // Update each draft to submitted with computed fields
+      for (const log of pendingLogs) {
+        const { error } = await supabase.from("daily_logs").update({
+          status: "submitted",
+          is_late: isLate,
+          is_overtime: overtimeFlags[log.id] || false,
+          submitted_at: nowPKTStr,
+        }).eq("id", log.id).eq("status", "draft");
+        if (error) throw error;
+      }
 
       await supabase.from("audit_logs").insert({
         actor_id: user!.id,
         action: "log.bulk_submitted",
         target_entity: "daily_logs",
-        metadata: { count: logsToInsert.length }
+        metadata: { count: pendingLogs.length }
       });
 
-      toast.success(`${logsToInsert.length} logs submitted successfully`);
+      toast.success(`${pendingLogs.length} logs submitted successfully`);
       
-      // Auto Clock Out logic - Check total hours for TODAY in the database
+      // Auto Clock Out logic
       try {
         const { data: todayLogs } = await supabase
           .from("daily_logs")
           .select("hours")
           .eq("user_id", user!.id)
-          .eq("log_date", today);
+          .eq("log_date", today)
+          .eq("status", "submitted");
         
         const totalToday = (todayLogs || []).reduce((sum, l) => sum + Number(l.hours), 0);
 
-        if (totalToday >= 7.99) { // Using 7.99 to handle potential float precision issues
+        if (totalToday >= 7.99) {
           const { data: openSession } = await supabase
             .from("attendance")
             .select("*")
@@ -319,11 +352,11 @@ export default function LogSubmitPage() {
         console.error("Auto clock-out failed", autoErr);
       }
 
-      setPendingLogs([]);
-      if (user?.id) localStorage.removeItem(getStorageKey(user.id));
       form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
+      queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-date"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-logs-totals-range"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       setShowSubmitConfirm(false);
     } catch (err: any) {
@@ -409,7 +442,7 @@ export default function LogSubmitPage() {
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duration (Hours)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.25" min="0.25" className="bg-background" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isLocked} max={remainingFor8} />
+                  <Input type="number" step="0.25" min="0.25" className="bg-background" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isLocked} max={24} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -447,18 +480,21 @@ export default function LogSubmitPage() {
                           const dateStr = format(date, "yyyy-MM-dd");
                           const day = date.getDay();
                           
-                          // Disable Sunday
-                          if (day === 0) return true;
-                          // Disable Saturday if 5-day worker
-                          if (day === 6 && workingDays === 5) return true;
+                          // Overtime users can log on any day
+                          if (!overtimeEnabled) {
+                            // Disable Sunday
+                            if (day === 0) return true;
+                            // Disable Saturday if 5-day worker
+                            if (day === 6 && workingDays === 5) return true;
+                          }
                           
                           // Only Today and Previous Working Day are allowed
                           const isToday = dateStr === today;
                           const isPrevWorking = dateStr === prevWorkingDay;
                           if (!isToday && !isPrevWorking) return true;
                           
-                          // Disable if already has 8+ hours
-                          if ((logsTotals[dateStr] || 0) >= 8) return true;
+                          // Disable if already has 24+ hours (hard cap)
+                          if ((logsTotals[dateStr] || 0) >= 24) return true;
                           
                           // Future dates (just in case)
                           if (date > new Date()) return true;
@@ -498,7 +534,7 @@ export default function LogSubmitPage() {
                 {editId && (
                   <Button type="button" variant="ghost" onClick={cancelEdit} className="rounded-button">Cancel Edit</Button>
                 )}
-                <Button type="submit" className="rounded-button px-8" disabled={totalHoursForSelectedDate >= 8 && !editId}>
+                <Button type="submit" className="rounded-button px-8" disabled={!overtimeEnabled && totalHoursForSelectedDate >= 24 && !editId}>
                   {editId ? "Update Log Entry" : "Add Log Entry"}
                 </Button>
               </div>
@@ -522,23 +558,25 @@ export default function LogSubmitPage() {
             </Button>
           </div>
           <div className="grid gap-4">
-            {pendingLogs.map((log) => (
-              <Card key={log.tempId} className="p-4 bg-muted border-primary/10 transition-all hover:shadow-md">
+            {pendingLogs.map((log: any) => (
+              <Card key={log.id} className="p-4 bg-muted border-primary/10 transition-all hover:shadow-md">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2 flex-1">
                     <div className="flex flex-wrap gap-2 items-center">
                       <Badge variant="secondary" className="bg-primary border-primary/20">
-                        {projects.find(p => p.id === log.project_id)?.name || "Project"}
+                        {log.projects?.name || projects.find((p: any) => p.id === log.project_id)?.name || "Project"}
                       </Badge>
                       <Badge variant="secondary" className="capitalize text-[10px] bg-primary">{log.category.replace("_", " ")}</Badge>
-                      <span className="text-sm font-bold text-black">{formatHours(log.hours)}</span>
+                      <span className="text-sm font-bold text-black">
+                        {formatHours(log.hours)}
+                      </span>
                       <span className="text-sm text-muted-foreground font-mono">{format(parseISO(log.log_date), "MMM d, yyyy")}</span>
                     </div>
                     <p className="text-sm text-muted-foreground leading-snug">{log.description}</p>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button variant="ghost" size="icon" onClick={() => startEdit(log)} className="h-8 w-8 hover:text-primary"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => removePendingLog(log.tempId)} className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                    <Button variant="ghost" size="icon" onClick={() => removePendingLog(log.id)} className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
                   </div>
                 </div>
               </Card>
@@ -556,13 +594,14 @@ export default function LogSubmitPage() {
           </div>
           <div className="grid gap-3 opacity-75">
             {dateLogs.map((log: any) => (
-              <Card key={log.id} className="p-4 bg-muted border-none shadow-none">
+              <Card key={log.id} className={`p-4 border-none shadow-none ${log.is_overtime ? "bg-purple-50 border-l-4 border-purple-400" : "bg-muted"}`}>
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-2 flex-1">
                     <div className="flex flex-wrap gap-2 items-center">
                       {log.projects?.name && <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">{log.projects.name}</Badge>}
                       <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">{log.category}</Badge>
                       <span className="text-sm font-medium">{formatHours(log.hours)}</span>
+                      {log.is_overtime && <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge>}
                       {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
                     </div>
                     <p className="text-sm text-black">{log.description}</p>
@@ -581,7 +620,11 @@ export default function LogSubmitPage() {
       {/* Help Info */}
       <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-xl border-black border border-2 border-dashed text-muted-foreground">
         <AlertCircle className="h-5 w-5 shrink-0" />
-        <p className="text-xs">Tip: You can select a past date to submit logs you might have missed. You can submit multiple logs for the same day until you reach the 8-hour limit.</p>
+        <p className="text-xs">
+          {overtimeEnabled
+            ? "Tip: Overtime is enabled for your account. You can log hours beyond 8h and submit logs on weekends. Hours above 8h per day are tracked as overtime."
+            : "Tip: You can select a past date to submit logs you might have missed. You can submit multiple logs for the same day until you reach the daily limit."}
+        </p>
       </div>
 
       <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>

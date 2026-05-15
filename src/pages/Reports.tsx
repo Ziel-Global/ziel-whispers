@@ -74,7 +74,7 @@ function UtilizationReport() {
   const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end, created_at").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
   const { data: logs } = useQuery({
     queryKey: ["report-logs", startDate, endDate],
-    queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate); return data || []; },
+    queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate).eq("status", "submitted"); return data || []; },
   });
 
   const rows = useMemo(() => {
@@ -150,7 +150,7 @@ function HeatmapReport() {
   const days = eachDayOfInterval({ start: parseISO(start), end: parseISO(end) });
 
   const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department, created_at").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
-  const { data: logs } = useQuery({ queryKey: ["heatmap-logs", start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, log_date, hours").gte("log_date", start).lte("log_date", end); return data || []; } });
+  const { data: logs } = useQuery({ queryKey: ["heatmap-logs", start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, log_date, hours").gte("log_date", start).lte("log_date", end).eq("status", "submitted"); return data || []; } });
 
   const grid = useMemo(() => {
     if (!employees || !logs) return [];
@@ -222,7 +222,7 @@ function MonthlySummaryReport() {
   const start = `${month}-01`;
   const end = format(endOfMonth(parseISO(start)), "yyyy-MM-dd");
 
-  const { data: logs } = useQuery({ queryKey: ["summary-logs", userId, start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", userId!).gte("log_date", start).lte("log_date", end); return data || []; }, enabled: !!userId });
+  const { data: logs } = useQuery({ queryKey: ["summary-logs", userId, start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", userId!).gte("log_date", start).lte("log_date", end).eq("status", "submitted"); return data || []; }, enabled: !!userId });
   const { data: leave } = useQuery({ queryKey: ["summary-leave", userId, start, end], queryFn: async () => { const { data } = await supabase.from("leave_requests").select("*, leave_types(name)").eq("user_id", userId!).eq("status", "approved").gte("start_date", start).lte("end_date", end); return data || []; }, enabled: !!userId });
   const { data: attendance } = useQuery({ queryKey: ["summary-att", userId, start, end], queryFn: async () => { const { data } = await supabase.from("attendance").select("date, work_mode").eq("user_id", userId!).gte("date", start).lte("date", end); return data || []; }, enabled: !!userId });
 
@@ -359,7 +359,7 @@ function DailyLogsReport() {
   const { data: logs } = useQuery({
     queryKey: ["dlr-logs", startDate, endDate, empFilter],
     queryFn: async () => {
-      let q = supabase.from("daily_logs").select("*, users(full_name), projects(name)").gte("log_date", startDate).lte("log_date", endDate).order("log_date", { ascending: false });
+      let q = supabase.from("daily_logs").select("*, users(full_name), projects(name)").gte("log_date", startDate).lte("log_date", endDate).eq("status", "submitted").order("log_date", { ascending: false });
       if (empFilter !== "all") q = q.eq("user_id", empFilter);
       const { data } = await q;
       return data || [];

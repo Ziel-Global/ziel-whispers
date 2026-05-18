@@ -185,10 +185,14 @@ export default function MyAttendancePage() {
   const handleClockIn = async () => {
     if (!workMode) { toast.error("Select work mode first"); return; }
 
-    const { isLate } = getLatenessInfo(shiftStart);
-    if (isLate) {
-      setLateConfirmOpen(true);
-      return;
+    // Only run late detection for the first session of the day
+    const isFirstSession = todaySessions.length === 0;
+    if (isFirstSession) {
+      const { isLate } = getLatenessInfo(shiftStart);
+      if (isLate) {
+        setLateConfirmOpen(true);
+        return;
+      }
     }
 
     await performClockIn();

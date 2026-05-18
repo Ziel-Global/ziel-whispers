@@ -311,46 +311,6 @@ export default function LogSubmitPage() {
       });
 
       toast.success(`${pendingLogs.length} logs submitted successfully`);
-      
-      // Auto Clock Out logic
-      try {
-        const { data: todayLogs } = await supabase
-          .from("daily_logs")
-          .select("hours")
-          .eq("user_id", user!.id)
-          .eq("log_date", today)
-          .eq("status", "submitted");
-        
-        const totalToday = (todayLogs || []).reduce((sum, l) => sum + Number(l.hours), 0);
-
-        if (totalToday >= 7.99) {
-          const { data: openSession } = await supabase
-            .from("attendance")
-            .select("*")
-            .eq("user_id", user!.id)
-            .is("clock_out", null)
-            .order("clock_in", { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-          if (openSession) {
-            const clockOutTime = getPKTISOString();
-            await supabase.from("attendance").update({ clock_out: clockOutTime }).eq("id", openSession.id);
-            await supabase.from("audit_logs").insert({
-              actor_id: user!.id,
-              action: "attendance.auto_clocked_out",
-              target_entity: "attendance",
-              target_id: openSession.id,
-              metadata: { reason: "reached_8_hour_log_limit", clock_out: clockOutTime, total_today: totalToday }
-            });
-            toast.info("Auto clocked out as you reached 8 hours of logs today.");
-            queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
-            queryClient.invalidateQueries({ queryKey: ["attendance-open-session"] });
-          }
-        }
-      } catch (autoErr) {
-        console.error("Auto clock-out failed", autoErr);
-      }
 
       form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
       queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });

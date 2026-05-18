@@ -74,7 +74,7 @@ function UtilizationReport() {
   const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end, created_at").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
   const { data: logs } = useQuery({
     queryKey: ["report-logs", startDate, endDate],
-    queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate); return data || []; },
+    queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate).eq("status", "submitted"); return data || []; },
   });
 
   const rows = useMemo(() => {
@@ -150,7 +150,7 @@ function HeatmapReport() {
   const days = eachDayOfInterval({ start: parseISO(start), end: parseISO(end) });
 
   const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department, created_at").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
-  const { data: logs } = useQuery({ queryKey: ["heatmap-logs", start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, log_date, hours").gte("log_date", start).lte("log_date", end); return data || []; } });
+  const { data: logs } = useQuery({ queryKey: ["heatmap-logs", start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, log_date, hours").gte("log_date", start).lte("log_date", end).eq("status", "submitted"); return data || []; } });
 
   const grid = useMemo(() => {
     if (!employees || !logs) return [];
@@ -222,7 +222,7 @@ function MonthlySummaryReport() {
   const start = `${month}-01`;
   const end = format(endOfMonth(parseISO(start)), "yyyy-MM-dd");
 
-  const { data: logs } = useQuery({ queryKey: ["summary-logs", userId, start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", userId!).gte("log_date", start).lte("log_date", end); return data || []; }, enabled: !!userId });
+  const { data: logs } = useQuery({ queryKey: ["summary-logs", userId, start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", userId!).gte("log_date", start).lte("log_date", end).eq("status", "submitted"); return data || []; }, enabled: !!userId });
   const { data: leave } = useQuery({ queryKey: ["summary-leave", userId, start, end], queryFn: async () => { const { data } = await supabase.from("leave_requests").select("*, leave_types(name)").eq("user_id", userId!).eq("status", "approved").gte("start_date", start).lte("end_date", end); return data || []; }, enabled: !!userId });
   const { data: attendance } = useQuery({ queryKey: ["summary-att", userId, start, end], queryFn: async () => { const { data } = await supabase.from("attendance").select("date, work_mode").eq("user_id", userId!).gte("date", start).lte("date", end); return data || []; }, enabled: !!userId });
 
@@ -237,8 +237,18 @@ function MonthlySummaryReport() {
   
   const totalHours = logs?.reduce((s, l) => s + Number(l.hours), 0) || 0;
   const lateLogs = logs?.filter((l) => l.is_late).length || 0;
-  const onsiteDays = attendance?.filter((a) => a.work_mode === "onsite").length || 0;
-  const remoteDays = attendance?.filter((a) => a.work_mode === "remote").length || 0;
+  const attendanceByDate = useMemo(() => {
+    const map: Record<string, { onsite: boolean, remote: boolean }> = {};
+    attendance?.forEach(a => {
+      if (!map[a.date]) map[a.date] = { onsite: false, remote: false };
+      if (a.work_mode === "onsite") map[a.date].onsite = true;
+      if (a.work_mode === "remote") map[a.date].remote = true;
+    });
+    return map;
+  }, [attendance]);
+
+  const onsiteDays = Object.values(attendanceByDate).filter(d => d.onsite).length;
+  const remoteDays = Object.values(attendanceByDate).filter(d => d.remote).length;
 
   const projectHours: Record<string, number> = {};
   logs?.forEach((l) => { const name = (l.projects as any)?.name || "No Project"; projectHours[name] = (projectHours[name] || 0) + Number(l.hours); });
@@ -316,9 +326,25 @@ function AttendanceTrendReport() {
     return days.map((d) => {
       const dateStr = format(d, "yyyy-MM-dd");
       const dayAtt = filtered.filter((a) => a.date === dateStr);
-      const clockIns = dayAtt.filter((a) => a.clock_in).map((a) => new Date(a.clock_in!).getHours() + new Date(a.clock_in!).getMinutes() / 60);
-      const avgClockIn = clockIns.length > 0 ? clockIns.reduce((s, v) => s + v, 0) / clockIns.length : 0;
-      const rate = employees.length > 0 ? (dayAtt.length / employees.length) * 100 : 0;
+      
+      // Calculate average clock-in using only the FIRST clock-in of each user on that day
+      const firstClockInsByUser: Record<string, string> = {};
+      dayAtt.forEach(a => {
+        if (a.clock_in && (!firstClockInsByUser[a.user_id!] || new Date(a.clock_in) < new Date(firstClockInsByUser[a.user_id!]))) {
+          firstClockInsByUser[a.user_id!] = a.clock_in;
+        }
+      });
+      
+      const clockInTimes = Object.values(firstClockInsByUser).map(ci => {
+        const date = new Date(ci);
+        return date.getHours() + date.getMinutes() / 60;
+      });
+
+      const avgClockIn = clockInTimes.length > 0 ? clockInTimes.reduce((s, v) => s + v, 0) / clockInTimes.length : 0;
+      
+      const uniqueUsersCount = new Set(dayAtt.map(a => a.user_id)).size;
+      const rate = employees.length > 0 ? (uniqueUsersCount / employees.length) * 100 : 0;
+      
       const onsite = dayAtt.filter((a) => a.work_mode === "onsite").length;
       const remote = dayAtt.filter((a) => a.work_mode === "remote").length;
       return { date: format(d, "MMM d"), avgClockIn: Math.round(avgClockIn * 100) / 100, rate: Math.round(rate), onsite, remote };
@@ -359,7 +385,7 @@ function DailyLogsReport() {
   const { data: logs } = useQuery({
     queryKey: ["dlr-logs", startDate, endDate, empFilter],
     queryFn: async () => {
-      let q = supabase.from("daily_logs").select("*, users(full_name), projects(name)").gte("log_date", startDate).lte("log_date", endDate).order("log_date", { ascending: false });
+      let q = supabase.from("daily_logs").select("*, users(full_name), projects(name)").gte("log_date", startDate).lte("log_date", endDate).eq("status", "submitted").order("log_date", { ascending: false });
       if (empFilter !== "all") q = q.eq("user_id", empFilter);
       const { data } = await q;
       return data || [];

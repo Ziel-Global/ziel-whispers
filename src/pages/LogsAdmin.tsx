@@ -19,6 +19,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
+import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
 
 function formatHours(h: number) {
   const hrs = Math.floor(h);
@@ -158,8 +159,9 @@ export default function LogsAdminPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("daily_logs")
-        .select("*, users!daily_logs_user_id_fkey(full_name, email, shift_start, shift_end, has_custom_shift), projects(name)")
+        .select("*, users!daily_logs_user_id_fkey(full_name, email, shift_start, shift_end, has_custom_shift, overtime_enabled), projects(name)")
         .eq("log_date", selectedDate)
+        .eq("status", "submitted")
         .order("submitted_at", { ascending: false });
       return data || [];
     },
@@ -169,7 +171,7 @@ export default function LogsAdminPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at").eq("status", "active").neq("role", "admin").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at, overtime_enabled").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
     },
   });
@@ -217,7 +219,11 @@ export default function LogsAdminPage() {
       return true;
     }).map((emp: any) => {
       const empLogs = logsByUser[emp.id] || [];
-      const totalHours = empLogs.reduce((s: number, l: any) => s + Number(l.hours), 0);
+      const regularLogs = empLogs.filter((l: any) => !l.is_overtime);
+      const overtimeLogs = empLogs.filter((l: any) => l.is_overtime);
+      const regularHours = regularLogs.reduce((s: number, l: any) => s + Number(l.hours), 0);
+      const overtimeHours = overtimeLogs.reduce((s: number, l: any) => s + Number(l.hours), 0);
+      const totalHours = regularHours; // Only regular hours count for logged/unlogged
       const empShiftStart = emp.has_custom_shift ? emp.shift_start : globalShiftStart;
       const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
       const shiftHours = getShiftHours(empShiftStart, empShiftEnd);
@@ -239,13 +245,17 @@ export default function LogsAdminPage() {
         userId: emp.id,
         name: emp.full_name,
         logs: empLogs,
+        regularLogs,
+        overtimeLogs,
         loggedHours: totalHours,
+        overtimeHours,
         unloggedHours,
         shiftHours,
         logCount: empLogs.length,
         logStatus,
         hasFlaggedLog,
         standupDone: standupByUser[emp.id] ?? true,
+        overtimeEnabled: emp.overtime_enabled === true,
       };
     });
 
@@ -353,7 +363,10 @@ export default function LogsAdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Daily Logs</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold tracking-tight">Daily Logs</h1>
+        <AdminAddLogDialog employees={employees} />
+      </div>
 
       <Tabs defaultValue="logs">
         <TabsList>
@@ -452,15 +465,16 @@ export default function LogsAdminPage() {
                   <TableHead>Employee Name</TableHead>
                   <TableHead>Logged Hours</TableHead>
                   <TableHead>Unlogged Hours</TableHead>
+                  <TableHead>Overtime Hours</TableHead>
                   <TableHead>Log Status</TableHead>
                   <TableHead>Standup</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {isLoading ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 ) : groupedRows.length === 0 ? (
-                  <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
                 ) : (
                   groupedRows.map((row) => (
                     <>
@@ -473,6 +487,9 @@ export default function LogsAdminPage() {
                         <TableCell className="font-medium">
                           <span className="flex items-center gap-2">
                             {row.name}
+                            {row.overtimeEnabled && (
+                              <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-700 bg-purple-50 px-1 h-4">OT</Badge>
+                            )}
                             {row.hasFlaggedLog && <Flag className="h-3.5 w-3.5 text-destructive fill-destructive" />}
                           </span>
                         </TableCell>
@@ -481,6 +498,15 @@ export default function LogsAdminPage() {
                           <span className={row.unloggedHours > 0 ? "text-amber-600 font-medium" : "text-muted-foreground"}>
                             {row.unloggedHours > 0 ? formatHours(row.unloggedHours) : "0"}
                           </span>
+                        </TableCell>
+                        <TableCell>
+                          {row.overtimeEnabled ? (
+                            <span className={row.overtimeHours > 0 ? "text-purple-600 font-bold" : "text-muted-foreground"}>
+                              {formatHours(row.overtimeHours)}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           {row.logStatus === "missed" ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
@@ -498,12 +524,13 @@ export default function LogsAdminPage() {
                       </TableRow>
                       {expandedId === row.userId && (
                         <TableRow key={`${row.userId}-detail`}>
-                          <TableCell colSpan={6} className="bg-muted/50 p-0">
+                          <TableCell colSpan={7} className="bg-muted/50 p-0">
                             {row.logCount === 0 ? (
                               <div className="p-4 text-sm text-muted-foreground text-center">No log entries submitted for this date.</div>
                             ) : (
                               <div className="divide-y">
-                                {row.logs.map((log: any) => (
+                                {/* Regular Logs */}
+                                {row.regularLogs.map((log: any) =>
                                   <div key={log.id} className="p-3">
                                     <div className="flex items-start justify-between gap-2">
                                       <div className="flex-1">
@@ -648,7 +675,161 @@ export default function LogsAdminPage() {
                                       </Button>
                                     )}
                                   </div>
-                                ))}
+                                )}
+                                {/* Overtime Separator & Logs */}
+                                {row.overtimeLogs.length > 0 && (
+                                  <>
+                                    <div className="px-3 py-2 bg-purple-50 border-t-2 border-purple-200">
+                                      <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Overtime Logs ({formatHours(row.overtimeHours)})</p>
+                                    </div>
+                                    {row.overtimeLogs.map((log: any) => (
+                                      <div key={log.id} className="p-3 bg-purple-50/50 border-l-4 border-purple-400">
+                                        <div className="flex items-start justify-between gap-2">
+                                          <div className="flex-1">
+                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
+                                              <div>
+                                                <p className="text-[12px] text-purple-600 mb-0.5">Overtime Hours</p>
+                                                <p className="text-sm font-medium text-purple-700">{formatHours(log.hours)}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-[12px] text-muted-foreground mb-0.5">Submitted Time</p>
+                                                <p className="text-sm">{formatPKTTime(log.submitted_at)}</p>
+                                              </div>
+                                              <div>
+                                                <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
+                                                {editingLogId === log.id ? (
+                                                  <Select value={editProjectId || "__none__"} onValueChange={(v) => setEditProjectId(v === "__none__" ? null : v)}>
+                                                    <SelectTrigger className="h-8 text-xs">
+                                                      <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      <SelectItem value="__none__">No Project</SelectItem>
+                                                      {allProjects.map((p) => (
+                                                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                ) : (
+                                                  <p className="text-sm">{log.projects?.name || "—"}</p>
+                                                )}
+                                              </div>
+                                              <div>
+                                                <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>
+                                                {editingLogId === log.id ? (
+                                                  <Select value={editCategory} onValueChange={setEditCategory}>
+                                                    <SelectTrigger className="h-8 text-xs">
+                                                      <SelectValue />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                      {CATEGORIES.map((c) => (
+                                                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
+                                                      ))}
+                                                    </SelectContent>
+                                                  </Select>
+                                                ) : (
+                                                  <Badge variant="secondary" className="bg-purple-100 text-purple-700">{log.category}</Badge>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <div className="mb-2">
+                                              <p className="text-[12px] text-muted-foreground mb-0.5">Description</p>
+                                              <p className="text-sm text-muted-foreground">{log.description}</p>
+                                            </div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                              <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge>
+                                              {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                                              {log.admin_comment && (
+                                                <div className="mt-1">
+                                                  <p className="text-[12px] text-purple-600 mb-0.5 font-medium">Admin Comment</p>
+                                                  <p className="text-sm">{log.admin_comment}</p>
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                          {isAdmin && (
+                                            <div className="flex gap-1 items-center">
+                                              {editingLogId === log.id ? (
+                                                <>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); handleEditLog(log.id); }}
+                                                    className="shrink-0 p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
+                                                    title="Save Changes"
+                                                  >
+                                                    <Save className="h-4 w-4" />
+                                                  </button>
+                                                  <button
+                                                    onClick={(e) => { e.stopPropagation(); setEditingLogId(null); }}
+                                                    className="shrink-0 p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
+                                                    title="Cancel"
+                                                  >
+                                                    <FileX className="h-4 w-4" />
+                                                  </button>
+                                                </>
+                                              ) : (
+                                                <button
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setEditingLogId(log.id);
+                                                    setEditProjectId(log.project_id);
+                                                    setEditCategory(log.category);
+                                                  }}
+                                                  className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                                                  title="Edit Log"
+                                                >
+                                                  <Pencil className="h-4 w-4" />
+                                                </button>
+                                              )}
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
+                                                className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
+                                                title={log.admin_flagged ? "Unflag" : "Flag"}
+                                              >
+                                                <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/40"}`} />
+                                              </button>
+                                              <button
+                                                onClick={(e) => { e.stopPropagation(); setDeleteId(log.id); }}
+                                                className="shrink-0 p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
+                                                title="Delete Log"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                        {isAdmin && expandedLogId === log.id && (
+                                          <div className="mt-3 space-y-3 border-t border-purple-200 pt-3">
+                                            <div className="flex items-center gap-4">
+                                              <div className="flex items-center gap-2">
+                                                <Label className="text-xs text-purple-700 font-bold">Lock Log</Label>
+                                                <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
+                                              </div>
+                                            </div>
+                                            <div className="space-y-1">
+                                              <Label className="text-xs text-purple-700 font-bold">Admin Comment</Label>
+                                              <div className="flex gap-2">
+                                                <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1 border-purple-100 focus-visible:ring-purple-400" />
+                                                <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => saveComment(log.id)}>Save</Button>
+                                              </div>
+                                            </div>
+                                          </div>
+                                        )}
+                                        {isAdmin && (
+                                          <Button
+                                            size="sm"
+                                            className="mt-2 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              setExpandedLogId(expandedLogId === log.id ? null : log.id);
+                                              setComment(log.admin_comment || "");
+                                            }}
+                                          >
+                                            {expandedLogId === log.id ? "Hide Actions" : "Admin Actions"}
+                                          </Button>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </>
+                                )}
                               </div>
                             )}
                           </TableCell>

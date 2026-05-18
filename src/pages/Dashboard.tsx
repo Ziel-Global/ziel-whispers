@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,12 +27,12 @@ export default function DashboardPage() {
   const isWeekendDay = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
 
   // ——— Shared queries ———
-  const { data: todayAttendance } = useQuery({
+  const { data: todaySessions = [] } = useQuery({
     queryKey: ["dashboard-attendance", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).maybeSingle();
+      const { data, error } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).order("clock_in", { ascending: true });
       if (error) throw error;
-      return data;
+      return data || [];
     },
     enabled: hasProfile && !!user?.id,
   });
@@ -62,7 +63,7 @@ export default function DashboardPage() {
   const { data: lateLogs } = useQuery({
     queryKey: ["dashboard-late-logs"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("is_late", true).limit(10);
+      const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("is_late", true).eq("status", "submitted").limit(10);
       if (error) throw error;
       return data || [];
     },
@@ -93,7 +94,7 @@ export default function DashboardPage() {
   const { data: todayLogs } = useQuery({
     queryKey: ["dashboard-my-logs", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("log_date", today);
+      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("log_date", today).eq("status", "submitted");
       if (error) throw error;
       return data || [];
     },
@@ -132,7 +133,7 @@ export default function DashboardPage() {
   const { data: recentLogs } = useQuery({
     queryKey: ["dashboard-recent-logs", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).order("log_date", { ascending: false }).limit(5);
+      const { data, error } = await supabase.from("daily_logs").select("*, projects(name)").eq("user_id", user!.id).eq("status", "submitted").order("log_date", { ascending: false }).limit(5);
       if (error) throw error;
       return data || [];
     },
@@ -167,16 +168,37 @@ export default function DashboardPage() {
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
+  const visibleProjectNotifications = useMemo(() => {
+    if (!unnotifiedProjects || !user?.id) return [];
+    return unnotifiedProjects.filter((p: any) => {
+      const key = `project_notified_${user.id}_${p.project_id}`;
+      return !localStorage.getItem(key);
+    });
+  }, [unnotifiedProjects, user?.id]);
+
   const { data: teamStatus } = useQuery({
     queryKey: ["dashboard-team-today"],
     queryFn: async () => {
       const [{ data: users }, { data: attendance }] = await Promise.all([
         supabase.from("users").select("id, full_name, designation, avatar_url, role").neq("role", "admin").eq("status", "active"),
-        supabase.from("attendance").select("user_id, work_mode, clock_in").eq("date", today)
+        supabase.from("attendance").select("user_id, work_mode, clock_in, clock_out").eq("date", today)
       ]);
       
       const attendanceMap = (attendance || []).reduce((acc: any, curr) => {
-        acc[curr.user_id] = curr;
+        const existing = acc[curr.user_id];
+        if (!existing) {
+          acc[curr.user_id] = curr;
+        } else {
+          const isCurrActive = !curr.clock_out && !!curr.clock_in;
+          const isExistActive = !existing.clock_out && !!existing.clock_in;
+          if (isCurrActive && !isExistActive) {
+            acc[curr.user_id] = curr;
+          } else if (isCurrActive === isExistActive) {
+            if (new Date(curr.clock_in) > new Date(existing.clock_in)) {
+              acc[curr.user_id] = curr;
+            }
+          }
+        }
         return acc;
       }, {});
 
@@ -207,13 +229,21 @@ export default function DashboardPage() {
   };
  
   const dismissProjectNotification = async () => {
-    if (!unnotifiedProjects || unnotifiedProjects.length === 0) return;
-    const projectIds = unnotifiedProjects.map((p: any) => p.project_id);
+    if (!visibleProjectNotifications || visibleProjectNotifications.length === 0) return;
+    
+    // Track in localStorage as requested
+    visibleProjectNotifications.forEach((p: any) => {
+      const key = `project_notified_${user.id}_${p.project_id}`;
+      localStorage.setItem(key, "true");
+    });
+    
+    const projectIds = visibleProjectNotifications.map((p: any) => p.project_id);
     const { error } = await supabase
       .from("project_members")
       .update({ notified: true })
       .in("project_id", projectIds)
       .eq("user_id", user!.id);
+    
     if (!error) {
       queryClient.invalidateQueries({ queryKey: ["dashboard-unnotified-projects"] });
       toast.success("Notification dismissed");
@@ -232,7 +262,20 @@ export default function DashboardPage() {
     }
   };
 
-  const isClockedIn = !!todayAttendance?.clock_in && !todayAttendance?.clock_out;
+  const activeSession = todaySessions.find(s => !s.clock_out && !!s.clock_in);
+  const isClockedIn = !!activeSession;
+  
+  const todayTotalSeconds = todaySessions.reduce((acc, s) => {
+    if (!s.clock_in || !s.clock_out) return acc;
+    return acc + Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 1000);
+  }, 0);
+
+  const formatDuration = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return `${h}h ${m}m`;
+  };
+
   const hasSubmittedLog = (todayLogs?.length || 0) > 0;
 
   // ——— ADMIN DASHBOARD ———
@@ -384,7 +427,7 @@ export default function DashboardPage() {
         </div>
       )}
  
-      {unnotifiedProjects && unnotifiedProjects.length > 0 && (
+      {visibleProjectNotifications && visibleProjectNotifications.length > 0 && (
         <div className="bg-black border border-black/10 rounded-xl p-5 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top duration-500">
           <div className="flex items-center gap-4">
             <div className="p-3 bg-white/10 rounded-full">
@@ -393,7 +436,7 @@ export default function DashboardPage() {
             <div>
               <p className="text-sm font-bold text-white tracking-tight">New Project Assignment</p>
               <p className="text-xs text-white/70 mt-0.5">
-                You've been added to: <span className="font-bold text-white uppercase tracking-wider">{unnotifiedProjects.map((p: any) => p.projects?.name).join(", ")}</span>
+                You've been added to: <span className="font-bold text-white uppercase tracking-wider">{visibleProjectNotifications.map((p: any) => p.projects?.name).join(", ")}</span>
               </p>
             </div>
           </div>
@@ -411,13 +454,17 @@ export default function DashboardPage() {
           </div>
           {isClockedIn ? (
             <>
-              <p className="text-sm">Clocked in since <strong>{format(new Date(todayAttendance!.clock_in!), "h:mm a")}</strong></p>
-              {(todayAttendance as any)?.is_late && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ You're late by {formatLateness((todayAttendance as any)?.minutes_late)}. Your shift starts at {formatShiftTime(shiftStart)}.</p>
+              <p className="text-sm">Clocked in since <strong>{format(new Date(activeSession.clock_in!), "h:mm a")}</strong> ({activeSession.work_mode})</p>
+              {activeSession.is_late && (
+                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(activeSession.minutes_late)}.</p>
               )}
+              <p className="text-xs text-muted-foreground mt-2">Total today: {formatDuration(todayTotalSeconds)}</p>
             </>
-          ) : todayAttendance?.clock_out ? (
-            <p className="text-sm text-muted-foreground">Completed today</p>
+          ) : todaySessions.length > 0 ? (
+            <div className="space-y-1">
+              <p className="text-sm text-green-700 font-medium">Clocked Out</p>
+              <p className="text-xs text-muted-foreground">Worked {formatDuration(todayTotalSeconds)} across {todaySessions.length} session{todaySessions.length > 1 ? "s" : ""}</p>
+            </div>
           ) : isWeekendDay ? (
             <p className="text-sm text-muted-foreground">Weekend (Off)</p>
           ) : (
@@ -513,6 +560,10 @@ export default function DashboardPage() {
                           {!clockedIn ? (
                             <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
                               Not Clocked In
+                            </Badge>
+                          ) : member.attendance.clock_out ? (
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
+                              Clocked Out
                             </Badge>
                           ) : mode === "onsite" ? (
                             <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none flex items-center gap-1 text-[10px] font-medium">

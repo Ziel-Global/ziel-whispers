@@ -280,6 +280,7 @@ export type Database = {
           is_missed: boolean
           log_date: string
           project_id: string | null
+          status: string
           submitted_at: string
           user_id: string | null
         }
@@ -296,6 +297,7 @@ export type Database = {
           is_missed?: boolean
           log_date: string
           project_id?: string | null
+          status?: string
           submitted_at?: string
           user_id?: string | null
         }
@@ -312,6 +314,7 @@ export type Database = {
           is_missed?: boolean
           log_date?: string
           project_id?: string | null
+          status?: string
           submitted_at?: string
           user_id?: string | null
         }

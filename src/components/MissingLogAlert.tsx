@@ -57,7 +57,8 @@ export function MissingLogAlert() {
         .from("daily_logs")
         .select("hours")
         .eq("user_id", user!.id)
-        .eq("log_date", targetDateStr);
+        .eq("log_date", targetDateStr)
+        .eq("status", "submitted");
       
       const totalLogged = (logs || []).reduce((sum, log) => sum + Number(log.hours), 0);
       const expectedHours = 8;

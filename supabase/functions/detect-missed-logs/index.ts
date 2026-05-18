@@ -72,7 +72,8 @@ Deno.serve(async (req: Request) => {
     const { data: todayLogs } = await supabase
       .from("daily_logs")
       .select("user_id")
-      .eq("log_date", todayPKT);
+      .eq("log_date", todayPKT)
+      .eq("status", "submitted");
     const loggedUserIds = new Set((todayLogs || []).map(l => l.user_id));
 
     // 4. Fetch users already marked as missed today (to avoid duplicates)
@@ -119,8 +120,8 @@ Deno.serve(async (req: Request) => {
         effectiveMinutes = h * 60 + m;
       }
 
-      // Check if current time is past shift end
-      if (nowTotalMinutes >= effectiveMinutes) {
+      // Check if current time is strictly past shift end
+      if (nowTotalMinutes > effectiveMinutes) {
         toMarkAsMissed.push({
           user_id: user.id,
           log_date: todayPKT,

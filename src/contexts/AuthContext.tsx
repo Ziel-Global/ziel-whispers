@@ -24,6 +24,7 @@ type UserProfile = {
   join_date: string | null;
   created_at: string;
   working_days: number;
+  overtime_enabled: boolean;
 };
 
 type AuthContextType = {
@@ -70,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const fetchProfile = async (userId: string) => {
     const { data, error } = await supabase
       .from("users")
-      .select("id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days")
+      .select("id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days, overtime_enabled")
       .eq("id", userId)
       .maybeSingle();
 

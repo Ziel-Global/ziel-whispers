@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,12 +15,14 @@ import { Input } from "@/components/ui/input";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format, differenceInBusinessDays } from "date-fns";
+import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
 
 const LEAVE_CATEGORIES = [
   { value: "sick", label: "Sick Leave" },
   { value: "personal", label: "Personal Leave" },
   { value: "bereavement", label: "Bereavement" },
   { value: "casual", label: "Casual Leave" },
+  { value: "half_day", label: "Half Day Leave" },
   { value: "other", label: "Other" },
 ];
 
@@ -37,7 +39,66 @@ export default function MyLeavePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const today = new Date().toISOString().split("T")[0];
+  const { shiftStart, shiftEnd } = useWorkSettings();
+  const today = getPKTDateString();
+  const [leaveHours, setLeaveHours] = useState("");
+
+  const calculateMaxLeaveHours = (dateStr: string) => {
+    if (!dateStr || !shiftStart || !shiftEnd) return 9; // default fallback
+    const parseShiftTime = (timeStr: string) => {
+      const parts = timeStr.split(":");
+      return {
+        hours: Number(parts[0]) || 0,
+        minutes: Number(parts[1]) || 0,
+      };
+    };
+    const s = parseShiftTime(shiftStart);
+    const e = parseShiftTime(shiftEnd);
+    let sMin = s.hours * 60 + s.minutes;
+    let eMin = e.hours * 60 + e.minutes;
+    if (eMin < sMin) eMin += 24 * 60; // overnight
+    
+    const isToday = dateStr === today;
+    let remainingMinutes = eMin - sMin;
+    
+    if (isToday) {
+      const pktIso = getPKTISOString();
+      const pktTimePart = pktIso.split("T")[1].split("+")[0];
+      const currentPkt = parseShiftTime(pktTimePart);
+      let nowMin = currentPkt.hours * 60 + currentPkt.minutes;
+      
+      if (eMin > 24 * 60 && nowMin < (eMin - 24 * 60)) {
+        nowMin += 24 * 60;
+      }
+      
+      if (nowMin >= sMin && nowMin < eMin) {
+        remainingMinutes = eMin - nowMin;
+      } else if (nowMin >= eMin) {
+        remainingMinutes = 0;
+      }
+    }
+    
+    return Math.max(0, Number((remainingMinutes / 60).toFixed(1)));
+  };
+
+  const maxLeaveHours = useMemo(() => calculateMaxLeaveHours(startDate), [startDate, today, shiftStart, shiftEnd]);
+
+  const hoursError = useMemo(() => {
+    if (leaveCategory !== "half_day") return "";
+    if (!leaveHours.trim()) return "";
+    const hoursNum = parseFloat(leaveHours);
+    if (isNaN(hoursNum)) {
+      return "Please enter a valid number of hours";
+    }
+    if (hoursNum <= 0) {
+      return "Hours requested must be greater than zero";
+    }
+    if (hoursNum > maxLeaveHours) {
+      return `You cannot take more hours than your remaining shift hours. You have ${maxLeaveHours} hours remaining`;
+    }
+    return "";
+  }, [leaveCategory, leaveHours, maxLeaveHours]);
+
 
   // Live global entitlement from system_settings
   const { data: annualEntitlement = 12 } = useQuery({
@@ -88,18 +149,40 @@ export default function MyLeavePage() {
   const workingDays = startDate && endDate ? Math.max(1, differenceInBusinessDays(new Date(endDate), new Date(startDate)) + 1) : 0;
 
   const handleApply = async () => {
-    if (!leaveCategory || !startDate || !endDate) { toast.error("Fill all required fields"); return; }
+    if (!leaveCategory || !startDate || (leaveCategory !== "half_day" && !endDate)) { toast.error("Fill all required fields"); return; }
+    
+    const finalEndDate = leaveCategory === "half_day" ? startDate : endDate;
+    const finalDaysCount = leaveCategory === "half_day" ? 1 : workingDays;
+
     // Prevent weekend selection (Saturday=6, Sunday=0)
     const sDay = new Date(startDate + "T00:00:00").getDay();
-    const eDay = new Date(endDate + "T00:00:00").getDay();
+    const eDay = new Date(finalEndDate + "T00:00:00").getDay();
     if (sDay === 6 || sDay === 0 || eDay === 6 || eDay === 0) {
-      toast.error("Start/End date cannot be on Saturday or Sunday. Please choose working days.");
+      toast.error("Date cannot be on Saturday or Sunday. Please choose working days.");
       return;
     }
     if (startDate < today) { toast.error("Start date cannot be in the past"); return; }
-    if (endDate < startDate) { toast.error("End date must be on or after start date"); return; }
+    if (finalEndDate < startDate) { toast.error("End date must be on or after start date"); return; }
+    
+    if (leaveCategory === "half_day") {
+      if (!leaveHours.trim()) {
+        toast.error("Please enter the number of hours");
+        return;
+      }
+      const hoursNum = parseFloat(leaveHours);
+      if (isNaN(hoursNum) || hoursNum <= 0) {
+        toast.error("Hours requested must be greater than zero");
+        return;
+      }
+      const currentMaxHours = calculateMaxLeaveHours(startDate);
+      if (hoursNum > currentMaxHours) {
+        toast.error(`You cannot take more hours than your remaining shift hours. You have ${currentMaxHours} hours remaining`);
+        return;
+      }
+    }
+
     if (isExhausted) { toast.error("You have exhausted your annual leave balance."); return; }
-    if (workingDays > remainingDays) { toast.error(`Insufficient balance. You have ${remainingDays} days remaining.`); return; }
+    if (finalDaysCount > remainingDays) { toast.error(`Insufficient balance. You have ${remainingDays} days remaining.`); return; }
 
     const leaveTypes = (await supabase.from("leave_types").select("id").limit(1)).data;
     const leaveType = leaveTypes && leaveTypes.length > 0 ? leaveTypes[0] : null;
@@ -113,8 +196,9 @@ export default function MyLeavePage() {
         user_id: user!.id,
         leave_type_id: leaveType?.id || null,
         start_date: startDate,
-        end_date: endDate,
-        days_count: workingDays,
+        end_date: finalEndDate,
+        days_count: finalDaysCount,
+        hours: leaveCategory === "half_day" ? parseInt(leaveHours, 10) : null,
         reason: finalReason || null,
         status: "pending",
       });
@@ -122,7 +206,7 @@ export default function MyLeavePage() {
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.requested", target_entity: "leave_requests" });
       toast.success("Leave request submitted");
       setApplyOpen(false);
-      setLeaveCategory(""); setStartDate(""); setEndDate(""); setReason(""); setOtherReason("");
+      setLeaveCategory(""); setStartDate(""); setEndDate(""); setReason(""); setOtherReason(""); setLeaveHours("");
       queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
       queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
       queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
@@ -201,10 +285,14 @@ export default function MyLeavePage() {
               <>
                 <TableRow key={r.id} className="cursor-pointer" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
                   <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                  <TableCell className="font-medium">{r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual"}</TableCell>
+                  <TableCell className="font-medium">
+                    {r.hours 
+                      ? `Half Day Leave — ${r.hours} hours` 
+                      : (r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual")}
+                  </TableCell>
                   <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                   <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                  <TableCell>{r.days_count}</TableCell>
+                  <TableCell>{r.hours ? "0.5" : r.days_count}</TableCell>
                   <TableCell className="max-w-[150px] truncate">{r.reason || "—"}</TableCell>
                   <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>
@@ -265,32 +353,73 @@ export default function MyLeavePage() {
                   <Input value={otherReason} onChange={(e) => setOtherReason(e.target.value)} placeholder="Reason for leave" />
                 </div>
               )}
-              <div className="grid grid-cols-2 gap-3">
+              {leaveCategory === "half_day" ? (
                 <div className="space-y-1">
-                  <Label>Start Date <span className="text-destructive">*</span></Label>
+                  <Label>Date <span className="text-destructive">*</span></Label>
                   <Input type="date" value={startDate} onChange={(e) => {
                     const v = e.target.value;
-                    if (!v) { setStartDate(v); return; }
+                    if (!v) { setStartDate(v); setEndDate(v); return; }
                     const d = new Date(v + "T00:00:00");
                     const day = d.getDay(); // 0=Sun .. 6=Sat
-                    if (day === 6 || day === 0) { toast.error("Start date cannot be on Saturday or Sunday"); setStartDate(""); return; }
+                    if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); setStartDate(""); setEndDate(""); return; }
                     setStartDate(v);
+                    setEndDate(v);
                   }} min={today} />
                 </div>
-                <div className="space-y-1">
-                  <Label>End Date <span className="text-destructive">*</span></Label>
-                  <Input type="date" value={endDate} onChange={(e) => {
-                    const v = e.target.value;
-                    if (!v) { setEndDate(v); return; }
-                    const d = new Date(v + "T00:00:00");
-                    const day = d.getDay();
-                    if (day === 6 || day === 0) { toast.error("End date cannot be on Saturday or Sunday"); setEndDate(""); return; }
-                    setEndDate(v);
-                  }} min={startDate || today} />
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>Start Date <span className="text-destructive">*</span></Label>
+                    <Input type="date" value={startDate} onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) { setStartDate(v); return; }
+                      const d = new Date(v + "T00:00:00");
+                      const day = d.getDay(); // 0=Sun .. 6=Sat
+                      if (day === 6 || day === 0) { toast.error("Start date cannot be on Saturday or Sunday"); setStartDate(""); return; }
+                      setStartDate(v);
+                    }} min={today} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>End Date <span className="text-destructive">*</span></Label>
+                    <Input type="date" value={endDate} onChange={(e) => {
+                      const v = e.target.value;
+                      if (!v) { setEndDate(v); return; }
+                      const d = new Date(v + "T00:00:00");
+                      const day = d.getDay();
+                      if (day === 6 || day === 0) { toast.error("End date cannot be on Saturday or Sunday"); setEndDate(""); return; }
+                      setEndDate(v);
+                    }} min={startDate || today} />
+                  </div>
                 </div>
-              </div>
-              {workingDays > 0 && (
-                <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""} · {remainingDays} days remaining</p>
+              )}
+              {leaveCategory === "half_day" && (
+                <div className="space-y-1">
+                  <Label>Hours requested <span className="text-destructive">*</span></Label>
+                  <Input 
+                    type="number" 
+                    value={leaveHours} 
+                    onChange={(e) => setLeaveHours(e.target.value)} 
+                    placeholder={`Max ${maxLeaveHours} hours`}
+                    min="1"
+                    max={maxLeaveHours}
+                    className={hoursError ? "border-destructive focus-visible:ring-destructive" : ""}
+                  />
+                  {hoursError && (
+                    <p className="text-xs text-destructive font-medium">{hoursError}</p>
+                  )}
+                  <p className="text-xs text-muted-foreground">
+                    Remaining shift hours for the selected day: {maxLeaveHours} hours
+                  </p>
+                </div>
+              )}
+              {leaveCategory === "half_day" ? (
+                startDate && (
+                  <p className="text-sm text-muted-foreground">Half Day Leave · {remainingDays} days remaining</p>
+                )
+              ) : (
+                workingDays > 0 && (
+                  <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""} · {remainingDays} days remaining</p>
+                )
               )}
               <div className="space-y-1">
                 <Label>Additional Notes</Label>

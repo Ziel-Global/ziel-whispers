@@ -101,6 +101,26 @@ export default function MyAttendancePage() {
     enabled: !!user?.id,
   });
 
+  // Monthly approved leave requests
+  const { data: monthLeaves = [] } = useQuery({
+    queryKey: ["my-month-leaves", user?.id, monthStart],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("*, leave_types(name)")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .or(`start_date.lte.${monthEnd},end_date.gte.${monthStart}`);
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const getLeaveForDay = (d: Date) => {
+    const dateStr = format(d, "yyyy-MM-dd");
+    return monthLeaves.find((l: any) => dateStr >= l.start_date && dateStr <= l.end_date);
+  };
+
   // Group logs by date
   const logsByDate = useMemo(() => {
     const map: Record<string, { count: number; hasLate: boolean; totalHours: number; lastSubmittedAt: string | null }> = {};
@@ -285,8 +305,10 @@ export default function MyAttendancePage() {
 
   // Calculate total hours for today across all sessions
   const todayTotalSeconds = todaySessions.reduce((acc, s) => {
-    if (!s.clock_in || !s.clock_out) return acc;
-    return acc + Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 1000);
+    if (!s.clock_in) return acc;
+    const end = s.clock_out ? new Date(s.clock_out) : new Date();
+    const start = new Date(s.clock_in);
+    return acc + Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
   }, 0);
 
   // Calendar
@@ -299,7 +321,20 @@ export default function MyAttendancePage() {
     const isSun = day === 0;
     const isSat = day === 6;
     if (isSun || (isSat && workingDays === 5)) return "bg-muted text-muted-foreground";
+
+    const leave = getLeaveForDay(d);
     const recs = getRecordsForDay(d);
+
+    if (leave) {
+      if (leave.hours) {
+        if (recs.length > 0) {
+          return "bg-blue-100 text-blue-700";
+        }
+        return "bg-purple-100 text-purple-700";
+      }
+      return "bg-purple-100 text-purple-700";
+    }
+
     if (recs.length === 0) {
       // Only show as absent (red) if the date is strictly AFTER the account creation date.
       // created_at is the definitive boundary — join_date can be backdated by admins.
@@ -333,6 +368,26 @@ export default function MyAttendancePage() {
     // Account boundary check
     const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
     if (createdAtDate && dateStr < createdAtDate) return null;
+
+    const leave = getLeaveForDay(d);
+    if (leave) {
+      if (!leave.hours) {
+        return { label: leave.leave_types?.name || "On Leave", color: "text-purple-600" };
+      } else {
+        const recs = getRecordsForDay(d);
+        if (recs.length > 0) {
+          const workedSeconds = recs.reduce((acc, s) => {
+            if (!s.clock_in) return acc;
+            const end = s.clock_out ? new Date(s.clock_out) : new Date();
+            const start = new Date(s.clock_in);
+            return acc + Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
+          }, 0);
+          const workedHours = (workedSeconds / 3600).toFixed(1);
+          return { label: `Partial Day — ${workedHours} hrs worked, ${leave.hours} hrs on leave`, color: "text-blue-600" };
+        }
+        return { label: `Half Day Leave — ${leave.hours} hours`, color: "text-purple-600" };
+      }
+    }
 
     if (!logInfo || logInfo.count === 0) {
       if (isPast) {
@@ -515,53 +570,103 @@ export default function MyAttendancePage() {
           })}
         </div>
 
-        {selectedRecords.length > 0 && (
-          <div className="mt-4 space-y-3">
-            <p className="text-sm font-semibold">Sessions for {format(selectedDay!, "MMM d, yyyy")}</p>
-            {selectedRecords.map((rec, idx) => (
-              <div key={rec.id} className="p-3 bg-muted rounded-md space-y-1 text-sm relative">
-                <Badge variant="outline" className="absolute top-3 right-3 text-[10px] capitalize">{rec.work_mode}</Badge>
-                <p><strong>Session {idx + 1}:</strong> {formatPKTTime(rec.clock_in!)} — {rec.clock_out ? formatPKTTime(rec.clock_out) : "Active"}</p>
-                {rec.clock_in && rec.clock_out && (
-                  <p><strong>Duration:</strong> {formatDuration(Math.floor((new Date(rec.clock_out).getTime() - new Date(rec.clock_in).getTime()) / 1000))}</p>
-                )}
-                {rec.is_late && (
-                  <p className="text-amber-600 font-medium">⚠️ Late by {formatLateness(rec.minutes_late)}</p>
-                )}
-                {rec.notes && <p><strong>Notes:</strong> {rec.notes}</p>}
+        {selectedDay && (() => {
+          const leave = getLeaveForDay(selectedDay);
+          const hasSessions = selectedRecords.length > 0;
+          const indicator = getLogIndicator(selectedDay);
+          
+          if (!leave && !hasSessions) {
+            return (
+              <div className="mt-4 p-3 bg-muted rounded-md text-sm text-muted-foreground">
+                No attendance sessions or leave requests for {format(selectedDay, "MMM d, yyyy")}.
               </div>
-            ))}
-            <div className="pt-2 border-t flex justify-between items-center">
-              <span className="text-sm font-medium">Total Duration:</span>
-              <span className="text-sm font-bold">
-                {formatDuration(selectedRecords.reduce((acc, r) => {
-                  if (!r.clock_in || !r.clock_out) return acc;
-                  return acc + Math.floor((new Date(r.clock_out).getTime() - new Date(r.clock_in).getTime()) / 1000);
-                }, 0))}
-              </span>
-            </div>
-            
-            {(() => {
-              const indicator = getLogIndicator(selectedDay!);
-              const day = selectedDay!.getDay();
-              const isSun = day === 0;
-              const isSat = day === 6;
+            );
+          }
+
+          return (
+            <div className="mt-4 space-y-4">
+              <p className="text-sm font-semibold">Details for {format(selectedDay, "MMM d, yyyy")}</p>
               
-              if (isSun || (isSat && workingDays === 5)) {
-                return <p className="text-xs text-muted-foreground mt-2 italic">Weekend (No log expected)</p>;
-              }
-
-              if (!indicator) return null;
-
-              return (
-                <div className="mt-2 pt-2 border-t flex items-center justify-between">
-                  <span className="text-sm font-medium">Daily Log:</span>
-                  <span className={`${indicator.color} text-sm font-medium`}>{indicator.label.split(" \u2014 ")[0]}</span>
+              {leave && (
+                <div className="p-3 border border-purple-100 bg-purple-50/30 rounded-md space-y-1 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-purple-700">Status: On Leave</span>
+                    <Badge className="bg-purple-100 text-purple-700 hover:bg-purple-100 border-none">
+                      {leave.leave_types?.name || "Leave"}
+                    </Badge>
+                  </div>
+                  {leave.hours ? (
+                    <p className="text-xs text-purple-600"><strong>Hours Taken:</strong> {leave.hours} hours (Half Day Leave)</p>
+                  ) : (
+                    <p className="text-xs text-purple-600">Full Day Leave</p>
+                  )}
+                  {leave.reason && (
+                    <p className="text-xs text-purple-700 italic">" {leave.reason} "</p>
+                  )}
                 </div>
-              );
-            })()}
-          </div>
-        )}
+              )}
+
+              {hasSessions && (
+                <div className="space-y-3">
+                  {selectedRecords.map((rec, idx) => (
+                    <div key={rec.id} className="p-3 bg-muted rounded-md space-y-1 text-sm relative">
+                      <Badge variant="outline" className="absolute top-3 right-3 text-[10px] capitalize">{rec.work_mode}</Badge>
+                      <p><strong>Session {idx + 1}:</strong> {formatPKTTime(rec.clock_in!)} — {rec.clock_out ? formatPKTTime(rec.clock_out) : "Active"}</p>
+                      {rec.clock_in && (
+                        <p>
+                          <strong>Duration:</strong>{" "}
+                          {formatDuration(
+                            Math.floor(
+                              ((rec.clock_out ? new Date(rec.clock_out) : new Date()).getTime() -
+                                new Date(rec.clock_in).getTime()) /
+                                1000
+                            )
+                          )}
+                          {!rec.clock_out && " (so far)"}
+                        </p>
+                      )}
+                      {rec.is_late && (
+                        <p className="text-amber-600 font-medium">⚠️ Late by {formatLateness(rec.minutes_late)}</p>
+                      )}
+                      {rec.notes && <p><strong>Notes:</strong> {rec.notes}</p>}
+                    </div>
+                  ))}
+                  
+                  <div className="pt-2 border-t flex justify-between items-center">
+                    <span className="text-sm font-medium">Total Duration:</span>
+                    <span className="text-sm font-bold">
+                      {formatDuration(selectedRecords.reduce((acc, r) => {
+                        if (!r.clock_in) return acc;
+                        const end = r.clock_out ? new Date(r.clock_out) : new Date();
+                        const start = new Date(r.clock_in);
+                        return acc + Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
+                      }, 0))}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {(() => {
+                const day = selectedDay.getDay();
+                const isSun = day === 0;
+                const isSat = day === 6;
+                
+                if (isSun || (isSat && workingDays === 5)) {
+                  return <p className="text-xs text-muted-foreground italic">Weekend (No log expected)</p>;
+                }
+
+                if (!indicator) return null;
+
+                return (
+                  <div className="pt-2 border-t flex items-center justify-between text-sm">
+                    <span className="font-medium text-muted-foreground">Daily Log Status:</span>
+                    <span className={`${indicator.color} font-medium`}>{indicator.label.split(" \u2014 ")[0]}</span>
+                  </div>
+                );
+              })()}
+            </div>
+          );
+        })()}
       </Card>
 
       {/* Late Clock-in Confirmation */}

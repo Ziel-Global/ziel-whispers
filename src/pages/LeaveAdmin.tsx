@@ -19,7 +19,15 @@ import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Tras
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
-const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Other"];
+const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Half Day Leave", "Other"];
+
+const getLeaveTypeName = (r: any) => {
+  if (!r) return "";
+  if (r.hours) {
+    return `Half Day Leave — ${r.hours} hours`;
+  }
+  return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
+};
 
 export default function LeaveAdminPage() {
   const { user, profile } = useAuth();
@@ -132,13 +140,13 @@ export default function LeaveAdminPage() {
         action: type === "approve" ? "leave.approved" : "leave.rejected",
         target_entity: "leave_requests",
         target_id: request.id,
-        metadata: { employee: request.users?.full_name, days: request.days_count, leave_type: request.leave_types?.name },
+        metadata: { employee: request.users?.full_name, days: request.days_count, leave_type: getLeaveTypeName(request) },
       });
 
       await supabase.from("notifications").insert({
         user_id: request.user_id,
         type: `leave.${newStatus}`,
-        metadata: { leave_type: request.leave_types?.name, days: request.days_count },
+        metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
       });
 
       toast.success(`Leave request ${type}d`);
@@ -226,10 +234,10 @@ export default function LeaveAdminPage() {
                     <TableRow key={r.id} className={`cursor-pointer ${r.status === "pending" ? "bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
                       <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
                       <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                      <TableCell>{r.leave_types?.name}</TableCell>
+                      <TableCell>{getLeaveTypeName(r)}</TableCell>
                       <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d")}</TableCell>
                       <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d")}</TableCell>
-                      <TableCell>{r.days_count}</TableCell>
+                      <TableCell>{r.hours ? "0.5" : r.days_count}</TableCell>
                       <TableCell className="max-w-[120px] truncate">{r.reason || "—"}</TableCell>
                       <TableCell>{statusBadge(r.status)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d")}</TableCell>
@@ -261,7 +269,7 @@ export default function LeaveAdminPage() {
                               <div>
                                 <p className="text-[12px] text-muted-foreground mb-0.5">Dates</p>
                                 <p className="text-sm">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — {format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</p>
-                                <p className="text-xs text-muted-foreground">{r.days_count} day(s)</p>
+                                <p className="text-xs text-muted-foreground">{r.hours ? "0.5" : r.days_count} day(s)</p>
                               </div>
                               <div>
                                 <p className="text-[12px] text-muted-foreground mb-0.5">Submitted</p>
@@ -318,7 +326,7 @@ export default function LeaveAdminPage() {
                       {leaves.slice(0, 2).map((l: any) => {
                         const initials = l.users?.full_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
                         return (
-                          <div key={l.id} className="flex items-center gap-1" title={`${l.users?.full_name} - ${l.leave_types?.name}`}>
+                          <div key={l.id} className="flex items-center gap-1" title={`${l.users?.full_name} - ${getLeaveTypeName(l)}`}>
                             <Avatar className="h-4 w-4"><AvatarFallback className="text-[8px]">{initials}</AvatarFallback></Avatar>
                             <span className="truncate">{l.users?.full_name?.split(" ")[0]}</span>
                           </div>
@@ -350,7 +358,7 @@ export default function LeaveAdminPage() {
                         <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{(l.users?.full_name || "").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}</div>
                         <div>
                           <p className="text-sm font-medium">{l.users?.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{l.leave_types?.name} · {l.days_count} day(s)</p>
+                          <p className="text-xs text-muted-foreground">{getLeaveTypeName(l)} · {l.hours ? "0.5" : l.days_count} day(s)</p>
                         </div>
                       </div>
                     ))}

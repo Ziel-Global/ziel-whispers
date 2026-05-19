@@ -97,11 +97,11 @@ export default function AttendanceAdminPage() {
   }, [filtered]);
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
-    if (!clockOut) return "Active";
-    const secs = Math.max(0, Math.floor((new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 1000));
+    const end = clockOut ? new Date(clockOut) : new Date();
+    const secs = Math.max(0, Math.floor((end.getTime() - new Date(clockIn).getTime()) / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
-    return `${h}h ${m}m`;
+    return `${h}h ${m}m${!clockOut ? " (so far)" : ""}`;
   };
 
   // Format time to 12-hour for edit fields
@@ -262,8 +262,10 @@ export default function AttendanceAdminPage() {
               groupedRecords.map((sessions: any[]) => {
                 const r = sessions[0];
                 const totalSeconds = sessions.reduce((acc, s) => {
-                  if (!s.clock_in || !s.clock_out) return acc;
-                  return acc + Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 1000);
+                  if (!s.clock_in) return acc;
+                  const end = s.clock_out ? new Date(s.clock_out) : new Date();
+                  const start = new Date(s.clock_in);
+                  return acc + Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
                 }, 0);
                 
                 const activeSession = sessions.find(s => !s.clock_out && !!s.clock_in);

@@ -453,24 +453,81 @@ function MissedLogsReport() {
     },
   });
 
+  const { data: leaves = [] } = useQuery({
+    queryKey: ["missed-report-leaves", startDate, endDate],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("user_id, start_date, end_date, hours")
+        .eq("status", "approved")
+        .lte("start_date", endDate)
+        .gte("end_date", startDate);
+      return data || [];
+    },
+  });
+
+  const { data: dailyLogs = [] } = useQuery({
+    queryKey: ["missed-report-logs", startDate, endDate],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("user_id, log_date, hours")
+        .gte("log_date", startDate)
+        .lte("log_date", endDate)
+        .eq("status", "submitted");
+      return data || [];
+    },
+  });
+
+  const filteredMissed = useMemo(() => {
+    if (!missed) return [];
+    return missed.filter((m) => {
+      // 1. Weekend check
+      const day = parseISO(m.log_date).getDay();
+      if (day === 0 || day === 6) return false;
+
+      // 2. Created at check
+      const createdAtDate = (m.users as any)?.created_at ? (m.users as any).created_at.split("T")[0] : null;
+      if (createdAtDate && m.log_date <= createdAtDate) return false;
+
+      // 3. Approved leave check
+      const dayLeave = leaves.find((l: any) => 
+        l.user_id === m.user_id && 
+        l.start_date <= m.log_date && 
+        l.end_date >= m.log_date
+      );
+      if (dayLeave) {
+        if (!dayLeave.hours) {
+          // Full-day leave: skip missed log
+          return false;
+        }
+        // Half-day leave: check if combined hours >= 8
+        const userLogsToday = dailyLogs.filter((l: any) => 
+          l.user_id === m.user_id && 
+          l.log_date === m.log_date
+        );
+        const loggedHoursToday = userLogsToday.reduce((sum, l: any) => sum + Number(l.hours), 0);
+        if (loggedHoursToday + (dayLeave.hours || 0) >= 8) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [missed, leaves, dailyLogs]);
+
   return (
     <div className="space-y-4">
       <div className="flex gap-3 items-end">
         <div><label className="text-sm text-muted-foreground">Start</label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
         <div><label className="text-sm text-muted-foreground">End</label><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
-        <Button variant="outline" size="sm" onClick={() => exportCSV((missed || []).map((m) => ({ Employee: (m.users as any)?.full_name, Date: m.log_date, Detected: m.detected_at })), "missed-logs.csv")}><Download className="h-4 w-4 mr-1" />CSV</Button>
+        <Button variant="outline" size="sm" onClick={() => exportCSV(filteredMissed.map((m) => ({ Employee: (m.users as any)?.full_name, Date: m.log_date, Detected: m.detected_at })), "missed-logs.csv")}><Download className="h-4 w-4 mr-1" />CSV</Button>
       </div>
       <Card><Table>
         <TableHeader><TableRow><TableHead>Employee</TableHead><TableHead>Date</TableHead><TableHead>Detected At</TableHead></TableRow></TableHeader>
-        <TableBody>{(missed || []).filter(m => {
-          const day = parseISO(m.log_date).getDay();
-          if (day === 0 || day === 6) return false;
-          const createdAtDate = (m.users as any)?.created_at ? (m.users as any).created_at.split("T")[0] : null;
-          if (createdAtDate && m.log_date <= createdAtDate) return false;
-          return true;
-        }).map((m) => (
+        <TableBody>{filteredMissed.map((m) => (
           <TableRow key={m.id} className="bg-red-50/30"><TableCell>{(m.users as any)?.full_name}</TableCell><TableCell>{format(parseISO(m.log_date), "MMM d, yyyy")}</TableCell><TableCell className="text-muted-foreground">{formatPKTTime(m.detected_at)}</TableCell></TableRow>
-        ))}{(!missed || missed.length === 0) && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No missed logs found</TableCell></TableRow>}</TableBody>
+        ))}{filteredMissed.length === 0 && <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-8">No missed logs found</TableCell></TableRow>}</TableBody>
       </Table></Card>
     </div>
   );

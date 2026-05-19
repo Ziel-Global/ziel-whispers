@@ -193,6 +193,21 @@ export default function LogsAdminPage() {
       return data || [];
     },
   });
+
+  // Fetch approved leaves for the selected date
+  const { data: dayLeaves = [] } = useQuery({
+    queryKey: ["admin-leaves", selectedDate],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("*, leave_types(name)")
+        .eq("status", "approved")
+        .lte("start_date", selectedDate)
+        .gte("end_date", selectedDate);
+      return data || [];
+    },
+  });
+
   const groupedRows = useMemo(() => {
     const logsByUser: Record<string, any[]> = {};
     logs.forEach((l: any) => {
@@ -211,6 +226,11 @@ export default function LogsAdminPage() {
       if (s.user_id) standupByUser[s.user_id] = s.is_done;
     });
 
+    const leavesByUser: Record<string, any> = {};
+    dayLeaves.forEach((l: any) => {
+      if (l.user_id) leavesByUser[l.user_id] = l;
+    });
+
     const allRows = employees.filter((emp: any) => {
       // Only show employees whose account existed on the selected date.
       // created_at is used, NOT join_date, because join_date can be backdated by admins.
@@ -227,16 +247,36 @@ export default function LogsAdminPage() {
       const empShiftStart = emp.has_custom_shift ? emp.shift_start : globalShiftStart;
       const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
       const shiftHours = getShiftHours(empShiftStart, empShiftEnd);
-      const unloggedHours = Math.max(0, shiftHours - totalHours);
 
-      // Log status: missed / added / late
+      const leave = leavesByUser[emp.id];
+      const leaveHours = leave ? (leave.hours || 0) : 0;
+      const leaveName = leave ? (leave.leave_types?.name || "Leave") : "";
+      const isFullLeave = leave && !leave.hours;
+      const isHalfLeave = leave && !!leave.hours;
+
+      const unloggedHours = isFullLeave ? 0 : Math.max(0, shiftHours - totalHours - leaveHours);
+
+      // Log status: missed / added / late / on_leave / half_day_leave / partial_day
       const hasLogs = empLogs.length > 0;
       const hasLateLog = empLogs.some((l: any) => l.is_late);
       const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
-      let logStatus: "missed" | "added" | "late" | "none" = "missed";
-      if (hasLogs && hasLateLog) logStatus = "late";
-      else if (hasLogs) logStatus = "added";
-      else if (isWeekend) logStatus = "none";
+      
+      let logStatus: "missed" | "added" | "late" | "none" | "on_leave" | "half_day_leave" | "partial_day" = "missed";
+      if (isFullLeave) {
+        logStatus = "on_leave";
+      } else if (isHalfLeave) {
+        if (hasLogs) {
+          logStatus = "partial_day";
+        } else {
+          logStatus = "half_day_leave";
+        }
+      } else if (hasLogs && hasLateLog) {
+        logStatus = "late";
+      } else if (hasLogs) {
+        logStatus = "added";
+      } else if (isWeekend) {
+        logStatus = "none";
+      }
 
       // Has any flagged log
       const hasFlaggedLog = empLogs.some((l: any) => l.admin_flagged);
@@ -256,6 +296,8 @@ export default function LogsAdminPage() {
         hasFlaggedLog,
         standupDone: standupByUser[emp.id] ?? true,
         overtimeEnabled: emp.overtime_enabled === true,
+        leaveHours,
+        leaveName,
       };
     });
 
@@ -264,14 +306,13 @@ export default function LogsAdminPage() {
       const matchEmp = employeeFilter === "all" || r.userId === employeeFilter;
       const matchStatus = statusFilter === "all" ||
         (statusFilter === "missed" && r.logStatus === "missed") ||
-        (statusFilter === "added" && r.logStatus === "added") ||
+        (statusFilter === "added" && (r.logStatus === "added" || r.logStatus === "partial_day")) ||
         (statusFilter === "late" && r.logStatus === "late");
-      // If status filter is missed, we don't show "none"
-      if (r.logStatus === "none" && statusFilter !== "all") return false;
+      if ((r.logStatus === "none" || r.logStatus === "on_leave" || r.logStatus === "half_day_leave") && statusFilter !== "all") return false;
       const matchSearch = !searchQ || r.name.toLowerCase().includes(searchQ.toLowerCase()) || r.logs.some((l: any) => l.description?.toLowerCase().includes(searchQ.toLowerCase()));
       return matchEmp && matchStatus && matchSearch;
     }).sort((a, b) => a.name.localeCompare(b.name));
-  }, [logs, employees, attendanceRecords, standupRecords, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
+  }, [logs, employees, attendanceRecords, standupRecords, dayLeaves, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
 
   // Stat card counts (unfiltered)
   const allUnfilteredRows = useMemo(() => {
@@ -281,6 +322,12 @@ export default function LogsAdminPage() {
       if (!logsByUser[l.user_id]) logsByUser[l.user_id] = [];
       logsByUser[l.user_id].push(l);
     });
+
+    const leavesByUser: Record<string, any> = {};
+    dayLeaves.forEach((l: any) => {
+      if (l.user_id) leavesByUser[l.user_id] = l;
+    });
+
     return employees.filter((emp: any) => {
       const createdAtDate = emp.created_at ? emp.created_at.split("T")[0] : null;
       if (createdAtDate && selectedDate < createdAtDate) return false;
@@ -290,17 +337,34 @@ export default function LogsAdminPage() {
       const hasLogs = empLogs.length > 0;
       const hasLateLog = empLogs.some((l: any) => l.is_late);
       const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
-      let logStatus: "missed" | "added" | "late" | "none" = "missed";
-      if (hasLogs && hasLateLog) logStatus = "late";
-      else if (hasLogs) logStatus = "added";
-      else if (isWeekend) logStatus = "none";
+
+      const leave = leavesByUser[emp.id];
+      const isFullLeave = leave && !leave.hours;
+      const isHalfLeave = leave && !!leave.hours;
+
+      let logStatus: "missed" | "added" | "late" | "none" | "on_leave" | "half_day_leave" | "partial_day" = "missed";
+      if (isFullLeave) {
+        logStatus = "on_leave";
+      } else if (isHalfLeave) {
+        if (hasLogs) {
+          logStatus = "partial_day";
+        } else {
+          logStatus = "half_day_leave";
+        }
+      } else if (hasLogs && hasLateLog) {
+        logStatus = "late";
+      } else if (hasLogs) {
+        logStatus = "added";
+      } else if (isWeekend) {
+        logStatus = "none";
+      }
       return { userId: emp.id, name: emp.full_name, logStatus };
     });
-  }, [logs, employees]);
+  }, [logs, employees, dayLeaves, selectedDate]);
 
   const missedList = allUnfilteredRows.filter(r => r.logStatus === "missed");
-  const addedList = allUnfilteredRows.filter(r => r.logStatus === "added");
-  const lateList = allUnfilteredRows.filter(r => r.logStatus === "late");
+  const addedList = allUnfilteredRows.filter(r => r.logStatus === "added" || r.logStatus === "partial_day" || r.logStatus === "late");
+  const lateList = allUnfilteredRows.filter(r => logs.some((l: any) => l.user_id === r.userId && l.is_late));
 
   const toggleFlag = async (log: any) => {
     await supabase.from("daily_logs").update({ admin_flagged: !log.admin_flagged }).eq("id", log.id);
@@ -480,7 +544,7 @@ export default function LogsAdminPage() {
                     <>
                       <TableRow
                         key={row.userId}
-                        className={`cursor-pointer ${row.logCount === 0 ? "bg-red-50/50" : ""}`}
+                        className={`cursor-pointer ${row.logStatus === "missed" ? "bg-red-50/50" : ""}`}
                         onClick={() => setExpandedId(expandedId === row.userId ? null : row.userId)}
                       >
                         <TableCell>{expandedId === row.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
@@ -512,6 +576,9 @@ export default function LogsAdminPage() {
                           {row.logStatus === "missed" ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
                             row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
                             row.logStatus === "none" ? <Badge className="bg-gray-100 text-gray-500">N/A</Badge> :
+                            row.logStatus === "on_leave" ? <Badge className="bg-purple-100 text-purple-700">On Leave</Badge> :
+                            row.logStatus === "half_day_leave" ? <Badge className="bg-purple-100 text-purple-700">{`Half Day Leave — ${row.leaveHours} hours`}</Badge> :
+                            row.logStatus === "partial_day" ? <Badge className="bg-blue-100 text-blue-700">{`Partial Day — ${row.loggedHours.toFixed(1)}h worked, ${row.leaveHours}h on leave`}</Badge> :
                                 <Badge className="bg-green-100 text-green-800">Added</Badge>}
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>

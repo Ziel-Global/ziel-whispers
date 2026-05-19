@@ -14,6 +14,14 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow } from "date-fns";
 import { getAvatarUrl } from "@/lib/utils";
 
+const getLeaveTypeName = (r: any) => {
+  if (!r) return "";
+  if (r.hours) {
+    return `Half Day Leave — ${r.hours} hours`;
+  }
+  return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
+};
+
 export default function DashboardPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
@@ -359,7 +367,7 @@ export default function DashboardPage() {
                   <div key={r.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                     <div className="text-sm">
                       <p className="font-medium">{(r.users as any)?.full_name}</p>
-                      <p className="text-muted-foreground text-xs">{(r.leave_types as any)?.name} ({r.days_count}d)</p>
+                      <p className="text-muted-foreground text-xs">{getLeaveTypeName(r)} ({r.hours ? "0.5" : r.days_count}d)</p>
                     </div>
                     <div className="flex gap-1">
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleLeaveAction(r.id, "approved")}>

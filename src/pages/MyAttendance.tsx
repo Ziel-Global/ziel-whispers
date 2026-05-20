@@ -1,5 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +18,6 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWee
 
 
 export default function MyAttendancePage() {
-  const navigate = useNavigate();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const { shiftStart, shiftEnd, workingDays } = useWorkSettings();
@@ -53,8 +51,8 @@ export default function MyAttendancePage() {
     refetchInterval: 30000,
   });
 
-  // Today's attendance sessions
-  const { data: todaySessions = [], isLoading: isLoadingToday } = useQuery({
+  // Today's attendance record
+  const { data: todayRecord, isLoading: isLoadingToday } = useQuery({
     queryKey: ["attendance-today", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -62,8 +60,8 @@ export default function MyAttendancePage() {
         .select("*")
         .eq("user_id", user!.id)
         .eq("date", today)
-        .order("clock_in", { ascending: true });
-      return data || [];
+        .maybeSingle();
+      return data;
     },
     enabled: !!user?.id,
   });
@@ -120,6 +118,45 @@ export default function MyAttendancePage() {
     const dateStr = format(d, "yyyy-MM-dd");
     return monthLeaves.find((l: any) => dateStr >= l.start_date && dateStr <= l.end_date);
   };
+
+  // Monthly approved remote work requests
+  const { data: monthWfh = [] } = useQuery({
+    queryKey: ["my-wfh-requests", user?.id, "month", monthStart],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("remote_work_requests")
+        .select("*")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .gte("date", monthStart)
+        .lte("date", monthEnd);
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const getWfhForDay = (d: Date) => {
+    const dateStr = format(d, "yyyy-MM-dd");
+    return monthWfh.find((w: any) => w.date === dateStr);
+  };
+
+  // Check if there is an approved WFH request for today
+  const { data: todayWfh } = useQuery({
+    queryKey: ["my-wfh-today", user?.id, today],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("remote_work_requests")
+        .select("id")
+        .eq("user_id", user!.id)
+        .eq("date", today)
+        .eq("status", "approved")
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id,
+  });
+
+  const hasApprovedWfh = !!todayWfh;
 
   // Group logs by date
   const logsByDate = useMemo(() => {
@@ -205,14 +242,10 @@ export default function MyAttendancePage() {
   const handleClockIn = async () => {
     if (!workMode) { toast.error("Select work mode first"); return; }
 
-    // Only run late detection for the first session of the day
-    const isFirstSession = todaySessions.length === 0;
-    if (isFirstSession) {
-      const { isLate } = getLatenessInfo(shiftStart);
-      if (isLate) {
-        setLateConfirmOpen(true);
-        return;
-      }
+    const { isLate } = getLatenessInfo(shiftStart);
+    if (isLate) {
+      setLateConfirmOpen(true);
+      return;
     }
 
     await performClockIn();
@@ -248,21 +281,6 @@ export default function MyAttendancePage() {
   };
 
   const onClockOutClick = async () => {
-    // Check for pending draft logs in database
-    if (user?.id) {
-      const { data: drafts } = await supabase
-        .from("daily_logs")
-        .select("id")
-        .eq("user_id", user.id)
-        .eq("status", "draft")
-        .limit(1);
-      if (drafts && drafts.length > 0) {
-        toast.error("You have unsubmitted logs. Please submit your logs before clocking out.");
-        navigate("/logs/submit");
-        return;
-      }
-    }
-
     const info = getEarlyClockOutData();
     if (info.isEarly) {
       setEarlyClockOutInfo(info);
@@ -301,15 +319,7 @@ export default function MyAttendancePage() {
 
   const hasOpenSession = !!openSession?.clock_in && !openSession?.clock_out;
   const isOpenSessionFromDifferentDay = hasOpenSession && openSession?.date !== today;
-  const canClockIn = !hasOpenSession;
-
-  // Calculate total hours for today across all sessions
-  const todayTotalSeconds = todaySessions.reduce((acc, s) => {
-    if (!s.clock_in) return acc;
-    const end = s.clock_out ? new Date(s.clock_out) : new Date();
-    const start = new Date(s.clock_in);
-    return acc + Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
-  }, 0);
+  const canClockIn = !hasOpenSession && !todayRecord;
 
   // Calendar
   const days = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) });
@@ -336,6 +346,9 @@ export default function MyAttendancePage() {
     }
 
     if (recs.length === 0) {
+      const wfh = getWfhForDay(d);
+      if (wfh) return "bg-indigo-100 text-indigo-700";
+
       // Only show as absent (red) if the date is strictly AFTER the account creation date.
       // created_at is the definitive boundary — join_date can be backdated by admins.
       const dateStr = format(d, "yyyy-MM-dd");
@@ -389,6 +402,12 @@ export default function MyAttendancePage() {
       }
     }
 
+    const recs = getRecordsForDay(d);
+    const wfh = getWfhForDay(d);
+    if (recs.length === 0 && wfh) {
+      return { label: "Work From Home", color: "text-indigo-600" };
+    }
+
     if (!logInfo || logInfo.count === 0) {
       if (isPast) {
         return { label: "Missed \u2014 Day marked as absent", color: "text-red-500" };
@@ -410,12 +429,12 @@ export default function MyAttendancePage() {
         </Badge>
       </div>
 
-      {/* Late clock-in alert for today — dynamic duration */}
-      {todaySessions.length > 0 && todaySessions[0].is_late && (
+      {/* Late clock-in alert for today */}
+      {todayRecord?.is_late && (
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You were late by <strong>{formatLateness(todaySessions[0].minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You were late by <strong>{formatLateness(todayRecord.minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -445,44 +464,22 @@ export default function MyAttendancePage() {
                   )}
                   <div className="text-5xl font-mono font-bold text-foreground">{formatDuration(elapsed)}</div>
                   <Badge className="bg-green-100 text-green-800">Active Session · {openSession?.work_mode}</Badge>
-                  
-                  <div className="text-sm text-muted-foreground mt-2">
-                    Total worked today: <strong>{formatDuration(todayTotalSeconds + elapsed)}</strong>
-                  </div>
-
-                  <Button onClick={onClockOutClick} disabled={loading} variant="destructive" size="lg" className="rounded-button w-full max-w-xs mt-2">
-                    <LogOut className="h-5 w-5 mr-2" />
-                    Clock Out
-                  </Button>
                 </>
               )}
 
-              {!hasOpenSession && todaySessions.length > 0 && (
-                <div className="w-full max-w-md space-y-4">
-                  <div className="text-center space-y-2">
-                    <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-                      Total Today: {formatDuration(todayTotalSeconds)}
-                    </Badge>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground px-1">Today's Sessions</p>
-                    <div className="divide-y border rounded-lg overflow-hidden bg-muted/30">
-                      {todaySessions.map((s, idx) => (
-                        <div key={s.id} className="p-3 flex items-center justify-between bg-white/50">
-                          <div className="text-sm">
-                            <p className="font-medium">Session {idx + 1} · <span className="capitalize">{s.work_mode}</span></p>
-                            <p className="text-xs text-muted-foreground">
-                              {formatPKTTime(s.clock_in!)} — {s.clock_out ? formatPKTTime(s.clock_out) : "Active"}
-                            </p>
-                          </div>
-                          <div className="text-sm font-mono text-muted-foreground">
-                            {s.clock_out ? formatDuration(Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in!).getTime()) / 1000)) : "—"}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+              {!hasOpenSession && todayRecord && (
+                <div className="w-full max-w-md text-center space-y-2">
+                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+                    Clocked Out
+                  </Badge>
+                  <p className="text-sm text-muted-foreground">
+                    {formatPKTTime(todayRecord.clock_in!)} — {todayRecord.clock_out ? formatPKTTime(todayRecord.clock_out) : "—"}
+                  </p>
+                  {todayRecord.clock_in && todayRecord.clock_out && (
+                    <p className="text-sm font-medium">
+                      Duration: {formatDuration(Math.floor((new Date(todayRecord.clock_out).getTime() - new Date(todayRecord.clock_in).getTime()) / 1000))}
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -496,9 +493,15 @@ export default function MyAttendancePage() {
                         <SelectTrigger><SelectValue placeholder="Select mode" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="onsite">Onsite</SelectItem>
-                          <SelectItem value="remote">Remote</SelectItem>
+                          <SelectItem value="remote" disabled={!hasApprovedWfh}>Remote</SelectItem>
                         </SelectContent>
                       </Select>
+                      {!hasApprovedWfh && (
+                        <p className="text-[11px] text-muted-foreground flex items-center mt-1">
+                          <AlertTriangle className="h-3 w-3 mr-1 text-yellow-500" />
+                          Work From Home request required to clock in remotely
+                        </p>
+                      )}
                     </div>
                     <div className="space-y-1">
                       <Label>Notes (optional)</Label>
@@ -572,10 +575,11 @@ export default function MyAttendancePage() {
 
         {selectedDay && (() => {
           const leave = getLeaveForDay(selectedDay);
+          const wfh = getWfhForDay(selectedDay);
           const hasSessions = selectedRecords.length > 0;
           const indicator = getLogIndicator(selectedDay);
           
-          if (!leave && !hasSessions) {
+          if (!leave && !hasSessions && !wfh) {
             return (
               <div className="mt-4 p-3 bg-muted rounded-md text-sm text-muted-foreground">
                 No attendance sessions or leave requests for {format(selectedDay, "MMM d, yyyy")}.
@@ -606,12 +610,27 @@ export default function MyAttendancePage() {
                 </div>
               )}
 
+              {wfh && !hasSessions && (
+                <div className="p-3 border border-indigo-100 bg-indigo-50/30 rounded-md space-y-1 text-sm">
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold text-indigo-700">Status: Approved Work From Home</span>
+                    <Badge className="bg-indigo-100 text-indigo-700 hover:bg-indigo-100 border-none">
+                      Remote Work
+                    </Badge>
+                  </div>
+                  {wfh.reason && (
+                    <p className="text-xs text-indigo-650 italic mt-1">" {wfh.reason} "</p>
+                  )}
+                </div>
+              )}
+
               {hasSessions && (
                 <div className="space-y-3">
-                  {selectedRecords.map((rec, idx) => (
+                  {selectedRecords.map((rec) => (
                     <div key={rec.id} className="p-3 bg-muted rounded-md space-y-1 text-sm relative">
                       <Badge variant="outline" className="absolute top-3 right-3 text-[10px] capitalize">{rec.work_mode}</Badge>
-                      <p><strong>Session {idx + 1}:</strong> {formatPKTTime(rec.clock_in!)} — {rec.clock_out ? formatPKTTime(rec.clock_out) : "Active"}</p>
+                      <p><strong>Clock In:</strong> {formatPKTTime(rec.clock_in!)}</p>
+                      <p><strong>Clock Out:</strong> {rec.clock_out ? formatPKTTime(rec.clock_out) : "Active"}</p>
                       {rec.clock_in && (
                         <p>
                           <strong>Duration:</strong>{" "}
@@ -631,18 +650,6 @@ export default function MyAttendancePage() {
                       {rec.notes && <p><strong>Notes:</strong> {rec.notes}</p>}
                     </div>
                   ))}
-                  
-                  <div className="pt-2 border-t flex justify-between items-center">
-                    <span className="text-sm font-medium">Total Duration:</span>
-                    <span className="text-sm font-bold">
-                      {formatDuration(selectedRecords.reduce((acc, r) => {
-                        if (!r.clock_in) return acc;
-                        const end = r.clock_out ? new Date(r.clock_out) : new Date();
-                        const start = new Date(r.clock_in);
-                        return acc + Math.max(0, Math.floor((end.getTime() - start.getTime()) / 1000));
-                      }, 0))}
-                    </span>
-                  </div>
                 </div>
               )}
 

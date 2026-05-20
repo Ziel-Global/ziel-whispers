@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,6 +12,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format, differenceInBusinessDays } from "date-fns";
@@ -29,6 +30,13 @@ const LEAVE_CATEGORIES = [
 export default function MyLeavePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (user?.id) {
+      localStorage.setItem(`leave_last_seen_${user.id}`, new Date().toISOString());
+      queryClient.invalidateQueries({ queryKey: ["employee-unseen-requests"] });
+    }
+  }, [user?.id, queryClient]);
   const [applyOpen, setApplyOpen] = useState(false);
   const [leaveCategory, setLeaveCategory] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -42,6 +50,56 @@ export default function MyLeavePage() {
   const { shiftStart, shiftEnd } = useWorkSettings();
   const today = getPKTDateString();
   const [leaveHours, setLeaveHours] = useState("");
+
+  // Work From Home state
+  const [wfhDate, setWfhDate] = useState("");
+  const [wfhReason, setWfhReason] = useState("");
+  const [wfhSubmitting, setWfhSubmitting] = useState(false);
+
+  const { data: wfhRequests = [] } = useQuery({
+    queryKey: ["my-wfh-requests", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("remote_work_requests").select("*, users!remote_work_requests_reviewed_by_fkey(full_name)").eq("user_id", user!.id).order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!user?.id,
+  });
+
+  const handleWfhSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!wfhDate) { toast.error("Please select a date"); return; }
+    if (!wfhReason.trim()) { toast.error("Please enter a reason"); return; }
+    
+    // Check if there is already a pending or approved request for this date
+    const existing = wfhRequests.find((r: any) => r.date === wfhDate && (r.status === "pending" || r.status === "approved"));
+    if (existing) {
+      toast.error(`You already have a ${existing.status} request for this date.`);
+      return;
+    }
+
+    setWfhSubmitting(true);
+    try {
+      const { error } = await supabase.from("remote_work_requests").insert({
+        user_id: user!.id,
+        date: wfhDate,
+        reason: wfhReason.trim(),
+        status: "pending"
+      });
+      if (error) throw error;
+      
+      await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "wfh.requested", target_entity: "remote_work_requests" });
+      
+      toast.success("Work From Home request submitted");
+      setWfhDate("");
+      setWfhReason("");
+      queryClient.invalidateQueries({ queryKey: ["my-wfh-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setWfhSubmitting(false);
+    }
+  };
 
   const calculateMaxLeaveHours = (dateStr: string) => {
     if (!dateStr || !shiftStart || !shiftEnd) return 9; // default fallback
@@ -239,13 +297,24 @@ export default function MyLeavePage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">My Leave</h1>
-        <Button onClick={() => setApplyOpen(true)} disabled={isExhausted} className="rounded-button">
-          <Plus className="h-4 w-4 mr-2" />Apply for Leave
-        </Button>
+        <h1 className="text-2xl font-bold tracking-tight">Leave & Requests</h1>
       </div>
 
-      <Card className="p-4">
+      <Tabs defaultValue="leave" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="leave">Leave</TabsTrigger>
+          <TabsTrigger value="wfh">Work From Home</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="leave" className="space-y-6 mt-0">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold tracking-tight">My Leave</h2>
+            <Button onClick={() => setApplyOpen(true)} disabled={isExhausted} className="rounded-button">
+              <Plus className="h-4 w-4 mr-2" />Apply for Leave
+            </Button>
+          </div>
+
+          <Card className="p-4">
         <p className="text-sm font-medium">Annual Leaves</p>
         <div className="flex items-baseline gap-2 mt-1">
           <span className={`text-2xl font-bold ${remainingDays <= 2 ? "text-destructive" : "text-foreground"}`}>{remainingDays}</span>
@@ -328,6 +397,81 @@ export default function MyLeavePage() {
           </TableBody>
         </Table>
       </Card>
+      </TabsContent>
+      
+      <TabsContent value="wfh" className="space-y-6 mt-0">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold tracking-tight">Work From Home</h2>
+        </div>
+
+        <Card className="p-6">
+          <form onSubmit={handleWfhSubmit} className="space-y-4 max-w-lg">
+            <div className="space-y-2">
+              <Label htmlFor="wfhDate">Date <span className="text-destructive">*</span></Label>
+              <Input 
+                id="wfhDate" 
+                type="date" 
+                value={wfhDate} 
+                onChange={(e) => {
+                  const v = e.target.value;
+                  const d = new Date(v + "T00:00:00");
+                  const day = d.getDay();
+                  if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); setWfhDate(""); return; }
+                  setWfhDate(v);
+                }} 
+                min={today} 
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="wfhReason">Reason <span className="text-destructive">*</span></Label>
+              <Textarea 
+                id="wfhReason" 
+                value={wfhReason} 
+                onChange={(e) => setWfhReason(e.target.value)} 
+                placeholder="Why are you requesting to work from home?" 
+                rows={3} 
+              />
+            </div>
+            <Button type="submit" disabled={wfhSubmitting}>
+              {wfhSubmitting ? "Submitting..." : "Submit Request"}
+            </Button>
+          </form>
+        </Card>
+
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Requested Date</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Reviewed Date</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {wfhRequests.length === 0 ? (
+                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No Work From Home requests</TableCell></TableRow>
+              ) : wfhRequests.map((r: any) => (
+                <TableRow key={r.id}>
+                  <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                  <TableCell className="max-w-[300px] truncate">{r.reason}</TableCell>
+                  <TableCell>{statusBadge(r.status)}</TableCell>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {r.reviewed_at ? (
+                      <>
+                        {format(new Date(r.reviewed_at), "MMM d, yyyy")}
+                        <br />
+                        <span className="text-xs">by {r.users?.full_name || "Admin"}</span>
+                      </>
+                    ) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      </TabsContent>
+    </Tabs>
 
       <Dialog open={applyOpen} onOpenChange={setApplyOpen}>
         <DialogContent>

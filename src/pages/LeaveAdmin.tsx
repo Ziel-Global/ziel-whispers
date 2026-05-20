@@ -98,6 +98,42 @@ export default function LeaveAdminPage() {
     });
   }, [requests, statusFilter, deptFilter]);
 
+  const { data: wfhRequests = [] } = useQuery({
+    queryKey: ["admin-wfh-requests"],
+    queryFn: async () => {
+      const { data } = await supabase.from("remote_work_requests")
+        .select("*, users!remote_work_requests_user_id_fkey(full_name, designation), reviewer:users!remote_work_requests_reviewed_by_fkey(full_name)")
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+  });
+
+  const handleWfhAction = async (id: string, type: "approve" | "reject", userId: string) => {
+    try {
+      const newStatus = type === "approve" ? "approved" : "rejected";
+      const { error } = await supabase.from("remote_work_requests").update({
+        status: newStatus,
+        reviewed_by: user!.id,
+        reviewed_at: new Date().toISOString(),
+      }).eq("id", id);
+      if (error) throw error;
+
+      await supabase.from("audit_logs").insert({
+        actor_id: user!.id,
+        action: type === "approve" ? "wfh.approved" : "wfh.rejected",
+        target_entity: "remote_work_requests",
+        target_id: id,
+        metadata: { employee_id: userId, action: newStatus },
+      });
+
+      toast.success(`Work From Home request ${type}d`);
+      queryClient.invalidateQueries({ queryKey: ["admin-wfh-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleAction = async () => {
@@ -195,7 +231,22 @@ export default function LeaveAdminPage() {
       <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
       <Tabs defaultValue="requests">
         <TabsList>
-          <TabsTrigger value="requests">Requests</TabsTrigger>
+          <TabsTrigger value="requests" className="relative">
+            Leave Requests
+            {requests.filter((r: any) => r.status === "pending").length > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                {requests.filter((r: any) => r.status === "pending").length}
+              </span>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="wfh" className="relative">
+            Remote Requests
+            {wfhRequests.filter((r: any) => r.status === "pending").length > 0 && (
+              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                {wfhRequests.filter((r: any) => r.status === "pending").length}
+              </span>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
           <TabsTrigger value="settings">Leave Settings</TabsTrigger>
         </TabsList>
@@ -299,6 +350,52 @@ export default function LeaveAdminPage() {
                       </TableRow>
                     )}
                   </>
+                ))}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="wfh" className="space-y-4">
+          <Card>
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Employee</TableHead>
+                <TableHead>Designation</TableHead>
+                <TableHead>Date</TableHead>
+                <TableHead>Reason</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Reviewed</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow></TableHeader>
+              <TableBody>
+                {wfhRequests.length === 0 ? (
+                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No Remote Requests</TableCell></TableRow>
+                ) : wfhRequests.map((r: any) => (
+                  <TableRow key={r.id} className={r.status === "pending" ? "bg-yellow-50/50" : ""}>
+                    <TableCell className="font-medium">{r.users?.full_name}</TableCell>
+                    <TableCell className="text-muted-foreground">{r.users?.designation || "—"}</TableCell>
+                    <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                    <TableCell className="max-w-[300px] truncate">{r.reason}</TableCell>
+                    <TableCell>{statusBadge(r.status)}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {r.reviewed_at ? (
+                        <>
+                          {format(new Date(r.reviewed_at), "MMM d")}
+                          <br />
+                          <span className="text-xs">by {r.reviewer?.full_name || "Admin"}</span>
+                        </>
+                      ) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      {r.status === "pending" && (
+                        <div className="flex justify-end gap-1 items-center">
+                          <Button variant="ghost" size="icon" onClick={() => handleWfhAction(r.id, "approve", r.user_id)} className="text-green-600"><Check className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" onClick={() => handleWfhAction(r.id, "reject", r.user_id)} className="text-destructive"><X className="h-4 w-4" /></Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
                 ))}
               </TableBody>
             </Table>

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,13 +11,22 @@ import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Bu
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, formatDistanceToNow, subDays } from "date-fns";
 import { getAvatarUrl } from "@/lib/utils";
+
+const getLeaveTypeName = (r: any) => {
+  if (!r) return "";
+  if (r.hours) {
+    return `Half Day Leave — ${r.hours} hours`;
+  }
+  return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
+};
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const [requestBannerDismissTick, setRequestBannerDismissTick] = useState(0);
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
@@ -27,12 +36,12 @@ export default function DashboardPage() {
   const isWeekendDay = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
 
   // ——— Shared queries ———
-  const { data: todaySessions = [] } = useQuery({
+  const { data: todayRecord } = useQuery({
     queryKey: ["dashboard-attendance", user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).order("clock_in", { ascending: true });
+      const { data, error } = await supabase.from("attendance").select("*").eq("user_id", user!.id).eq("date", today).maybeSingle();
       if (error) throw error;
-      return data || [];
+      return data;
     },
     enabled: hasProfile && !!user?.id,
   });
@@ -168,6 +177,38 @@ export default function DashboardPage() {
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
+  const { data: recentLeaves } = useQuery({
+    queryKey: ["dashboard-recent-leaves", user?.id],
+    queryFn: async () => {
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const { data, error } = await supabase
+        .from("leave_requests")
+        .select("id, status, start_date, end_date, hours, leave_types(name)")
+        .eq("user_id", user!.id)
+        .in("status", ["approved", "rejected"])
+        .gte("reviewed_at", thirtyDaysAgo);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !isAdmin && hasProfile && !!user?.id,
+  });
+
+  const { data: recentWfh } = useQuery({
+    queryKey: ["dashboard-recent-wfh", user?.id],
+    queryFn: async () => {
+      const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
+      const { data, error } = await supabase
+        .from("remote_work_requests")
+        .select("id, status, date")
+        .eq("user_id", user!.id)
+        .in("status", ["approved", "rejected"])
+        .gte("reviewed_at", thirtyDaysAgo);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !isAdmin && hasProfile && !!user?.id,
+  });
+
   const visibleProjectNotifications = useMemo(() => {
     if (!unnotifiedProjects || !user?.id) return [];
     return unnotifiedProjects.filter((p: any) => {
@@ -175,6 +216,33 @@ export default function DashboardPage() {
       return !localStorage.getItem(key);
     });
   }, [unnotifiedProjects, user?.id]);
+
+  const visibleRequestNotifications = useMemo(() => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const _tick = requestBannerDismissTick;
+    if (!user?.id) return [];
+    const notifications: any[] = [];
+    
+    if (recentLeaves) {
+      recentLeaves.forEach((r: any) => {
+        const key = `request_notified_${user.id}_leave_${r.id}_${r.status}`;
+        if (!localStorage.getItem(key)) {
+          notifications.push({ type: "leave", data: r });
+        }
+      });
+    }
+    
+    if (recentWfh) {
+      recentWfh.forEach((r: any) => {
+        const key = `request_notified_${user.id}_wfh_${r.id}_${r.status}`;
+        if (!localStorage.getItem(key)) {
+          notifications.push({ type: "wfh", data: r });
+        }
+      });
+    }
+    
+    return notifications;
+  }, [recentLeaves, recentWfh, user?.id, requestBannerDismissTick]);
 
   const { data: teamStatus } = useQuery({
     queryKey: ["dashboard-team-today"],
@@ -250,6 +318,19 @@ export default function DashboardPage() {
     }
   };
 
+  const dismissRequestNotifications = () => {
+    if (!visibleRequestNotifications || visibleRequestNotifications.length === 0) return;
+    
+    visibleRequestNotifications.forEach((n) => {
+      const key = `request_notified_${user!.id}_${n.type}_${n.data.id}_${n.data.status}`;
+      localStorage.setItem(key, "true");
+    });
+    
+    setRequestBannerDismissTick(t => t + 1);
+    queryClient.invalidateQueries({ queryKey: ["dashboard-recent-leaves"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-recent-wfh"] });
+  };
+
   const handleLeaveAction = async (requestId: string, action: "approved" | "rejected") => {
     const { error } = await supabase.from("leave_requests").update({
       status: action,
@@ -259,22 +340,22 @@ export default function DashboardPage() {
     if (!error) {
       queryClient.invalidateQueries({ queryKey: ["dashboard-pending-leaves"] });
       queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
     }
   };
 
-  const activeSession = todaySessions.find(s => !s.clock_out && !!s.clock_in);
-  const isClockedIn = !!activeSession;
-  
-  const todayTotalSeconds = todaySessions.reduce((acc, s) => {
-    if (!s.clock_in || !s.clock_out) return acc;
-    return acc + Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 1000);
-  }, 0);
+  const isClockedIn = !!todayRecord?.clock_in && !todayRecord?.clock_out;
+  const hasClockedOut = !!todayRecord?.clock_in && !!todayRecord?.clock_out;
 
   const formatDuration = (secs: number) => {
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
     return `${h}h ${m}m`;
   };
+
+  const todayDurationSeconds = (todayRecord?.clock_in && todayRecord?.clock_out)
+    ? Math.floor((new Date(todayRecord.clock_out).getTime() - new Date(todayRecord.clock_in).getTime()) / 1000)
+    : 0;
 
   const hasSubmittedLog = (todayLogs?.length || 0) > 0;
 
@@ -359,7 +440,7 @@ export default function DashboardPage() {
                   <div key={r.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
                     <div className="text-sm">
                       <p className="font-medium">{(r.users as any)?.full_name}</p>
-                      <p className="text-muted-foreground text-xs">{(r.leave_types as any)?.name} ({r.days_count}d)</p>
+                      <p className="text-muted-foreground text-xs">{getLeaveTypeName(r)} ({r.hours ? "0.5" : r.days_count}d)</p>
                     </div>
                     <div className="flex gap-1">
                       <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleLeaveAction(r.id, "approved")}>
@@ -446,6 +527,53 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {visibleRequestNotifications && visibleRequestNotifications.length > 0 && (
+        <div className="bg-black border border-black/10 rounded-xl p-5 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top duration-500">
+          <div className="flex items-center gap-4">
+            <div className="p-3 bg-white/10 rounded-full">
+              <Calendar className="h-6 w-6 text-white" />
+            </div>
+            <div>
+              <p className="text-sm font-bold text-white tracking-tight">Request Update</p>
+              <div className="text-xs text-white/70 mt-0.5 space-y-0.5">
+                {visibleRequestNotifications.map((n, idx) => {
+                  if (n.type === "leave") {
+                    const l = n.data;
+                    const typeName = l.leave_types?.name || "Leave";
+                    const dates = l.start_date === l.end_date 
+                      ? format(new Date(l.start_date + "T00:00:00"), "MMM d, yyyy")
+                      : `${format(new Date(l.start_date + "T00:00:00"), "MMM d")} - ${format(new Date(l.end_date + "T00:00:00"), "MMM d, yyyy")}`;
+                    
+                    return (
+                      <p key={idx}>
+                        <span className={`font-bold uppercase tracking-wider ${l.status === 'approved' ? 'text-green-400' : 'text-red-400'}`}>
+                          {l.status}
+                        </span>
+                        : {typeName} for <span className="font-bold text-white tracking-wider">{dates}</span> {l.hours ? `(${l.hours} hrs)` : ""}
+                      </p>
+                    );
+                  } else {
+                    const w = n.data;
+                    const date = format(new Date(w.date + "T00:00:00"), "MMM d, yyyy");
+                    return (
+                      <p key={idx}>
+                        <span className={`font-bold uppercase tracking-wider ${w.status === 'approved' ? 'text-green-400' : 'text-red-400'}`}>
+                          {w.status}
+                        </span>
+                        : Work From Home for <span className="font-bold text-white tracking-wider">{date}</span>
+                      </p>
+                    );
+                  }
+                })}
+              </div>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" className="rounded-button bg-white text-black hover:bg-white/90 border-none font-bold px-6 shadow-sm" onClick={dismissRequestNotifications}>
+            <CheckCircle className="h-4 w-4 mr-2" /> Got it
+          </Button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="p-5">
           <div className="flex items-center gap-3 mb-3">
@@ -454,16 +582,17 @@ export default function DashboardPage() {
           </div>
           {isClockedIn ? (
             <>
-              <p className="text-sm">Clocked in since <strong>{format(new Date(activeSession.clock_in!), "h:mm a")}</strong> ({activeSession.work_mode})</p>
-              {activeSession.is_late && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(activeSession.minutes_late)}.</p>
+              <p className="text-sm">Clocked in since <strong>{format(new Date(todayRecord!.clock_in!), "h:mm a")}</strong> ({todayRecord!.work_mode})</p>
+              {todayRecord!.is_late && (
+                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(todayRecord!.minutes_late)}.</p>
               )}
-              <p className="text-xs text-muted-foreground mt-2">Total today: {formatDuration(todayTotalSeconds)}</p>
             </>
-          ) : todaySessions.length > 0 ? (
+          ) : hasClockedOut ? (
             <div className="space-y-1">
               <p className="text-sm text-green-700 font-medium">Clocked Out</p>
-              <p className="text-xs text-muted-foreground">Worked {formatDuration(todayTotalSeconds)} across {todaySessions.length} session{todaySessions.length > 1 ? "s" : ""}</p>
+              {todayDurationSeconds > 0 && (
+                <p className="text-xs text-muted-foreground">Worked {formatDuration(todayDurationSeconds)} today</p>
+              )}
             </div>
           ) : isWeekendDay ? (
             <p className="text-sm text-muted-foreground">Weekend (Off)</p>

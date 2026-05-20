@@ -71,10 +71,15 @@ Deno.serve(async (req: Request) => {
     // 3. Fetch already logged users for today
     const { data: todayLogs } = await supabase
       .from("daily_logs")
-      .select("user_id")
+      .select("user_id, hours")
       .eq("log_date", todayPKT)
       .eq("status", "submitted");
     const loggedUserIds = new Set((todayLogs || []).map(l => l.user_id));
+    const loggedHoursByUserId = new Map();
+    (todayLogs || []).forEach(l => {
+      const current = loggedHoursByUserId.get(l.user_id) || 0;
+      loggedHoursByUserId.set(l.user_id, current + Number(l.hours));
+    });
 
     // 4. Fetch users already marked as missed today (to avoid duplicates)
     const { data: alreadyMissed } = await supabase
@@ -83,11 +88,36 @@ Deno.serve(async (req: Request) => {
       .eq("log_date", todayPKT);
     const alreadyMissedUserIds = new Set((alreadyMissed || []).map(m => m.user_id));
 
+    // 5. Fetch approved leaves for today
+    const { data: todayLeaves } = await supabase
+      .from("leave_requests")
+      .select("user_id, hours")
+      .eq("status", "approved")
+      .lte("start_date", todayPKT)
+      .gte("end_date", todayPKT);
+    const leavesByUserId = new Map();
+    (todayLeaves || []).forEach(l => {
+      leavesByUserId.set(l.user_id, l);
+    });
+
     const toMarkAsMissed = [];
 
     for (const user of users) {
       if (loggedUserIds.has(user.id)) continue;
       if (alreadyMissedUserIds.has(user.id)) continue;
+
+      const leave = leavesByUserId.get(user.id);
+      if (leave) {
+        if (!leave.hours) {
+          // Full Day Leave: skip
+          continue;
+        }
+        // Half Day Leave: check if combined logged + leave hours >= 8
+        const logged = loggedHoursByUserId.get(user.id) || 0;
+        if (logged + Number(leave.hours) >= 8) {
+          continue;
+        }
+      }
 
       const createdAtDate = user.created_at ? user.created_at.split("T")[0] : null;
       if (createdAtDate && todayPKT < createdAtDate) {

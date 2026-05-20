@@ -82,26 +82,14 @@ export default function AttendanceAdminPage() {
     }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
   }, [records, deptFilter, workModeFilter, employeeFilter, searchQuery]);
 
-  const groupedRecords = useMemo(() => {
-    const groups: Record<string, any[]> = {};
-    filtered.forEach((r: any) => {
-      if (!groups[r.user_id]) groups[r.user_id] = [];
-      groups[r.user_id].push(r);
-    });
-    return Object.values(groups).sort((a, b) => (a[0].users?.full_name || "").localeCompare(b[0].users?.full_name || ""));
-  }, [filtered]);
-
-  const lateCount = useMemo(() => {
-    const lateUsers = new Set(filtered.filter((r: any) => r.is_late).map(r => r.user_id));
-    return lateUsers.size;
-  }, [filtered]);
+  const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
-    if (!clockOut) return "Active";
-    const secs = Math.max(0, Math.floor((new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 1000));
+    const end = clockOut ? new Date(clockOut) : new Date();
+    const secs = Math.max(0, Math.floor((end.getTime() - new Date(clockIn).getTime()) / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
-    return `${h}h ${m}m`;
+    return `${h}h ${m}m${!clockOut ? " (so far)" : ""}`;
   };
 
   // Format time to 12-hour for edit fields
@@ -256,74 +244,42 @@ export default function AttendanceAdminPage() {
           <TableBody>
             {isLoading ? (
               <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-            ) : groupedRecords.length === 0 ? (
+            ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No records for this date</TableCell></TableRow>
             ) : (
-              groupedRecords.map((sessions: any[]) => {
-                const r = sessions[0];
-                const totalSeconds = sessions.reduce((acc, s) => {
-                  if (!s.clock_in || !s.clock_out) return acc;
-                  return acc + Math.floor((new Date(s.clock_out).getTime() - new Date(s.clock_in).getTime()) / 1000);
-                }, 0);
-                
-                const activeSession = sessions.find(s => !s.clock_out && !!s.clock_in);
-
-                return (
-                  <TableRow key={r.user_id}>
-                    <TableCell className="font-medium align-top py-4">
-                      {r.users?.full_name}
-                      <p className="text-[10px] text-muted-foreground mt-1">{sessions.length} session{sessions.length > 1 ? "s" : ""}</p>
-                    </TableCell>
-                    <TableCell className="align-top py-4">{r.users?.department}</TableCell>
-                    <TableCell colSpan={4} className="p-0">
-                      <div className="divide-y divide-border/40">
-                        {sessions.map((s, idx) => (
-                          <div key={s.id} className="grid grid-cols-4 items-center py-2 px-4 group hover:bg-muted/30 transition-colors">
-                            <div className="text-xs">
-                              {formatPKTTime(s.clock_in)}
-                              {s.is_late && (
-                                <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">
-                                  Late
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="text-xs">
-                              {s.clock_out ? formatPKTTime(s.clock_out) : "Active"}
-                              {s.auto_clocked_out && (
-                                <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Auto</Badge>
-                              )}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {s.clock_in ? formatDuration(s.clock_in, s.clock_out) : "—"}
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <Badge variant="outline" className="text-[9px] uppercase font-normal">{s.work_mode}</Badge>
-                              {isAdmin && (
-                                <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => openEdit(s)}>
-                                  <Pencil className="h-3 w-3" />
-                                </Button>
-                              )}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="align-top py-4">
-                      <div className="space-y-1">
-                        {activeSession ? (
-                          <Badge className="bg-green-100 text-green-800 text-[10px]">Active</Badge>
-                        ) : (
-                          <Badge className="bg-muted text-muted-foreground text-[10px]">Complete</Badge>
-                        )}
-                        <p className="text-[10px] font-bold text-muted-foreground">Total: {Math.floor(totalSeconds / 3600)}h {Math.floor((totalSeconds % 3600) / 60)}m</p>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-right align-top py-4">
-                      {/* Actions are now per session inside the table */}
-                    </TableCell>
-                  </TableRow>
-                );
-              })
+              filtered.map((r: any) => (
+                <TableRow key={r.id}>
+                  <TableCell className="font-medium">{r.users?.full_name}</TableCell>
+                  <TableCell>{r.users?.department}</TableCell>
+                  <TableCell>
+                    {r.clock_in ? formatPKTTime(r.clock_in) : "—"}
+                    {r.is_late && (
+                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Late</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {r.clock_out ? formatPKTTime(r.clock_out) : "—"}
+                    {r.auto_clocked_out && (
+                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Auto</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell>{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "—"}</TableCell>
+                  <TableCell><Badge variant="outline" className="capitalize text-[10px]">{r.work_mode}</Badge></TableCell>
+                  <TableCell>
+                    {!r.clock_out
+                      ? <Badge className="bg-green-100 text-green-800 text-[10px]">Active</Badge>
+                      : <Badge className="bg-muted text-muted-foreground text-[10px]">Complete</Badge>
+                    }
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {isAdmin && (
+                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))
             )}
           </TableBody>
         </Table>

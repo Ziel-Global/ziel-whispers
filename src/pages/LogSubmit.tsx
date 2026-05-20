@@ -182,7 +182,7 @@ export default function LogSubmitPage() {
   
   const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
   const remainingFor8 = overtimeEnabled ? 24 : Math.max(0, 24 - totalHoursForSelectedDate);
-  const isLocked = !overtimeEnabled && submittedHours >= 24 && profile?.role !== "admin";
+  const isLocked = !overtimeEnabled && submittedHours > 0 && profile?.role !== "admin";
 
   const onAddLog = async (data: z.infer<typeof schema>) => {
     const currentHours = Number(data.hours);
@@ -303,6 +303,39 @@ export default function LogSubmitPage() {
         if (error) throw error;
       }
 
+      // Auto clock out if employee has an active session
+      const { data: openSession } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", user!.id)
+        .is("clock_out", null)
+        .not("clock_in", "is", null)
+        .order("clock_in", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let clockedOut = false;
+      if (openSession) {
+        const { error: clockOutError } = await supabase
+          .from("attendance")
+          .update({ clock_out: nowPKTStr })
+          .eq("id", openSession.id);
+        if (clockOutError) throw clockOutError;
+
+        await supabase.from("audit_logs").insert({
+          actor_id: user!.id,
+          action: "attendance.clocked_out",
+          target_entity: "attendance",
+          target_id: openSession.id,
+          metadata: {
+            clock_out: nowPKTStr,
+            date: openSession.date,
+            trigger: "log_submission",
+          },
+        });
+        clockedOut = true;
+      }
+
       await supabase.from("audit_logs").insert({
         actor_id: user!.id,
         action: "log.bulk_submitted",
@@ -310,7 +343,11 @@ export default function LogSubmitPage() {
         metadata: { count: pendingLogs.length }
       });
 
-      toast.success(`${pendingLogs.length} logs submitted successfully`);
+      if (clockedOut) {
+        toast.success(`${pendingLogs.length} logs submitted and clocked out successfully`);
+      } else {
+        toast.success(`${pendingLogs.length} logs submitted successfully`);
+      }
 
       form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
       queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
@@ -318,6 +355,11 @@ export default function LogSubmitPage() {
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-totals-range"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      if (clockedOut) {
+        await queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
+        await queryClient.invalidateQueries({ queryKey: ["attendance-month"] });
+        await queryClient.invalidateQueries({ queryKey: ["attendance-open-session"] });
+      }
       setShowSubmitConfirm(false);
     } catch (err: any) {
       toast.error(err.message);
@@ -485,7 +527,7 @@ export default function LogSubmitPage() {
                 <div className="p-3 bg-primary/10 rounded-full"><Lock className="h-6 w-6 text-primary" /></div>
                 <div>
                   <p className="font-bold">Daily Limit Reached</p>
-                  <p className="text-sm text-muted-foreground">You have already submitted 8 or more hours for {format(parseISO(selectedDate), "MMM do")}.</p>
+                  <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
                 </div>
                 <Button type="button" variant="outline" size="sm" onClick={() => navigate("/logs/my")} className="rounded-button">Go to My Logs</Button>
               </div>
@@ -595,13 +637,16 @@ export default function LogSubmitPage() {
               <p className="font-semibold text-foreground">Are you sure you want to submit all {pendingLogs.length} logs?</p>
               <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-800 text-xs flex gap-3">
                 <AlertCircle className="h-5 w-5 shrink-0" />
-                <p><strong>Warning:</strong> Make sure all the logs for the day are added. You can submit multiple times until you reach 8 hours total for a day.</p>
+                <div className="space-y-1">
+                  <p><strong>Warning:</strong> This action is irreversible.</p>
+                  <p>You will be automatically clocked out from your current attendance session when these logs are submitted.</p>
+                </div>
               </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleSubmitAll} className="rounded-button bg-primary hover:bg-primary/90 text-white">Yes, Submit All</AlertDialogAction>
+            <AlertDialogAction onClick={handleSubmitAll} className="rounded-button bg-primary hover:bg-primary/90 text-white">Confirm</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

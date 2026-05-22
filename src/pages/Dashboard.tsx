@@ -12,15 +12,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow, subDays } from "date-fns";
-import { getAvatarUrl } from "@/lib/utils";
-
-const getLeaveTypeName = (r: any) => {
-  if (!r) return "";
-  if (r.hours) {
-    return `Half Day Leave — ${r.hours} hours`;
-  }
-  return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
-};
+import { getAvatarUrl, getLeaveTypeName } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();
@@ -128,6 +120,24 @@ export default function DashboardPage() {
   });
 
   const annualRemaining = annualLeaveEntitlement - usedLeaveDays;
+
+  // Half-day hours used
+  const { data: halfDayHours = 0 } = useQuery({
+    queryKey: ["my-half-day-hours", user?.id],
+    queryFn: async () => {
+      const year = new Date().getFullYear();
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("hours")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .not("hours", "is", null)
+        .gte("start_date", `${year}-01-01`)
+        .lte("start_date", `${year}-12-31`);
+      return (data || []).reduce((sum, r) => sum + Number(r.hours), 0);
+    },
+    enabled: !isAdmin && hasProfile && !!user?.id,
+  });
 
   const { data: myProjects } = useQuery({
     queryKey: ["dashboard-my-projects", user?.id],
@@ -632,6 +642,9 @@ export default function DashboardPage() {
           </div>
           <p className="text-sm"><strong>{annualRemaining}</strong> annual leave days remaining</p>
           <p className="text-xs text-muted-foreground">{usedLeaveDays} used / {annualLeaveEntitlement} total</p>
+          {halfDayHours > 0 && (
+            <p className="text-xs text-muted-foreground mt-1">{halfDayHours} hour{halfDayHours !== 1 ? "s" : ""} of half day leave used this year</p>
+          )}
           <Button size="sm" variant="outline" className="mt-3 rounded-button w-full" onClick={() => navigate("/leave/my")}>Apply Leave</Button>
         </Card>
       </div>

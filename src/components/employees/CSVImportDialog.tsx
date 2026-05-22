@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { parseCSVLine } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -76,9 +77,9 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
       const text = ev.target?.result as string;
       const lines = text.split("\n").filter((l) => l.trim());
       if (lines.length < 2) return;
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+      const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
       const parsed = lines.slice(1).map((line) => {
-        const values = line.split(",").map((v) => v.trim());
+        const values = parseCSVLine(line);
         const obj: Record<string, string> = {};
         headers.forEach((h, i) => (obj[h] = values[i] || ""));
         return validateRow(obj);

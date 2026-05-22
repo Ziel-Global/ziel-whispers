@@ -49,6 +49,46 @@ export function LeaveBalancesTab({ employeeId }: Props) {
     },
   });
 
+  // Live used days (sum of days_count from approved leave_requests)
+  const { data: usedDaysByType = {} as Record<string, number> } = useQuery({
+    queryKey: ["employee-used-leave-days", employeeId, year],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("leave_type_id, days_count")
+        .eq("user_id", employeeId)
+        .eq("status", "approved")
+        .gte("start_date", `${year}-01-01`)
+        .lte("start_date", `${year}-12-31`);
+      const map: Record<string, number> = {};
+      (data || []).forEach((r: any) => {
+        map[r.leave_type_id] = (map[r.leave_type_id] || 0) + r.days_count;
+      });
+      return map;
+    },
+    enabled: !!employeeId,
+  });
+
+  // Live half-day hours used (sum of hours from approved half-day leaves)
+  const { data: usedHalfDayHours = 0 } = useQuery({
+    queryKey: ["employee-half-day-hours", employeeId, year],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("hours, leave_type_id")
+        .eq("user_id", employeeId)
+        .eq("status", "approved")
+        .not("hours", "is", null)
+        .gte("start_date", `${year}-01-01`)
+        .lte("start_date", `${year}-12-31`);
+      return (data || []).reduce((sum: number, r: any) => sum + Number(r.hours), 0);
+    },
+    enabled: !!employeeId,
+  });
+
+  const halfDayType = leaveTypes.find((lt: any) => lt.name.toLowerCase().includes("half day"));
+  const halfDayTypeId = halfDayType?.id;
+
   const existingTypeIds = balances.map((b: any) => b.leave_type_id);
   const availableTypes = leaveTypes.filter((lt: any) => !existingTypeIds.includes(lt.id));
 
@@ -112,7 +152,14 @@ export function LeaveBalancesTab({ employeeId }: Props) {
             <TableRow><TableCell colSpan={5} className="text-center py-4 text-muted-foreground">No balances configured</TableCell></TableRow>
           ) : (
             balances.map((b: any) => (
-              <EditableBalanceRow key={b.id} balance={b} onSave={updateDays} onDelete={deleteBalance} />
+              <EditableBalanceRow
+                key={b.id}
+                balance={b}
+                usedDays={usedDaysByType[b.leave_type_id] || 0}
+                halfDayHours={b.leave_type_id === halfDayTypeId ? usedHalfDayHours : 0}
+                onSave={updateDays}
+                onDelete={deleteBalance}
+              />
             ))
           )}
         </TableBody>
@@ -140,40 +187,50 @@ export function LeaveBalancesTab({ employeeId }: Props) {
   );
 }
 
-function EditableBalanceRow({ balance, onSave, onDelete }: { balance: any; onSave: (id: string, days: number) => void; onDelete: (balance: any) => void }) {
+function EditableBalanceRow({ balance, usedDays, halfDayHours, onSave, onDelete }: { balance: any; usedDays: number; halfDayHours: number; onSave: (id: string, days: number) => void; onDelete: (balance: any) => void }) {
   const [days, setDays] = useState(balance.total_days);
   const changed = days !== balance.total_days;
+  const remaining = days - usedDays;
 
   return (
-    <TableRow>
-      <TableCell className="font-medium">{balance.leave_types?.name}</TableCell>
-      <TableCell>
-        <Input type="number" value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-[80px]" />
-      </TableCell>
-      <TableCell>{balance.used_days}</TableCell>
-      <TableCell>{days - balance.used_days}</TableCell>
-      <TableCell className="text-right">
-        <div className="flex items-center justify-end gap-1">
-          {changed && <Button size="sm" variant="ghost" onClick={() => onSave(balance.id, days)}><Save className="h-4 w-4" /></Button>}
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button size="sm" variant="ghost"><Trash2 className="h-4 w-4 text-destructive" /></Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete Leave Balance?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Are you sure you want to delete this leave balance? This cannot be undone.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={() => onDelete(balance)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </TableCell>
-    </TableRow>
+    <>
+      <TableRow>
+        <TableCell className="font-medium">{balance.leave_types?.name}</TableCell>
+        <TableCell>
+          <Input type="number" value={days} onChange={(e) => setDays(Number(e.target.value))} className="w-[80px]" />
+        </TableCell>
+        <TableCell>{usedDays}</TableCell>
+        <TableCell>{remaining}</TableCell>
+        <TableCell className="text-right">
+          <div className="flex items-center justify-end gap-1">
+            {changed && <Button size="sm" variant="ghost" onClick={() => onSave(balance.id, days)}><Save className="h-4 w-4" /></Button>}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button size="sm" variant="ghost"><Trash2 className="h-4 w-4 text-destructive" /></Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete Leave Balance?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Are you sure you want to delete this leave balance? This cannot be undone.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => onDelete(balance)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </TableCell>
+      </TableRow>
+      {halfDayHours > 0 && (
+        <TableRow>
+          <TableCell colSpan={5} className="pt-0 pb-2 text-xs text-muted-foreground">
+            {halfDayHours} hour{halfDayHours !== 1 ? "s" : ""} of half day leave used
+          </TableCell>
+        </TableRow>
+      )}
+    </>
   );
 }

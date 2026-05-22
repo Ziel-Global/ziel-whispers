@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -44,9 +44,9 @@ export default function MyProfilePage() {
     enabled: !!user?.id,
   });
 
-  useState(() => {
+  useEffect(() => {
     if (employee?.phone) setPhone(employee.phone);
-  });
+  }, [employee?.phone]);
 
   const avatarUrl = getAvatarUrl(employee?.avatar_url);
 
@@ -106,10 +106,6 @@ export default function MyProfilePage() {
   };
 
   if (!employee) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
-
-  if (phone === "" && employee.phone) {
-    setPhone(employee.phone);
-  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

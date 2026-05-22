@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { parseCSVLine } from "@/lib/utils";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -61,11 +62,9 @@ export function ProjectCSVImportDialog({ open, onOpenChange }: { open: boolean; 
         toast.error("File is empty or missing headers");
         return;
       }
-      const headers = lines[0].split(",").map((h) => h.trim().toLowerCase().replace(/\s+/g, "_"));
+      const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase().replace(/\s+/g, "_"));
       const parsed = lines.slice(1).map((line) => {
-        // Handle basic CSV parsing (ignores commas inside quotes for simplicity in this basic version, but can be robust)
-        // A simple split by comma since fields are usually simple strings
-        const values = line.split(",").map((v) => v.trim());
+        const values = parseCSVLine(line);
         const obj: Record<string, string> = {};
         headers.forEach((h, i) => (obj[h] = values[i] || ""));
         return validateRow(obj);

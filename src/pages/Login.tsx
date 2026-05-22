@@ -10,7 +10,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import zielLogoWhite from "@/assets/ziel-logo-black.png";
 import { useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Database, AlertCircle, CheckCircleConfig } from "lucide-react";
+import { Database, AlertCircle } from "lucide-react";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");

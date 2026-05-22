@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatTime12h } from "@/hooks/useWorkSettings";
+import { formatTime12h, getPKTDateString } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,20 +25,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { getAvatarUrl } from "@/lib/utils";
+import { getAvatarUrl, formatHours } from "@/lib/utils";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
 const ROLES = ["admin", "manager", "employee"];
 const REMINDER_OPTIONS = [15, 30, 60];
-
-function formatHours(h: number) {
-  const hrs = Math.floor(h);
-  const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}m`;
-  if (mins === 0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
-}
 
 const adminSchema = z.object({
   full_name: z.string().min(1).max(100),
@@ -76,6 +68,9 @@ export default function EmployeeProfilePage() {
   // Work Logs filters
   const [logDateFilter, setLogDateFilter] = useState("");
   const [logProjectFilter, setLogProjectFilter] = useState("all");
+
+  // Logged Hours tab state
+  const [loggedHoursMonth, setLoggedHoursMonth] = useState(() => getPKTDateString().slice(0, 7));
 
   const isAdmin = myProfile?.role === "admin";
   const isOwnProfile = myProfile?.id === id;
@@ -139,6 +134,92 @@ export default function EmployeeProfilePage() {
       return map;
     },
   });
+
+  // Logged Hours tab — month boundaries
+  const [lhYear, lhMonth] = loggedHoursMonth.split("-").map(Number);
+  const monthStart = `${loggedHoursMonth}-01`;
+  const monthEnd = `${loggedHoursMonth}-${String(new Date(lhYear, lhMonth, 0).getDate()).padStart(2, "0")}`;
+
+  // Monthly logs for Logged Hours tab (lightweight — only what we need)
+  const { data: monthlyLogs = [] } = useQuery({
+    queryKey: ["employee-monthly-logs", id, monthStart, monthEnd],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("hours, is_overtime")
+        .eq("user_id", id!)
+        .eq("status", "submitted")
+        .gte("log_date", monthStart)
+        .lte("log_date", monthEnd);
+      return data || [];
+    },
+    enabled: !!id && isAdmin,
+  });
+
+  // Approved leaves overlapping the month
+  const { data: monthlyLeaves = [] } = useQuery({
+    queryKey: ["employee-monthly-leaves", id, monthStart, monthEnd],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("start_date, end_date")
+        .eq("user_id", id!)
+        .eq("status", "approved")
+        .lte("start_date", monthEnd)
+        .gte("end_date", monthStart);
+      return data || [];
+    },
+    enabled: !!id && isAdmin,
+  });
+
+  // Aggregated stats for the month
+  const monthlyStats = useMemo(() => {
+    const wd = employee?.working_days || 5;
+    const otEnabled = employee?.overtime_enabled ?? false;
+
+    const rangeStart = new Date(monthStart + "T00:00:00");
+    const rangeEnd = new Date(monthEnd + "T00:00:00");
+
+    // Build set of approved leave dates within this month
+    const leaveDates = new Set<string>();
+    for (const leave of monthlyLeaves) {
+      const ls = new Date(leave.start_date + "T00:00:00");
+      const le = new Date(leave.end_date + "T00:00:00");
+      const d = new Date(Math.max(ls.getTime(), rangeStart.getTime()));
+      const dEnd = new Date(Math.min(le.getTime(), rangeEnd.getTime()));
+      while (d <= dEnd) {
+        leaveDates.add(format(d, "yyyy-MM-dd"));
+        d.setDate(d.getDate() + 1);
+      }
+    }
+
+    // Count working days excluding weekends AND approved leaves
+    let workingDayCount = 0;
+    const cur = new Date(rangeStart);
+    while (cur <= rangeEnd) {
+      const day = cur.getDay();
+      const isWeekend = day === 0 || (wd === 5 && day === 6);
+      if (!isWeekend && !leaveDates.has(format(cur, "yyyy-MM-dd"))) workingDayCount++;
+      cur.setDate(cur.getDate() + 1);
+    }
+
+    const expected = workingDayCount * 8;
+    let logged = 0;
+    let overtime = 0;
+    for (const log of monthlyLogs) {
+      const h = Number(log.hours);
+      logged += h;
+      if (log.is_overtime) overtime += h;
+    }
+
+    return {
+      expectedHours: expected,
+      loggedHours: logged,
+      unloggedHours: Math.max(0, expected - logged),
+      overtimeHours: overtime,
+      overtimeEnabled: otEnabled,
+    };
+  }, [monthStart, monthEnd, monthlyLogs, monthlyLeaves, employee]);
 
   const form = useForm({
     resolver: zodResolver(adminSchema),
@@ -426,6 +507,7 @@ export default function EmployeeProfilePage() {
           <TabsTrigger value="profile">Profile</TabsTrigger>
           {isAdmin && <TabsTrigger value="projects">Projects</TabsTrigger>}
           {isAdmin && <TabsTrigger value="logs">Work Logs</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="logged-hours">Logged Hours</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="profile">
@@ -778,6 +860,60 @@ export default function EmployeeProfilePage() {
                 </div>
               )}
             </Card>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="logged-hours" className="space-y-4">
+            {/* Month filter */}
+            <Input
+              type="month"
+              value={loggedHoursMonth}
+              onChange={(e) => setLoggedHoursMonth(e.target.value)}
+              className="w-[200px]"
+            />
+
+            {/* Title box */}
+            <Card className="p-4 bg-primary/5 border-primary/20">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Selected Month</p>
+                  <p className="text-xl font-bold">
+                    {format(new Date(monthStart + "T00:00:00"), "MMMM yyyy")}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm text-muted-foreground">Expected Hours</p>
+                  <p className="text-2xl font-bold text-black">
+                    {formatHours(monthlyStats.expectedHours)}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            {/* 4 stat cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Expected Hours</p>
+                <p className="text-2xl font-bold mt-1">{formatHours(monthlyStats.expectedHours)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Logged Hours</p>
+                <p className="text-2xl font-bold mt-1">{formatHours(monthlyStats.loggedHours)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Unlogged Hours</p>
+                <p className="text-2xl font-bold mt-1">{formatHours(monthlyStats.unloggedHours)}</p>
+              </Card>
+              <Card className="p-4">
+                <p className="text-sm text-muted-foreground">Overtime Hours</p>
+                <p className="text-2xl font-bold mt-1">
+                  {monthlyStats.overtimeEnabled
+                    ? formatHours(monthlyStats.overtimeHours)
+                    : "—"}
+                </p>
+              </Card>
+            </div>
           </TabsContent>
         )}
       </Tabs>

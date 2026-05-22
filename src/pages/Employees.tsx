@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react"
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -58,7 +58,7 @@ export default function EmployeesPage() {
     },
   });
 
-  useMemo(() => {
+  useEffect(() => {
     if (settings) {
       setShiftStart(settings["default_shift_start"] ?? "");
       setShiftEnd(settings["default_shift_end"] ?? "");
@@ -257,23 +257,19 @@ export default function EmployeesPage() {
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDeletingUser(null)}>Cancel</Button>
                 <Button className="bg-destructive text-destructive-foreground" onClick={async () => {
-                  console.log("Deleting user", deletingUser);
                   if (!deletingUser) return;
                   if (deletingUser.id === profile?.id) { toast.error("You cannot delete your own account."); return; }
                   setDeleting(true);
                   try {
                     const res = await supabase.functions.invoke("manage-user", { body: { action: "delete", user_id: deletingUser.id } }) as any;
-                    console.log("Delete response", res);
                     if (res?.data?.ok) {
                       toast.success("User and related data deleted");
                       queryClient.invalidateQueries({ queryKey: ["employees"] });
                       setDeletingUser(null);
                     } else {
-                      console.log("Delete error", res);
                       toast.error(res?.data?.error || res?.error?.message || "Failed to delete user");
                     }
                   } catch (err: any) {
-                    console.log("Delete error", err);
                     toast.error(err?.message || String(err));
                   } finally { setDeleting(false); }
                 }} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</Button>

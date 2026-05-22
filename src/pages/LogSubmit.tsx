@@ -21,7 +21,7 @@ import { Trash2, Pencil, CheckCircle2, History, Send, ListPlus, AlertCircle, Cal
 import { format, parseISO, startOfDay, subDays, isSameDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { cn } from "@/lib/utils";
+import { cn, formatHours } from "@/lib/utils";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
 const NO_PROJECT = "__none__";
@@ -30,14 +30,6 @@ function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
   d.setDate(d.getDate() - days);
   return format(d, "yyyy-MM-dd");
-}
-
-function formatHours(h: number) {
-  const hrs = Math.floor(h);
-  const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}m`;
-  if (mins === 0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
 }
 
 export default function LogSubmitPage() {

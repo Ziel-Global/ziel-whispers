@@ -21,13 +21,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMont
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Half Day Leave", "Other"];
 
-const getLeaveTypeName = (r: any) => {
-  if (!r) return "";
-  if (r.hours) {
-    return `Half Day Leave — ${r.hours} hours`;
-  }
-  return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
-};
+import { getLeaveTypeName } from "@/lib/utils";
 
 export default function LeaveAdminPage() {
   const { user, profile } = useAuth();
@@ -360,10 +354,10 @@ export default function LeaveAdminPage() {
           <Card>
             <Table>
               <TableHeader><TableRow>
+                <TableHead className="w-8"></TableHead>
                 <TableHead>Employee</TableHead>
                 <TableHead>Designation</TableHead>
                 <TableHead>Date</TableHead>
-                <TableHead>Reason</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Reviewed</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -372,30 +366,44 @@ export default function LeaveAdminPage() {
                 {wfhRequests.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No Remote Requests</TableCell></TableRow>
                 ) : wfhRequests.map((r: any) => (
-                  <TableRow key={r.id} className={r.status === "pending" ? "bg-yellow-50/50" : ""}>
-                    <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                    <TableCell className="text-muted-foreground">{r.users?.designation || "—"}</TableCell>
-                    <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                    <TableCell className="max-w-[300px] truncate">{r.reason}</TableCell>
-                    <TableCell>{statusBadge(r.status)}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {r.reviewed_at ? (
-                        <>
-                          {format(new Date(r.reviewed_at), "MMM d")}
-                          <br />
-                          <span className="text-xs">by {r.reviewer?.full_name || "Admin"}</span>
-                        </>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {r.status === "pending" && (
-                        <div className="flex justify-end gap-1 items-center">
-                          <Button variant="ghost" size="icon" onClick={() => handleWfhAction(r.id, "approve", r.user_id)} className="text-green-600"><Check className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleWfhAction(r.id, "reject", r.user_id)} className="text-destructive"><X className="h-4 w-4" /></Button>
-                        </div>
-                      )}
-                    </TableCell>
-                  </TableRow>
+                  <>
+                    <TableRow key={r.id} className={`cursor-pointer ${r.status === "pending" ? "bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                      <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                      <TableCell className="font-medium">{r.users?.full_name}</TableCell>
+                      <TableCell className="text-muted-foreground">{r.users?.designation || "—"}</TableCell>
+                      <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                      <TableCell>{statusBadge(r.status)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {r.reviewed_at ? (
+                          <>
+                            {format(new Date(r.reviewed_at), "MMM d")}
+                            <br />
+                            <span className="text-xs">by {r.reviewer?.full_name || "Admin"}</span>
+                          </>
+                        ) : "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {r.status === "pending" && (
+                          <div className="flex justify-end gap-1 items-center">
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "approve", r.user_id); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "reject", r.user_id); }} className="text-destructive"><X className="h-4 w-4" /></Button>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                    {expandedId === r.id && (
+                      <TableRow key={`${r.id}-detail`}>
+                        <TableCell colSpan={7} className="bg-muted/50 p-0">
+                          <div className="p-4">
+                            <div>
+                              <p className="text-[12px] text-muted-foreground mb-0.5">Reason</p>
+                              <p className="text-sm whitespace-pre-wrap">{r.reason || "No reason provided"}</p>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </>
                 ))}
               </TableBody>
             </Table>

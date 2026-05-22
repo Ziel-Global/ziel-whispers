@@ -15,7 +15,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
-import { format, differenceInBusinessDays } from "date-fns";
+import { format } from "date-fns";
 import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
 
 const LEAVE_CATEGORIES = [
@@ -47,8 +47,9 @@ export default function MyLeavePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const { shiftStart, shiftEnd } = useWorkSettings();
+  const { shiftStart, shiftEnd, workingDays } = useWorkSettings();
   const today = getPKTDateString();
+  const tomorrow = getPKTDateString(new Date(Date.now() + 86400000));
   const [leaveHours, setLeaveHours] = useState("");
 
   // Work From Home state
@@ -68,6 +69,7 @@ export default function MyLeavePage() {
   const handleWfhSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!wfhDate) { toast.error("Please select a date"); return; }
+    if (wfhDate <= today) { toast.error("Work From Home requests can only be submitted for future dates (tomorrow or later)"); setWfhDate(""); return; }
     if (!wfhReason.trim()) { toast.error("Please enter a reason"); return; }
     
     // Check if there is already a pending or approved request for this date
@@ -187,6 +189,24 @@ export default function MyLeavePage() {
     enabled: !!user?.id,
   });
 
+  // Half-day hours used
+  const { data: halfDayHours = 0 } = useQuery({
+    queryKey: ["my-half-day-hours", user?.id],
+    queryFn: async () => {
+      const year = new Date().getFullYear();
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("hours")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .not("hours", "is", null)
+        .gte("start_date", `${year}-01-01`)
+        .lte("start_date", `${year}-12-31`);
+      return (data || []).reduce((sum, r) => sum + Number(r.hours), 0);
+    },
+    enabled: !!user?.id,
+  });
+
   const totalDays = annualEntitlement;
   const remainingDays = Math.max(0, totalDays - usedDays);
   const isExhausted = remainingDays <= 0;
@@ -204,19 +224,36 @@ export default function MyLeavePage() {
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const workingDays = startDate && endDate ? Math.max(1, differenceInBusinessDays(new Date(endDate), new Date(startDate)) + 1) : 0;
+  function countWorkingDays(start: string, end: string, daysPerWeek: number) {
+    const startDate = new Date(start + "T00:00:00");
+    const endDate = new Date(end + "T00:00:00");
+    let count = 0;
+    const current = new Date(startDate);
+    while (current <= endDate) {
+      const d = current.getDay();
+      if (daysPerWeek === 5) {
+        if (d !== 0 && d !== 6) count++;
+      } else {
+        if (d !== 0) count++;
+      }
+      current.setDate(current.getDate() + 1);
+    }
+    return Math.max(1, count);
+  }
+  const workingDaysCount = startDate && endDate ? countWorkingDays(startDate, endDate, workingDays) : 0;
 
   const handleApply = async () => {
     if (!leaveCategory || !startDate || (leaveCategory !== "half_day" && !endDate)) { toast.error("Fill all required fields"); return; }
     
     const finalEndDate = leaveCategory === "half_day" ? startDate : endDate;
-    const finalDaysCount = leaveCategory === "half_day" ? 1 : workingDays;
+    const finalDaysCount = leaveCategory === "half_day" ? 0 : workingDaysCount;
 
-    // Prevent weekend selection (Saturday=6, Sunday=0)
+    // Prevent non-working day selection
     const sDay = new Date(startDate + "T00:00:00").getDay();
     const eDay = new Date(finalEndDate + "T00:00:00").getDay();
-    if (sDay === 6 || sDay === 0 || eDay === 6 || eDay === 0) {
-      toast.error("Date cannot be on Saturday or Sunday. Please choose working days.");
+    const isNonWorkingDay = (d: number) => d === 0 || (workingDays === 5 && d === 6);
+    if (isNonWorkingDay(sDay) || isNonWorkingDay(eDay)) {
+      toast.error(workingDays === 5 ? "Date cannot be on Saturday or Sunday." : "Date cannot be on Sunday.");
       return;
     }
     if (startDate < today) { toast.error("Start date cannot be in the past"); return; }
@@ -242,8 +279,9 @@ export default function MyLeavePage() {
     if (isExhausted) { toast.error("You have exhausted your annual leave balance."); return; }
     if (finalDaysCount > remainingDays) { toast.error(`Insufficient balance. You have ${remainingDays} days remaining.`); return; }
 
-    const leaveTypes = (await supabase.from("leave_types").select("id").limit(1)).data;
-    const leaveType = leaveTypes && leaveTypes.length > 0 ? leaveTypes[0] : null;
+    const categoryLabel = LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label;
+    const { data: leaveTypes } = await supabase.from("leave_types").select("id").ilike("name", `%${categoryLabel}%`).limit(1);
+    const leaveType = leaveTypes?.[0] ?? null;
     const finalReason = leaveCategory === "other"
       ? `${LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label}: ${otherReason}`
       : `${LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label}${reason ? ` - ${reason}` : ""}`;
@@ -321,6 +359,9 @@ export default function MyLeavePage() {
           <span className="text-sm text-muted-foreground">/ {totalDays} days remaining</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1">{usedDays} used</p>
+        {halfDayHours > 0 && (
+          <p className="text-xs text-muted-foreground mt-1">{halfDayHours} hour{halfDayHours !== 1 ? "s" : ""} of half day leave used this year</p>
+        )}
         {isExhausted && (
           <p className="text-sm text-destructive mt-2 font-medium">
             You have exhausted your annual leave balance. No further leave applications can be submitted.
@@ -414,12 +455,13 @@ export default function MyLeavePage() {
                 value={wfhDate} 
                 onChange={(e) => {
                   const v = e.target.value;
+                  if (v <= today) { toast.error("Work From Home requests can only be submitted for future dates (tomorrow or later)"); setWfhDate(""); return; }
                   const d = new Date(v + "T00:00:00");
                   const day = d.getDay();
                   if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); setWfhDate(""); return; }
                   setWfhDate(v);
                 }} 
-                min={today} 
+                min={tomorrow} 
               />
             </div>
             <div className="space-y-2">
@@ -561,8 +603,8 @@ export default function MyLeavePage() {
                   <p className="text-sm text-muted-foreground">Half Day Leave · {remainingDays} days remaining</p>
                 )
               ) : (
-                workingDays > 0 && (
-                  <p className="text-sm text-muted-foreground">{workingDays} working day{workingDays > 1 ? "s" : ""} · {remainingDays} days remaining</p>
+                workingDaysCount > 0 && (
+                  <p className="text-sm text-muted-foreground">{workingDaysCount} working day{workingDaysCount > 1 ? "s" : ""} · {remainingDays} days remaining</p>
                 )
               )}
               <div className="space-y-1">

@@ -21,13 +21,7 @@ import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
 
-function formatHours(h: number) {
-  const hrs = Math.floor(h);
-  const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}m`;
-  if (mins === 0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
-}
+import { formatHours } from "@/lib/utils";
 
 function getShiftHours(shiftStart: string, shiftEnd: string): number {
   if (!shiftStart || !shiftEnd) return 0;

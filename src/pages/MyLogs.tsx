@@ -13,13 +13,7 @@ import { Lock, MessageSquare } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
-function formatHours(h: number) {
-  const hrs = Math.floor(h);
-  const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}m`;
-  if (mins === 0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
-}
+import { formatHours } from "@/lib/utils";
 
 export default function MyLogsPage() {
   const { user } = useAuth();

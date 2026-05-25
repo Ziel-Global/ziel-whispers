@@ -18,7 +18,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Half Day Leave", "Other"];
 
 import { getLeaveTypeName } from "@/lib/utils";
@@ -27,13 +26,14 @@ export default function LeaveAdminPage() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
-  const [deptFilter, setDeptFilter] = useState("all");
   const [actionModal, setActionModal] = useState<{ type: "approve" | "reject"; request: any } | null>(null);
   const [adminComment, setAdminComment] = useState("");
   const [processing, setProcessing] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
+  const [wfhStatusFilter, setWfhStatusFilter] = useState("all");
+  const [leaveTypeFilter, setLeaveTypeFilter] = useState("all");
 
   // Annual leave entitlement setting
   const [annualEntitlement, setAnnualEntitlement] = useState("12");
@@ -87,10 +87,10 @@ export default function LeaveAdminPage() {
   const filtered = useMemo(() => {
     return requests.filter((r: any) => {
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
-      const matchDept = deptFilter === "all" || r.users?.department === deptFilter;
-      return matchStatus && matchDept;
+      const matchLeaveType = leaveTypeFilter === "all" || r.leave_type_id === leaveTypeFilter;
+      return matchStatus && matchLeaveType;
     });
-  }, [requests, statusFilter, deptFilter]);
+  }, [requests, statusFilter, leaveTypeFilter]);
 
   const { data: wfhRequests = [] } = useQuery({
     queryKey: ["admin-wfh-requests"],
@@ -101,6 +101,19 @@ export default function LeaveAdminPage() {
       return data || [];
     },
   });
+
+  const { data: leaveTypes = [] } = useQuery({
+    queryKey: ["leave-types"],
+    queryFn: async () => {
+      const { data } = await supabase.from("leave_types").select("*").order("name");
+      return data || [];
+    },
+  });
+
+  const wfhFiltered = useMemo(() => {
+    if (wfhStatusFilter === "all") return wfhRequests;
+    return wfhRequests.filter((r: any) => r.status === wfhStatusFilter);
+  }, [wfhRequests, wfhStatusFilter]);
 
   const handleWfhAction = async (id: string, type: "approve" | "reject", userId: string) => {
     try {
@@ -178,6 +191,51 @@ export default function LeaveAdminPage() {
         type: `leave.${newStatus}`,
         metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
       });
+
+      // Half-day leave → Annual Leave conversion
+      if (type === "approve" && request.hours) {
+        const currentYear = new Date().getFullYear();
+        const { data: halfDayData } = await supabase
+          .from("leave_requests")
+          .select("hours")
+          .eq("user_id", request.user_id)
+          .eq("status", "approved")
+          .not("hours", "is", null)
+          .gte("start_date", `${currentYear}-01-01`)
+          .lte("start_date", `${currentYear}-12-31`);
+        const totalHours = (halfDayData || []).reduce((s: number, r: any) => s + Number(r.hours), 0);
+        const currentHours = Number(request.hours);
+        const oldChunks = Math.floor((totalHours - currentHours) / 8);
+        const newChunks = Math.floor(totalHours / 8);
+        const additionalDeduction = newChunks - oldChunks;
+        if (additionalDeduction > 0) {
+          const { data: annualType } = await supabase
+            .from("leave_types")
+            .select("id")
+            .ilike("name", "%annual%")
+            .maybeSingle();
+          if (annualType) {
+            const { data: balance } = await supabase
+              .from("leave_balances")
+              .select("*")
+              .eq("user_id", request.user_id)
+              .eq("leave_type_id", annualType.id)
+              .eq("year", currentYear)
+              .maybeSingle();
+            if (balance) {
+              const newUsedDays = (balance.used_days || 0) + additionalDeduction;
+              await supabase.from("leave_balances").update({ used_days: newUsedDays }).eq("id", balance.id);
+              if (balance.total_days <= newUsedDays) {
+                await supabase.from("notifications").insert({
+                  user_id: request.user_id,
+                  type: "leave.balance_exhausted",
+                  metadata: { message: "You have run out of Annual Leave days. Please contact your admin." },
+                });
+              }
+            }
+          }
+        }
+      }
 
       toast.success(`Leave request ${type}d`);
       setActionModal(null);
@@ -257,11 +315,11 @@ export default function LeaveAdminPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={deptFilter} onValueChange={setDeptFilter}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
+            <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
+              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Leave Type" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                <SelectItem value="all">All Types</SelectItem>
+                {leaveTypes.map((lt: any) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
@@ -282,7 +340,7 @@ export default function LeaveAdminPage() {
                       <TableCell>{getLeaveTypeName(r)}</TableCell>
                       <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d")}</TableCell>
                       <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d")}</TableCell>
-                      <TableCell>{r.hours ? "0.5" : r.days_count}</TableCell>
+                       <TableCell>{r.hours ? `${r.hours} hrs` : r.days_count}</TableCell>
                       <TableCell className="max-w-[120px] truncate">{r.reason || "—"}</TableCell>
                       <TableCell>{statusBadge(r.status)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d")}</TableCell>
@@ -351,27 +409,38 @@ export default function LeaveAdminPage() {
         </TabsContent>
 
         <TabsContent value="wfh" className="space-y-4">
+          <div className="flex gap-3">
+            <Select value={wfhStatusFilter} onValueChange={setWfhStatusFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All</SelectItem>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
           <Card>
             <Table>
               <TableHeader><TableRow>
                 <TableHead className="w-8"></TableHead>
                 <TableHead>Employee</TableHead>
-                <TableHead>Designation</TableHead>
-                <TableHead>Date</TableHead>
+                <TableHead>Requested Date</TableHead>
+                <TableHead>Submitted On</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Reviewed</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {wfhRequests.length === 0 ? (
+                {wfhFiltered.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No Remote Requests</TableCell></TableRow>
-                ) : wfhRequests.map((r: any) => (
+                ) : wfhFiltered.map((r: any) => (
                   <>
                     <TableRow key={r.id} className={`cursor-pointer ${r.status === "pending" ? "bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
                       <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
                       <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                      <TableCell className="text-muted-foreground">{r.users?.designation || "—"}</TableCell>
                       <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d, yyyy")}</TableCell>
                       <TableCell>{statusBadge(r.status)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {r.reviewed_at ? (
@@ -395,10 +464,35 @@ export default function LeaveAdminPage() {
                       <TableRow key={`${r.id}-detail`}>
                         <TableCell colSpan={7} className="bg-muted/50 p-0">
                           <div className="p-4">
-                            <div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                              <div>
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Employee</p>
+                                <p className="text-sm font-medium">{r.users?.full_name}</p>
+                                <p className="text-xs text-muted-foreground">{r.users?.designation || "—"}</p>
+                              </div>
+                              <div>
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Requested Date</p>
+                                <p className="text-sm">{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</p>
+                              </div>
+                              <div>
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Submitted On</p>
+                                <p className="text-sm">{format(new Date(r.created_at), "MMM d, yyyy 'at' h:mm a")}</p>
+                              </div>
+                            </div>
+                            <div className="mb-3">
                               <p className="text-[12px] text-muted-foreground mb-0.5">Reason</p>
                               <p className="text-sm whitespace-pre-wrap">{r.reason || "No reason provided"}</p>
                             </div>
+                            {r.status !== "pending" && (
+                              <div className="flex items-center gap-2 mt-2">
+                                {statusBadge(r.status)}
+                                {r.reviewed_at && (
+                                  <span className="text-xs text-muted-foreground">
+                                    Reviewed {format(new Date(r.reviewed_at), "MMM d, yyyy 'at' h:mm a")} by {r.reviewer?.full_name || "Admin"}
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

@@ -202,7 +202,7 @@ export default function MyLeavePage() {
         .not("hours", "is", null)
         .gte("start_date", `${year}-01-01`)
         .lte("start_date", `${year}-12-31`);
-      return (data || []).reduce((sum, r) => sum + Number(r.hours), 0);
+      return (data || []).reduce((sum, r) => sum + Number(r.hours), 0) % 8;
     },
     enabled: !!user?.id,
   });
@@ -402,7 +402,7 @@ export default function MyLeavePage() {
                   </TableCell>
                   <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                   <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                  <TableCell>{r.hours ? "0.5" : r.days_count}</TableCell>
+                  <TableCell>{r.hours ? `${r.hours} hrs` : r.days_count}</TableCell>
                   <TableCell className="max-w-[150px] truncate">{r.reason || "—"}</TableCell>
                   <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>

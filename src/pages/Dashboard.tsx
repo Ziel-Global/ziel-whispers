@@ -134,7 +134,7 @@ export default function DashboardPage() {
         .not("hours", "is", null)
         .gte("start_date", `${year}-01-01`)
         .lte("start_date", `${year}-12-31`);
-      return (data || []).reduce((sum, r) => sum + Number(r.hours), 0);
+      return (data || []).reduce((sum, r) => sum + Number(r.hours), 0) % 8;
     },
     enabled: !isAdmin && hasProfile && !!user?.id,
   });

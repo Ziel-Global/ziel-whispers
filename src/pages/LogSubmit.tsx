@@ -174,7 +174,15 @@ export default function LogSubmitPage() {
   
   const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
   const remainingFor8 = overtimeEnabled ? 24 : Math.max(0, 24 - totalHoursForSelectedDate);
-  const isLocked = !overtimeEnabled && submittedHours > 0 && profile?.role !== "admin";
+  const logsAreAllForToday = useMemo(() =>
+    pendingLogs.length > 0 && pendingLogs.every((log: any) => log.log_date === today),
+    [pendingLogs, today]
+  );
+  const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
+    selectedDate === today
+      ? submittedHours > 0
+      : submittedHours >= 8
+  );
 
   const onAddLog = async (data: z.infer<typeof schema>) => {
     const currentHours = Number(data.hours);
@@ -295,7 +303,9 @@ export default function LogSubmitPage() {
         if (error) throw error;
       }
 
-      // Auto clock out if employee has an active session
+      // Only auto clock out if submitting today's logs AND the open session is from today
+      const allLogsForToday = pendingLogs.every((log: any) => log.log_date === todayStr);
+
       const { data: openSession } = await supabase
         .from("attendance")
         .select("*")
@@ -307,7 +317,7 @@ export default function LogSubmitPage() {
         .maybeSingle();
 
       let clockedOut = false;
-      if (openSession) {
+      if (openSession && allLogsForToday && openSession.date === todayStr) {
         const { error: clockOutError } = await supabase
           .from("attendance")
           .update({ clock_out: nowPKTStr })
@@ -627,13 +637,15 @@ export default function LogSubmitPage() {
             <AlertDialogTitle className="flex items-center gap-2 text-primary"><Send className="h-5 w-5" />Final Submission</AlertDialogTitle>
             <AlertDialogDescription className="space-y-3 pt-2">
               <p className="font-semibold text-foreground">Are you sure you want to submit all {pendingLogs.length} logs?</p>
-              <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-800 text-xs flex gap-3">
-                <AlertCircle className="h-5 w-5 shrink-0" />
-                <div className="space-y-1">
-                  <p><strong>Warning:</strong> This action is irreversible.</p>
-                  <p>You will be automatically clocked out from your current attendance session when these logs are submitted.</p>
+              {logsAreAllForToday && (
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-800 text-xs flex gap-3">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <div className="space-y-1">
+                    <p><strong>Warning:</strong> This action is irreversible.</p>
+                    <p>You will be automatically clocked out from your current attendance session when these logs are submitted.</p>
+                  </div>
                 </div>
-              </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

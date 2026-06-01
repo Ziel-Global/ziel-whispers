@@ -40,6 +40,12 @@ export function getAvatarUrl(path: string | null | undefined) {
   return `${data.publicUrl}?t=${avatarCacheBuster}`;
 }
 
+export const MISC_PROJECT_ID = "__misc__";
+
+export function getProjectName(log: any): string {
+  return log.projects?.name || "Miscellaneous";
+}
+
 export function formatHours(h: number) {
   const hrs = Math.floor(h);
   const mins = Math.round((h - hrs) * 60);
@@ -54,5 +60,37 @@ export function getLeaveTypeName(r: any) {
     return `Half Day Leave — ${r.hours} hours`;
   }
   return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
+}
+
+export function getCurrentLeaveYear() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const startYear = month >= 5 ? year : year - 1;
+  return {
+    startYear,
+    start: `${startYear}-06-01`,
+    end: `${startYear + 1}-05-31`,
+    label: `June ${startYear} \u2014 May ${startYear + 1}`,
+  };
+}
+
+export function getLeaveYearRange(startYear: number) {
+  return {
+    startYear,
+    start: `${startYear}-06-01`,
+    end: `${startYear + 1}-05-31`,
+    label: `June ${startYear} \u2014 May ${startYear + 1}`,
+  };
+}
+
+export function getLeaveYearOptions() {
+  const current = getCurrentLeaveYear();
+  const options = [];
+  for (let i = 2; i >= 0; i--) {
+    const year = current.startYear - i;
+    options.push(getLeaveYearRange(year));
+  }
+  return options;
 }
 

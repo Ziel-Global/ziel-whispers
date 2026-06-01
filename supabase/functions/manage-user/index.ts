@@ -189,6 +189,38 @@ Deno.serve(async (req) => {
       }
     }
 
+    if (action === "oversight_on") {
+      const { error: updateError } = await adminClient.from("users").update({ is_oversight: true }).eq("id", user_id);
+      if (updateError) {
+        return jsonResponse({ ok: false, error: updateError.message });
+      }
+
+      await adminClient.from("audit_logs").insert({
+        actor_id: callerId,
+        action: "user.oversight_on",
+        target_entity: "users",
+        target_id: user_id,
+      });
+
+      return jsonResponse({ ok: true });
+    }
+
+    if (action === "oversight_off") {
+      const { error: updateError } = await adminClient.from("users").update({ is_oversight: false }).eq("id", user_id);
+      if (updateError) {
+        return jsonResponse({ ok: false, error: updateError.message });
+      }
+
+      await adminClient.from("audit_logs").insert({
+        actor_id: callerId,
+        action: "user.oversight_off",
+        target_entity: "users",
+        target_id: user_id,
+      });
+
+      return jsonResponse({ ok: true });
+    }
+
     return jsonResponse({ ok: false, error: "Unknown action" });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

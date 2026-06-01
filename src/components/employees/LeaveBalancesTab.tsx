@@ -11,13 +11,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Plus, Save, Trash2 } from "lucide-react";
+import { getCurrentLeaveYear } from "@/lib/utils";
 
 type Props = { employeeId: string };
 
 export function LeaveBalancesTab({ employeeId }: Props) {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const year = new Date().getFullYear();
+  const currentLeaveYear = getCurrentLeaveYear();
+  const year = currentLeaveYear.startYear;
   const [addTypeId, setAddTypeId] = useState("");
   const [addDays, setAddDays] = useState(0);
 
@@ -28,8 +30,11 @@ export function LeaveBalancesTab({ employeeId }: Props) {
         .from("leave_balances")
         .select("*, leave_types(name)")
         .eq("user_id", employeeId)
-        .eq("year", year);
-      return data || [];
+        .in("year", [year, year + 1]);
+      if (!data) return [];
+      // Show the most recent year's balances (handles migration from calendar year to leave year)
+      const maxYear = Math.max(...data.map((b: any) => b.year));
+      return data.filter((b: any) => b.year === maxYear);
     },
   });
 
@@ -49,17 +54,17 @@ export function LeaveBalancesTab({ employeeId }: Props) {
     },
   });
 
-  // Live used days (sum of days_count from approved leave_requests)
+  // Live used days (sum of days_count from approved leave_requests in current leave year)
   const { data: usedDaysByType = {} as Record<string, number> } = useQuery({
-    queryKey: ["employee-used-leave-days", employeeId, year],
+    queryKey: ["employee-used-leave-days", employeeId, currentLeaveYear.startYear],
     queryFn: async () => {
       const { data } = await supabase
         .from("leave_requests")
         .select("leave_type_id, days_count")
         .eq("user_id", employeeId)
         .eq("status", "approved")
-        .gte("start_date", `${year}-01-01`)
-        .lte("start_date", `${year}-12-31`);
+        .gte("start_date", currentLeaveYear.start)
+        .lte("start_date", currentLeaveYear.end);
       const map: Record<string, number> = {};
       (data || []).forEach((r: any) => {
         map[r.leave_type_id] = (map[r.leave_type_id] || 0) + r.days_count;
@@ -69,9 +74,9 @@ export function LeaveBalancesTab({ employeeId }: Props) {
     enabled: !!employeeId,
   });
 
-  // Live half-day hours used (sum of hours from approved half-day leaves)
+  // Live half-day hours used (sum of hours from approved half-day leaves in current leave year)
   const { data: usedHalfDayHours = 0 } = useQuery({
-    queryKey: ["employee-half-day-hours", employeeId, year],
+    queryKey: ["employee-half-day-hours", employeeId, currentLeaveYear.startYear],
     queryFn: async () => {
       const { data } = await supabase
         .from("leave_requests")
@@ -79,8 +84,8 @@ export function LeaveBalancesTab({ employeeId }: Props) {
         .eq("user_id", employeeId)
         .eq("status", "approved")
         .not("hours", "is", null)
-        .gte("start_date", `${year}-01-01`)
-        .lte("start_date", `${year}-12-31`);
+        .gte("start_date", currentLeaveYear.start)
+        .lte("start_date", currentLeaveYear.end);
       return (data || []).reduce((sum: number, r: any) => sum + Number(r.hours), 0) % 8;
     },
     enabled: !!employeeId,
@@ -136,7 +141,7 @@ export function LeaveBalancesTab({ employeeId }: Props) {
 
   return (
     <Card className="p-6 space-y-4">
-      <h3 className="font-semibold">Leave Balances — {year}</h3>
+      <h3 className="font-semibold">Leave Balances — {currentLeaveYear.label}</h3>
       <Table>
         <TableHeader>
           <TableRow>

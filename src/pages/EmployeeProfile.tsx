@@ -25,7 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { format } from "date-fns";
-import { getAvatarUrl, formatHours } from "@/lib/utils";
+import { getAvatarUrl, formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 const EMP_TYPES = ["full-time", "part-time", "contract"];
@@ -57,6 +57,7 @@ export default function EmployeeProfilePage() {
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [deactivating, setDeactivating] = useState(false);
+  const [togglingOversight, setTogglingOversight] = useState(false);
   const [emailWarningOpen, setEmailWarningOpen] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
   const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
@@ -97,7 +98,11 @@ export default function EmployeeProfilePage() {
         .order("log_date", { ascending: false })
         .order("created_at", { ascending: false });
       if (logDateFilter) query = query.eq("log_date", logDateFilter);
-      if (logProjectFilter !== "all") query = query.eq("project_id", logProjectFilter);
+      if (logProjectFilter === MISC_PROJECT_ID) {
+        query = query.is("project_id", null);
+      } else if (logProjectFilter !== "all") {
+        query = query.eq("project_id", logProjectFilter);
+      }
       const { data } = await query;
       return data || [];
     },
@@ -417,6 +422,29 @@ export default function EmployeeProfilePage() {
     }
   };
 
+  const handleOversightToggle = async () => {
+    if (!employee) return;
+    const newValue = !employee.is_oversight;
+    setTogglingOversight(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const { data: result, error } = await supabase.functions.invoke("manage-user", {
+        body: { action: newValue ? "oversight_on" : "oversight_off", user_id: employee.id },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (error) throw error;
+      const res = result as { ok: boolean; error?: string };
+      if (!res.ok) throw new Error(res.error ?? "Failed to update oversight status");
+      toast.success(newValue ? "Employee marked as oversight" : "Oversight removed");
+      queryClient.invalidateQueries({ queryKey: ["employee", id] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setTogglingOversight(false);
+    }
+  };
+
   const handleDeleteLog = async (logId: string) => {
     const { error } = await supabase.from("daily_logs").delete().eq("id", logId);
     if (error) { toast.error(error.message); return; }
@@ -469,6 +497,34 @@ export default function EmployeeProfilePage() {
         </div>
         {isAdmin && !isOwnProfile && (
           <div className="flex gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className={employee.is_oversight ? "border-amber-500 text-amber-700 bg-amber-50 hover:bg-amber-100" : "border-amber-300 text-amber-700 hover:bg-amber-50"}
+                  disabled={togglingOversight}
+                >
+                  {employee.is_oversight ? "Remove Oversight" : "Mark as Oversight"}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{employee.is_oversight ? "Remove Oversight?" : "Mark as Oversight?"}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {employee.is_oversight
+                      ? "This employee will no longer be visually highlighted as needing closer attention."
+                      : "This employee will be visually highlighted across admin pages for closer attention. This has no impact on their access or permissions."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleOversightToggle} className="bg-amber-500 text-white hover:bg-amber-600">
+                    {employee.is_oversight ? "Remove Oversight" : "Mark as Oversight"}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
             {employee.status === "active" || employee.status === "pending" ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -765,6 +821,7 @@ export default function EmployeeProfilePage() {
                 <SelectContent>
                   <SelectItem value="all">All Projects</SelectItem>
                   {employeeProjects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                  <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
                 </SelectContent>
               </Select>
               <Button variant="outline" size="sm" onClick={exportWorkLogs}>
@@ -792,7 +849,7 @@ export default function EmployeeProfilePage() {
                     workLogs.map((log: any) => (
                       <TableRow key={log.id}>
                         <TableCell>{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                        <TableCell>{log.projects?.name || "—"}</TableCell>
+                        <TableCell>{getProjectName(log)}</TableCell>
                         <TableCell className="max-w-[250px] truncate">{log.description}</TableCell>
                         <TableCell className="font-medium">{formatHours(log.hours)}</TableCell>
                         <TableCell className="text-muted-foreground text-sm">{format(new Date(log.submitted_at), "h:mm a")}</TableCell>

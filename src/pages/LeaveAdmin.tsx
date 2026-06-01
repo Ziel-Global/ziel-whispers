@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,12 +15,13 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Trash2, CalendarCheck, CalendarDays, AlertTriangle } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
+import { getPKTDateString } from "@/hooks/useWorkSettings";
 
 const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Half Day Leave", "Other"];
 
-import { getLeaveTypeName } from "@/lib/utils";
+import { getLeaveTypeName, getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
 
 export default function LeaveAdminPage() {
   const { user, profile } = useAuth();
@@ -31,9 +32,15 @@ export default function LeaveAdminPage() {
   const [processing, setProcessing] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [wfhDeleteId, setWfhDeleteId] = useState<string | null>(null);
+  const [wfhDeleting, setWfhDeleting] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
   const [wfhStatusFilter, setWfhStatusFilter] = useState("all");
   const [leaveTypeFilter, setLeaveTypeFilter] = useState("all");
+  const [submittedDate, setSubmittedDate] = useState("");
+  const [selectedYear, setSelectedYear] = useState<number>(getCurrentLeaveYear().startYear);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
 
   // Annual leave entitlement setting
   const [annualEntitlement, setAnnualEntitlement] = useState("12");
@@ -78,25 +85,29 @@ export default function LeaveAdminPage() {
     queryKey: ["admin-leave-requests"],
     queryFn: async () => {
       const { data } = await supabase.from("leave_requests")
-        .select("*, leave_types(name), users!leave_requests_user_id_fkey(full_name, department, email)")
+        .select("*, leave_types(name), users!leave_requests_user_id_fkey(full_name, department, email, is_oversight)")
         .order("created_at", { ascending: false });
       return data || [];
     },
   });
 
   const filtered = useMemo(() => {
+    const yearRange = getLeaveYearRange(selectedYear);
     return requests.filter((r: any) => {
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
-      const matchLeaveType = leaveTypeFilter === "all" || r.leave_type_id === leaveTypeFilter;
-      return matchStatus && matchLeaveType;
+      const matchYear = r.start_date >= yearRange.start && r.start_date <= yearRange.end;
+      const typeName = getLeaveTypeName(r);
+      const matchLeaveType = leaveTypeFilter === "all" || typeName.startsWith(leaveTypeFilter);
+      const matchSubmitted = !submittedDate || (r.created_at && r.created_at.startsWith(submittedDate));
+      return matchStatus && matchYear && matchLeaveType && matchSubmitted;
     });
-  }, [requests, statusFilter, leaveTypeFilter]);
+  }, [requests, statusFilter, selectedYear, leaveTypeFilter, submittedDate]);
 
   const { data: wfhRequests = [] } = useQuery({
     queryKey: ["admin-wfh-requests"],
     queryFn: async () => {
       const { data } = await supabase.from("remote_work_requests")
-        .select("*, users!remote_work_requests_user_id_fkey(full_name, designation), reviewer:users!remote_work_requests_reviewed_by_fkey(full_name)")
+        .select("*, users!remote_work_requests_user_id_fkey(full_name, designation, is_oversight), reviewer:users!remote_work_requests_reviewed_by_fkey(full_name)")
         .order("created_at", { ascending: false });
       return data || [];
     },
@@ -109,6 +120,89 @@ export default function LeaveAdminPage() {
       return data || [];
     },
   });
+
+  // Per-employee used days for the selected leave year
+  const { data: employeeUsage = {} as Record<string, { used: number; total: number }> } = useQuery({
+    queryKey: ["admin-employee-usage", selectedYear],
+    queryFn: async () => {
+      const yearRange = getLeaveYearRange(selectedYear);
+      const { data: approved } = await supabase
+        .from("leave_requests")
+        .select("user_id, days_count")
+        .eq("status", "approved")
+        .gte("start_date", yearRange.start)
+        .lte("start_date", yearRange.end);
+      const usage: Record<string, { used: number; total: number }> = {};
+      (approved || []).forEach((r: any) => {
+        if (!usage[r.user_id]) usage[r.user_id] = { used: 0, total: Number(annualEntitlement) || 12 };
+        usage[r.user_id].used += r.days_count;
+      });
+      return usage;
+    },
+    enabled: !!annualEntitlement,
+  });
+
+  const today = getPKTDateString();
+  const currentMonth = today.substring(0, 7);
+
+  // Summary strip stats
+  const summaryStats = useMemo(() => {
+    const employeesOnLeaveToday = new Set(
+      requests.filter((r: any) =>
+        r.status === "approved" && r.start_date <= today && r.end_date >= today
+      ).map((r: any) => r.user_id)
+    ).size;
+
+    const leavesThisMonth = requests.filter((r: any) =>
+      r.status === "approved" && r.start_date.startsWith(currentMonth)
+    ).length;
+
+    const entitlementVal = Number(annualEntitlement) || 12;
+    const employeesAtLimit = Object.values(employeeUsage).filter(
+      (u: any) => u.used >= entitlementVal
+    ).length;
+
+    return { employeesOnLeaveToday, leavesThisMonth, employeesAtLimit };
+  }, [requests, today, currentMonth, employeeUsage, annualEntitlement]);
+
+  // Group filtered requests by employee for the grouped layout
+  const groupedByUser = useMemo(() => {
+    const userMap = new Map<string, any[]>();
+    filtered.forEach((r: any) => {
+      const uid = r.user_id;
+      if (!userMap.has(uid)) userMap.set(uid, []);
+      userMap.get(uid)!.push(r);
+    });
+
+    for (const [, reqs] of userMap) {
+      reqs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    }
+
+    return Array.from(userMap.entries())
+      .map(([userId, reqs]) => ({
+        userId,
+        user: reqs[0]?.users || null,
+        requests: reqs,
+        latest: reqs[0],
+        usedDays: employeeUsage[userId]?.used || 0,
+        totalDays: employeeUsage[userId]?.total || Number(annualEntitlement) || 12,
+        isOversight: reqs[0]?.users?.is_oversight === true,
+      }))
+      .sort((a, b) => new Date(b.latest.created_at).getTime() - new Date(a.latest.created_at).getTime());
+  }, [filtered, employeeUsage, annualEntitlement]);
+
+  // All requests for the expanded employee (within the selected year, unfiltered)
+  const expandedEmployeeRequests = useMemo(() => {
+    if (!expandedEmployeeId) return [];
+    const yearRange = getLeaveYearRange(selectedYear);
+    return requests
+      .filter((r: any) =>
+        r.user_id === expandedEmployeeId &&
+        r.start_date >= yearRange.start &&
+        r.start_date <= yearRange.end
+      )
+      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }, [expandedEmployeeId, requests, selectedYear]);
 
   const wfhFiltered = useMemo(() => {
     if (wfhStatusFilter === "all") return wfhRequests;
@@ -134,33 +228,32 @@ export default function LeaveAdminPage() {
       });
 
       toast.success(`Work From Home request ${type}d`);
-      queryClient.invalidateQueries({ queryKey: ["admin-wfh-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+      await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
+      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
     } catch (err: any) {
       toast.error(err.message);
     }
   };
-
-  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const handleAction = async () => {
     if (!actionModal) return;
     const { type, request } = actionModal;
     if (type === "reject" && !adminComment.trim()) { toast.error("Rejection reason is required"); return; }
 
-    // Check entitlement on approval
+    // Check entitlement on approval (using leave year)
     if (type === "approve") {
-      const year = new Date().getFullYear();
+      const currentLY = getCurrentLeaveYear();
       const entitlementVal = Number(annualEntitlement) || 12;
       const { data: approvedReqs } = await supabase
         .from("leave_requests")
         .select("days_count")
         .eq("user_id", request.user_id)
         .eq("status", "approved")
-        .gte("start_date", `${year}-01-01`)
-        .lte("start_date", `${year}-12-31`);
+        .gte("start_date", currentLY.start)
+        .lte("start_date", currentLY.end);
       const usedDays = (approvedReqs || []).reduce((s: number, r: any) => s + r.days_count, 0);
-      if (usedDays + request.days_count > entitlementVal) {
+      const newTotal = usedDays + request.days_count;
+      if (newTotal > entitlementVal) {
         toast.error(`Cannot approve — employee would exceed annual entitlement (${usedDays} used + ${request.days_count} requested > ${entitlementVal} allowed)`);
         setProcessing(false);
         return;
@@ -192,17 +285,17 @@ export default function LeaveAdminPage() {
         metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
       });
 
-      // Half-day leave → Annual Leave conversion
+      // Half-day leave → Annual Leave conversion (using leave year)
       if (type === "approve" && request.hours) {
-        const currentYear = new Date().getFullYear();
+        const currentLY = getCurrentLeaveYear();
         const { data: halfDayData } = await supabase
           .from("leave_requests")
           .select("hours")
           .eq("user_id", request.user_id)
           .eq("status", "approved")
           .not("hours", "is", null)
-          .gte("start_date", `${currentYear}-01-01`)
-          .lte("start_date", `${currentYear}-12-31`);
+          .gte("start_date", currentLY.start)
+          .lte("start_date", currentLY.end);
         const totalHours = (halfDayData || []).reduce((s: number, r: any) => s + Number(r.hours), 0);
         const currentHours = Number(request.hours);
         const oldChunks = Math.floor((totalHours - currentHours) / 8);
@@ -220,7 +313,7 @@ export default function LeaveAdminPage() {
               .select("*")
               .eq("user_id", request.user_id)
               .eq("leave_type_id", annualType.id)
-              .eq("year", currentYear)
+              .eq("year", currentLY.startYear)
               .maybeSingle();
             if (balance) {
               const newUsedDays = (balance.used_days || 0) + additionalDeduction;
@@ -240,8 +333,8 @@ export default function LeaveAdminPage() {
       toast.success(`Leave request ${type}d`);
       setActionModal(null);
       setAdminComment("");
-      queryClient.invalidateQueries({ queryKey: ["admin-leave-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+      await queryClient.refetchQueries({ queryKey: ["admin-leave-requests"], type: "all" });
+      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
     } catch (err: any) { toast.error(err.message); }
     finally { setProcessing(false); }
   };
@@ -257,8 +350,24 @@ export default function LeaveAdminPage() {
       await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "leave.deleted", target_entity: "leave_requests", target_id: deleteId });
       toast.success("Leave request deleted");
       setDeleteId(null);
-      queryClient.invalidateQueries({ queryKey: ["admin-leave-requests"] });
-      queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
+      await queryClient.refetchQueries({ queryKey: ["admin-leave-requests"], type: "all" });
+      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
+    }
+  };
+
+  const handleWfhDelete = async () => {
+    if (!wfhDeleteId) return;
+    setWfhDeleting(true);
+    const { error } = await supabase.from("remote_work_requests").delete().eq("id", wfhDeleteId);
+    setWfhDeleting(false);
+    if (error) {
+      toast.error(error.message);
+    } else {
+      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "wfh.deleted", target_entity: "remote_work_requests", target_id: wfhDeleteId });
+      toast.success("Remote work request deleted");
+      setWfhDeleteId(null);
+      await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
+      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
     }
   };
 
@@ -304,7 +413,12 @@ export default function LeaveAdminPage() {
         </TabsList>
 
         <TabsContent value="requests" className="space-y-4">
-          <div className="flex gap-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Leave Year: {getLeaveYearRange(selectedYear).label}
+            </p>
+          </div>
+          <div className="flex gap-3 flex-wrap">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
               <SelectContent>
@@ -315,93 +429,159 @@ export default function LeaveAdminPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
+            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
+              <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {getLeaveYearOptions().map((y) => (
+                  <SelectItem key={y.startYear} value={String(y.startYear)}>{y.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
               <SelectTrigger className="w-[160px]"><SelectValue placeholder="Leave Type" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
-                {leaveTypes.map((lt: any) => <SelectItem key={lt.id} value={lt.id}>{lt.name}</SelectItem>)}
+                {LEAVE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Input type="date" value={submittedDate} onChange={(e) => setSubmittedDate(e.target.value)} className="w-[160px]" placeholder="Submitted date" />
           </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Card className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                <CalendarCheck className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.employeesOnLeaveToday}</p>
+                <p className="text-xs text-muted-foreground">Employees on leave today</p>
+              </div>
+            </Card>
+            <Card className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                <CalendarDays className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.leavesThisMonth}</p>
+                <p className="text-xs text-muted-foreground">Leaves taken this month</p>
+              </div>
+            </Card>
+            <Card className="p-4 flex items-center gap-3">
+              <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
+                <AlertTriangle className="h-5 w-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{summaryStats.employeesAtLimit}</p>
+                <p className="text-xs text-muted-foreground">Employees at annual limit</p>
+              </div>
+            </Card>
+          </div>
+
           <Card>
             <Table>
               <TableHeader><TableRow>
                 <TableHead className="w-8"></TableHead>
-                <TableHead>Employee</TableHead><TableHead>Type</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Submitted</TableHead><TableHead className="text-right">Actions</TableHead>
+                <TableHead>Employee</TableHead><TableHead>Type</TableHead><TableHead>Dates</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Submitted</TableHead><TableHead>Used / Total</TableHead>
               </TableRow></TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={10} className="text-center py-8 text-muted-foreground">No requests</TableCell></TableRow>
-                ) : filtered.map((r: any) => (
-                  <>
-                    <TableRow key={r.id} className={`cursor-pointer ${r.status === "pending" ? "bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
-                      <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                      <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                      <TableCell>{getLeaveTypeName(r)}</TableCell>
-                      <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d")}</TableCell>
-                      <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d")}</TableCell>
-                       <TableCell>{r.hours ? `${r.hours} hrs` : r.days_count}</TableCell>
-                      <TableCell className="max-w-[120px] truncate">{r.reason || "—"}</TableCell>
-                      <TableCell>{statusBadge(r.status)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d")}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1 items-center">
-                          {r.status === "pending" && (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }} className="text-destructive"><X className="h-4 w-4" /></Button>
-                            </>
-                          )}
-                          {r.status !== "pending" && r.admin_comment && (
-                            <span className="text-xs text-muted-foreground mr-2" title={r.admin_comment}>💬</span>
-                          )}
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }} className="text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
+                {groupedByUser.length === 0 ? (
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No requests</TableCell></TableRow>
+                ) : groupedByUser.map((group) => (
+                  <React.Fragment key={group.userId}>
+                    <TableRow
+                      className={`cursor-pointer relative${group.isOversight ? " bg-amber-50/70" : group.latest.status === "pending" ? " bg-yellow-50/50" : " bg-muted/20"}`}
+                      onClick={() => setExpandedEmployeeId(expandedEmployeeId === group.userId ? null : group.userId)}
+                    >
+                      <TableCell className="relative">
+                        {expandedEmployeeId === group.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                                              </TableCell>
+                      <TableCell>
+                        <div>
+                          <p className="font-medium text-sm">{group.user?.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{group.user?.department}</p>
                         </div>
                       </TableCell>
+                      <TableCell className="text-sm">{getLeaveTypeName(group.latest)}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {format(new Date(group.latest.start_date + "T00:00:00"), "MMM d")}
+                        {(group.latest.start_date !== group.latest.end_date || !group.latest.hours) && (
+                          <> — {format(new Date(group.latest.end_date + "T00:00:00"), "MMM d")}</>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">{group.latest.hours ? `${group.latest.hours} hrs` : group.latest.days_count}</TableCell>
+                      <TableCell className="max-w-[180px] whitespace-normal break-words text-sm">{group.latest.reason || "—"}</TableCell>
+                      <TableCell>{statusBadge(group.latest.status)}</TableCell>
+                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(group.latest.created_at), "MMM d")}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        <span className={group.usedDays >= group.totalDays ? "text-destructive font-medium" : ""}>
+                          {group.usedDays} / {group.totalDays} days
+                        </span>
+                        {group.usedDays >= group.totalDays && (
+                          <span className="text-destructive text-xs block">limit reached</span>
+                        )}
+                      </TableCell>
                     </TableRow>
-                    {expandedId === r.id && (
-                      <TableRow key={`${r.id}-detail`}>
-                        <TableCell colSpan={10} className="bg-muted/50 p-0">
-                          <div className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-                              <div>
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Employee</p>
-                                <p className="text-sm font-medium">{r.users?.full_name}</p>
-                                <p className="text-xs text-muted-foreground">{r.users?.department} · {r.users?.email}</p>
+                    {expandedEmployeeId === group.userId && (
+                      <TableRow key={`${group.userId}-detail`}>
+                        <TableCell colSpan={9} className="bg-muted/50 p-0">
+                          <div className="p-4 space-y-3">
+                            {expandedEmployeeRequests.length === 0 ? (
+                              <p className="text-sm text-muted-foreground text-center py-4">No leave requests found for this period</p>
+                            ) : expandedEmployeeRequests.map((r: any) => (
+                              <div key={r.id} className="border rounded-lg p-3 bg-card">
+                                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-2">
+                                  <div className="md:col-span-1">
+                                    <p className="text-[11px] text-muted-foreground mb-0.5">Leave Type</p>
+                                    <p className="text-sm font-medium">{getLeaveTypeName(r)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-muted-foreground mb-0.5">Dates</p>
+                                    <p className="text-sm">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — {format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</p>
+                                    <p className="text-xs text-muted-foreground">{r.hours ? `${r.hours} hrs` : `${r.days_count} day(s)`}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-muted-foreground mb-0.5">Status</p>
+                                    <div>{statusBadge(r.status)}</div>
+                                  </div>
+                                  <div>
+                                    <p className="text-[11px] text-muted-foreground mb-0.5">Submitted</p>
+                                    <p className="text-sm">{format(new Date(r.created_at), "MMM d, yyyy")}</p>
+                                    {r.reviewed_at && (
+                                      <p className="text-xs text-muted-foreground">Reviewed {format(new Date(r.reviewed_at), "MMM d")}</p>
+                                    )}
+                                  </div>
+                                  <div className="flex items-start justify-end gap-1 pt-4">
+                                    {r.status === "pending" && (
+                                      <>
+                                        <Button size="sm" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }}>Approve</Button>
+                                        <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }}>Reject</Button>
+                                      </>
+                                    )}
+                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }} className="text-destructive">
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                    {r.status !== "pending" && r.admin_comment && (
+                                      <span className="text-xs text-muted-foreground" title={r.admin_comment}>💬</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="mb-2">
+                                  <p className="text-[11px] text-muted-foreground mb-0.5">Reason</p>
+                                  <p className="text-sm whitespace-normal break-words">{r.reason || "—"}</p>
+                                </div>
+                                {r.admin_comment && (
+                                  <div className="mb-2">
+                                    <p className="text-[11px] text-muted-foreground mb-0.5">Admin Comment</p>
+                                    <p className="text-sm">{r.admin_comment}</p>
+                                  </div>
+                                )}
                               </div>
-                              <div>
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Dates</p>
-                                <p className="text-sm">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — {format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</p>
-                                <p className="text-xs text-muted-foreground">{r.hours ? "0.5" : r.days_count} day(s)</p>
-                              </div>
-                              <div>
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Submitted</p>
-                                <p className="text-sm">{format(new Date(r.created_at), "MMM d, yyyy 'at' h:mm a")}</p>
-                              </div>
-                            </div>
-                            <div className="mb-3">
-                              <p className="text-[12px] text-muted-foreground mb-0.5">Reason / Notes</p>
-                              <p className="text-sm">{r.reason || "—"}</p>
-                            </div>
-                            {r.admin_comment && (
-                              <div className="mb-2">
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Admin Comment</p>
-                                <p className="text-sm">{r.admin_comment}</p>
-                              </div>
-                            )}
-                            <div className="flex items-center gap-2 mt-2">
-                              {r.status === "pending" && (
-                                <>
-                                  <Button size="sm" onClick={async (e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }}>Approve</Button>
-                                  <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }}>Reject</Button>
-                                </>
-                              )}
-                            </div>
+                            ))}
                           </div>
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </React.Fragment>
                 ))}
               </TableBody>
             </Table>
@@ -436,8 +616,8 @@ export default function LeaveAdminPage() {
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No Remote Requests</TableCell></TableRow>
                 ) : wfhFiltered.map((r: any) => (
                   <>
-                    <TableRow key={r.id} className={`cursor-pointer ${r.status === "pending" ? "bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
-                      <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                    <TableRow key={r.id} className={`cursor-pointer relative${r.users?.is_oversight ? " bg-amber-50/70" : r.status === "pending" ? " bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
+                      <TableCell className="relative">{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
                       <TableCell className="font-medium">{r.users?.full_name}</TableCell>
                       <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d, yyyy")}</TableCell>
@@ -452,12 +632,15 @@ export default function LeaveAdminPage() {
                         ) : "—"}
                       </TableCell>
                       <TableCell className="text-right">
-                        {r.status === "pending" && (
-                          <div className="flex justify-end gap-1 items-center">
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "approve", r.user_id); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "reject", r.user_id); }} className="text-destructive"><X className="h-4 w-4" /></Button>
-                          </div>
-                        )}
+                        <div className="flex justify-end gap-1 items-center">
+                          {r.status === "pending" && (
+                            <>
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "approve", r.user_id); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
+                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "reject", r.user_id); }} className="text-destructive"><X className="h-4 w-4" /></Button>
+                            </>
+                          )}
+                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setWfhDeleteId(r.id); }} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                     {expandedId === r.id && (
@@ -628,6 +811,23 @@ export default function LeaveAdminPage() {
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
               {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!wfhDeleteId} onOpenChange={(o) => !o && setWfhDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Remote Work Request?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete this remote work request? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={wfhDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleWfhDelete} disabled={wfhDeleting} className="bg-destructive hover:bg-destructive/90">
+              {wfhDeleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

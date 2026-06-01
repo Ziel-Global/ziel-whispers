@@ -43,6 +43,7 @@ const ACTION_LABELS: Record<string, string> = {
   "leave.approved": "Leave Approved",
   "leave.rejected": "Leave Rejected",
   "leave.cancelled": "Leave Cancelled",
+  "leave.deleted": "Leave Deleted",
   "announcement.created": "Announcement Created",
   "announcement.updated": "Announcement Updated",
   "announcement.deleted": "Announcement Deleted",
@@ -51,6 +52,11 @@ const ACTION_LABELS: Record<string, string> = {
   "session.logout": "User Logged Out",
   "impersonation.started": "Impersonation Started",
   "impersonation.ended": "Impersonation Ended",
+  "user.oversight_on": "Marked as Oversight",
+  "user.oversight_off": "Removed from Oversight",
+  "wfh.approved": "Work From Home Approved",
+  "wfh.rejected": "Work From Home Rejected",
+  "wfh.deleted": "Work From Home Deleted",
 };
 
 const formatMetadata = (metadata: any, userMap?: Record<string, string>): string => {

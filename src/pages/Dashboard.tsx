@@ -12,7 +12,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow, subDays } from "date-fns";
-import { getAvatarUrl, getLeaveTypeName } from "@/lib/utils";
+import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();
@@ -103,37 +103,36 @@ export default function DashboardPage() {
   });
 
   // Leave balance uses the hook's annualLeaveEntitlement (live from system_settings)
+  const currentLeaveYear = getCurrentLeaveYear();
   const { data: usedLeaveDays = 0 } = useQuery({
-    queryKey: ["my-used-leave-days", user?.id],
+    queryKey: ["my-used-leave-days", user?.id, currentLeaveYear.startYear],
     queryFn: async () => {
-      const year = new Date().getFullYear();
       const { data } = await supabase
         .from("leave_requests")
         .select("days_count")
         .eq("user_id", user!.id)
         .eq("status", "approved")
-        .gte("start_date", `${year}-01-01`)
-        .lte("start_date", `${year}-12-31`);
+        .gte("start_date", currentLeaveYear.start)
+        .lte("start_date", currentLeaveYear.end);
       return (data || []).reduce((sum, r) => sum + r.days_count, 0);
     },
     enabled: !isAdmin && hasProfile && !!user?.id,
   });
 
-  const annualRemaining = annualLeaveEntitlement - usedLeaveDays;
+  const annualRemaining = Math.max(0, annualLeaveEntitlement - usedLeaveDays);
 
   // Half-day hours used
   const { data: halfDayHours = 0 } = useQuery({
-    queryKey: ["my-half-day-hours", user?.id],
+    queryKey: ["my-half-day-hours", user?.id, currentLeaveYear.startYear],
     queryFn: async () => {
-      const year = new Date().getFullYear();
       const { data } = await supabase
         .from("leave_requests")
         .select("hours")
         .eq("user_id", user!.id)
         .eq("status", "approved")
         .not("hours", "is", null)
-        .gte("start_date", `${year}-01-01`)
-        .lte("start_date", `${year}-12-31`);
+        .gte("start_date", currentLeaveYear.start)
+        .lte("start_date", currentLeaveYear.end);
       return (data || []).reduce((sum, r) => sum + Number(r.hours), 0) % 8;
     },
     enabled: !isAdmin && hasProfile && !!user?.id,

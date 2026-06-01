@@ -213,10 +213,11 @@ export default function EmployeesPage() {
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
                 ) : (
-                  filtered.map((emp) => {
+                    filtered.map((emp) => {
                     const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                    const isOversight = emp.is_oversight;
                     return (
-                      <TableRow key={emp.id} className="cursor-pointer" onClick={() => navigate(`/employees/${emp.id}`)}>
+                      <TableRow key={emp.id} className={`cursor-pointer${isOversight ? " bg-[#fef3c7]" : ""}`} onClick={() => navigate(`/employees/${emp.id}`)}>
                         <TableCell>
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={getAvatarUrl(emp.avatar_url)} />

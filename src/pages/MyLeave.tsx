@@ -17,6 +17,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
+import { getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
 
 const LEAVE_CATEGORIES = [
   { value: "sick", label: "Sick Leave" },
@@ -47,6 +48,7 @@ export default function MyLeavePage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [historyYear, setHistoryYear] = useState<number>(getCurrentLeaveYear().startYear);
   const { shiftStart, shiftEnd, workingDays } = useWorkSettings();
   const today = getPKTDateString();
   const tomorrow = getPKTDateString(new Date(Date.now() + 86400000));
@@ -170,38 +172,37 @@ export default function MyLeavePage() {
     refetchInterval: 30000, // poll every 30s for real-time sync
   });
 
-  // Calculate used days from approved leave requests (live calculation)
+  // Current leave year for balance calculations
+  const currentLeaveYear = useMemo(() => getCurrentLeaveYear(), []);
+
+  // Calculate used days from approved leave requests (live calculation, current leave year)
   const { data: usedDays = 0 } = useQuery({
-    queryKey: ["my-used-leave-days", user?.id],
+    queryKey: ["my-used-leave-days", user?.id, currentLeaveYear.startYear],
     queryFn: async () => {
-      const year = new Date().getFullYear();
-      const startOfYear = `${year}-01-01`;
-      const endOfYear = `${year}-12-31`;
       const { data } = await supabase
         .from("leave_requests")
         .select("days_count")
         .eq("user_id", user!.id)
         .eq("status", "approved")
-        .gte("start_date", startOfYear)
-        .lte("start_date", endOfYear);
+        .gte("start_date", currentLeaveYear.start)
+        .lte("start_date", currentLeaveYear.end);
       return (data || []).reduce((sum, r) => sum + r.days_count, 0);
     },
     enabled: !!user?.id,
   });
 
-  // Half-day hours used
+  // Half-day hours used (current leave year)
   const { data: halfDayHours = 0 } = useQuery({
-    queryKey: ["my-half-day-hours", user?.id],
+    queryKey: ["my-half-day-hours", user?.id, currentLeaveYear.startYear],
     queryFn: async () => {
-      const year = new Date().getFullYear();
       const { data } = await supabase
         .from("leave_requests")
         .select("hours")
         .eq("user_id", user!.id)
         .eq("status", "approved")
         .not("hours", "is", null)
-        .gte("start_date", `${year}-01-01`)
-        .lte("start_date", `${year}-12-31`);
+        .gte("start_date", currentLeaveYear.start)
+        .lte("start_date", currentLeaveYear.end);
       return (data || []).reduce((sum, r) => sum + Number(r.hours), 0) % 8;
     },
     enabled: !!user?.id,
@@ -220,7 +221,14 @@ export default function MyLeavePage() {
     enabled: !!user?.id,
   });
 
-  const filteredRequests = statusFilter === "all" ? requests : requests.filter((r: any) => r.status === statusFilter);
+  const filteredRequests = useMemo(() => {
+    const yearRange = getLeaveYearRange(historyYear);
+    return requests.filter((r: any) => {
+      const matchStatus = statusFilter === "all" || r.status === statusFilter;
+      const matchYear = r.start_date >= yearRange.start && r.start_date <= yearRange.end;
+      return matchStatus && matchYear;
+    });
+  }, [requests, statusFilter, historyYear]);
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -354,6 +362,7 @@ export default function MyLeavePage() {
 
           <Card className="p-4">
         <p className="text-sm font-medium">Annual Leaves</p>
+        <p className="text-xs text-muted-foreground mt-0.5">{currentLeaveYear.label}</p>
         <div className="flex items-baseline gap-2 mt-1">
           <span className={`text-2xl font-bold ${remainingDays <= 2 ? "text-destructive" : "text-foreground"}`}>{remainingDays}</span>
           <span className="text-sm text-muted-foreground">/ {totalDays} days remaining</span>
@@ -362,14 +371,14 @@ export default function MyLeavePage() {
         {halfDayHours > 0 && (
           <p className="text-xs text-muted-foreground mt-1">{halfDayHours} hour{halfDayHours !== 1 ? "s" : ""} of half day leave used this year</p>
         )}
-        {isExhausted && (
+        {usedDays >= totalDays && (
           <p className="text-sm text-destructive mt-2 font-medium">
-            You have exhausted your annual leave balance. No further leave applications can be submitted.
+            Your leave limit for this leave year has been reached. Please contact the admin.
           </p>
         )}
       </Card>
 
-      <div className="flex gap-3">
+      <div className="flex gap-3 flex-wrap">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -378,6 +387,14 @@ export default function MyLeavePage() {
             <SelectItem value="approved">Approved</SelectItem>
             <SelectItem value="rejected">Rejected</SelectItem>
             <SelectItem value="cancelled">Cancelled</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={String(historyYear)} onValueChange={(v) => setHistoryYear(Number(v))}>
+          <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            {getLeaveYearOptions().map((y) => (
+              <SelectItem key={y.startYear} value={String(y.startYear)}>{y.label}</SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -520,7 +537,7 @@ export default function MyLeavePage() {
           <DialogHeader><DialogTitle>Apply for Leave</DialogTitle></DialogHeader>
           {isExhausted ? (
             <p className="text-sm text-destructive font-medium py-4">
-              You have exhausted your annual leave balance. No further leave applications can be submitted.
+              Your leave limit for this leave year has been reached. Please contact the admin.
             </p>
           ) : (
             <div className="space-y-4">

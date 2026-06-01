@@ -742,6 +742,7 @@ export type Database = {
           has_custom_shift: boolean
           id: string
           is_night_shift: boolean
+          is_oversight: boolean
           join_date: string
           must_change_password: boolean
           phone: string | null
@@ -763,6 +764,7 @@ export type Database = {
           has_custom_shift?: boolean
           id: string
           is_night_shift?: boolean
+          is_oversight?: boolean
           join_date: string
           must_change_password?: boolean
           phone?: string | null
@@ -784,6 +786,7 @@ export type Database = {
           has_custom_shift?: boolean
           id?: string
           is_night_shift?: boolean
+          is_oversight?: boolean
           join_date?: string
           must_change_password?: boolean
           phone?: string | null

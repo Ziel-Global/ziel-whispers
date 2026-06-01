@@ -25,7 +25,7 @@ export default function AttendanceAdminPage() {
   const [selectedDate, setSelectedDate] = useState(getPKTDateString());
   const [deptFilter, setDeptFilter] = useState("all");
   const [workModeFilter, setWorkModeFilter] = useState("all");
-  const [employeeFilter, setEmployeeFilter] = useState("all");
+  const [clockStatusFilter, setClockStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [editRecord, setEditRecord] = useState<any>(null);
   const [editClockIn, setEditClockIn] = useState("");
@@ -34,20 +34,12 @@ export default function AttendanceAdminPage() {
   const [editWorkMode, setEditWorkMode] = useState("");
   const [saving, setSaving] = useState(false);
 
-  const { data: allEmployees = [] } = useQuery({
-    queryKey: ["all-employees-for-filter"],
-    queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").neq("role", "admin").order("full_name");
-      return data || [];
-    },
-  });
-
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["admin-attendance", selectedDate],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance")
-        .select("*, users!attendance_user_id_fkey(full_name, department, email)")
+        .select("*, users!attendance_user_id_fkey(full_name, department, email, is_oversight)")
         .eq("date", selectedDate)
         .order("clock_in", { ascending: true });
       if (error) throw error;
@@ -60,7 +52,7 @@ export default function AttendanceAdminPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance")
-        .select("*, users!attendance_user_id_fkey(full_name, department)")
+        .select("*, users!attendance_user_id_fkey(full_name, department, is_oversight)")
         .is("clock_out", null)
         .not("clock_in", "is", null)
         .order("clock_in", { ascending: true });
@@ -73,14 +65,15 @@ export default function AttendanceAdminPage() {
     return records.filter((r: any) => {
       if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
       if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
-      if (employeeFilter !== "all" && r.user_id !== employeeFilter) return false;
+      if (clockStatusFilter === "clocked_in" && r.clock_out) return false;
+      if (clockStatusFilter === "clocked_out" && !r.clock_out) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
         if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
       }
       return true;
     }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
-  }, [records, deptFilter, workModeFilter, employeeFilter, searchQuery]);
+  }, [records, deptFilter, workModeFilter, clockStatusFilter, searchQuery]);
 
   const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);
 
@@ -200,11 +193,12 @@ export default function AttendanceAdminPage() {
           className="w-[240px]"
         />
         <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />
-        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Employee" /></SelectTrigger>
+        <Select value={clockStatusFilter} onValueChange={setClockStatusFilter}>
+          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Employees</SelectItem>
-            {allEmployees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="clocked_in">Clocked In</SelectItem>
+            <SelectItem value="clocked_out">Clocked Out</SelectItem>
           </SelectContent>
         </Select>
         <Select value={deptFilter} onValueChange={setDeptFilter}>
@@ -247,8 +241,10 @@ export default function AttendanceAdminPage() {
             ) : filtered.length === 0 ? (
               <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No records for this date</TableCell></TableRow>
             ) : (
-              filtered.map((r: any) => (
-                <TableRow key={r.id}>
+              filtered.map((r: any) => {
+                const isOversight = r.users?.is_oversight === true;
+                return (
+                <TableRow key={r.id} className={`${isOversight ? "relative bg-amber-50/70" : ""}`}>
                   <TableCell className="font-medium">{r.users?.full_name}</TableCell>
                   <TableCell>{r.users?.department}</TableCell>
                   <TableCell>
@@ -278,8 +274,8 @@ export default function AttendanceAdminPage() {
                       </Button>
                     )}
                   </TableCell>
-                </TableRow>
-              ))
+                </TableRow>)
+              })
             )}
           </TableBody>
         </Table>

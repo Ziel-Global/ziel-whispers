@@ -13,7 +13,7 @@ import { Lock, MessageSquare } from "lucide-react";
 import { format, subDays } from "date-fns";
 import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 
-import { formatHours } from "@/lib/utils";
+import { formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
 
 export default function MyLogsPage() {
   const { user } = useAuth();
@@ -35,7 +35,9 @@ export default function MyLogsPage() {
         query = query.eq("log_date", selectedDate);
       }
       
-      if (projectFilter !== "all") {
+      if (projectFilter === MISC_PROJECT_ID) {
+        query = query.is("project_id", null);
+      } else if (projectFilter !== "all") {
         query = query.eq("project_id", projectFilter);
       }
       
@@ -92,6 +94,7 @@ export default function MyLogsPage() {
             <SelectContent>
               <SelectItem value="all">All Projects</SelectItem>
               {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+              <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -132,7 +135,7 @@ export default function MyLogsPage() {
                       </div>
                       <div>
                         <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
-                        <p className="text-sm">{log.projects?.name || "—"}</p>
+                        <p className="text-sm">{getProjectName(log)}</p>
                       </div>
                       <div>
                         <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>

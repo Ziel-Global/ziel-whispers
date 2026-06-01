@@ -14,13 +14,13 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Plus } from "lucide-react";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
+import { MISC_PROJECT_ID } from "@/lib/utils";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
-const NO_PROJECT = "__none__";
 
 const schema = z.object({
   user_id: z.string().min(1, "Please select an employee"),
-  project_id: z.string().min(1, "Please select a project").refine(v => v !== NO_PROJECT, "Please select a project"),
+  project_id: z.string().min(1, "Please select a project"),
   category: z.string().min(1, "Category is required"),
   hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
   description: z.string().optional(),
@@ -72,9 +72,9 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSubmitting(true);
     try {
-      // Validate that the project is assigned to the employee
+      // Validate that the project is assigned to the employee (skip for Miscellaneous)
       const isAssigned = userProjects.some((p: any) => p.id === data.project_id);
-      if (!isAssigned && data.project_id !== NO_PROJECT) {
+      if (!isAssigned && data.project_id !== MISC_PROJECT_ID) {
         toast.error("This project is not assigned to the selected employee");
         setSubmitting(false);
         return;
@@ -105,7 +105,7 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
 
       const { error } = await supabase.from("daily_logs").insert({
         user_id: data.user_id,
-        project_id: data.project_id === NO_PROJECT ? null : data.project_id || null,
+        project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
         category: data.category,
         hours: data.hours,
         description: data.description || "",
@@ -187,10 +187,10 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
                     <SelectContent>
                       {userProjects.length > 0 ? (
                         <>
-                          <SelectItem value={NO_PROJECT}>No Project</SelectItem>
                           {userProjects.map((p: any) => (
                             <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                           ))}
+                          <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
                         </>
                       ) : (
                         <div className="p-2 text-xs text-muted-foreground text-center">

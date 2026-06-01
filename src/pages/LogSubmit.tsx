@@ -21,10 +21,9 @@ import { Trash2, Pencil, CheckCircle2, History, Send, ListPlus, AlertCircle, Cal
 import { format, parseISO, startOfDay, subDays, isSameDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { cn, formatHours } from "@/lib/utils";
+import { cn, formatHours, MISC_PROJECT_ID } from "@/lib/utils";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
-const NO_PROJECT = "__none__";
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -102,7 +101,7 @@ export default function LogSubmitPage() {
   const prevWorkingDay = getPrevWorkingDay();
 
   const schema = z.object({
-    project_id: z.string().min(1, "Please select a project").refine(v => v !== NO_PROJECT, "Please select a project"),
+    project_id: z.string().min(1, "Please select a project"),
     category: z.string().min(1, "Category is required"),
     hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
     description: z.string().min(20, "Min 20 characters"),
@@ -196,7 +195,7 @@ export default function LogSubmitPage() {
       if (editId) {
         // Update existing draft in database
         const { error } = await supabase.from("daily_logs").update({
-          project_id: data.project_id === NO_PROJECT ? null : data.project_id || null,
+          project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
           category: data.category,
           hours: data.hours,
           description: data.description,
@@ -209,7 +208,7 @@ export default function LogSubmitPage() {
         // Insert new draft into database
         const { error } = await supabase.from("daily_logs").insert({
           user_id: user!.id,
-          project_id: data.project_id === NO_PROJECT ? null : data.project_id || null,
+          project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
           category: data.category,
           hours: data.hours,
           description: data.description,
@@ -425,6 +424,7 @@ export default function LogSubmitPage() {
                     <FormControl><SelectTrigger className="bg-background"><SelectValue placeholder="Select project" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />

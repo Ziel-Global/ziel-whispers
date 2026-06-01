@@ -21,7 +21,7 @@ import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
 
-import { formatHours } from "@/lib/utils";
+import { formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
 
 function getShiftHours(shiftStart: string, shiftEnd: string): number {
   if (!shiftStart || !shiftEnd) return 0;
@@ -165,7 +165,7 @@ export default function LogsAdminPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at, overtime_enabled").eq("status", "active").neq("role", "admin").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at, overtime_enabled, is_oversight").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
     },
   });
@@ -292,6 +292,7 @@ export default function LogsAdminPage() {
         overtimeEnabled: emp.overtime_enabled === true,
         leaveHours,
         leaveName,
+        isOversight: emp.is_oversight === true,
       };
     });
 
@@ -538,10 +539,10 @@ export default function LogsAdminPage() {
                     <>
                       <TableRow
                         key={row.userId}
-                        className={`cursor-pointer ${row.logStatus === "missed" ? "bg-red-50/50" : ""}`}
+                        className={`cursor-pointer${row.isOversight ? " relative bg-amber-50/70" : ""}${row.logStatus === "missed" ? " bg-red-50/50" : ""}`}
                         onClick={() => setExpandedId(expandedId === row.userId ? null : row.userId)}
                       >
-                        <TableCell>{expandedId === row.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
+                        <TableCell className="relative">{expandedId === row.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
                         <TableCell className="font-medium">
                           <span className="flex items-center gap-2">
                             {row.name}
@@ -608,19 +609,19 @@ export default function LogsAdminPage() {
                                           <div>
                                             <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
                                             {editingLogId === log.id ? (
-                                              <Select value={editProjectId || "__none__"} onValueChange={(v) => setEditProjectId(v === "__none__" ? null : v)}>
+                                              <Select value={editProjectId || MISC_PROJECT_ID} onValueChange={(v) => setEditProjectId(v === MISC_PROJECT_ID ? null : v)}>
                                                 <SelectTrigger className="h-8 text-xs">
                                                   <SelectValue />
                                                 </SelectTrigger>
                                                 <SelectContent>
-                                                  <SelectItem value="__none__">No Project</SelectItem>
+                                                  <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
                                                   {allProjects.map((p) => (
                                                     <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                                                   ))}
                                                 </SelectContent>
                                               </Select>
                                             ) : (
-                                              <p className="text-sm">{log.projects?.name || "—"}</p>
+                                              <p className="text-sm">{getProjectName(log)}</p>
                                             )}
                                           </div>
                                           <div>
@@ -759,19 +760,19 @@ export default function LogsAdminPage() {
                                               <div>
                                                 <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
                                                 {editingLogId === log.id ? (
-                                                  <Select value={editProjectId || "__none__"} onValueChange={(v) => setEditProjectId(v === "__none__" ? null : v)}>
+                                                  <Select value={editProjectId || MISC_PROJECT_ID} onValueChange={(v) => setEditProjectId(v === MISC_PROJECT_ID ? null : v)}>
                                                     <SelectTrigger className="h-8 text-xs">
                                                       <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                      <SelectItem value="__none__">No Project</SelectItem>
+                                                      <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
                                                       {allProjects.map((p) => (
                                                         <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
                                                       ))}
                                                     </SelectContent>
                                                   </Select>
                                                 ) : (
-                                                  <p className="text-sm">{log.projects?.name || "—"}</p>
+                                                  <p className="text-sm">{getProjectName(log)}</p>
                                                 )}
                                               </div>
                                               <div>

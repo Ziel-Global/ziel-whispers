@@ -89,19 +89,17 @@ Deno.serve(async (req) => {
         .eq("key", "admin_email")
         .maybeSingle();
 
-      let adminEmail = adminEmailSetting?.value || "";
+      const { data: admins } = await supabase
+        .from("users")
+        .select("email")
+        .eq("role", "admin")
+        .eq("status", "active");
 
-      if (!adminEmail) {
-        const { data: admins } = await supabase
-          .from("users")
-          .select("email")
-          .eq("role", "admin")
-          .eq("status", "active")
-          .limit(1);
-        adminEmail = admins?.[0]?.email || "";
-      }
+      const adminEmails = new Set<string>();
+      if (adminEmailSetting?.value) adminEmails.add(adminEmailSetting.value);
+      if (admins) admins.forEach((a) => { if (a.email) adminEmails.add(a.email); });
 
-      if (!adminEmail) {
+      if (adminEmails.size === 0) {
         console.error("send-request-notification: no admin email configured");
         return jsonResponse({ ok: false, error: "Admin email not configured" });
       }
@@ -117,7 +115,9 @@ Deno.serve(async (req) => {
         html = buildNewWfhRequestHtml(employeeName, requestData, adminPanelUrl);
       }
 
-      await callSendEmail(supabase, adminEmail, subject, html);
+      for (const adminEmail of adminEmails) {
+        await callSendEmail(supabase, adminEmail, subject, html);
+      }
     } else if (action === "approved" || action === "rejected") {
       const statusLabel = action === "approved" ? "Approved" : "Rejected";
       let subject: string;
@@ -157,7 +157,7 @@ async function callSendEmail(
   try {
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     const { data, error } = await supabase.functions.invoke("send-email", {
-      body: { to, subject, html, fromName: "Ziel Logs", fromEmail: "noreply@resend.dev" },
+      body: { to, subject, html, fromName: "Ziel Logs", fromEmail: "noreply@zielglobal.com" },
       headers: serviceRoleKey ? { Authorization: `Bearer ${serviceRoleKey}` } : undefined,
     });
 

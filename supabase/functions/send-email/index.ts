@@ -74,6 +74,7 @@ async function sendWithResend(to: string, subject: string, html: string, fromNam
 
 Deno.serve(async (req) => {
   const requestId = crypto.randomUUID().slice(0, 8);
+  console.log("API key prefix:", Deno.env.get("RESEND_DEV_API_KEY")?.substring(0, 10));
   console.log(`send-email [${requestId}]: received ${req.method} request`);
 
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });

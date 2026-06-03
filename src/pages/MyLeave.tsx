@@ -83,15 +83,19 @@ export default function MyLeavePage() {
 
     setWfhSubmitting(true);
     try {
-      const { error } = await supabase.from("remote_work_requests").insert({
+      const { data: newRequest, error } = await supabase.from("remote_work_requests").insert({
         user_id: user!.id,
         date: wfhDate,
         reason: wfhReason.trim(),
         status: "pending"
-      });
+      }).select("id").single();
       if (error) throw error;
       
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "wfh.requested", target_entity: "remote_work_requests" });
+      
+      supabase.functions.invoke("send-request-notification", {
+        body: { type: "wfh", action: "new", request_id: newRequest.id, app_url: window.location.origin },
+      }).catch(() => {});
       
       toast.success("Work From Home request submitted");
       setWfhDate("");
@@ -296,7 +300,7 @@ export default function MyLeavePage() {
 
     setSubmitting(true);
     try {
-      const { error } = await supabase.from("leave_requests").insert({
+      const { data: newRequest, error } = await supabase.from("leave_requests").insert({
         user_id: user!.id,
         leave_type_id: leaveType?.id || null,
         start_date: startDate,
@@ -305,9 +309,14 @@ export default function MyLeavePage() {
         hours: leaveCategory === "half_day" ? parseInt(leaveHours, 10) : null,
         reason: finalReason || null,
         status: "pending",
-      });
+      }).select("id").single();
       if (error) throw error;
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.requested", target_entity: "leave_requests" });
+      
+      supabase.functions.invoke("send-request-notification", {
+        body: { type: "leave", action: "new", request_id: newRequest.id, app_url: window.location.origin },
+      }).catch(() => {});
+      
       toast.success("Leave request submitted");
       setApplyOpen(false);
       setLeaveCategory(""); setStartDate(""); setEndDate(""); setReason(""); setOtherReason(""); setLeaveHours("");

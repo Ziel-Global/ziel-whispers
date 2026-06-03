@@ -227,6 +227,10 @@ export default function LeaveAdminPage() {
         metadata: { employee_id: userId, action: newStatus },
       });
 
+      supabase.functions.invoke("send-request-notification", {
+        body: { type: "wfh", action: newStatus, request_id: id, app_url: window.location.origin },
+      }).catch(() => {});
+
       toast.success(`Work From Home request ${type}d`);
       await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
       await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
@@ -284,6 +288,10 @@ export default function LeaveAdminPage() {
         type: `leave.${newStatus}`,
         metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
       });
+
+      supabase.functions.invoke("send-request-notification", {
+        body: { type: "leave", action: newStatus, request_id: request.id, admin_comment: adminComment || undefined, app_url: window.location.origin },
+      }).catch(() => {});
 
       // Half-day leave → Annual Leave conversion (using leave year)
       if (type === "approve" && request.hours) {

@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
 
     const { data: emailResult } = await adminClient.functions.invoke("send-email", {
       body: { to: user_email, subject: "You're invited to Ziel Logs — Set your password", html },
+      headers: { Authorization: `Bearer ${serviceRoleKey}` },
     });
 
     if (!emailResult?.ok) {

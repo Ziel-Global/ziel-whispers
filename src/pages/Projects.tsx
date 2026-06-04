@@ -116,6 +116,22 @@ export default function ProjectsPage() {
     if (!deleteId) return;
     setDeleting(true);
     try {
+      // Pre-check for related data (FK constraints)
+      const [{ data: relatedLogs }, { data: relatedMembers }, { data: relatedRoles }] = await Promise.all([
+        supabase.from("daily_logs").select("id").eq("project_id", deleteId).limit(1),
+        supabase.from("project_members").select("id").eq("project_id", deleteId).limit(1),
+        supabase.from("project_roles").select("id").eq("project_id", deleteId).limit(1),
+      ]);
+      const reasons: string[] = [];
+      if (relatedLogs && relatedLogs.length > 0) reasons.push("log entries");
+      if (relatedMembers && relatedMembers.length > 0) reasons.push("team members");
+      if (relatedRoles && relatedRoles.length > 0) reasons.push("project roles");
+      if (reasons.length > 0) {
+        toast.error(`Cannot delete: ${reasons.join(" and ")} are linked to this project. Archive the project instead.`);
+        setDeleting(false);
+        return;
+      }
+
       const { error } = await supabase.from("projects").delete().eq("id", deleteId);
       if (error) throw error;
       

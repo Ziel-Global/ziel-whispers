@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
     if (action === "delete") {
       // Permanently delete related DB rows, the user row, and the auth account
       try {
-        // Delete related data
+        // Delete data records owned by the user
         const relatedDeletes = [
           { table: "project_members", col: "user_id" },
           { table: "auto_clockout_acks", col: "user_id" },
@@ -154,21 +154,40 @@ Deno.serve(async (req) => {
           { table: "leave_requests", col: "user_id" },
           { table: "notifications", col: "user_id" },
           { table: "leave_balances", col: "user_id" },
-          { table: "time_entries", col: "user_id" },
           { table: "announcement_reads", col: "user_id" },
           { table: "announcements", col: "created_by" },
+          { table: "time_entries", col: "user_id" },
+          { table: "missed_logs", col: "user_id" },
+          { table: "remote_work_requests", col: "user_id" },
         ];
 
         for (const d of relatedDeletes) {
           const { error: relErr } = await adminClient.from(d.table).delete().eq(d.col, user_id);
           if (relErr) {
-            // log and continue; don't fail deletion due to missing table or constraints
             console.warn(`manage-user: failed deleting from ${d.table}:`, relErr.message);
           }
         }
 
-        // Remove user row from users table
-        const { error: dbErr } = await adminClient.from("users").delete().eq("id", user_id);
+        // Set metadata reference fields to null (these point TO the user being deleted,
+        // so we don't want to delete the whole record — just sever the reference)
+        const nullifyRefs = [
+          { table: "attendance", col: "edited_by" },
+          { table: "leave_requests", col: "reviewed_by" },
+          { table: "remote_work_requests", col: "reviewed_by" },
+          { table: "clients", col: "created_by" },
+          { table: "projects", col: "created_by" },
+          { table: "system_settings", col: "updated_by" },
+        ];
+
+        for (const r of nullifyRefs) {
+          const { error: refErr } = await adminClient.from(r.table).update({ [r.col]: null }).eq(r.col, user_id);
+          if (refErr) {
+            console.warn(`manage-user: failed nullifying ${r.table}.${r.col}:`, refErr.message);
+          }
+        }
+
+        // Remove user row from users table (server-side, no RLS issues with service_role client)
+        const { error: dbErr } = await adminClient.from("users").delete().eq("id", user_id).maybeSingle();
         if (dbErr) return jsonResponse({ ok: false, error: dbErr.message });
 
         // Delete auth user

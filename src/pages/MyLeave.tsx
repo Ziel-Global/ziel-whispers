@@ -180,17 +180,20 @@ export default function MyLeavePage() {
   const currentLeaveYear = useMemo(() => getCurrentLeaveYear(), []);
 
   // Calculate used days from approved leave requests (live calculation, current leave year)
+  // Includes full-day leaves (days_count) + half-day leaves converted to day-equivalent (every 8 hours = 1 day)
   const { data: usedDays = 0 } = useQuery({
     queryKey: ["my-used-leave-days", user?.id, currentLeaveYear.startYear],
     queryFn: async () => {
       const { data } = await supabase
         .from("leave_requests")
-        .select("days_count")
+        .select("days_count, hours")
         .eq("user_id", user!.id)
         .eq("status", "approved")
         .gte("start_date", currentLeaveYear.start)
         .lte("start_date", currentLeaveYear.end);
-      return (data || []).reduce((sum, r) => sum + r.days_count, 0);
+      const daySum = (data || []).reduce((sum, r) => sum + r.days_count, 0);
+      const hourSum = (data || []).reduce((sum, r) => sum + Number(r.hours || 0), 0);
+      return daySum + Math.floor(hourSum / 8);
     },
     enabled: !!user?.id,
   });
@@ -291,6 +294,19 @@ export default function MyLeavePage() {
     if (isExhausted) { toast.error("You have exhausted your annual leave balance."); return; }
     if (finalDaysCount > remainingDays) { toast.error(`Insufficient balance. You have ${remainingDays} days remaining.`); return; }
 
+    // Check for overlapping leave requests (pending or approved) in the same date range
+    const { data: overlapping } = await supabase
+      .from("leave_requests")
+      .select("id, status, start_date, end_date")
+      .eq("user_id", user!.id)
+      .in("status", ["pending", "approved"])
+      .lte("start_date", finalEndDate)
+      .gte("end_date", startDate);
+    if (overlapping && overlapping.length > 0) {
+      toast.error("You have already applied for leave on this date");
+      return;
+    }
+
     const categoryLabel = LEAVE_CATEGORIES.find(c => c.value === leaveCategory)?.label;
     const { data: leaveTypes } = await supabase.from("leave_types").select("id").ilike("name", `%${categoryLabel}%`).limit(1);
     const leaveType = leaveTypes?.[0] ?? null;
@@ -320,7 +336,7 @@ export default function MyLeavePage() {
       toast.success("Leave request submitted");
       setApplyOpen(false);
       setLeaveCategory(""); setStartDate(""); setEndDate(""); setReason(""); setOtherReason(""); setLeaveHours("");
-      queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["my-leave-requests", user!.id] });
       queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
       queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
     } catch (err: any) { toast.error(err.message); }
@@ -330,15 +346,17 @@ export default function MyLeavePage() {
   const deleteRequest = async () => {
     if (!deleteId) return;
     setDeleting(true);
-    const { error } = await supabase.from("leave_requests").delete().eq("id", deleteId);
+    const { data, error } = await supabase.from("leave_requests").delete().eq("id", deleteId).select();
     setDeleting(false);
     if (error) {
       toast.error(error.message);
+    } else if (!data || data.length === 0) {
+      toast.error("Could not delete leave request. It may have already been removed or you don't have permission.");
     } else {
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.deleted", target_entity: "leave_requests", target_id: deleteId });
       toast.success("Leave request deleted");
       setDeleteId(null);
-      queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["my-leave-requests", user!.id] });
       queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
       queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
     }

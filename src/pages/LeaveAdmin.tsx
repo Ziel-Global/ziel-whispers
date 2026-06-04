@@ -122,21 +122,27 @@ export default function LeaveAdminPage() {
   });
 
   // Per-employee used days for the selected leave year
+  // Includes full-day leaves (days_count) + half-day leaves converted to day-equivalent (every 8 hours = 1 day)
   const { data: employeeUsage = {} as Record<string, { used: number; total: number }> } = useQuery({
     queryKey: ["admin-employee-usage", selectedYear],
     queryFn: async () => {
       const yearRange = getLeaveYearRange(selectedYear);
       const { data: approved } = await supabase
         .from("leave_requests")
-        .select("user_id, days_count")
+        .select("user_id, days_count, hours")
         .eq("status", "approved")
         .gte("start_date", yearRange.start)
         .lte("start_date", yearRange.end);
-      const usage: Record<string, { used: number; total: number }> = {};
+      const usage: Record<string, { used: number; total: number; halfDayHours: number }> = {};
       (approved || []).forEach((r: any) => {
-        if (!usage[r.user_id]) usage[r.user_id] = { used: 0, total: Number(annualEntitlement) || 12 };
+        if (!usage[r.user_id]) usage[r.user_id] = { used: 0, total: Number(annualEntitlement) || 12, halfDayHours: 0 };
         usage[r.user_id].used += r.days_count;
+        usage[r.user_id].halfDayHours += Number(r.hours || 0);
       });
+      for (const id of Object.keys(usage)) {
+        usage[id].used += Math.floor(usage[id].halfDayHours / 8);
+        delete usage[id].halfDayHours;
+      }
       return usage;
     },
     enabled: !!annualEntitlement,

@@ -660,7 +660,7 @@ export default function DashboardPage() {
                   <div>
                     <h2 className="text-sm font-medium">Team Today</h2>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {teamStatus?.filter((m: any) => !!m.attendance?.clock_in).length || 0} active now
+                      {teamStatus?.filter((m: any) => !!m.attendance?.clock_in && !m.attendance?.clock_out).length || 0} active now
                     </p>
                   </div>
                 </div>

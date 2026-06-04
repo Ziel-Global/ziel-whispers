@@ -302,8 +302,8 @@ export default function LogSubmitPage() {
         if (error) throw error;
       }
 
-      // Only auto clock out if submitting today's logs AND the open session is from today
-      const allLogsForToday = pendingLogs.every((log: any) => log.log_date === todayStr);
+      // Only auto clock out if at least one of today's logs is being submitted AND the open session is from today
+      const hasTodayLogs = pendingLogs.some((log: any) => log.log_date === todayStr);
 
       const { data: openSession } = await supabase
         .from("attendance")
@@ -316,7 +316,7 @@ export default function LogSubmitPage() {
         .maybeSingle();
 
       let clockedOut = false;
-      if (openSession && allLogsForToday && openSession.date === todayStr) {
+      if (openSession && hasTodayLogs && openSession.date === todayStr) {
         const { error: clockOutError } = await supabase
           .from("attendance")
           .update({ clock_out: nowPKTStr })
@@ -360,6 +360,7 @@ export default function LogSubmitPage() {
         await queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
         await queryClient.invalidateQueries({ queryKey: ["attendance-month"] });
         await queryClient.invalidateQueries({ queryKey: ["attendance-open-session"] });
+        await queryClient.invalidateQueries({ queryKey: ["dashboard-team-today"] });
       }
       setShowSubmitConfirm(false);
     } catch (err: any) {

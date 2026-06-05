@@ -262,7 +262,11 @@ export default function EmployeesPage() {
                   if (deletingUser.id === profile?.id) { toast.error("You cannot delete your own account."); return; }
                   setDeleting(true);
                   try {
-                    const res = await supabase.functions.invoke("manage-user", { body: { action: "delete", user_id: deletingUser.id } }) as any;
+                    const { data: { session } } = await supabase.auth.getSession();
+                    const res = await supabase.functions.invoke("manage-user", {
+                      body: { action: "delete", user_id: deletingUser.id },
+                      headers: { Authorization: `Bearer ${session?.access_token}` },
+                    }) as any;
                     if (res?.data?.ok) {
                       toast.success("User and related data deleted");
                       queryClient.invalidateQueries({ queryKey: ["employees"] });

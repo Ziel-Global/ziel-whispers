@@ -572,7 +572,7 @@ export default function LogsAdminPage() {
                             row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
                             row.logStatus === "none" ? <Badge className="bg-gray-100 text-gray-500">N/A</Badge> :
                             row.logStatus === "on_leave" ? <Badge className="bg-purple-100 text-purple-700">On Leave</Badge> :
-                            row.logStatus === "half_day_leave" ? <Badge className="bg-purple-100 text-purple-700">{`Half Day Leave — ${row.leaveHours} hours`}</Badge> :
+                            row.logStatus === "half_day_leave" ? <Badge className="bg-purple-100 text-purple-700">{`Hourly Leave — ${row.leaveHours} hours`}</Badge> :
                             row.logStatus === "partial_day" ? <Badge className="bg-blue-100 text-blue-700">{`Partial Day — ${row.loggedHours.toFixed(1)}h worked, ${row.leaveHours}h on leave`}</Badge> :
                                 <Badge className="bg-green-100 text-green-800">Added</Badge>}
                         </TableCell>

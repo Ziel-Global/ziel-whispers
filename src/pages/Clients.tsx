@@ -132,6 +132,17 @@ export default function ClientsPage() {
     if (!deleteId) return;
     setDeleting(true);
     try {
+      // Pre-check for related projects (FK constraint)
+      const { data: relatedProjects } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("client_id", deleteId);
+      if (relatedProjects && relatedProjects.length > 0) {
+        toast.error(`Cannot delete: ${relatedProjects.length} project(s) are linked to this client. Archive the client instead.`);
+        setDeleting(false);
+        return;
+      }
+
       const { error } = await supabase.from("clients").delete().eq("id", deleteId);
       if (error) throw error;
       

@@ -19,7 +19,7 @@ import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Tras
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 
-const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Half Day Leave", "Other"];
+const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Hourly Leave", "Other"];
 
 import { getLeaveTypeName, getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
 
@@ -122,21 +122,27 @@ export default function LeaveAdminPage() {
   });
 
   // Per-employee used days for the selected leave year
+  // Includes full-day leaves (days_count) + half-day leaves converted to day-equivalent (every 8 hours = 1 day)
   const { data: employeeUsage = {} as Record<string, { used: number; total: number }> } = useQuery({
     queryKey: ["admin-employee-usage", selectedYear],
     queryFn: async () => {
       const yearRange = getLeaveYearRange(selectedYear);
       const { data: approved } = await supabase
         .from("leave_requests")
-        .select("user_id, days_count")
+        .select("user_id, days_count, hours")
         .eq("status", "approved")
         .gte("start_date", yearRange.start)
         .lte("start_date", yearRange.end);
-      const usage: Record<string, { used: number; total: number }> = {};
+      const usage: Record<string, { used: number; total: number; halfDayHours: number }> = {};
       (approved || []).forEach((r: any) => {
-        if (!usage[r.user_id]) usage[r.user_id] = { used: 0, total: Number(annualEntitlement) || 12 };
+        if (!usage[r.user_id]) usage[r.user_id] = { used: 0, total: Number(annualEntitlement) || 12, halfDayHours: 0 };
         usage[r.user_id].used += r.days_count;
+        usage[r.user_id].halfDayHours += Number(r.hours || 0);
       });
+      for (const id of Object.keys(usage)) {
+        usage[id].used += Math.floor(usage[id].halfDayHours / 8);
+        delete usage[id].halfDayHours;
+      }
       return usage;
     },
     enabled: !!annualEntitlement,
@@ -227,6 +233,10 @@ export default function LeaveAdminPage() {
         metadata: { employee_id: userId, action: newStatus },
       });
 
+      supabase.functions.invoke("send-request-notification", {
+        body: { type: "wfh", action: newStatus, request_id: id, app_url: window.location.origin },
+      }).catch(() => {});
+
       toast.success(`Work From Home request ${type}d`);
       await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
       await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
@@ -284,6 +294,10 @@ export default function LeaveAdminPage() {
         type: `leave.${newStatus}`,
         metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
       });
+
+      supabase.functions.invoke("send-request-notification", {
+        body: { type: "leave", action: newStatus, request_id: request.id, admin_comment: adminComment || undefined, app_url: window.location.origin },
+      }).catch(() => {});
 
       // Half-day leave → Annual Leave conversion (using leave year)
       if (type === "approve" && request.hours) {

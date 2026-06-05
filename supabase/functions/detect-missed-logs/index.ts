@@ -112,7 +112,7 @@ Deno.serve(async (req: Request) => {
           // Full Day Leave: skip
           continue;
         }
-        // Half Day Leave: check if combined logged + leave hours >= 8
+        // Hourly Leave: check if combined logged + leave hours >= 8
         const logged = loggedHoursByUserId.get(user.id) || 0;
         if (logged + Number(leave.hours) >= 8) {
           continue;

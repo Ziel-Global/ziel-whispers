@@ -743,7 +743,14 @@ export type Database = {
           id: string
           is_night_shift: boolean
           is_oversight: boolean
+          is_on_leave: boolean
+          is_on_leave_from: string | null
+          is_on_leave_to: string | null
           join_date: string
+          log_edit_days: number | null
+          remote_access: boolean
+          remote_access_from: string | null
+          remote_access_to: string | null
           must_change_password: boolean
           phone: string | null
           reminder_offset_minutes: number
@@ -764,9 +771,16 @@ export type Database = {
           has_custom_shift?: boolean
           id: string
           is_night_shift?: boolean
+          is_on_leave?: boolean
+          is_on_leave_from?: string | null
+          is_on_leave_to?: string | null
           is_oversight?: boolean
           join_date: string
+          log_edit_days?: number | null
           must_change_password?: boolean
+          remote_access?: boolean
+          remote_access_from?: string | null
+          remote_access_to?: string | null
           phone?: string | null
           reminder_offset_minutes?: number
           role?: string
@@ -786,9 +800,16 @@ export type Database = {
           has_custom_shift?: boolean
           id?: string
           is_night_shift?: boolean
+          is_on_leave?: boolean
+          is_on_leave_from?: string | null
+          is_on_leave_to?: string | null
           is_oversight?: boolean
           join_date?: string
+          log_edit_days?: number | null
           must_change_password?: boolean
+          remote_access?: boolean
+          remote_access_from?: string | null
+          remote_access_to?: string | null
           phone?: string | null
           reminder_offset_minutes?: number
           role?: string

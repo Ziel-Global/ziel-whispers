@@ -52,7 +52,7 @@ WHERE t1.ctid < t2.ctid
 -- ============================================================================
 -- Map unknown leave types to Personal Leave
 -- Types that exist in system: Sick Leave, Personal Leave, Bereavement,
--- Casual Leave, Half Day Leave, Other
+-- Casual Leave, Hourly Leave, Other
 -- Types that should be mapped to Personal Leave: Aitekaf Leaves, Marriage Leave,
 -- Medical Emergency, Wedding Leave (and any other unknown types)
 

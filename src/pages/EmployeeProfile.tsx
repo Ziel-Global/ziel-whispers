@@ -19,11 +19,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { ArrowLeft, Shield, ShieldOff, Download, Trash2 } from "lucide-react";
+import { ArrowLeft, Shield, ShieldOff, Download, Trash2, Save } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
 import { getAvatarUrl, formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
 
@@ -72,6 +73,19 @@ export default function EmployeeProfilePage() {
 
   // Logged Hours tab state
   const [loggedHoursMonth, setLoggedHoursMonth] = useState(() => getPKTDateString().slice(0, 7));
+
+  // Feature 1 — Log Edit Days
+  const [logEditDays, setLogEditDays] = useState<string>("");
+  const [savingLogEditDays, setSavingLogEditDays] = useState(false);
+
+  // Feature 2 — Access Controls
+  const [employeeRemoteAccess, setEmployeeRemoteAccess] = useState(false);
+  const [employeeRemoteAccessFrom, setEmployeeRemoteAccessFrom] = useState("");
+  const [employeeRemoteAccessTo, setEmployeeRemoteAccessTo] = useState("");
+  const [employeeIsOnLeave, setEmployeeIsOnLeave] = useState(false);
+  const [employeeIsOnLeaveFrom, setEmployeeIsOnLeaveFrom] = useState("");
+  const [employeeIsOnLeaveTo, setEmployeeIsOnLeaveTo] = useState("");
+  const [savingAccessControls, setSavingAccessControls] = useState(false);
 
   const isAdmin = myProfile?.role === "admin";
   const isOwnProfile = myProfile?.id === id;
@@ -264,6 +278,13 @@ export default function EmployeeProfilePage() {
         working_days: employee.working_days || 5,
         overtime_enabled: employee.overtime_enabled ?? false,
       });
+      setLogEditDays(employee.log_edit_days ?? "");
+      setEmployeeRemoteAccess(employee.remote_access ?? false);
+      setEmployeeRemoteAccessFrom(employee.remote_access_from ?? "");
+      setEmployeeRemoteAccessTo(employee.remote_access_to ?? "");
+      setEmployeeIsOnLeave(employee.is_on_leave ?? false);
+      setEmployeeIsOnLeaveFrom(employee.is_on_leave_from ?? "");
+      setEmployeeIsOnLeaveTo(employee.is_on_leave_to ?? "");
     }
   }, [employee, form]);
 
@@ -453,6 +474,55 @@ export default function EmployeeProfilePage() {
     queryClient.invalidateQueries({ queryKey: ["employee-work-logs"] });
   };
 
+  const handleSaveLogEditDays = async () => {
+    if (!employee) return;
+    setSavingLogEditDays(true);
+    try {
+      const { error } = await supabase.from("users").update({
+        log_edit_days: logEditDays === "" ? null : parseInt(logEditDays, 10),
+      } as any).eq("id", employee.id);
+      if (error) throw error;
+      toast.success("Log edit days updated");
+      queryClient.invalidateQueries({ queryKey: ["employee", id] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingLogEditDays(false);
+    }
+  };
+
+  const handleSaveAccessControls = async () => {
+    if (!employee) return;
+
+    if (employeeRemoteAccess && (!employeeRemoteAccessFrom || !employeeRemoteAccessTo)) {
+      toast.error("Please select both From and To dates for Remote Access.");
+      return;
+    }
+    if (employeeIsOnLeave && (!employeeIsOnLeaveFrom || !employeeIsOnLeaveTo)) {
+      toast.error("Please select both From and To dates for Mark as On Leave.");
+      return;
+    }
+
+    setSavingAccessControls(true);
+    try {
+      const { error } = await supabase.from("users").update({
+        remote_access: employeeRemoteAccess,
+        remote_access_from: employeeRemoteAccess ? employeeRemoteAccessFrom : null,
+        remote_access_to: employeeRemoteAccess ? employeeRemoteAccessTo : null,
+        is_on_leave: employeeIsOnLeave,
+        is_on_leave_from: employeeIsOnLeave ? employeeIsOnLeaveFrom : null,
+        is_on_leave_to: employeeIsOnLeave ? employeeIsOnLeaveTo : null,
+      } as any).eq("id", employee.id);
+      if (error) throw error;
+      toast.success("Access controls updated");
+      queryClient.invalidateQueries({ queryKey: ["employee", id] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingAccessControls(false);
+    }
+  };
+
   const exportWorkLogs = () => {
     const header = "Date,Project,Category,Hours,Description,Submitted At\n";
     const rows = workLogs.map((l: any) =>
@@ -564,6 +634,8 @@ export default function EmployeeProfilePage() {
           {isAdmin && <TabsTrigger value="projects">Projects</TabsTrigger>}
           {isAdmin && <TabsTrigger value="logs">Work Logs</TabsTrigger>}
           {isAdmin && <TabsTrigger value="logged-hours">Logged Hours</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="log-edit-days">Log Edit Days</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="access-controls">Access Controls</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="profile">
@@ -971,6 +1043,131 @@ export default function EmployeeProfilePage() {
                 </p>
               </Card>
             </div>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="log-edit-days">
+            <Card className="p-6 space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold">Log Edit Days</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Set how many past days this employee can edit or add logs for. The current day is not counted.
+                  Leave blank to allow only today (no past log editing).
+                </p>
+              </div>
+              <div className="space-y-2 max-w-xs">
+                <Label>Number of Past Days</Label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="30"
+                  placeholder="e.g. 3"
+                  value={logEditDays}
+                  onChange={(e) => setLogEditDays(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {logEditDays === ""
+                    ? "Not set — employee can only log for today."
+                    : `Employee can edit logs for today and ${logEditDays} past day${Number(logEditDays) === 1 ? "" : "s"}.`}
+                </p>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={handleSaveLogEditDays} disabled={savingLogEditDays}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {savingLogEditDays ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </Card>
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="access-controls">
+            <Card className="p-6 space-y-6">
+              <div>
+                <h3 className="text-lg font-semibold">Access Controls</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Manage per-employee access settings. Changes take effect immediately.
+                </p>
+              </div>
+              <div className="space-y-5">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm font-medium">Remote Access</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Allows the employee to clock in as remote within the specified date range.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={employeeRemoteAccess}
+                      onCheckedChange={setEmployeeRemoteAccess}
+                    />
+                  </div>
+                  {employeeRemoteAccess && (
+                    <div className="grid grid-cols-2 gap-3 pl-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">From Date</Label>
+                        <Input
+                          type="date"
+                          value={employeeRemoteAccessFrom}
+                          onChange={(e) => setEmployeeRemoteAccessFrom(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">To Date</Label>
+                        <Input
+                          type="date"
+                          value={employeeRemoteAccessTo}
+                          onChange={(e) => setEmployeeRemoteAccessTo(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label className="text-sm font-medium">Mark as On Leave</Label>
+                      <p className="text-xs text-muted-foreground">
+                        Marks the employee as on leave within the specified date range.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={employeeIsOnLeave}
+                      onCheckedChange={setEmployeeIsOnLeave}
+                    />
+                  </div>
+                  {employeeIsOnLeave && (
+                    <div className="grid grid-cols-2 gap-3 pl-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">From Date</Label>
+                        <Input
+                          type="date"
+                          value={employeeIsOnLeaveFrom}
+                          onChange={(e) => setEmployeeIsOnLeaveFrom(e.target.value)}
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">To Date</Label>
+                        <Input
+                          type="date"
+                          value={employeeIsOnLeaveTo}
+                          onChange={(e) => setEmployeeIsOnLeaveTo(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="flex justify-end pt-2">
+                <Button onClick={handleSaveAccessControls} disabled={savingAccessControls}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {savingAccessControls ? "Saving…" : "Save"}
+                </Button>
+              </div>
+            </Card>
           </TabsContent>
         )}
       </Tabs>

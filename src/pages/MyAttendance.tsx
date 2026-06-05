@@ -157,6 +157,13 @@ export default function MyAttendancePage() {
   });
 
   const hasApprovedWfh = !!todayWfh;
+  const hasRemoteAccess = profile?.remote_access ?? false;
+  const remoteAccessFrom = profile?.remote_access_from ?? null;
+  const remoteAccessTo = profile?.remote_access_to ?? null;
+  const remoteAccessInRange = hasRemoteAccess && remoteAccessFrom && remoteAccessTo
+    ? today >= remoteAccessFrom && today <= remoteAccessTo
+    : false;
+  const canClockInRemote = hasApprovedWfh || remoteAccessInRange;
 
   // Group logs by date
   const logsByDate = useMemo(() => {
@@ -398,7 +405,7 @@ export default function MyAttendancePage() {
           const workedHours = (workedSeconds / 3600).toFixed(1);
           return { label: `Partial Day — ${workedHours} hrs worked, ${leave.hours} hrs on leave`, color: "text-blue-600" };
         }
-        return { label: `Half Day Leave — ${leave.hours} hours`, color: "text-purple-600" };
+        return { label: `Hourly Leave — ${leave.hours} hours`, color: "text-purple-600" };
       }
     }
 
@@ -493,13 +500,13 @@ export default function MyAttendancePage() {
                         <SelectTrigger><SelectValue placeholder="Select mode" /></SelectTrigger>
                         <SelectContent>
                           <SelectItem value="onsite">Onsite</SelectItem>
-                          <SelectItem value="remote" disabled={!hasApprovedWfh}>Remote</SelectItem>
+                          <SelectItem value="remote" disabled={!canClockInRemote}>Remote</SelectItem>
                         </SelectContent>
                       </Select>
-                      {!hasApprovedWfh && (
+                      {!canClockInRemote && (
                         <p className="text-[11px] text-muted-foreground flex items-center mt-1">
                           <AlertTriangle className="h-3 w-3 mr-1 text-yellow-500" />
-                          Work From Home request required to clock in remotely
+                          Remote access not enabled. Contact admin or submit a WFH request.
                         </p>
                       )}
                     </div>
@@ -600,7 +607,7 @@ export default function MyAttendancePage() {
                     </Badge>
                   </div>
                   {leave.hours ? (
-                    <p className="text-xs text-purple-600"><strong>Hours Taken:</strong> {leave.hours} hours (Half Day Leave)</p>
+                    <p className="text-xs text-purple-600"><strong>Hours Taken:</strong> {leave.hours} hours (Hourly Leave)</p>
                   ) : (
                     <p className="text-xs text-purple-600">Full Day Leave</p>
                   )}

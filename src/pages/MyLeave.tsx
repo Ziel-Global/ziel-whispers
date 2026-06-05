@@ -24,7 +24,7 @@ const LEAVE_CATEGORIES = [
   { value: "personal", label: "Personal Leave" },
   { value: "bereavement", label: "Bereavement" },
   { value: "casual", label: "Casual Leave" },
-  { value: "half_day", label: "Half Day Leave" },
+  { value: "half_day", label: "Hourly Leave" },
   { value: "other", label: "Other" },
 ];
 
@@ -441,7 +441,7 @@ export default function MyLeavePage() {
                   <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
                   <TableCell className="font-medium">
                     {r.hours 
-                      ? `Half Day Leave — ${r.hours} hours` 
+                      ? `Hourly Leave — ${r.hours} hours` 
                       : (r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual")}
                   </TableCell>
                   <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
@@ -644,7 +644,7 @@ export default function MyLeavePage() {
               )}
               {leaveCategory === "half_day" ? (
                 startDate && (
-                  <p className="text-sm text-muted-foreground">Half Day Leave · {remainingDays} days remaining</p>
+                  <p className="text-sm text-muted-foreground">Hourly Leave · {remainingDays} days remaining</p>
                 )
               ) : (
                 workingDaysCount > 0 && (

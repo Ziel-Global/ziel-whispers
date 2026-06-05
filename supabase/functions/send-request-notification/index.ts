@@ -181,7 +181,7 @@ async function callSendEmail(
 function getLeaveTypeName(r: Record<string, unknown>): string {
   if (!r) return "";
   const hours = r.hours;
-  if (hours) return `Half Day Leave — ${hours} hours`;
+  if (hours) return `Hourly Leave — ${hours} hours`;
   const reason = (r.reason as string) || "";
   const leaveTypes = r.leave_types as Record<string, unknown> | null;
   const nameFromReason = reason.split(":")[0]?.split(" - ")[0];

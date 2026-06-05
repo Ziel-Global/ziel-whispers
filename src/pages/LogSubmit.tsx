@@ -61,13 +61,16 @@ export default function LogSubmitPage() {
     enabled: !!user?.id,
   });
 
-  const { data: logEditDays = 3 } = useQuery({
-    queryKey: ["system-setting-log-edit-days"],
+  const { data: perEmployeeLogEditDays } = useQuery({
+    queryKey: ["my-log-edit-days", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("system_settings").select("value").eq("key", "log_edit_window_days").maybeSingle();
-      return data ? Number(data.value) : 3;
+      const { data } = await supabase.from("users").select("log_edit_days").eq("id", user!.id).single();
+      return data?.log_edit_days ?? null;
     },
+    enabled: !!user?.id,
   });
+
+  const effectiveLogEditDays = perEmployeeLogEditDays ?? null;
 
   const minDate = getMinDateStr(10);
 
@@ -90,16 +93,6 @@ export default function LogSubmitPage() {
     enabled: !!user?.id,
   });
 
-  const getPrevWorkingDay = () => {
-    let d = new Date(today + "T00:00:00");
-    do {
-      d.setDate(d.getDate() - 1);
-    } while (d.getDay() === 0 || (d.getDay() === 6 && workingDays === 5 && !overtimeEnabled));
-    return format(d, "yyyy-MM-dd");
-  };
-
-  const prevWorkingDay = getPrevWorkingDay();
-
   const schema = z.object({
     project_id: z.string().min(1, "Please select a project"),
     category: z.string().min(1, "Category is required"),
@@ -114,9 +107,13 @@ export default function LogSubmitPage() {
       return true;
     }, "Cannot submit logs for this day").refine((v) => {
       const isToday = v === today;
-      const isPrevWorking = v === prevWorkingDay;
-      return isToday || isPrevWorking;
-    }, "Only today and the previous working day are available for logs").refine((v) => {
+      if (effectiveLogEditDays === null) return isToday;
+      if (isToday) return true;
+      const d = new Date(today + "T00:00:00");
+      const pastLimit = new Date(d.getTime() - effectiveLogEditDays * 86400000);
+      const checkDate = new Date(v + "T00:00:00");
+      return checkDate >= pastLimit && checkDate < d;
+    }, "This date is outside your allowed log editing window").refine((v) => {
       // Overtime users have no daily cap
       if (overtimeEnabled) return true;
       const total = logsTotals[v] || 0;
@@ -493,10 +490,18 @@ export default function LogSubmitPage() {
                             if (day === 6 && workingDays === 5) return true;
                           }
                           
-                          // Only Today and Previous Working Day are allowed
+                          // Enforce per-employee log edit window
                           const isToday = dateStr === today;
-                          const isPrevWorking = dateStr === prevWorkingDay;
-                          if (!isToday && !isPrevWorking) return true;
+                          if (effectiveLogEditDays === null) {
+                            if (!isToday) return true;
+                          } else {
+                            if (!isToday) {
+                              const d = new Date(today + "T00:00:00");
+                              const pastLimit = new Date(d.getTime() - effectiveLogEditDays * 86400000);
+                              const checkDate = new Date(dateStr + "T00:00:00");
+                              if (checkDate < pastLimit || checkDate >= d) return true;
+                            }
+                          }
                           
                           // Disable if already has 24+ hours (hard cap)
                           if ((logsTotals[dateStr] || 0) >= 24) return true;

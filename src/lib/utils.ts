@@ -57,7 +57,7 @@ export function formatHours(h: number) {
 export function getLeaveTypeName(r: any) {
   if (!r) return "";
   if (r.hours) {
-    return `Half Day Leave — ${r.hours} hours`;
+    return `Hourly Leave — ${r.hours} hours`;
   }
   return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
 }

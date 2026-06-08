@@ -106,6 +106,8 @@ export type Database = {
           hours_late: number
           id: string
           is_late: boolean
+          log_reminder_sent: boolean
+          log_reminder_time: string | null
           minutes_late: number
           notes: string | null
           user_id: string | null
@@ -122,6 +124,8 @@ export type Database = {
           hours_late?: number
           id?: string
           is_late?: boolean
+          log_reminder_sent?: boolean
+          log_reminder_time?: string | null
           minutes_late?: number
           notes?: string | null
           user_id?: string | null
@@ -138,6 +142,8 @@ export type Database = {
           hours_late?: number
           id?: string
           is_late?: boolean
+          log_reminder_sent?: boolean
+          log_reminder_time?: string | null
           minutes_late?: number
           notes?: string | null
           user_id?: string | null

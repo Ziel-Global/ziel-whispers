@@ -19,7 +19,7 @@ import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Tras
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 
-const LEAVE_CATEGORIES = ["Sick Leave", "Personal Leave", "Bereavement", "Casual Leave", "Hourly Leave", "Other"];
+const LEAVE_CATEGORIES = ["Sick Leave", "Casual Leave", "Hourly Leave", "Others"];
 
 import { getLeaveTypeName, getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
 

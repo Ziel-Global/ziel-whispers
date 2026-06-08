@@ -219,12 +219,27 @@ export default function MyAttendancePage() {
     setLoading(true);
     setLateConfirmOpen(false);
     try {
+      // Calculate reminder time = shift end - 15 minutes (PKT)
+      let reminderTime: string | null = null;
+      if (shiftEnd) {
+        const [endHour, endMin] = shiftEnd.split(":").map(Number);
+        if (!isNaN(endHour) && !isNaN(endMin)) {
+          const reminderDate = new Date(`${today}T${shiftEnd}:00+05:00`);
+          if (shiftStart && shiftEnd < shiftStart) {
+            reminderDate.setDate(reminderDate.getDate() + 1);
+          }
+          reminderDate.setMinutes(reminderDate.getMinutes() - 15);
+          reminderTime = reminderDate.toISOString();
+        }
+      }
+
       const { error } = await supabase.from("attendance").insert({
         user_id: user!.id,
         date: today,
         clock_in: getPKTISOString(),
         work_mode: workMode,
         notes: notes || null,
+        log_reminder_time: reminderTime,
       });
       if (error) throw error;
       await supabase.from("audit_logs").insert({

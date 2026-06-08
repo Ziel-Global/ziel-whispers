@@ -70,7 +70,7 @@ export default function LogSubmitPage() {
     enabled: !!user?.id,
   });
 
-  const effectiveLogEditDays = perEmployeeLogEditDays ?? null;
+  const effectiveLogEditDays = perEmployeeLogEditDays ?? 1;
 
   const minDate = getMinDateStr(10);
 

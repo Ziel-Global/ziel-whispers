@@ -1053,7 +1053,7 @@ export default function EmployeeProfilePage() {
                 <h3 className="text-lg font-semibold">Log Edit Days</h3>
                 <p className="text-sm text-muted-foreground mt-1">
                   Set how many past days this employee can edit or add logs for. The current day is not counted.
-                  Leave blank to allow only today (no past log editing).
+                   Leave blank to allow 1 past day by default. Set to 0 to restrict to today only.
                 </p>
               </div>
               <div className="space-y-2 max-w-xs">
@@ -1068,7 +1068,7 @@ export default function EmployeeProfilePage() {
                 />
                 <p className="text-xs text-muted-foreground">
                   {logEditDays === ""
-                    ? "Not set — employee can only log for today."
+                    ? "Not set — employee can log for today and 1 past day (default)."
                     : `Employee can edit logs for today and ${logEditDays} past day${Number(logEditDays) === 1 ? "" : "s"}.`}
                 </p>
               </div>

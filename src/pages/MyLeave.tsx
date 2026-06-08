@@ -21,11 +21,9 @@ import { getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/l
 
 const LEAVE_CATEGORIES = [
   { value: "sick", label: "Sick Leave" },
-  { value: "personal", label: "Personal Leave" },
-  { value: "bereavement", label: "Bereavement" },
   { value: "casual", label: "Casual Leave" },
   { value: "half_day", label: "Hourly Leave" },
-  { value: "other", label: "Other" },
+  { value: "other", label: "Others" },
 ];
 
 export default function MyLeavePage() {

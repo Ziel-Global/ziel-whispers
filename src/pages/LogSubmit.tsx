@@ -31,6 +31,33 @@ function getMinDateStr(days: number) {
   return format(d, "yyyy-MM-dd");
 }
 
+function isWithinLogEditWindow(dateStr: string, todayStr: string, windowDays: number, workingDays: number): boolean {
+  if (dateStr === todayStr) return true;
+  if (windowDays <= 0) return false;
+
+  const checkDate = new Date(dateStr + "T00:00:00");
+  const today = new Date(todayStr + "T00:00:00");
+
+  if (checkDate >= today) return false;
+
+  let workingDayCount = 0;
+  const cursor = new Date(today);
+
+  while (true) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (cursor < checkDate) break;
+
+    const day = cursor.getDay();
+    const isWorkingDay = day !== 0 && (day !== 6 || workingDays === 6);
+    if (isWorkingDay) {
+      workingDayCount++;
+      if (workingDayCount > windowDays) return false;
+    }
+  }
+
+  return true;
+}
+
 export default function LogSubmitPage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
@@ -106,14 +133,8 @@ export default function LogSubmitPage() {
       if (day === 6 && workingDays === 5) return false;
       return true;
     }, "Cannot submit logs for this day").refine((v) => {
-      const isToday = v === today;
-      if (effectiveLogEditDays === null) return isToday;
-      if (isToday) return true;
-      const d = new Date(today + "T00:00:00");
-      const pastLimit = new Date(d.getTime() - effectiveLogEditDays * 86400000);
-      const checkDate = new Date(v + "T00:00:00");
-      return checkDate >= pastLimit && checkDate < d;
-    }, "This date is outside your allowed log editing window").refine((v) => {
+      return isWithinLogEditWindow(v, today, effectiveLogEditDays, workingDays);
+    }, "You are not allowed to edit logs for this date").refine((v) => {
       // Overtime users have no daily cap
       if (overtimeEnabled) return true;
       const total = logsTotals[v] || 0;
@@ -490,18 +511,8 @@ export default function LogSubmitPage() {
                             if (day === 6 && workingDays === 5) return true;
                           }
                           
-                          // Enforce per-employee log edit window
-                          const isToday = dateStr === today;
-                          if (effectiveLogEditDays === null) {
-                            if (!isToday) return true;
-                          } else {
-                            if (!isToday) {
-                              const d = new Date(today + "T00:00:00");
-                              const pastLimit = new Date(d.getTime() - effectiveLogEditDays * 86400000);
-                              const checkDate = new Date(dateStr + "T00:00:00");
-                              if (checkDate < pastLimit || checkDate >= d) return true;
-                            }
-                          }
+                          // Enforce per-employee log edit window (working days only)
+                          if (!isWithinLogEditWindow(dateStr, today, effectiveLogEditDays, workingDays)) return true;
                           
                           // Disable if already has 24+ hours (hard cap)
                           if ((logsTotals[dateStr] || 0) >= 24) return true;

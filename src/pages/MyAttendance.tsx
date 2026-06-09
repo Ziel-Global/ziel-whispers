@@ -224,7 +224,8 @@ export default function MyAttendancePage() {
       if (shiftEnd) {
         const [endHour, endMin] = shiftEnd.split(":").map(Number);
         if (!isNaN(endHour) && !isNaN(endMin)) {
-          const reminderDate = new Date(`${today}T${shiftEnd}:00+05:00`);
+          const shiftEndTrimmed = shiftEnd.substring(0, 5);
+          const reminderDate = new Date(`${today}T${shiftEndTrimmed}:00+05:00`);
           if (shiftStart && shiftEnd < shiftStart) {
             reminderDate.setDate(reminderDate.getDate() + 1);
           }

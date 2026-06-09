@@ -283,7 +283,8 @@ export default function LogSubmitPage() {
       
       let isLate = false;
       if (resolvedShiftEnd && resolvedShiftEnd.includes(":")) {
-        const todayDeadline = new Date(`${todayStr}T${resolvedShiftEnd}:00+05:00`);
+        const shiftEndTrimmed = resolvedShiftEnd.substring(0, 5);
+        const todayDeadline = new Date(`${todayStr}T${shiftEndTrimmed}:00+05:00`);
         if (shiftStart && resolvedShiftEnd < shiftStart) {
           todayDeadline.setDate(todayDeadline.getDate() + 1);
         }

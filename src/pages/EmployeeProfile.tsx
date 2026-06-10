@@ -191,6 +191,24 @@ export default function EmployeeProfilePage() {
     enabled: !!id && isAdmin,
   });
 
+  // Approved leave covering today (live check, not from stored is_on_leave)
+  const todayPKT = getPKTDateString();
+  const { data: todayLeave = [] } = useQuery({
+    queryKey: ["employee-today-leave", id, todayPKT],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("id")
+        .eq("user_id", id!)
+        .eq("status", "approved")
+        .lte("start_date", todayPKT)
+        .gte("end_date", todayPKT);
+      return data || [];
+    },
+    enabled: !!id,
+  });
+  const isOnLeaveToday = todayLeave.length > 0;
+
   // Aggregated stats for the month
   const monthlyStats = useMemo(() => {
     const wd = employee?.working_days || 5;
@@ -282,7 +300,7 @@ export default function EmployeeProfilePage() {
       setEmployeeRemoteAccess(employee.remote_access ?? false);
       setEmployeeRemoteAccessFrom(employee.remote_access_from ?? "");
       setEmployeeRemoteAccessTo(employee.remote_access_to ?? "");
-      setEmployeeIsOnLeave(employee.is_on_leave ?? false);
+      setEmployeeIsOnLeave(isOnLeaveToday);
       setEmployeeIsOnLeaveFrom(employee.is_on_leave_from ?? "");
       setEmployeeIsOnLeaveTo(employee.is_on_leave_to ?? "");
     }

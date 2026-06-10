@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
-import { formatLateness, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
+import { formatLateness, getPKTDateString, formatPKTTime, isAttendanceLate } from "@/hooks/useWorkSettings";
 
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 
@@ -61,6 +61,14 @@ export default function AttendanceAdminPage() {
     },
   });
 
+  const { data: defaultShiftStart } = useQuery({
+    queryKey: ["default-shift-start-single"],
+    queryFn: async () => {
+      const { data } = await supabase.from("system_settings").select("value").eq("key", "default_shift_start").maybeSingle();
+      return (data?.value as string) || "09:00";
+    },
+  });
+
   const filtered = useMemo(() => {
     return records.filter((r: any) => {
       if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
@@ -75,7 +83,12 @@ export default function AttendanceAdminPage() {
     }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
   }, [records, deptFilter, workModeFilter, clockStatusFilter, searchQuery]);
 
-  const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);
+  const lateCount = useMemo(() => filtered.filter((r: any) => {
+    if (!r.clock_in) return false;
+    const shiftStart = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
+    if (!shiftStart) return false;
+    return isAttendanceLate(r.clock_in, shiftStart, 15, 5).isLate;
+  }).length, [filtered, defaultShiftStart]);
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
     const end = clockOut ? new Date(clockOut) : new Date();
@@ -149,7 +162,9 @@ export default function AttendanceAdminPage() {
       const ci = r.clock_in ? formatPKTTime(r.clock_in) : "";
       const co = r.clock_out ? formatPKTTime(r.clock_out) : "";
       const dur = r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "";
-      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.is_late ? "Yes" : "No"}","${r.minutes_late || 0}","${r.notes || ""}"`;
+      const shiftStart = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
+      const lateInfo = r.clock_in && shiftStart ? isAttendanceLate(r.clock_in, shiftStart, 15, 5) : { isLate: false, minutesLate: 0 };
+      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${lateInfo.isLate ? "Yes" : "No"}","${lateInfo.minutesLate || 0}","${r.notes || ""}"`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
@@ -249,9 +264,11 @@ export default function AttendanceAdminPage() {
                   <TableCell>{r.users?.department}</TableCell>
                   <TableCell>
                     {r.clock_in ? formatPKTTime(r.clock_in) : "—"}
-                    {r.is_late && (
-                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Late</Badge>
-                    )}
+                    {(() => {
+                      const shiftStart = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
+                      const lateInfo = r.clock_in && shiftStart ? isAttendanceLate(r.clock_in, shiftStart, 15, 5) : { isLate: false };
+                      return lateInfo.isLate ? <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Late</Badge> : null;
+                    })()}
                   </TableCell>
                   <TableCell>
                     {r.clock_out ? formatPKTTime(r.clock_out) : "—"}

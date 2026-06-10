@@ -11,13 +11,14 @@ import { Button } from "@/components/ui/button";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Lock, MessageSquare } from "lucide-react";
 import { format, subDays } from "date-fns";
-import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 
 import { formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
 
 export default function MyLogsPage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { shiftEnd } = useWorkSettings();
   const [selectedDate, setSelectedDate] = useState("");
   const [projectFilter, setProjectFilter] = useState("all");
 
@@ -148,7 +149,7 @@ export default function MyLogsPage() {
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        {log.is_late && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
+                        {log.submitted_at && isLogSubmissionLate(log.submitted_at, shiftEnd) && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
                         {log.is_locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
                       </div>
                     </div>

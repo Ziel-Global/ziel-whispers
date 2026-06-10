@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, isAttendanceLate, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
-  const { annualLeaveEntitlement, shiftStart, workingDays } = useWorkSettings();
+  const { annualLeaveEntitlement, shiftStart, shiftEnd, workingDays } = useWorkSettings();
   
   const dayOfWeek = new Date(today + "T00:00:00").getDay();
   const isWeekendDay = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
@@ -42,19 +42,25 @@ export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult, lateAttendanceResult] = await Promise.all([
+      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult, lateAttendanceData, defaultShiftData] = await Promise.all([
         supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active").lte("join_date", today),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
-        supabase.from("attendance").select("*", { count: "exact", head: true }).eq("date", today).eq("is_late", true),
+        supabase.from("attendance").select("clock_in, users!attendance_user_id_fkey(shift_start, has_custom_shift)").eq("date", today).not("clock_in", "is", null),
+        supabase.from("system_settings").select("value").eq("key", "default_shift_start").maybeSingle(),
       ]);
+      const defaultShiftStart = (defaultShiftData.data?.value as string) || "09:00";
+      const lateToday = (lateAttendanceData.data || []).filter((r: any) => {
+        const ss = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
+        return ss ? isAttendanceLate(r.clock_in, ss, 15, 5).isLate : false;
+      }).length;
       return {
         activeEmployees: activeEmployeesResult.count || 0,
         todayClockedIn: todayAttendanceResult.data?.length || 0,
         pendingLeaves: pendingLeavesResult.count || 0,
         activeProjects: activeProjectsResult.count || 0,
-        lateToday: lateAttendanceResult.count || 0,
+        lateToday,
       };
     },
     enabled: isAdmin && hasProfile,
@@ -64,9 +70,9 @@ export default function DashboardPage() {
   const { data: lateLogs } = useQuery({
     queryKey: ["dashboard-late-logs"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("is_late", true).eq("status", "submitted").limit(10);
+      const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("status", "submitted").limit(50);
       if (error) throw error;
-      return data || [];
+      return (data || []).filter((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, shiftEnd)).slice(0, 10);
     },
     enabled: isAdmin && hasProfile,
   });
@@ -592,8 +598,8 @@ export default function DashboardPage() {
           {isClockedIn ? (
             <>
               <p className="text-sm">Clocked in since <strong>{format(new Date(todayRecord!.clock_in!), "h:mm a")}</strong> ({todayRecord!.work_mode})</p>
-              {todayRecord!.is_late && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(todayRecord!.minutes_late)}.</p>
+              {todayRecord?.clock_in && isAttendanceLate(todayRecord.clock_in, shiftStart, 15, workingDays).isLate && (
+                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(isAttendanceLate(todayRecord.clock_in, shiftStart, 15, workingDays).minutesLate)}.</p>
               )}
             </>
           ) : hasClockedOut ? (

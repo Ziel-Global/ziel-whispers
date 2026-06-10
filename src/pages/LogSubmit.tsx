@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkSettings, getPKTDateString, formatPKTTime, getPKTISOString } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, formatPKTTime, getPKTISOString, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -624,7 +624,7 @@ export default function LogSubmitPage() {
                       <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">{log.category}</Badge>
                       <span className="text-sm font-medium">{formatHours(log.hours)}</span>
                       {log.is_overtime && <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge>}
-                      {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                      {log.submitted_at && isLogSubmissionLate(log.submitted_at, resolvedShiftEnd) && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
                     </div>
                     <p className="text-sm text-black">{log.description}</p>
                   </div>

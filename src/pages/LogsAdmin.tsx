@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
-import { formatTime12h, getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
+import { formatTime12h, getPKTDateString, formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
 
 import { formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
@@ -252,7 +252,7 @@ export default function LogsAdminPage() {
 
       // Log status: missed / added / late / on_leave / half_day_leave / partial_day
       const hasLogs = empLogs.length > 0;
-      const hasLateLog = empLogs.some((l: any) => l.is_late);
+      const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd));
       const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
       
       let logStatus: "missed" | "added" | "late" | "none" | "on_leave" | "half_day_leave" | "partial_day" = "missed";
@@ -330,7 +330,8 @@ export default function LogsAdminPage() {
     }).map((emp: any) => {
       const empLogs = logsByUser[emp.id] || [];
       const hasLogs = empLogs.length > 0;
-      const hasLateLog = empLogs.some((l: any) => l.is_late);
+      const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
+      const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd));
       const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
 
       const leave = leavesByUser[emp.id];
@@ -359,7 +360,13 @@ export default function LogsAdminPage() {
 
   const missedList = allUnfilteredRows.filter(r => r.logStatus === "missed");
   const addedList = allUnfilteredRows.filter(r => r.logStatus === "added" || r.logStatus === "partial_day" || r.logStatus === "late");
-  const lateList = allUnfilteredRows.filter(r => logs.some((l: any) => l.user_id === r.userId && l.is_late));
+  const lateList = allUnfilteredRows.filter(r => logs.some((l: any) => {
+    if (l.user_id !== r.userId || !l.submitted_at) return false;
+    const emp = employees.find((e: any) => e.id === r.userId);
+    if (!emp) return false;
+    const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
+    return empShiftEnd ? isLogSubmissionLate(l.submitted_at, empShiftEnd) : false;
+  }));
 
   const toggleFlag = async (log: any) => {
     await supabase.from("daily_logs").update({ admin_flagged: !log.admin_flagged }).eq("id", log.id);
@@ -647,7 +654,11 @@ export default function LogsAdminPage() {
                                           <p className="text-sm text-muted-foreground">{log.description}</p>
                                         </div>
                                         <div className="flex flex-wrap items-center gap-2">
-                                          {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                                          {(() => {
+                                            const emp = employees.find((e: any) => e.id === log.user_id);
+                                            const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
+                                            return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
+                                          })()}
                                           {log.admin_comment && (
                                             <div>
                                               <p className="text-[12px] text-muted-foreground mb-0.5">Admin Comment</p>
@@ -799,7 +810,11 @@ export default function LogsAdminPage() {
                                             </div>
                                             <div className="flex flex-wrap items-center gap-2">
                                               <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge>
-                                              {log.is_late && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                                              {(() => {
+                                                const emp = employees.find((e: any) => e.id === log.user_id);
+                                                const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
+                                                return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
+                                              })()}
                                               {log.admin_comment && (
                                                 <div className="mt-1">
                                                   <p className="text-[12px] text-purple-600 mb-0.5 font-medium">Admin Comment</p>

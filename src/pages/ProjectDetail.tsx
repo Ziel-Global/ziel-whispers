@@ -13,11 +13,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarUrl } from "@/lib/utils";
-import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink } from "lucide-react";
+import { getAvatarUrl, parseCSVLine } from "@/lib/utils";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
@@ -40,6 +41,19 @@ export default function ProjectDetailPage() {
   const [completionWarning, setCompletionWarning] = useState(false);
   const [pendingStatus, setPendingStatus] = useState("");
   const [logFilterDate, setLogFilterDate] = useState<string>(getPKTDateString());
+  const [addTaskOpen, setAddTaskOpen] = useState(false);
+  const [taskTitle, setTaskTitle] = useState("");
+  const [taskDescription, setTaskDescription] = useState("");
+  const [taskPriority, setTaskPriority] = useState("medium");
+  const [editTaskOpen, setEditTaskOpen] = useState(false);
+  const [editTaskId, setEditTaskId] = useState<string | null>(null);
+  const [editTaskTitle, setEditTaskTitle] = useState("");
+  const [editTaskDescription, setEditTaskDescription] = useState("");
+  const [editTaskPriority, setEditTaskPriority] = useState("medium");
+  const [bulkTaskOpen, setBulkTaskOpen] = useState(false);
+  const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; errors: string[] }[]>([]);
+  const [csvFileName, setCsvFileName] = useState("");
+  const [uploading, setUploading] = useState(false);
 
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
@@ -89,6 +103,15 @@ export default function ProjectDetailPage() {
     queryKey: ["project-logs", id],
     queryFn: async () => {
       const { data } = await supabase.from("daily_logs").select("*, users(full_name)").eq("project_id", id!).eq("status", "submitted").order("log_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  const { data: tasks } = useQuery({
+    queryKey: ["project-tasks", id],
+    queryFn: async () => {
+      const { data } = await supabase.from("tasks").select("*").eq("project_id", id!).order("created_at", { ascending: false });
       return data || [];
     },
     enabled: !!id,
@@ -163,6 +186,132 @@ export default function ProjectDetailPage() {
     const a = document.createElement("a"); a.href = url; a.download = filename; a.click(); URL.revokeObjectURL(url);
   };
 
+  const handleCreateTask = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!taskTitle.trim()) return;
+    try {
+      const { error } = await supabase.from("tasks").insert({
+        project_id: id!,
+        title: taskTitle.trim(),
+        description: taskDescription.trim() || null,
+        priority: taskPriority,
+        status: "unlinked",
+        created_by: profile?.id,
+      });
+      if (error) throw error;
+      toast.success("Task created");
+      setAddTaskOpen(false);
+      setTaskTitle("");
+      setTaskDescription("");
+      setTaskPriority("medium");
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const openEditTask = (task: any) => {
+    setEditTaskId(task.id);
+    setEditTaskTitle(task.title);
+    setEditTaskDescription(task.description || "");
+    setEditTaskPriority(task.priority);
+    setEditTaskOpen(true);
+  };
+
+  const handleEditTaskSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editTaskTitle.trim() || !editTaskId) return;
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({
+          title: editTaskTitle.trim(),
+          description: editTaskDescription.trim() || null,
+          priority: editTaskPriority,
+        })
+        .eq("id", editTaskId);
+      if (error) throw error;
+      toast.success("Task updated");
+      setEditTaskOpen(false);
+      setEditTaskId(null);
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const VALID_PRIORITIES = ["high", "medium", "low"];
+
+  const handleCSVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCsvFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      const lines = text.split(/\r?\n/).filter((l) => l.trim().length > 0);
+      if (lines.length < 2) {
+        toast.error("CSV must have a header row and at least one data row");
+        return;
+      }
+      const headers = parseCSVLine(lines[0]).map((h) => h.toLowerCase().trim());
+      const titleIdx = headers.indexOf("title");
+      const descIdx = headers.indexOf("description");
+      const prioIdx = headers.indexOf("priority");
+      if (titleIdx === -1) {
+        toast.error("CSV must have a 'title' column");
+        return;
+      }
+      const rows: { rowNum: number; title: string; description: string; priority: string; errors: string[] }[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const cols = parseCSVLine(lines[i]);
+        const title = cols[titleIdx]?.trim() || "";
+        const description = descIdx !== -1 ? (cols[descIdx]?.trim() || "") : "";
+        let priority = prioIdx !== -1 ? (cols[prioIdx]?.trim().toLowerCase() || "") : "";
+        const errors: string[] = [];
+        if (!title) errors.push("Title is required");
+        if (priority && !VALID_PRIORITIES.includes(priority)) {
+          errors.push(`Invalid priority "${priority}", defaulting to medium`);
+          priority = "medium";
+        }
+        if (!priority) priority = "medium";
+        rows.push({ rowNum: i + 1, title, description, priority, errors });
+      }
+      setCsvRows(rows);
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const handleBulkUpload = async () => {
+    const validRows = csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority")));
+    if (validRows.length === 0) {
+      toast.error("No valid rows to upload");
+      return;
+    }
+    setUploading(true);
+    try {
+      const inserts = validRows.map((r) => ({
+        project_id: id!,
+        title: r.title,
+        description: r.description || null,
+        priority: r.priority,
+        status: "unlinked",
+        created_by: profile?.id,
+      }));
+      const { error } = await supabase.from("tasks").insert(inserts);
+      if (error) throw error;
+      toast.success(`${validRows.length} task(s) added`);
+      setBulkTaskOpen(false);
+      setCsvRows([]);
+      setCsvFileName("");
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+    } catch (err: any) { toast.error(err.message); }
+    finally { setUploading(false); }
+  };
+
+  const unlinkedTasks = tasks?.filter((t) => t.status === "unlinked") || [];
+  const activeTasks = tasks?.filter((t) => t.status === "linked" || t.status === "in_progress" || t.status === "returned") || [];
+  const completedTasks = tasks?.filter((t) => t.status === "complete") || [];
+
+  const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
+
   if (isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
   if (!project) return <div className="text-center py-12 text-muted-foreground">Project not found</div>;
 
@@ -212,6 +361,7 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="members">Members ({members?.length || 0})</TabsTrigger>
           {isAdmin && <TabsTrigger value="logs">Logs</TabsTrigger>}
           {isAdmin && <TabsTrigger value="stats">Stats</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="tasks">Tasks</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview">
@@ -440,7 +590,226 @@ export default function ProjectDetailPage() {
             </div>
           </TabsContent>
         )}
+
+        {/* TASKS — admin only */}
+        {isAdmin && (
+          <TabsContent value="tasks" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Tasks</h2>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button"><Upload className="h-4 w-4 mr-1" />Bulk Add Tasks</Button>
+                <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
+              </div>
+            </div>
+
+            {/* Unlinked */}
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Unlinked — available for next goal ({unlinkedTasks.length})</h3>
+              {unlinkedTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No unlinked tasks</p>
+              ) : (
+                <div className="space-y-2">
+                  {unlinkedTasks.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">{t.title}</span>
+                        <span className="text-xs text-muted-foreground">Unassigned</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* In Active Goals */}
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">In Active Goals ({activeTasks.length})</h3>
+              {activeTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No active tasks</p>
+              ) : (
+                <div className="space-y-2">
+                  {activeTasks.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium">{t.title}</span>
+                        <span className="text-xs text-muted-foreground">{t.assigned_to ? "Assigned" : "Unassigned"}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground">0h</span>
+                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+
+            {/* Completed */}
+            <Card className="p-4">
+              <h3 className="font-medium mb-3">Completed ({completedTasks.length})</h3>
+              {completedTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No completed tasks</p>
+              ) : (
+                <div className="space-y-2">
+                  {completedTasks.map((t) => (
+                    <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm font-medium line-through">{t.title}</span>
+                        <span className="text-xs text-muted-foreground">{t.assigned_to ? "Assigned" : "Unassigned"}</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-muted-foreground">0h</span>
+                        <span className="text-xs text-muted-foreground">{t.completed_at ? format(new Date(t.completed_at), "MMM d") : "—"}</span>
+                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+        )}
       </Tabs>
+
+      {/* Add Task Dialog */}
+      <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add Task</DialogTitle></DialogHeader>
+          <form onSubmit={handleCreateTask} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Title *</label>
+              <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Priority *</label>
+              <Select value={taskPriority} onValueChange={setTaskPriority}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddTaskOpen(false)}>Cancel</Button>
+              <Button type="submit">Create Task</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Add Tasks Dialog */}
+      <Dialog open={bulkTaskOpen} onOpenChange={(open) => { if (!uploading) setBulkTaskOpen(open); }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Bulk Add Tasks</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <Card className="p-4 space-y-2">
+              <p className="text-sm font-medium">CSV Format</p>
+              <p className="text-xs text-muted-foreground">Your CSV must have these column headers on the first row:</p>
+              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority</div>
+              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+                <li><strong>title</strong> — required</li>
+                <li><strong>description</strong> — optional</li>
+                <li><strong>priority</strong> — must be one of: high, medium, low (case-insensitive, defaults to medium)</li>
+              </ul>
+              <p className="text-xs text-muted-foreground pt-1">All uploaded tasks will have status <strong>Unlinked</strong> and be assigned to this project.</p>
+            </Card>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Upload CSV</label>
+              <Input type="file" accept=".csv" onChange={handleCSVUpload} className="h-9" />
+              {csvFileName && <p className="text-xs text-muted-foreground">File: {csvFileName}</p>}
+            </div>
+
+            {csvRows.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Preview ({csvRows.length} row{csvRows.length !== 1 ? "s" : ""})</p>
+                <div className="max-h-60 overflow-y-auto border rounded-md">
+                  <table className="w-full text-xs">
+                    <thead>
+                      <tr className="bg-muted/50">
+                        <th className="text-left p-2 font-medium">#</th>
+                        <th className="text-left p-2 font-medium">Title</th>
+                        <th className="text-left p-2 font-medium">Description</th>
+                        <th className="text-left p-2 font-medium">Priority</th>
+                        <th className="text-left p-2 font-medium">Errors</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {csvRows.map((r) => (
+                        <tr key={r.rowNum} className={r.errors.length > 0 ? "bg-red-50" : "border-t"}>
+                          <td className="p-2 text-muted-foreground">{r.rowNum}</td>
+                          <td className={`p-2 font-medium ${!r.title ? "text-red-500" : ""}`}>{r.title || <span className="italic text-red-400">empty</span>}</td>
+                          <td className="p-2 text-muted-foreground">{r.description || "—"}</td>
+                          <td className="p-2">
+                            <Badge className={PRIORITY_COLORS[r.priority] || ""}>{r.priority}</Badge>
+                          </td>
+                          <td className="p-2">
+                            {r.errors.length > 0 ? (
+                              <span className="text-red-500 text-[10px]">{r.errors.join("; ")}</span>
+                            ) : (
+                              <span className="text-green-500">OK</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => { setBulkTaskOpen(false); setCsvRows([]); setCsvFileName(""); }} disabled={uploading}>Cancel</Button>
+            <Button type="button" onClick={handleBulkUpload} disabled={csvRows.length === 0 || uploading}>
+              {uploading ? "Uploading..." : `Confirm Upload${csvRows.length > 0 ? ` (${csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority"))).length} valid)` : ""}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Task</DialogTitle></DialogHeader>
+          <form onSubmit={handleEditTaskSave} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Title *</label>
+              <Input value={editTaskTitle} onChange={(e) => setEditTaskTitle(e.target.value)} placeholder="Task title" required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Textarea value={editTaskDescription} onChange={(e) => setEditTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Priority *</label>
+              <Select value={editTaskPriority} onValueChange={setEditTaskPriority}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setEditTaskOpen(false)}>Cancel</Button>
+              <Button type="submit">Save</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {/* Add Member Sheet */}
       <Sheet open={addMemberOpen} onOpenChange={setAddMemberOpen}>

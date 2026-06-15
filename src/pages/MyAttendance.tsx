@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, getPKTISOString, formatPKTTime, getLatenessInfo } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, getPKTISOString, formatPKTTime, getLatenessInfo, isAttendanceLate, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -171,14 +171,14 @@ export default function MyAttendancePage() {
     monthLogs.forEach((l: any) => {
       if (!map[l.log_date]) map[l.log_date] = { count: 0, hasLate: false, totalHours: 0, lastSubmittedAt: null };
       map[l.log_date].count++;
-      if (l.is_late) map[l.log_date].hasLate = true;
+      if (l.submitted_at && isLogSubmissionLate(l.submitted_at, shiftEnd)) map[l.log_date].hasLate = true;
       map[l.log_date].totalHours += Number(l.hours);
       if (!map[l.log_date].lastSubmittedAt || new Date(l.submitted_at) > new Date(map[l.log_date].lastSubmittedAt)) {
         map[l.log_date].lastSubmittedAt = l.submitted_at;
       }
     });
     return map;
-  }, [monthLogs]);
+  }, [monthLogs, shiftEnd]);
 
   // Logs for the selected day (detailed)
   const { data: selectedDayLogs = [] } = useQuery({
@@ -383,7 +383,10 @@ export default function MyAttendancePage() {
       }
       return "";
     }
-    const isLate = recs.some(r => r.is_late);
+    const isLate = recs.some(r => {
+      if (!r.clock_in) return false;
+      return isAttendanceLate(r.clock_in, shiftStart, 15, workingDays).isLate;
+    });
     if (isLate) return "bg-yellow-100 text-yellow-700";
     if (recs.some(r => !!r.clock_in)) return "bg-green-100 text-green-700";
     return "";
@@ -453,11 +456,11 @@ export default function MyAttendancePage() {
       </div>
 
       {/* Late clock-in alert for today */}
-      {todayRecord?.is_late && (
+      {todayRecord?.clock_in && isAttendanceLate(todayRecord.clock_in, shiftStart, 15, workingDays).isLate && (
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You were late by <strong>{formatLateness(todayRecord.minutes_late)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You were late by <strong>{formatLateness(isAttendanceLate(todayRecord.clock_in, shiftStart, 15, workingDays).minutesLate)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -667,8 +670,8 @@ export default function MyAttendancePage() {
                           {!rec.clock_out && " (so far)"}
                         </p>
                       )}
-                      {rec.is_late && (
-                        <p className="text-amber-600 font-medium">⚠️ Late by {formatLateness(rec.minutes_late)}</p>
+                      {rec.clock_in && isAttendanceLate(rec.clock_in, shiftStart, 15, workingDays).isLate && (
+                        <p className="text-amber-600 font-medium">⚠️ Late by {formatLateness(isAttendanceLate(rec.clock_in, shiftStart, 15, workingDays).minutesLate)}</p>
                       )}
                       {rec.notes && <p><strong>Notes:</strong> {rec.notes}</p>}
                     </div>

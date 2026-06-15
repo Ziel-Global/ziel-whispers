@@ -41,6 +41,7 @@ export default function LeaveAdminPage() {
   const [selectedYear, setSelectedYear] = useState<number>(getCurrentLeaveYear().startYear);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
+  const [showBalanceDialog, setShowBalanceDialog] = useState(false);
 
   // Annual leave entitlement setting
   const [annualEntitlement, setAnnualEntitlement] = useState("12");
@@ -121,6 +122,19 @@ export default function LeaveAdminPage() {
     },
   });
 
+  const { data: allEmployees = [] } = useQuery({
+    queryKey: ["admin-all-employees"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("id, full_name")
+        .eq("status", "active")
+        .neq("role", "admin")
+        .order("full_name");
+      return data || [];
+    },
+  });
+
   // Per-employee used days for the selected leave year
   // Includes full-day leaves (days_count) + half-day leaves converted to day-equivalent (every 8 hours = 1 day)
   const { data: employeeUsage = {} as Record<string, { used: number; total: number }> } = useQuery({
@@ -196,6 +210,19 @@ export default function LeaveAdminPage() {
       }))
       .sort((a, b) => new Date(b.latest.created_at).getTime() - new Date(a.latest.created_at).getTime());
   }, [filtered, employeeUsage, annualEntitlement]);
+
+  const employeeBalanceData = useMemo(() => {
+    const entitlementVal = Number(annualEntitlement) || 12;
+    return allEmployees
+      .map((emp: any) => {
+        const usage = employeeUsage[emp.id];
+        const used = usage?.used || 0;
+        const total = usage?.total || entitlementVal;
+        const remaining = Math.max(0, total - used);
+        return { id: emp.id, name: emp.full_name, remaining, used, total };
+      })
+      .sort((a, b) => a.remaining - b.remaining);
+  }, [allEmployees, employeeUsage, annualEntitlement]);
 
   // All requests for the expanded employee (within the selected year, unfiltered)
   const expandedEmployeeRequests = useMemo(() => {
@@ -480,16 +507,51 @@ export default function LeaveAdminPage() {
                 <p className="text-xs text-muted-foreground">Leaves taken this month</p>
               </div>
             </Card>
-            <Card className="p-4 flex items-center gap-3">
+            <Card
+              className="p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
+              onClick={() => setShowBalanceDialog(true)}
+            >
               <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
                 <AlertTriangle className="h-5 w-5 text-orange-600" />
               </div>
-              <div>
-                <p className="text-2xl font-bold">{summaryStats.employeesAtLimit}</p>
-                <p className="text-xs text-muted-foreground">Employees at annual limit</p>
+              <div className="flex-1">
+                <p className="text-muted-foreground font-medium" style={{ fontSize: 20 }}>Employee Leave Balance</p>
               </div>
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
             </Card>
           </div>
+
+          <Dialog open={showBalanceDialog} onOpenChange={setShowBalanceDialog}>
+            <DialogContent className="max-w-lg">
+              <DialogHeader>
+                <DialogTitle>Employee Leave Balance</DialogTitle>
+              </DialogHeader>
+              <div className="max-h-[400px] overflow-y-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Employee Name</TableHead>
+                      <TableHead className="text-right">Remaining Leave Days</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {employeeBalanceData.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                          No employees found
+                        </TableCell>
+                      </TableRow>
+                    ) : employeeBalanceData.map((emp) => (
+                      <TableRow key={emp.id}>
+                        <TableCell>{emp.name}</TableCell>
+                        <TableCell className="text-right font-medium">{emp.remaining}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </DialogContent>
+          </Dialog>
 
           <Card>
             <Table>

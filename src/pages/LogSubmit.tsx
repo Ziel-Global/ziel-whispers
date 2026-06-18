@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn, formatHours, MISC_PROJECT_ID } from "@/lib/utils";
 
-const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
+const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -280,16 +280,21 @@ export default function LogSubmitPage() {
       const nowPKTStr = getPKTISOString();
       const nowPKT = new Date(nowPKTStr);
       const todayStr = getPKTDateString();
-      
-      let isLate = false;
-      if (resolvedShiftEnd && resolvedShiftEnd.includes(":")) {
-        const shiftEndTrimmed = resolvedShiftEnd.substring(0, 5);
-        const todayDeadline = new Date(`${todayStr}T${shiftEndTrimmed}:00+05:00`);
-        if (shiftStart && resolvedShiftEnd < shiftStart) {
-          todayDeadline.setDate(todayDeadline.getDate() + 1);
+
+      // Compute per-log late flag: if log_date is before today, always late;
+      // otherwise compare submission time against today's shift end deadline
+      const isLateForDate = (logDate: string): boolean => {
+        if (logDate < todayStr) return true;
+        if (resolvedShiftEnd && resolvedShiftEnd.includes(":")) {
+          const shiftEndTrimmed = resolvedShiftEnd.substring(0, 5);
+          const todayDeadline = new Date(`${todayStr}T${shiftEndTrimmed}:00+05:00`);
+          if (shiftStart && resolvedShiftEnd < shiftStart) {
+            todayDeadline.setDate(todayDeadline.getDate() + 1);
+          }
+          return nowPKT.getTime() > todayDeadline.getTime();
         }
-        isLate = nowPKT.getTime() > todayDeadline.getTime();
-      }
+        return false;
+      };
 
       // Build per-log overtime flags
       const overtimeFlags: Record<string, boolean> = {};
@@ -314,7 +319,7 @@ export default function LogSubmitPage() {
       for (const log of pendingLogs) {
         const { error } = await supabase.from("daily_logs").update({
           status: "submitted",
-          is_late: isLate,
+          is_late: isLateForDate(log.log_date),
           is_overtime: overtimeFlags[log.id] || false,
           submitted_at: nowPKTStr,
         }).eq("id", log.id).eq("status", "draft");
@@ -624,7 +629,7 @@ export default function LogSubmitPage() {
                       <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">{log.category}</Badge>
                       <span className="text-sm font-medium">{formatHours(log.hours)}</span>
                       {log.is_overtime && <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge>}
-                      {log.submitted_at && isLogSubmissionLate(log.submitted_at, resolvedShiftEnd) && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                      {log.submitted_at && isLogSubmissionLate(log.submitted_at, resolvedShiftEnd, log.log_date) && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
                     </div>
                     <p className="text-sm text-black">{log.description}</p>
                   </div>

@@ -65,7 +65,7 @@ export default function LogsAdminPage() {
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
   const [editCategory, setEditCategory] = useState("");
 
-  const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
+  const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
 
   const handleEditLog = async (logId: string) => {
     const { error } = await supabase
@@ -252,7 +252,7 @@ export default function LogsAdminPage() {
 
       // Log status: missed / added / late / on_leave / half_day_leave / partial_day
       const hasLogs = empLogs.length > 0;
-      const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd));
+      const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date));
       const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
       
       let logStatus: "missed" | "added" | "late" | "none" | "on_leave" | "half_day_leave" | "partial_day" = "missed";
@@ -331,7 +331,7 @@ export default function LogsAdminPage() {
       const empLogs = logsByUser[emp.id] || [];
       const hasLogs = empLogs.length > 0;
       const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
-      const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd));
+      const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date));
       const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
 
       const leave = leavesByUser[emp.id];
@@ -365,7 +365,7 @@ export default function LogsAdminPage() {
     const emp = employees.find((e: any) => e.id === r.userId);
     if (!emp) return false;
     const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
-    return empShiftEnd ? isLogSubmissionLate(l.submitted_at, empShiftEnd) : false;
+    return empShiftEnd ? isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date) : false;
   }));
 
   const toggleFlag = async (log: any) => {
@@ -657,7 +657,7 @@ export default function LogsAdminPage() {
                                           {(() => {
                                             const emp = employees.find((e: any) => e.id === log.user_id);
                                             const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
-                                            return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
+                                            return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
                                           })()}
                                           {log.admin_comment && (
                                             <div>
@@ -813,13 +813,13 @@ export default function LogsAdminPage() {
                                               {(() => {
                                                 const emp = employees.find((e: any) => e.id === log.user_id);
                                                 const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
-                                                return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
-                                              })()}
-                                              {log.admin_comment && (
-                                                <div className="mt-1">
-                                                  <p className="text-[12px] text-purple-600 mb-0.5 font-medium">Admin Comment</p>
-                                                  <p className="text-sm">{log.admin_comment}</p>
-                                                </div>
+                                              return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
+                                            })()}
+                                            {log.admin_comment && (
+                                              <div className="mt-1">
+                                                <p className="text-[12px] text-purple-600 mb-0.5 font-medium">Admin Comment</p>
+                                                <p className="text-sm">{log.admin_comment}</p>
+                                              </div>
                                               )}
                                             </div>
                                           </div>

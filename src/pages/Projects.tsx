@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toSlug } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -161,7 +162,7 @@ export default function ProjectsPage() {
         {!isLoading && filtered.length === 0 && <p className="text-muted-foreground">You're not assigned to any projects yet.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((p) => (
-            <Card key={p.id} className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${p.id}`)}>
+            <Card key={p.id} className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${toSlug(p.name)}`)}>
               <div className="flex items-start justify-between mb-2">
                 <FolderKanban className="h-5 w-5 text-muted-foreground" />
                 <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
@@ -224,7 +225,7 @@ export default function ProjectsPage() {
             {isLoading && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
             {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
             {filtered.map((p) => (
-              <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${p.id}`)}>
+              <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${toSlug(p.name)}`)}>
                 <TableCell className="font-medium">{p.name}</TableCell>
                 <TableCell className="text-muted-foreground">{(p.clients as any)?.name || "—"}</TableCell>
                 <TableCell><Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge></TableCell>

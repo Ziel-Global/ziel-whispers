@@ -76,7 +76,7 @@ const App = () => (
               <Route path="/clients" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ClientsPage /></ProtectedRoute>} />
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProjectNewPage /></ProtectedRoute>} />
-              <Route path="/projects/:id" element={<ProjectDetailPage />} />
+              <Route path="/projects/:slug" element={<ProjectDetailPage />} />
 
               {/* Project Goals — admin only */}
               <Route path="/goals" element={<ProtectedRoute allowedRoles={["admin"]}><GoalsPage /></ProtectedRoute>} />

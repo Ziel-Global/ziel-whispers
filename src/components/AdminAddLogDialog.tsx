@@ -16,7 +16,7 @@ import { Plus } from "lucide-react";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 import { MISC_PROJECT_ID } from "@/lib/utils";
 
-const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "other"];
+const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
 
 const schema = z.object({
   user_id: z.string().min(1, "Please select an employee"),

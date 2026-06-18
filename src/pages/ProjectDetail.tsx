@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarUrl, parseCSVLine } from "@/lib/utils";
+import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
 import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -27,7 +27,7 @@ const STATUS_COLORS: Record<string, string> = { active: "bg-green-100 text-green
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 
 export default function ProjectDetailPage() {
-  const { id } = useParams<{ id: string }>();
+  const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
@@ -55,6 +55,18 @@ export default function ProjectDetailPage() {
   const [csvFileName, setCsvFileName] = useState("");
   const [uploading, setUploading] = useState(false);
 
+  const { data: resolvedId } = useQuery({
+    queryKey: ["resolve-project-slug", slug],
+    queryFn: async () => {
+      const { data } = await supabase.from("projects").select("id, name");
+      const match = (data || []).find((p: any) => toSlug(p.name) === slug);
+      return match?.id || null;
+    },
+    enabled: !!slug,
+  });
+
+  const id = resolvedId;
+
   const { data: project, isLoading } = useQuery({
     queryKey: ["project", id],
     queryFn: async () => {
@@ -69,8 +81,17 @@ export default function ProjectDetailPage() {
   const { data: members } = useQuery({
     queryKey: ["project-members", id],
     queryFn: async () => {
-      const { data } = await supabase.from("project_members").select("*, users(id, full_name, designation, avatar_url), project_roles(name)").eq("project_id", id!).is("removed_at", null);
-      return data || [];
+      const [membersResult, logsResult] = await Promise.all([
+        supabase.from("project_members").select("*, users(id, full_name, designation, avatar_url), project_roles(name)").eq("project_id", id!).is("removed_at", null),
+        supabase.from("daily_logs").select("user_id, hours").eq("project_id", id!).eq("status", "submitted"),
+      ]);
+      const members = membersResult.data || [];
+      const logs = logsResult.data || [];
+      const hoursByUser: Record<string, number> = {};
+      logs.forEach((l: any) => {
+        hoursByUser[l.user_id] = (hoursByUser[l.user_id] || 0) + Number(l.hours || 0);
+      });
+      return members.map((m: any) => ({ ...m, _hoursSpent: hoursByUser[m.user_id] || 0 }));
     },
     enabled: !!id,
   });
@@ -424,7 +445,7 @@ export default function ProjectDetailPage() {
             </div>
             <Table>
               <TableHeader><TableRow>
-                <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Role</TableHead>
+                <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Hours Spent</TableHead>
                 {isAdmin && <><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead></>}
               </TableRow></TableHeader>
               <TableBody>
@@ -440,7 +461,7 @@ export default function ProjectDetailPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">{(m.users as any)?.designation}</TableCell>
-                    <TableCell><Badge variant="outline">{(m.project_roles as any)?.name || "Member"}</Badge></TableCell>
+                    <TableCell className="text-muted-foreground">{m._hoursSpent}h</TableCell>
                     {isAdmin && (
                       <>
                         <TableCell className="text-muted-foreground">{format(new Date(m.assigned_at), "MMM d, yyyy")}</TableCell>

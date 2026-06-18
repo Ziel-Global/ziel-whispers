@@ -32,6 +32,10 @@ export function parseCSVLine(line: string): string[] {
   return result;
 }
 
+export function toSlug(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+}
+
 export function getAvatarUrl(path: string | null | undefined) {
   if (!path) return undefined;
   if (path.startsWith("http")) return path;

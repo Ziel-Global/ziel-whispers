@@ -12,7 +12,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow, subDays } from "date-fns";
-import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear } from "@/lib/utils";
+import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear, toSlug } from "@/lib/utils";
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();
@@ -22,7 +22,7 @@ export default function DashboardPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
-  const { annualLeaveEntitlement, shiftStart, shiftEnd, workingDays } = useWorkSettings();
+  const { annualLeaveEntitlement, shiftStart, shiftEnd, workingDays, graceMinutes } = useWorkSettings();
   
   const dayOfWeek = new Date(today + "T00:00:00").getDay();
   const isWeekendDay = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
@@ -42,25 +42,17 @@ export default function DashboardPage() {
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult, lateAttendanceData, defaultShiftData] = await Promise.all([
+      const [activeEmployeesResult, todayAttendanceResult, pendingLeavesResult, activeProjectsResult] = await Promise.all([
         supabase.from("users").select("*", { count: "exact", head: true }).eq("status", "active").lte("join_date", today),
         supabase.from("attendance").select("user_id").eq("date", today).not("clock_in", "is", null),
         supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
         supabase.from("projects").select("*", { count: "exact", head: true }).eq("status", "active"),
-        supabase.from("attendance").select("clock_in, users!attendance_user_id_fkey(shift_start, has_custom_shift)").eq("date", today).not("clock_in", "is", null),
-        supabase.from("system_settings").select("value").eq("key", "default_shift_start").maybeSingle(),
       ]);
-      const defaultShiftStart = (defaultShiftData.data?.value as string) || "09:00";
-      const lateToday = (lateAttendanceData.data || []).filter((r: any) => {
-        const ss = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
-        return ss ? isAttendanceLate(r.clock_in, ss, 15, 5).isLate : false;
-      }).length;
       return {
         activeEmployees: activeEmployeesResult.count || 0,
         todayClockedIn: todayAttendanceResult.data?.length || 0,
         pendingLeaves: pendingLeavesResult.count || 0,
         activeProjects: activeProjectsResult.count || 0,
-        lateToday,
       };
     },
     enabled: isAdmin && hasProfile,
@@ -72,7 +64,7 @@ export default function DashboardPage() {
     queryFn: async () => {
       const { data, error } = await supabase.from("daily_logs").select("*, users!daily_logs_user_id_fkey(full_name)").eq("log_date", today).eq("status", "submitted").limit(50);
       if (error) throw error;
-      return (data || []).filter((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, shiftEnd)).slice(0, 10);
+      return (data || []).filter((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, shiftEnd, l.log_date)).slice(0, 10);
     },
     enabled: isAdmin && hasProfile,
   });
@@ -411,13 +403,13 @@ export default function DashboardPage() {
         </div>
 
         {/* Late Attendance Alert */}
-        {(stats?.lateToday ?? 0) > 0 && (
+        {(lateLogs?.length ?? 0) > 0 && (
           <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
             <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
             <p className="text-sm text-yellow-800">
-              <strong>{stats!.lateToday}</strong> employee{stats!.lateToday > 1 ? "s" : ""} clocked in late today.
+              <strong>{lateLogs!.length}</strong> employee{lateLogs!.length > 1 ? "s" : ""} submitted logs late today.
             </p>
-            <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => navigate("/attendance")}>View</Button>
+            <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => navigate("/logs/all?filter=late")}>View</Button>
           </div>
         )}
 
@@ -598,8 +590,8 @@ export default function DashboardPage() {
           {isClockedIn ? (
             <>
               <p className="text-sm">Clocked in since <strong>{format(new Date(todayRecord!.clock_in!), "h:mm a")}</strong> ({todayRecord!.work_mode})</p>
-              {todayRecord?.clock_in && isAttendanceLate(todayRecord.clock_in, shiftStart, 15, workingDays).isLate && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(isAttendanceLate(todayRecord.clock_in, shiftStart, 15, workingDays).minutesLate)}.</p>
+              {todayRecord?.clock_in && isAttendanceLate(todayRecord.clock_in, shiftStart, graceMinutes, workingDays).isLate && (
+                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(isAttendanceLate(todayRecord.clock_in, shiftStart, graceMinutes, workingDays).minutesLate)}.</p>
               )}
             </>
           ) : hasClockedOut ? (
@@ -737,7 +729,7 @@ export default function DashboardPage() {
           <h2 className="text-lg font-semibold mb-3">My Projects</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {myProjects.map((pm: any) => (
-              <Card key={pm.project_id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${pm.project_id}`)}>
+              <Card key={pm.project_id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${toSlug(pm.projects?.name || pm.project_id)}`)}>
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{pm.projects?.name}</p>

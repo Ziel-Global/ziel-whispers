@@ -149,7 +149,7 @@ export default function MyLogsPage() {
                     </div>
                     <div className="flex items-center justify-between mt-2">
                       <div className="flex flex-wrap items-center gap-2">
-                        {log.submitted_at && isLogSubmissionLate(log.submitted_at, shiftEnd) && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
+                        {log.submitted_at && isLogSubmissionLate(log.submitted_at, shiftEnd, log.log_date) && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
                         {log.is_locked && <Lock className="h-3.5 w-3.5 text-muted-foreground" />}
                       </div>
                     </div>

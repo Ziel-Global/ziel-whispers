@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toSlug } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -54,7 +55,7 @@ export default function ProjectNewPage() {
       if (error) throw error;
       await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "project.created", target_entity: "projects", target_id: project.id });
       toast.success("Project created");
-      navigate(`/projects/${project.id}`);
+      navigate(`/projects/${toSlug(data.name)}`);
     } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };
 

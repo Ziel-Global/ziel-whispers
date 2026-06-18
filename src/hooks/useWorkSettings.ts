@@ -9,6 +9,7 @@ type WorkSettings = {
   annualLeaveEntitlement: number;
   timezone: string;
   workingDays: number;
+  graceMinutes: number;
 };
 
 /**
@@ -29,6 +30,7 @@ export function useWorkSettings() {
           "default_shift_end",
           "annual_leave_entitlement",
           "timezone",
+          "late_grace_minutes",
         ]);
       const map: Record<string, string> = {};
       (data || []).forEach((s) => {
@@ -63,6 +65,7 @@ export function useWorkSettings() {
     : (globalSettings?.default_shift_end ?? "");
   const annualLeaveEntitlement = Number(globalSettings?.annual_leave_entitlement ?? 0);
   const timezone = "Asia/Karachi";
+  const graceMinutes = Number(globalSettings?.late_grace_minutes ?? 15);
 
   const resolved: WorkSettings = {
     shiftStart,
@@ -71,6 +74,7 @@ export function useWorkSettings() {
     annualLeaveEntitlement,
     timezone,
     workingDays: Number((userShift as any)?.working_days || 5),
+    graceMinutes,
   };
 
   return resolved;
@@ -241,11 +245,18 @@ export function isAttendanceLate(clockIn: string, shiftStart: string, graceMinut
 }
 
 /**
- * Checks whether a daily log submission was late by comparing its submitted_at
- * timestamp against the employee's shift end deadline (in PKT).
+ * Checks whether a daily log submission was late.
+ * If a logDate is provided and is before the submission date, it is always late
+ * (the log was due on its log_date and was submitted on a later day).
+ * Otherwise, compares the submitted_at time against the shift end deadline (in PKT).
  */
-export function isLogSubmissionLate(submittedAt: string, shiftEnd: string): boolean {
+export function isLogSubmissionLate(submittedAt: string, shiftEnd: string, logDate?: string): boolean {
   if (!submittedAt || !shiftEnd) return false;
+
+  if (logDate) {
+    const subDate = submittedAt.substring(0, 10);
+    if (logDate < subDate) return true;
+  }
 
   const parts = shiftEnd.split(":");
   if (parts.length < 2) return false;

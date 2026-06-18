@@ -16,16 +16,13 @@ import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
 import { formatLateness, getPKTDateString, formatPKTTime, isAttendanceLate } from "@/hooks/useWorkSettings";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
-
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(getPKTDateString());
-  const [deptFilter, setDeptFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("present");
   const [workModeFilter, setWorkModeFilter] = useState("all");
-  const [clockStatusFilter, setClockStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [editRecord, setEditRecord] = useState<any>(null);
   const [editClockIn, setEditClockIn] = useState("");
@@ -39,7 +36,7 @@ export default function AttendanceAdminPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance")
-        .select("*, users!attendance_user_id_fkey(full_name, department, email, is_oversight)")
+        .select("*, users!attendance_user_id_fkey(full_name, department, email, is_oversight, shift_start, has_custom_shift)")
         .eq("date", selectedDate)
         .order("clock_in", { ascending: true });
       if (error) throw error;
@@ -61,34 +58,66 @@ export default function AttendanceAdminPage() {
     },
   });
 
-  const { data: defaultShiftStart } = useQuery({
-    queryKey: ["default-shift-start-single"],
+  const { data: activeUsers = [] } = useQuery({
+    queryKey: ["admin-active-users", selectedDate],
     queryFn: async () => {
-      const { data } = await supabase.from("system_settings").select("value").eq("key", "default_shift_start").maybeSingle();
-      return (data?.value as string) || "09:00";
+      const { data } = await supabase
+        .from("users")
+        .select("id, full_name, department, is_oversight, shift_start, has_custom_shift")
+        .eq("status", "active")
+        .lte("join_date", selectedDate);
+      return data || [];
     },
   });
 
   const filtered = useMemo(() => {
+    if (statusFilter === "absent") {
+      const userIdsWithAttendance = new Set(records.map((r: any) => r.user_id));
+      return activeUsers
+        .filter((u: any) => !userIdsWithAttendance.has(u.id))
+        .filter((u: any) => {
+          if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            if (!(u.full_name || "").toLowerCase().includes(q)) return false;
+          }
+          return true;
+        })
+        .map((u: any) => ({
+          user_id: u.id,
+          users: u,
+          clock_in: null,
+          clock_out: null,
+          work_mode: null,
+          notes: null,
+          is_late: false,
+          minutes_late: 0,
+          hours_late: 0,
+          date: selectedDate,
+          id: "absent-" + u.id,
+          auto_clocked_out: false,
+          auto_clockout_notes: null,
+        }))
+        .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    }
+
     return records.filter((r: any) => {
-      if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
       if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
-      if (clockStatusFilter === "clocked_in" && r.clock_out) return false;
-      if (clockStatusFilter === "clocked_out" && !r.clock_out) return false;
+      if (statusFilter === "present") {
+        if (!r.clock_in) return false;
+      }
+      if (statusFilter === "late") {
+        if (!r.clock_in) return false;
+        if (!r.is_late) return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
         if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
       }
       return true;
     }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
-  }, [records, deptFilter, workModeFilter, clockStatusFilter, searchQuery]);
+  }, [records, activeUsers, statusFilter, workModeFilter, searchQuery, selectedDate]);
 
-  const lateCount = useMemo(() => filtered.filter((r: any) => {
-    if (!r.clock_in) return false;
-    const shiftStart = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
-    if (!shiftStart) return false;
-    return isAttendanceLate(r.clock_in, shiftStart, 15, 5).isLate;
-  }).length, [filtered, defaultShiftStart]);
+  const lateCount = useMemo(() => filtered.filter((r: any) => r.clock_in && r.is_late).length, [filtered]);
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
     const end = clockOut ? new Date(clockOut) : new Date();
@@ -162,9 +191,7 @@ export default function AttendanceAdminPage() {
       const ci = r.clock_in ? formatPKTTime(r.clock_in) : "";
       const co = r.clock_out ? formatPKTTime(r.clock_out) : "";
       const dur = r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "";
-      const shiftStart = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
-      const lateInfo = r.clock_in && shiftStart ? isAttendanceLate(r.clock_in, shiftStart, 15, 5) : { isLate: false, minutesLate: 0 };
-      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${lateInfo.isLate ? "Yes" : "No"}","${lateInfo.minutesLate || 0}","${r.notes || ""}"`;
+      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.is_late ? "Yes" : "No"}","${r.minutes_late ?? 0}","${r.notes || ""}"`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
@@ -208,19 +235,12 @@ export default function AttendanceAdminPage() {
           className="w-[240px]"
         />
         <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />
-        <Select value={clockStatusFilter} onValueChange={setClockStatusFilter}>
-          <SelectTrigger className="w-[150px]"><SelectValue placeholder="Status" /></SelectTrigger>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="clocked_in">Clocked In</SelectItem>
-            <SelectItem value="clocked_out">Clocked Out</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={deptFilter} onValueChange={setDeptFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Departments</SelectItem>
-            {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            <SelectItem value="present">Present</SelectItem>
+            <SelectItem value="absent">Absent</SelectItem>
+            <SelectItem value="late">Late</SelectItem>
           </SelectContent>
         </Select>
         <Select value={workModeFilter} onValueChange={setWorkModeFilter}>
@@ -264,11 +284,7 @@ export default function AttendanceAdminPage() {
                   <TableCell>{r.users?.department}</TableCell>
                   <TableCell>
                     {r.clock_in ? formatPKTTime(r.clock_in) : "—"}
-                    {(() => {
-                      const shiftStart = r.users?.has_custom_shift ? r.users?.shift_start : defaultShiftStart;
-                      const lateInfo = r.clock_in && shiftStart ? isAttendanceLate(r.clock_in, shiftStart, 15, 5) : { isLate: false };
-                      return lateInfo.isLate ? <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Late</Badge> : null;
-                    })()}
+                    {r.is_late && <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Late</Badge>}
                   </TableCell>
                   <TableCell>
                     {r.clock_out ? formatPKTTime(r.clock_out) : "—"}

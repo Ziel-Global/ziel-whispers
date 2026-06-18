@@ -176,6 +176,7 @@ Deno.serve(async (req) => {
           { table: "remote_work_requests", col: "reviewed_by" },
           { table: "clients", col: "created_by" },
           { table: "projects", col: "created_by" },
+          { table: "users", col: "created_by" },
           { table: "system_settings", col: "updated_by" },
         ];
 

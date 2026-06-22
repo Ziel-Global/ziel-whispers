@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { TooltipProvider, Tooltip as ShadcnTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -54,6 +55,7 @@ export default function ProjectDetailPage() {
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
   const [editTaskEstimatedHours, setEditTaskEstimatedHours] = useState("");
   const [bulkTaskOpen, setBulkTaskOpen] = useState(false);
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
   const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; estimated_hours: string; errors: string[] }[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -463,7 +465,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/projects")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/projects"); }}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
           <div className="flex items-center gap-2 mt-1">
@@ -651,8 +653,8 @@ export default function ProjectDetailPage() {
                                 <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-primary text-black">{formatHours(Number(log.hours))}</span>
                               </div>
                               <p className="text-sm text-foreground leading-relaxed">{log.description}</p>
-                            </div>
-                          ))}
+              </div>
+            ))}
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground pl-3 italic">No logs submitted for this date</p>
@@ -674,36 +676,42 @@ export default function ProjectDetailPage() {
               if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
               return (
                 <div className="space-y-2">
-                  {myTasks.map((t: any) => (
-                    <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                      <div className="flex items-start gap-3 min-w-0">
-                        <div className="flex items-center gap-2 pt-0.5 shrink-0">
-                          <Checkbox
-                            id={`task-${t.id}`}
-                            checked={t.status === "complete"}
-                            disabled={t.status === "complete"}
-                            onCheckedChange={() => requestComplete(t)}
-                            className="h-5 w-5"
-                          />
-                          <label htmlFor={`task-${t.id}`} className={`text-xs cursor-pointer select-none ${t.status === "complete" ? "line-through text-muted-foreground" : "text-foreground"}`}>
-                            Mark as Complete
-                          </label>
+                  <TooltipProvider>
+                    {myTasks.map((t: any) => (
+                      <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <ShadcnTooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Checkbox
+                                  id={`task-${t.id}`}
+                                  checked={t.status === "complete"}
+                                  disabled={t.status === "complete"}
+                                  onCheckedChange={() => requestComplete(t)}
+                                  className="h-5 w-5 border-black"
+                                />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="text-xs">Mark as Complete</p>
+                            </TooltipContent>
+                          </ShadcnTooltip>
+                          <div className="min-w-0">
+                            <span className={`text-sm font-medium ${t.status === "complete" ? "line-through text-muted-foreground" : ""}`}>
+                              {t.title}
+                              {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                            </span>
+                            {t.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.description}</p>}
+                          </div>
                         </div>
-                        <div className="min-w-0">
-                          <span className={`text-sm font-medium ${t.status === "complete" ? "line-through text-muted-foreground" : ""}`}>
-                            {t.title}
-                            {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
-                          </span>
-                          {t.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.description}</p>}
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                          {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2 shrink-0 ml-2">
-                        <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
-                        {t.estimated_hours && <span className="text-xs text-muted-foreground">{t.estimated_hours}h</span>}
-                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                      </div>
-                    </div>
-                  ))}
+                    ))}
+                  </TooltipProvider>
                 </div>
               );
             })()}
@@ -716,27 +724,41 @@ export default function ProjectDetailPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Tasks</h2>
               <div className="flex gap-2">
+                <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="linked">Linked</SelectItem>
+                    <SelectItem value="complete">Complete</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button"><Upload className="h-4 w-4 mr-1" />Bulk Add Tasks</Button>
                 <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
               </div>
             </div>
 
-            {(tasks || []).length === 0 ? (
-              <p className="text-sm text-muted-foreground">No tasks yet.</p>
-            ) : (
-              <div className="space-y-2">
-                {(tasks || []).map((t: any) => (
+            {(() => {
+              const filteredTasks = (tasks || []).filter(
+                (t: any) => taskStatusFilter === "all" || t.status === taskStatusFilter
+              );
+              return filteredTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No tasks yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {filteredTasks.map((t: any) => (
                   <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-sm font-medium truncate">
                         {t.title}
                         {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
                       </span>
-                      <span className="text-xs text-muted-foreground shrink-0">{t.status.replace(/_/g, " ")}</span>
-                      {(t as any).users?.full_name && <span className="text-xs text-muted-foreground shrink-0">— {(t as any).users?.full_name}</span>}
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {t.estimated_hours && <span className="text-xs text-muted-foreground">{t.estimated_hours}h</span>}
+                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
+                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
                       <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                       <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
                         <Pencil className="h-4 w-4" />
@@ -745,7 +767,8 @@ export default function ProjectDetailPage() {
                   </div>
                 ))}
               </div>
-            )}
+            );
+          })()}
           </TabsContent>
         )}
 
@@ -962,8 +985,8 @@ export default function ProjectDetailPage() {
                             {pName}
                           </span>
                         ))}
-                      </div>
-                    )}
+              </div>
+            )}
                   </div>
                   {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
                 </div>
@@ -1008,12 +1031,15 @@ export default function ProjectDetailPage() {
               <div className="space-y-2 max-h-80 overflow-y-auto">
                 {phaseTasks.map((t: any) => (
                   <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <span className="text-sm font-medium">{t.title}</span>
-                      <span className="text-xs text-muted-foreground">{t.status.replace(/_/g, " ")}</span>
-                      {(t as any).users?.full_name && <span className="text-xs text-muted-foreground">— {(t as any).users?.full_name}</span>}
                     </div>
-                    <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
+                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                    </div>
                   </div>
                 ))}
               </div>

@@ -80,7 +80,7 @@ export default function LogSubmitPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("daily_logs")
-        .select("*, projects(name)")
+        .select("*, projects(name), tasks(title)")
         .eq("user_id", user!.id)
         .eq("status", "draft")
         .order("created_at", { ascending: true });
@@ -172,14 +172,28 @@ export default function LogSubmitPage() {
   const { data: availableTasks = [] } = useQuery({
     queryKey: ["my-project-tasks", selectedProjectId, user?.id],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data: tasks } = await supabase
         .from("tasks")
         .select("id, title, priority, estimated_hours")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
         .neq("status", "complete")
         .order("title");
-      return data || [];
+      if (!tasks) return [];
+      const taskIds = tasks.map((t: any) => t.id);
+      const { data: logs } = await supabase
+        .from("daily_logs")
+        .select("task_id, hours")
+        .in("task_id", taskIds)
+        .neq("status", "draft");
+      const loggedMap: Record<string, number> = {};
+      (logs || []).forEach((l: any) => {
+        loggedMap[l.task_id] = (loggedMap[l.task_id] || 0) + Number(l.hours || 0);
+      });
+      return tasks.map((t: any) => ({
+        ...t,
+        logged_hours: loggedMap[t.id] || 0,
+      }));
     },
     enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && !!user?.id,
   });
@@ -213,6 +227,20 @@ export default function LogSubmitPage() {
     pendingLogs.length > 0 && pendingLogs.every((log: any) => log.log_date === today),
     [pendingLogs, today]
   );
+  const tasksWithRemaining = useMemo(() => {
+    const pendingMap: Record<string, number> = {};
+    pendingLogs.forEach((l: any) => {
+      if (l.task_id) {
+        pendingMap[l.task_id] = (pendingMap[l.task_id] || 0) + Number(l.hours || 0);
+      }
+    });
+    return availableTasks.map((t: any) => ({
+      ...t,
+      remaining_hours: t.estimated_hours
+        ? Math.max(t.estimated_hours - (t.logged_hours || 0) - (pendingMap[t.id] || 0), 0)
+        : null,
+    }));
+  }, [availableTasks, pendingLogs]);
   const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
     selectedDate === today
       ? submittedHours > 0
@@ -626,11 +654,11 @@ export default function LogSubmitPage() {
             {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && (
               <div className="space-y-2">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task (Optional)</span>
-                {availableTasks.length === 0 ? (
+                {tasksWithRemaining.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No tasks assigned for this project</p>
                 ) : (
                   <div className="space-y-1">
-                    {availableTasks.map((t: any) => (
+                    {tasksWithRemaining.map((t: any) => (
                       <div
                         key={t.id}
                         className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
@@ -647,7 +675,7 @@ export default function LogSubmitPage() {
                           <span className="text-sm font-medium truncate">{t.title}</span>
                         </div>
                         <div className="flex items-center gap-2 shrink-0 ml-2">
-                          {t.estimated_hours && <span className="text-xs text-muted-foreground">{t.estimated_hours}h</span>}
+                          {t.remaining_hours !== null && <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>}
                           <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                         </div>
                       </div>
@@ -714,6 +742,7 @@ export default function LogSubmitPage() {
                       <Badge variant="secondary" className="bg-primary border-primary/20">
                         {log.projects?.name || projects.find((p: any) => p.id === log.project_id)?.name || "Project"}
                       </Badge>
+                      {log.tasks?.title && <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">{log.tasks.title}</Badge>}
                       <Badge variant="secondary" className="capitalize text-[10px] bg-primary">{log.category.replace("_", " ")}</Badge>
                       <span className="text-sm font-bold text-black">
                         {formatHours(log.hours)}

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Save } from "lucide-react";
 import { format } from "date-fns";
@@ -37,8 +38,8 @@ export default function PhaseEditPage() {
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDueDate, setEditingDueDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [savingTasks, setSavingTasks] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [taskFilter, setTaskFilter] = useState<string>("all");
 
   const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
@@ -73,7 +74,7 @@ export default function PhaseEditPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("tasks")
-        .select("*")
+        .select("*, users:assigned_to(full_name)")
         .eq("project_id", projectId!)
         .or(`phase_id.is.null,phase_id.eq.${phaseId}`)
         .order("created_at", { ascending: false });
@@ -94,30 +95,19 @@ export default function PhaseEditPage() {
     }
   }, [eligibleTasks, assignedTaskIds]);
 
-  const handleSavePhase = async () => {
+  const handleSaveAll = async () => {
     if (!editingTitle.trim()) { toast.error("Title is required"); return; }
     setSaving(true);
     try {
-      const { error } = await supabase.from("project_phases").update({
+      const { error: phaseError } = await supabase.from("project_phases").update({
         title: editingTitle.trim(),
         due_date: editingDueDate || null,
       }).eq("id", phaseId!);
-      if (error) throw error;
-      toast.success("Phase updated");
-      queryClient.invalidateQueries({ queryKey: ["project-phase", phaseId] });
-      queryClient.invalidateQueries({ queryKey: ["project-phases", projectId] });
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
+      if (phaseError) throw phaseError;
 
-  const handleSaveTasks = async () => {
-    setSavingTasks(true);
-    try {
-      // Tasks to unassign: currently assigned but not in selectedTaskIds
       const toUnassign = eligibleTasks
         .filter((t: any) => t.phase_id === phaseId && !selectedTaskIds.has(t.id))
         .map((t: any) => t.id);
-      // Tasks to assign: selected but not currently assigned
       const toAssign = eligibleTasks
         .filter((t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id))
         .map((t: any) => t.id);
@@ -138,14 +128,13 @@ export default function PhaseEditPage() {
         if (error) throw error;
       }
 
-      if (toUnassign.length > 0 || toAssign.length > 0) {
-        toast.success("Task assignments saved");
-        queryClient.invalidateQueries({ queryKey: ["phase-eligible-tasks", projectId, phaseId] });
-        queryClient.invalidateQueries({ queryKey: ["project-phases", projectId] });
-        queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
-      }
+      toast.success("All changes saved");
+      queryClient.invalidateQueries({ queryKey: ["project-phase", phaseId] });
+      queryClient.invalidateQueries({ queryKey: ["project-phases", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["phase-eligible-tasks", projectId, phaseId] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
     } catch (err: any) { toast.error(err.message); }
-    finally { setSavingTasks(false); }
+    finally { setSaving(false); }
   };
 
   const toggleTask = (taskId: string) => {
@@ -172,10 +161,13 @@ export default function PhaseEditPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate(`/projects/${slug}`)}>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate(`/projects/${slug}`); }}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
-        <h1 className="text-2xl font-bold tracking-tight">Edit Phase</h1>
+        <h1 className="text-2xl font-bold tracking-tight flex-1">Edit Phase</h1>
+        <Button onClick={handleSaveAll} disabled={saving}>
+          <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save"}
+        </Button>
       </div>
 
       <Card className="p-6 space-y-4">
@@ -189,9 +181,6 @@ export default function PhaseEditPage() {
             <Input type="date" value={editingDueDate} onChange={(e) => setEditingDueDate(e.target.value)} />
           </div>
         </div>
-        <Button onClick={handleSavePhase} disabled={saving}>
-          <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save Phase"}
-        </Button>
       </Card>
 
       <Card className="p-6">
@@ -199,15 +188,27 @@ export default function PhaseEditPage() {
           <h2 className="text-lg font-semibold">
             Tasks ({eligibleTasks.length})
           </h2>
-          <Button onClick={handleSaveTasks} disabled={savingTasks}>
-            <Save className="h-4 w-4 mr-2" />{savingTasks ? "Saving…" : "Save Assignments"}
-          </Button>
+          <Select value={taskFilter} onValueChange={setTaskFilter}>
+            <SelectTrigger className="w-[140px] h-9">
+              <SelectValue placeholder="All" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All</SelectItem>
+              <SelectItem value="complete">Complete</SelectItem>
+              <SelectItem value="linked">Linked</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         {eligibleTasks.length === 0 ? (
           <p className="text-sm text-muted-foreground">No tasks available for this project.</p>
         ) : (
           <div className="space-y-2">
-            {[...eligibleTasks].sort((a: any, b: any) => {
+            {[...eligibleTasks].filter((t: any) => {
+              if (taskFilter === "all") return true;
+              if (taskFilter === "complete") return t.status === "complete";
+              if (taskFilter === "linked") return t.status === "linked";
+              return true;
+            }).sort((a: any, b: any) => {
               const aChecked = selectedTaskIds.has(a.id) ? 1 : 0;
               const bChecked = selectedTaskIds.has(b.id) ? 1 : 0;
               return bChecked - aChecked;
@@ -223,6 +224,7 @@ export default function PhaseEditPage() {
                   <Checkbox
                     checked={checked}
                     onCheckedChange={() => toggleTask(t.id)}
+                    className="border-black"
                   />
                   <div className="flex-1 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -232,6 +234,8 @@ export default function PhaseEditPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1.5">
+                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
+                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
                       <Badge className={STATUS_COLORS[t.status] || ""}>{t.status}</Badge>
                       <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                     </div>

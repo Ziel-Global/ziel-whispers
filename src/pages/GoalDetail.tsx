@@ -206,7 +206,7 @@ export default function GoalDetailPage() {
       const projectChanged = editProject !== goal?.project_id;
 
       if (projectChanged) {
-        await supabase.from("tasks").update({ goal_id: null, assigned_to: null, status: "unlinked" }).eq("goal_id", id!);
+        await supabase.from("tasks").update({ goal_id: null }).eq("goal_id", id!);
       }
 
       const { error: goalError } = await supabase
@@ -228,7 +228,7 @@ export default function GoalDetailPage() {
           if (t.assigned_to && toRemove.includes(t.assigned_to)) tasksToUnlink.push(t.id);
         });
         if (tasksToUnlink.length > 0) {
-          await supabase.from("tasks").update({ goal_id: null, assigned_to: null, status: "unlinked" }).in("id", tasksToUnlink);
+          await supabase.from("tasks").update({ goal_id: null }).in("id", tasksToUnlink);
         }
       }
 
@@ -244,13 +244,13 @@ export default function GoalDetailPage() {
       const allNewTaskIds = new Set(Object.values(newTaskMap).flat());
       const tasksToUnlink = (tasks || []).filter((t) => !allNewTaskIds.has(t.id)).map((t) => t.id);
       if (tasksToUnlink.length > 0) {
-        await supabase.from("tasks").update({ goal_id: null, assigned_to: null, status: "unlinked" }).in("id", tasksToUnlink);
+        await supabase.from("tasks").update({ goal_id: null }).in("id", tasksToUnlink);
       }
       for (const [userId, taskIds] of Object.entries(newTaskMap)) {
         if (taskIds.length === 0) continue;
         const { error: taskError } = await supabase
           .from("tasks")
-          .update({ goal_id: id!, assigned_to: userId, status: "linked" })
+          .update({ goal_id: id!, assigned_to: userId })
           .in("id", taskIds);
         if (taskError) throw taskError;
       }
@@ -281,7 +281,7 @@ export default function GoalDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/goals")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/goals"); }}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{goal.title}</h1>
           <div className="flex items-center gap-2 mt-1">
@@ -341,9 +341,13 @@ export default function GoalDetailPage() {
                       <div key={t.id} className="flex items-center justify-between bg-muted/50 rounded p-2 text-sm">
                         <div className="flex items-center gap-2">
                           <span>{t.title}</span>
-                          <span className="text-xs text-muted-foreground">{t.description || ""}</span>
+                          {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
                         </div>
-                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-xs">{t.status.replace(/_/g, " ")}</Badge>
+                          {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>

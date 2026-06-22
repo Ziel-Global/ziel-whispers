@@ -44,7 +44,7 @@ export default function GoalsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/")}><ArrowLeft className="h-4 w-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/"); }}><ArrowLeft className="h-4 w-4" /></Button>
           <h1 className="text-2xl font-bold tracking-tight">Project Goals</h1>
         </div>
         <Button onClick={() => navigate("/goals/new")} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Goal</Button>

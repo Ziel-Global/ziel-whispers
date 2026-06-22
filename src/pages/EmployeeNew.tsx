@@ -115,7 +115,7 @@ export default function EmployeeNewPage() {
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/employees")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/employees"); }}><ArrowLeft className="h-4 w-4" /></Button>
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Add New Employee</h1>
           <p className="text-muted-foreground mt-1">Create a new employee profile</p>

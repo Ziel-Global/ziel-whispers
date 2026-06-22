@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getAvatarUrl } from "@/lib/utils";
-import { ArrowLeft, Pencil, Plus, X } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, X, Flag } from "lucide-react";
 import { format } from "date-fns";
 
 const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
@@ -299,6 +299,21 @@ export default function GoalDetailPage() {
         </Card>
       )}
 
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium">Task Progress</span>
+          <span className="text-sm text-muted-foreground">
+            {tasks?.filter((t) => t.status === "complete").length || 0} / {tasks?.length || 0} complete
+          </span>
+        </div>
+        <div className="w-full bg-muted rounded-full h-2.5">
+          <div
+            className="bg-primary h-2.5 rounded-full transition-all"
+            style={{ width: `${tasks && tasks.length > 0 ? ((tasks.filter((t) => t.status === "complete").length / tasks.length) * 100) : 0}%` }}
+          />
+        </div>
+      </Card>
+
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Resources ({resources?.length || 0})</h2>
         {!resources || resources.length === 0 ? (
@@ -464,7 +479,10 @@ export default function GoalDetailPage() {
                         <div className="space-y-1">
                           {deduped.map((t) => (
                             <div key={t.id} className="flex items-center justify-between bg-muted/50 rounded p-2 text-sm">
-                              <span>{t.title}</span>
+                          <span>
+                            {t.title}
+                            {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                          </span>
                               <div className="flex items-center gap-1">
                                 <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                                 <button

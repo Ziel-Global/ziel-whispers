@@ -151,12 +151,43 @@ export default function AttendanceAdminPage() {
       const clockIn = editClockIn ? `${dateStr}T${editClockIn}:00+05:00` : editRecord.clock_in;
       const clockOut = editClockOut ? `${dateStr}T${editClockOut}:00+05:00` : null;
 
+      // Calculate late fields up front if clock_in changed
+      let isLate = false, minutesLate = 0, hoursLate = 0;
+      if (clockIn && clockIn !== editRecord.clock_in) {
+        const dayOfWeek = new Date(clockIn).getDay();
+        const [userRes, settingsRes] = await Promise.all([
+          supabase.from("users").select("shift_start, has_custom_shift, working_days").eq("id", editRecord.user_id).single(),
+          supabase.from("system_settings").select("key, value"),
+        ]);
+        const settings = settingsRes.data || [];
+        const graceMinutes = Number(settings.find((s: any) => s.key === "late_grace_minutes")?.value || 15);
+        const defaultShiftStart = settings.find((s: any) => s.key === "default_shift_start")?.value || "09:00";
+        const workingDays = Number((userRes.data as any)?.working_days || 5);
+
+        if (!(dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5))) {
+          const shiftStart = (userRes.data as any)?.has_custom_shift && (userRes.data as any)?.shift_start
+            ? (userRes.data as any).shift_start
+            : defaultShiftStart;
+          const shiftStartTime = new Date(`${dateStr}T${shiftStart}:00+05:00`);
+          const diffMs = new Date(clockIn).getTime() - shiftStartTime.getTime();
+          const total = Math.max(0, Math.floor(diffMs / 60000));
+          if (total > graceMinutes) {
+            isLate = true;
+            minutesLate = total;
+            hoursLate = Math.floor(total / 60);
+          }
+        }
+      }
+
       const { error } = await supabase.from("attendance").update({
         clock_in: clockIn,
         clock_out: clockOut,
         work_mode: editWorkMode,
         notes: editNotes || null,
         edited_by: user!.id,
+        is_late: isLate,
+        minutes_late: minutesLate,
+        hours_late: hoursLate,
       }).eq("id", editRecord.id);
       if (error) throw error;
 

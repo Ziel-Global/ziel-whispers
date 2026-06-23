@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,11 +14,13 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
+import { TooltipProvider, Tooltip as ShadcnTooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/components/ui/sheet";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
-import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag } from "lucide-react";
 import { format } from "date-fns";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
@@ -45,15 +47,26 @@ export default function ProjectDetailPage() {
   const [taskTitle, setTaskTitle] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [taskPriority, setTaskPriority] = useState("medium");
+  const [taskEstimatedHours, setTaskEstimatedHours] = useState("");
   const [editTaskOpen, setEditTaskOpen] = useState(false);
   const [editTaskId, setEditTaskId] = useState<string | null>(null);
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskDescription, setEditTaskDescription] = useState("");
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
+  const [editTaskEstimatedHours, setEditTaskEstimatedHours] = useState("");
   const [bulkTaskOpen, setBulkTaskOpen] = useState(false);
-  const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; errors: string[] }[]>([]);
+  const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
+  const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; estimated_hours: string; errors: string[] }[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [addPhaseOpen, setAddPhaseOpen] = useState(false);
+  const [phaseTitle, setPhaseTitle] = useState("");
+  const [phaseDueDate, setPhaseDueDate] = useState("");
+  const [selectedPhase, setSelectedPhase] = useState<any>(null);
+  const [phaseTasksOpen, setPhaseTasksOpen] = useState(false);
+  const [completeConfirmOpen, setCompleteConfirmOpen] = useState(false);
+  const [completeTargetId, setCompleteTargetId] = useState<string | null>(null);
+  const [completeTargetTitle, setCompleteTargetTitle] = useState("");
 
   const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
@@ -132,11 +145,47 @@ export default function ProjectDetailPage() {
   const { data: tasks } = useQuery({
     queryKey: ["project-tasks", id],
     queryFn: async () => {
-      const { data } = await supabase.from("tasks").select("*").eq("project_id", id!).order("created_at", { ascending: false });
+      const { data } = await supabase.from("tasks").select("*, users:assigned_to(full_name)").eq("project_id", id!).order("created_at", { ascending: false });
       return data || [];
     },
     enabled: !!id,
   });
+
+  const { data: phases = [] } = useQuery({
+    queryKey: ["project-phases", id],
+    queryFn: async () => {
+      const { data } = await supabase.from("project_phases").select("*").eq("project_id", id!).order("sort_order", { ascending: true });
+      return data || [];
+    },
+    enabled: !!id && isAdmin,
+  });
+
+  const phaseProgress = useMemo(() => {
+    const progress: Record<string, number> = {};
+    (phases || []).forEach((p: any) => {
+      const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === p.id);
+      if (phaseTasks.length === 0) {
+        progress[p.id] = 0;
+      } else {
+        const completed = phaseTasks.filter((t: any) => t.status === "complete").length;
+        progress[p.id] = Math.round((completed / phaseTasks.length) * 100);
+      }
+    });
+    return progress;
+  }, [phases, tasks]);
+
+  const phaseTaskCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (tasks || []).forEach((t: any) => {
+      if (t.phase_id) counts[t.phase_id] = (counts[t.phase_id] || 0) + 1;
+    });
+    return counts;
+  }, [tasks]);
+
+  const openPhaseTasks = (phase: any) => {
+    setSelectedPhase(phase);
+    setPhaseTasksOpen(true);
+  };
 
   const availableEmployees = allEmployees?.filter((e) => {
     const notMember = !members?.some((m) => (m.users as any)?.id === e.id);
@@ -198,6 +247,24 @@ export default function ProjectDetailPage() {
 
   const formatHours = (h: number) => { const hrs = Math.floor(h); const mins = Math.round((h - hrs) * 60); return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`; };
 
+  const handleCreatePhase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phaseTitle.trim()) return;
+    try {
+      const { error } = await supabase.from("project_phases").insert({
+        project_id: id!,
+        title: phaseTitle.trim(),
+        due_date: phaseDueDate || null,
+      });
+      if (error) throw error;
+      toast.success("Phase created");
+      setAddPhaseOpen(false);
+      setPhaseTitle("");
+      setPhaseDueDate("");
+      queryClient.invalidateQueries({ queryKey: ["project-phases", id] });
+    } catch (err: any) { toast.error(err.message); }
+  };
+
   const exportCSV = (rows: any[], filename: string) => {
     if (!rows.length) return;
     const keys = Object.keys(rows[0]);
@@ -216,6 +283,7 @@ export default function ProjectDetailPage() {
         title: taskTitle.trim(),
         description: taskDescription.trim() || null,
         priority: taskPriority,
+        estimated_hours: taskEstimatedHours ? parseFloat(taskEstimatedHours) : null,
         status: "unlinked",
         created_by: profile?.id,
       });
@@ -225,6 +293,7 @@ export default function ProjectDetailPage() {
       setTaskTitle("");
       setTaskDescription("");
       setTaskPriority("medium");
+      setTaskEstimatedHours("");
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
     } catch (err: any) { toast.error(err.message); }
   };
@@ -234,6 +303,7 @@ export default function ProjectDetailPage() {
     setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
     setEditTaskPriority(task.priority);
+    setEditTaskEstimatedHours(task.estimated_hours ? String(task.estimated_hours) : "");
     setEditTaskOpen(true);
   };
 
@@ -247,6 +317,7 @@ export default function ProjectDetailPage() {
           title: editTaskTitle.trim(),
           description: editTaskDescription.trim() || null,
           priority: editTaskPriority,
+          estimated_hours: editTaskEstimatedHours ? parseFloat(editTaskEstimatedHours) : null,
         })
         .eq("id", editTaskId);
       if (error) throw error;
@@ -275,16 +346,18 @@ export default function ProjectDetailPage() {
       const titleIdx = headers.indexOf("title");
       const descIdx = headers.indexOf("description");
       const prioIdx = headers.indexOf("priority");
+      const estIdx = headers.indexOf("estimated_hours");
       if (titleIdx === -1) {
         toast.error("CSV must have a 'title' column");
         return;
       }
-      const rows: { rowNum: number; title: string; description: string; priority: string; errors: string[] }[] = [];
+      const rows: { rowNum: number; title: string; description: string; priority: string; estimated_hours: string; errors: string[] }[] = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCSVLine(lines[i]);
         const title = cols[titleIdx]?.trim() || "";
         const description = descIdx !== -1 ? (cols[descIdx]?.trim() || "") : "";
         let priority = prioIdx !== -1 ? (cols[prioIdx]?.trim().toLowerCase() || "") : "";
+        const estimated_hours = estIdx !== -1 ? (cols[estIdx]?.trim() || "") : "";
         const errors: string[] = [];
         if (!title) errors.push("Title is required");
         if (priority && !VALID_PRIORITIES.includes(priority)) {
@@ -292,7 +365,8 @@ export default function ProjectDetailPage() {
           priority = "medium";
         }
         if (!priority) priority = "medium";
-        rows.push({ rowNum: i + 1, title, description, priority, errors });
+        if (estimated_hours && isNaN(Number(estimated_hours))) errors.push("Invalid estimated_hours");
+        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, errors });
       }
       setCsvRows(rows);
     };
@@ -313,6 +387,7 @@ export default function ProjectDetailPage() {
         title: r.title,
         description: r.description || null,
         priority: r.priority,
+        estimated_hours: r.estimated_hours ? parseFloat(r.estimated_hours) : null,
         status: "unlinked",
         created_by: profile?.id,
       }));
@@ -327,11 +402,35 @@ export default function ProjectDetailPage() {
     finally { setUploading(false); }
   };
 
-  const unlinkedTasks = tasks?.filter((t) => t.status === "unlinked") || [];
-  const activeTasks = tasks?.filter((t) => t.status === "linked" || t.status === "in_progress" || t.status === "returned") || [];
-  const completedTasks = tasks?.filter((t) => t.status === "complete") || [];
+  const requestComplete = (task: any) => {
+    if (task.status === "complete") return;
+    setCompleteTargetId(task.id);
+    setCompleteTargetTitle(task.title);
+    setCompleteConfirmOpen(true);
+  };
+
+  const confirmComplete = async () => {
+    if (!completeTargetId) return;
+    try {
+      const { data: existing } = await supabase.from("tasks").select("goal_id").eq("id", completeTargetId).single();
+      await supabase.from("tasks").update({ status: "complete", completed_at: new Date().toISOString() }).eq("id", completeTargetId);
+      toast.success("Task completed");
+      setCompleteConfirmOpen(false);
+      setCompleteTargetId(null);
+      setCompleteTargetTitle("");
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+      if (existing?.goal_id) {
+        const { count } = await supabase.from("tasks").select("*", { count: "exact", head: true }).eq("goal_id", existing.goal_id).neq("status", "complete");
+        if (count === 0) {
+          await supabase.from("goals").update({ status: "achieved", achieved_at: new Date().toISOString() }).eq("id", existing.goal_id);
+          queryClient.invalidateQueries({ queryKey: ["goals"] });
+        }
+      }
+    } catch (err: any) { toast.error(err.message); }
+  };
 
   const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
+  const TASK_STATUS_COLORS: Record<string, string> = { unlinked: "bg-gray-100 text-gray-800", linked: "bg-blue-100 text-blue-800", in_progress: "bg-yellow-100 text-yellow-800", complete: "bg-green-100 text-green-800", returned: "bg-red-100 text-red-800" };
 
   if (isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
   if (!project) return <div className="text-center py-12 text-muted-foreground">Project not found</div>;
@@ -366,7 +465,7 @@ export default function ProjectDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/projects")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/projects"); }}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
           <div className="flex items-center gap-2 mt-1">
@@ -382,7 +481,8 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="members">Members ({members?.length || 0})</TabsTrigger>
           {isAdmin && <TabsTrigger value="logs">Logs</TabsTrigger>}
           {isAdmin && <TabsTrigger value="stats">Stats</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="tasks">Tasks</TabsTrigger>}
+          <TabsTrigger value="tasks">Tasks ({tasks?.length || 0})</TabsTrigger>
+          {isAdmin && <TabsTrigger value="phases">Phases</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview">
@@ -553,8 +653,8 @@ export default function ProjectDetailPage() {
                                 <span className="text-xs px-2.5 py-0.5 rounded-full font-bold bg-primary text-black">{formatHours(Number(log.hours))}</span>
                               </div>
                               <p className="text-sm text-foreground leading-relaxed">{log.description}</p>
-                            </div>
-                          ))}
+              </div>
+            ))}
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground pl-3 italic">No logs submitted for this date</p>
@@ -567,48 +667,54 @@ export default function ProjectDetailPage() {
           </TabsContent>
         )}
 
-        {/* STATS — admin only */}
-        {isAdmin && (
-          <TabsContent value="stats">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-              <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Total Hours</p><p className="text-3xl font-bold">{formatHours(totalHours)}</p></Card>
-              <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Team Members</p><p className="text-3xl font-bold">{members?.length || 0}</p></Card>
-              <Card className="p-5 text-center"><p className="text-sm text-muted-foreground">Log Entries</p><p className="text-3xl font-bold">{logs?.length || 0}</p></Card>
-            </div>
-            {hoursByMember.length > 0 && (
-              <Card className="p-5 mb-4">
-                <h3 className="font-medium mb-3">Hours by Team Member</h3>
-                <ResponsiveContainer width="100%" height={Math.max(200, hoursByMember.length * 40)}>
-                  <BarChart data={hoursByMember} layout="vertical" margin={{ left: 100 }}>
-                    <XAxis type="number" /><YAxis type="category" dataKey="name" width={90} />
-                    <Tooltip /><Bar dataKey="hours" fill="hsl(82,100%,72%)" radius={[0, 4, 4, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </Card>
-            )}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {categoryBreakdown.length > 0 && (
-                <Card className="p-5">
-                  <h3 className="font-medium mb-3">Category Breakdown</h3>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <PieChart>
-                      <Pie data={categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                        {categoryBreakdown.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip />
-                    </PieChart>
-                  </ResponsiveContainer>
-                </Card>
-              )}
-              {weeklyLogs.length > 0 && (
-                <Card className="p-5">
-                  <h3 className="font-medium mb-3">Weekly Hours</h3>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={weeklyLogs}><XAxis dataKey="week" /><YAxis /><Tooltip /><Line type="monotone" dataKey="hours" stroke="hsl(82,100%,72%)" strokeWidth={2} /></LineChart>
-                  </ResponsiveContainer>
-                </Card>
-              )}
-            </div>
+        {/* TASKS — all users */}
+        {!isAdmin && (
+          <TabsContent value="tasks" className="space-y-4">
+            <h2 className="text-lg font-semibold">My Tasks</h2>
+            {(() => {
+              const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id);
+              if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
+              return (
+                <div className="space-y-2">
+                  <TooltipProvider>
+                    {myTasks.map((t: any) => (
+                      <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <ShadcnTooltip delayDuration={0}>
+                            <TooltipTrigger asChild>
+                              <span>
+                                <Checkbox
+                                  id={`task-${t.id}`}
+                                  checked={t.status === "complete"}
+                                  disabled={t.status === "complete"}
+                                  onCheckedChange={() => requestComplete(t)}
+                                  className="h-5 w-5 border-black"
+                                />
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p className="text-xs">Mark as Complete</p>
+                            </TooltipContent>
+                          </ShadcnTooltip>
+                          <div className="min-w-0">
+                            <span className={`text-sm font-medium ${t.status === "complete" ? "line-through text-muted-foreground" : ""}`}>
+                              {t.title}
+                              {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                            </span>
+                            {t.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{t.description}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                          {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </TooltipProvider>
+                </div>
+              );
+            })()}
           </TabsContent>
         )}
 
@@ -618,82 +724,85 @@ export default function ProjectDetailPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Tasks</h2>
               <div className="flex gap-2">
+                <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    <SelectItem value="linked">Linked</SelectItem>
+                    <SelectItem value="complete">Complete</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button"><Upload className="h-4 w-4 mr-1" />Bulk Add Tasks</Button>
                 <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
               </div>
             </div>
 
-            {/* Unlinked */}
-            <Card className="p-4">
-              <h3 className="font-medium mb-3">Unlinked — available for next goal ({unlinkedTasks.length})</h3>
-              {unlinkedTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No unlinked tasks</p>
+            {(() => {
+              const filteredTasks = (tasks || []).filter(
+                (t: any) => taskStatusFilter === "all" || t.status === taskStatusFilter
+              );
+              return filteredTasks.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No tasks yet.</p>
               ) : (
                 <div className="space-y-2">
-                  {unlinkedTasks.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                  {filteredTasks.map((t: any) => (
+                  <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-sm font-medium truncate">
+                        {t.title}
+                        {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
+                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                      <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+          </TabsContent>
+        )}
+
+        {/* PHASES — admin only */}
+        {isAdmin && (
+          <TabsContent value="phases">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Phases</h3>
+              <Button size="sm" className="rounded-button bg-primary text-black hover:bg-black hover:text-white active:bg-black" onClick={() => setAddPhaseOpen(true)}>Add Phase</Button>
+            </div>
+            {phases.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No phases yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {phases.map((p: any) => (
+                  <div key={p.id} className="flex flex-col gap-2 border rounded-lg p-4 cursor-pointer hover:bg-muted/50 transition-colors" onClick={() => openPhaseTasks(p)}>
+                    <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium">{t.title}</span>
-                        <span className="text-xs text-muted-foreground">Unassigned</span>
+                        <span className="font-medium">{p.title}</span>
+                        <span className="text-xs text-muted-foreground">({phaseTaskCount[p.id] || 0} tasks)</span>
+                        {p.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(p.due_date), "MMM d, yyyy")}</span>}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                        <Button variant="ghost" size="icon" onClick={() => openEditTask(t)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <span className="text-xs text-muted-foreground">{phaseProgress[p.id]}%</span>
+                        <Button variant="outline" size="sm" className="rounded-button h-7 text-xs" onClick={(e) => { e.stopPropagation(); navigate(`/projects/${slug}/phases/${p.id}`); }}>Edit</Button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            {/* In Active Goals */}
-            <Card className="p-4">
-              <h3 className="font-medium mb-3">In Active Goals ({activeTasks.length})</h3>
-              {activeTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No active tasks</p>
-              ) : (
-                <div className="space-y-2">
-                  {activeTasks.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium">{t.title}</span>
-                        <span className="text-xs text-muted-foreground">{t.assigned_to ? "Assigned" : "Unassigned"}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground">0h</span>
-                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                      </div>
+                    <div className="w-full bg-muted rounded-full h-2 border border-black">
+                      <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${phaseProgress[p.id]}%` }} />
                     </div>
-                  ))}
-                </div>
-              )}
-            </Card>
-
-            {/* Completed */}
-            <Card className="p-4">
-              <h3 className="font-medium mb-3">Completed ({completedTasks.length})</h3>
-              {completedTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No completed tasks</p>
-              ) : (
-                <div className="space-y-2">
-                  {completedTasks.map((t) => (
-                    <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                      <div className="flex items-center gap-3">
-                        <span className="text-sm font-medium line-through">{t.title}</span>
-                        <span className="text-xs text-muted-foreground">{t.assigned_to ? "Assigned" : "Unassigned"}</span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs text-muted-foreground">0h</span>
-                        <span className="text-xs text-muted-foreground">{t.completed_at ? format(new Date(t.completed_at), "MMM d") : "—"}</span>
-                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Card>
+                  </div>
+                ))}
+              </div>
+            )}
           </TabsContent>
         )}
       </Tabs>
@@ -722,6 +831,10 @@ export default function ProjectDetailPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Estimated Time (hours)</label>
+              <Input type="number" step="0.1" min="0" value={taskEstimatedHours} onChange={(e) => setTaskEstimatedHours(e.target.value)} placeholder="e.g. 1.5" />
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setAddTaskOpen(false)}>Cancel</Button>
               <Button type="submit">Create Task</Button>
@@ -738,11 +851,12 @@ export default function ProjectDetailPage() {
             <Card className="p-4 space-y-2">
               <p className="text-sm font-medium">CSV Format</p>
               <p className="text-xs text-muted-foreground">Your CSV must have these column headers on the first row:</p>
-              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority</div>
+              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority,estimated_hours</div>
               <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
                 <li><strong>title</strong> — required</li>
                 <li><strong>description</strong> — optional</li>
                 <li><strong>priority</strong> — must be one of: high, medium, low (case-insensitive, defaults to medium)</li>
+                <li><strong>estimated_hours</strong> — optional decimal number (e.g. 1, 1.5, 2.25)</li>
               </ul>
               <p className="text-xs text-muted-foreground pt-1">All uploaded tasks will have status <strong>Unlinked</strong> and be assigned to this project.</p>
             </Card>
@@ -764,6 +878,7 @@ export default function ProjectDetailPage() {
                         <th className="text-left p-2 font-medium">Title</th>
                         <th className="text-left p-2 font-medium">Description</th>
                         <th className="text-left p-2 font-medium">Priority</th>
+                        <th className="text-left p-2 font-medium">Est. Hours</th>
                         <th className="text-left p-2 font-medium">Errors</th>
                       </tr>
                     </thead>
@@ -776,6 +891,7 @@ export default function ProjectDetailPage() {
                           <td className="p-2">
                             <Badge className={PRIORITY_COLORS[r.priority] || ""}>{r.priority}</Badge>
                           </td>
+                          <td className="p-2 text-muted-foreground">{r.estimated_hours || "—"}</td>
                           <td className="p-2">
                             {r.errors.length > 0 ? (
                               <span className="text-red-500 text-[10px]">{r.errors.join("; ")}</span>
@@ -824,6 +940,10 @@ export default function ProjectDetailPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Estimated Time (hours)</label>
+              <Input type="number" min="0" step="0.5" value={editTaskEstimatedHours} onChange={(e) => setEditTaskEstimatedHours(e.target.value)} placeholder="e.g. 4" />
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditTaskOpen(false)}>Cancel</Button>
               <Button type="submit">Save</Button>
@@ -865,8 +985,8 @@ export default function ProjectDetailPage() {
                             {pName}
                           </span>
                         ))}
-                      </div>
-                    )}
+              </div>
+            )}
                   </div>
                   {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
                 </div>
@@ -881,6 +1001,66 @@ export default function ProjectDetailPage() {
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* Add Phase Dialog */}
+      <Dialog open={addPhaseOpen} onOpenChange={setAddPhaseOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add Phase</DialogTitle></DialogHeader>
+          <form onSubmit={handleCreatePhase} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phase Title *</label>
+              <Input value={phaseTitle} onChange={(e) => setPhaseTitle(e.target.value)} placeholder="e.g. Alpha" required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Due Date</label>
+              <Input type="date" value={phaseDueDate} onChange={(e) => setPhaseDueDate(e.target.value)} />
+            </div>
+            <Button type="submit" className="rounded-button w-full">Create Phase</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Phase Tasks Dialog */}
+      <Dialog open={phaseTasksOpen} onOpenChange={setPhaseTasksOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>{selectedPhase?.title} — Tasks</DialogTitle></DialogHeader>
+          {(() => {
+            const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === selectedPhase?.id);
+            if (phaseTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this phase.</p>;
+            return (
+              <div className="space-y-2 max-h-80 overflow-y-auto">
+                {phaseTasks.map((t: any) => (
+                  <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-sm font-medium">{t.title}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
+                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Task Complete Confirmation */}
+      <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Complete task?</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to mark "{completeTargetTitle}" as complete? This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setCompleteConfirmOpen(false); setCompleteTargetId(null); setCompleteTargetTitle(""); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmComplete}>Complete Task</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Completion Warning */}
       <AlertDialog open={completionWarning} onOpenChange={setCompletionWarning}>

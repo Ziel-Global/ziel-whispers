@@ -572,7 +572,7 @@ export default function EmployeeProfilePage() {
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => navigate("/employees")}>
+          <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/employees"); }}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

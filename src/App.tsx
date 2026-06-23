@@ -23,6 +23,7 @@ import ClientsPage from "@/pages/Clients";
 import ProjectsPage from "@/pages/Projects";
 import ProjectNewPage from "@/pages/ProjectNew";
 import ProjectDetailPage from "@/pages/ProjectDetail";
+import PhaseEditPage from "@/pages/PhaseEditPage";
 import GoalsPage from "@/pages/Goals";
 import GoalNewPage from "@/pages/GoalNew";
 import GoalDetailPage from "@/pages/GoalDetail";
@@ -77,6 +78,7 @@ const App = () => (
               <Route path="/projects" element={<ProjectsPage />} />
               <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProjectNewPage /></ProtectedRoute>} />
               <Route path="/projects/:slug" element={<ProjectDetailPage />} />
+              <Route path="/projects/:slug/phases/:phaseId" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PhaseEditPage /></ProtectedRoute>} />
 
               {/* Project Goals — admin only */}
               <Route path="/goals" element={<ProtectedRoute allowedRoles={["admin"]}><GoalsPage /></ProtectedRoute>} />

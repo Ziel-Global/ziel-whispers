@@ -15,7 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { getAvatarUrl } from "@/lib/utils";
-import { ArrowLeft, Pencil, Plus, X } from "lucide-react";
+import { ArrowLeft, Pencil, Plus, X, Flag } from "lucide-react";
 import { format } from "date-fns";
 
 const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
@@ -115,7 +115,7 @@ export default function GoalDetailPage() {
         .from("tasks")
         .select("id, title, priority")
         .eq("project_id", editProject)
-        .or(`status.eq.unlinked,and(status.eq.linked,goal_id.eq.${id})`)
+        .or(`goal_id.is.null,goal_id.eq.${id}`)
         .order("created_at", { ascending: true });
       return data || [];
     },
@@ -206,7 +206,7 @@ export default function GoalDetailPage() {
       const projectChanged = editProject !== goal?.project_id;
 
       if (projectChanged) {
-        await supabase.from("tasks").update({ goal_id: null, assigned_to: null, status: "unlinked" }).eq("goal_id", id!);
+        await supabase.from("tasks").update({ goal_id: null }).eq("goal_id", id!);
       }
 
       const { error: goalError } = await supabase
@@ -228,7 +228,7 @@ export default function GoalDetailPage() {
           if (t.assigned_to && toRemove.includes(t.assigned_to)) tasksToUnlink.push(t.id);
         });
         if (tasksToUnlink.length > 0) {
-          await supabase.from("tasks").update({ goal_id: null, assigned_to: null, status: "unlinked" }).in("id", tasksToUnlink);
+          await supabase.from("tasks").update({ goal_id: null }).in("id", tasksToUnlink);
         }
       }
 
@@ -244,13 +244,13 @@ export default function GoalDetailPage() {
       const allNewTaskIds = new Set(Object.values(newTaskMap).flat());
       const tasksToUnlink = (tasks || []).filter((t) => !allNewTaskIds.has(t.id)).map((t) => t.id);
       if (tasksToUnlink.length > 0) {
-        await supabase.from("tasks").update({ goal_id: null, assigned_to: null, status: "unlinked" }).in("id", tasksToUnlink);
+        await supabase.from("tasks").update({ goal_id: null }).in("id", tasksToUnlink);
       }
       for (const [userId, taskIds] of Object.entries(newTaskMap)) {
         if (taskIds.length === 0) continue;
         const { error: taskError } = await supabase
           .from("tasks")
-          .update({ goal_id: id!, assigned_to: userId, status: "linked" })
+          .update({ goal_id: id!, assigned_to: userId })
           .in("id", taskIds);
         if (taskError) throw taskError;
       }
@@ -281,7 +281,7 @@ export default function GoalDetailPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/goals")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/goals"); }}><ArrowLeft className="h-4 w-4" /></Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold tracking-tight">{goal.title}</h1>
           <div className="flex items-center gap-2 mt-1">
@@ -298,6 +298,21 @@ export default function GoalDetailPage() {
           <p className="text-sm text-muted-foreground">{goal.description}</p>
         </Card>
       )}
+
+      <Card className="p-4">
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm font-medium">Task Progress</span>
+          <span className="text-sm text-muted-foreground">
+            {tasks?.filter((t) => t.status === "complete").length || 0} / {tasks?.length || 0} complete
+          </span>
+        </div>
+        <div className="w-full bg-muted rounded-full h-2.5">
+          <div
+            className="bg-primary h-2.5 rounded-full transition-all"
+            style={{ width: `${tasks && tasks.length > 0 ? ((tasks.filter((t) => t.status === "complete").length / tasks.length) * 100) : 0}%` }}
+          />
+        </div>
+      </Card>
 
       <div className="space-y-4">
         <h2 className="text-lg font-semibold">Resources ({resources?.length || 0})</h2>
@@ -326,9 +341,13 @@ export default function GoalDetailPage() {
                       <div key={t.id} className="flex items-center justify-between bg-muted/50 rounded p-2 text-sm">
                         <div className="flex items-center gap-2">
                           <span>{t.title}</span>
-                          <span className="text-xs text-muted-foreground">{t.description || ""}</span>
+                          {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
                         </div>
-                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        <div className="flex items-center gap-1.5">
+                          <Badge variant="secondary" className="text-xs">{t.status.replace(/_/g, " ")}</Badge>
+                          {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -464,7 +483,10 @@ export default function GoalDetailPage() {
                         <div className="space-y-1">
                           {deduped.map((t) => (
                             <div key={t.id} className="flex items-center justify-between bg-muted/50 rounded p-2 text-sm">
-                              <span>{t.title}</span>
+                          <span>
+                            {t.title}
+                            {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                          </span>
                               <div className="flex items-center gap-1">
                                 <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                                 <button

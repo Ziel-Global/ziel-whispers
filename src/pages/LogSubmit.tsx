@@ -24,6 +24,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn, formatHours, MISC_PROJECT_ID } from "@/lib/utils";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
+const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -79,7 +80,7 @@ export default function LogSubmitPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("daily_logs")
-        .select("*, projects(name)")
+        .select("*, projects(name), tasks(title)")
         .eq("user_id", user!.id)
         .eq("status", "draft")
         .order("created_at", { ascending: true });
@@ -140,6 +141,7 @@ export default function LogSubmitPage() {
       const total = logsTotals[v] || 0;
       return total < 24;
     }, "This day already has the maximum hours logged"),
+    task_id: z.string().nullable().optional(),
   });
 
   const { data: projects = [] } = useQuery({
@@ -160,11 +162,41 @@ export default function LogSubmitPage() {
 
   const form = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { project_id: "", category: "", hours: 1, description: "", log_date: today },
+    defaultValues: { project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null },
   });
 
   const descValue = form.watch("description");
   const selectedDate = form.watch("log_date");
+  const selectedProjectId = form.watch("project_id");
+
+  const { data: availableTasks = [] } = useQuery({
+    queryKey: ["my-project-tasks", selectedProjectId, user?.id],
+    queryFn: async () => {
+      const { data: tasks } = await supabase
+        .from("tasks")
+        .select("id, title, priority, estimated_hours")
+        .eq("project_id", selectedProjectId!)
+        .eq("assigned_to", user!.id)
+        .neq("status", "complete")
+        .order("title");
+      if (!tasks) return [];
+      const taskIds = tasks.map((t: any) => t.id);
+      const { data: logs } = await supabase
+        .from("daily_logs")
+        .select("task_id, hours")
+        .in("task_id", taskIds)
+        .neq("status", "draft");
+      const loggedMap: Record<string, number> = {};
+      (logs || []).forEach((l: any) => {
+        loggedMap[l.task_id] = (loggedMap[l.task_id] || 0) + Number(l.hours || 0);
+      });
+      return tasks.map((t: any) => ({
+        ...t,
+        logged_hours: loggedMap[t.id] || 0,
+      }));
+    },
+    enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && !!user?.id,
+  });
 
   // Fetch submitted logs for the CURRENTLY SELECTED date in the form
   const { data: dateLogs = [] } = useQuery({
@@ -195,6 +227,20 @@ export default function LogSubmitPage() {
     pendingLogs.length > 0 && pendingLogs.every((log: any) => log.log_date === today),
     [pendingLogs, today]
   );
+  const tasksWithRemaining = useMemo(() => {
+    const pendingMap: Record<string, number> = {};
+    pendingLogs.forEach((l: any) => {
+      if (l.task_id) {
+        pendingMap[l.task_id] = (pendingMap[l.task_id] || 0) + Number(l.hours || 0);
+      }
+    });
+    return availableTasks.map((t: any) => ({
+      ...t,
+      remaining_hours: t.estimated_hours
+        ? Math.max(t.estimated_hours - (t.logged_hours || 0) - (pendingMap[t.id] || 0), 0)
+        : null,
+    }));
+  }, [availableTasks, pendingLogs]);
   const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
     selectedDate === today
       ? submittedHours > 0
@@ -218,6 +264,7 @@ export default function LogSubmitPage() {
           hours: data.hours,
           description: data.description,
           log_date: data.log_date,
+          task_id: data.task_id || null,
         }).eq("id", editId).eq("status", "draft");
         if (error) throw error;
         setEditId(null);
@@ -234,12 +281,13 @@ export default function LogSubmitPage() {
           status: "draft",
           is_late: false,
           is_overtime: false,
+          task_id: data.task_id || null,
         });
         if (error) throw error;
         toast.success("Log added to list");
       }
       queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
-      form.reset({ ...form.getValues(), hours: 1, description: "" });
+      form.reset({ ...form.getValues(), hours: 1, description: "", task_id: null });
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -252,14 +300,15 @@ export default function LogSubmitPage() {
       category: log.category,
       hours: log.hours,
       description: log.description,
-      log_date: log.log_date
+      log_date: log.log_date,
+      task_id: log.task_id || null,
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const cancelEdit = () => {
     setEditId(null);
-    form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
+    form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
   };
 
   const removePendingLog = async (logId: string) => {
@@ -270,6 +319,62 @@ export default function LogSubmitPage() {
       queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
     } catch (err: any) {
       toast.error(err.message);
+    }
+  };
+
+  const updateTaskProgress = async (taskId: string) => {
+    const { data: sumData } = await supabase
+      .from("daily_logs")
+      .select("hours")
+      .eq("task_id", taskId)
+      .neq("status", "draft");
+    const totalHours = (sumData || []).reduce((sum: number, l: any) => sum + Number(l.hours || 0), 0);
+
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("estimated_hours, status, goal_id, phase_id, project_id")
+      .eq("id", taskId)
+      .single();
+
+    if (!task || task.estimated_hours === null) return;
+
+    const needsUpdate =
+      (totalHours >= task.estimated_hours) ||
+      (totalHours < task.estimated_hours && task.status === "linked");
+
+    if (needsUpdate) {
+      if (totalHours >= task.estimated_hours) {
+        const update: any = { status: "complete", completed_at: getPKTISOString() };
+        if (totalHours > task.estimated_hours) {
+          update.is_flagged = true;
+        }
+        await supabase.from("tasks").update(update).eq("id", taskId);
+      } else if (totalHours < task.estimated_hours && task.status === "linked") {
+        await supabase.from("tasks").update({ status: "in_progress" }).eq("id", taskId);
+      }
+    }
+
+    if (task.goal_id) {
+      const { count: incompleteCount, error: countError } = await supabase
+        .from("tasks")
+        .select("id", { count: "exact", head: true })
+        .eq("goal_id", task.goal_id)
+        .neq("status", "complete");
+      if (!countError && incompleteCount !== null && incompleteCount === 0) {
+        await supabase
+          .from("goals")
+          .update({ status: "achieved", achieved_at: getPKTISOString() })
+          .eq("id", task.goal_id);
+        queryClient.invalidateQueries({ queryKey: ["goal", task.goal_id] });
+        queryClient.invalidateQueries({ queryKey: ["goal-tasks", task.goal_id] });
+      }
+      queryClient.invalidateQueries({ queryKey: ["goals"] });
+      queryClient.invalidateQueries({ queryKey: ["goals-progress"] });
+    }
+
+    if (task.phase_id) {
+      queryClient.invalidateQueries({ queryKey: ["project-phases", task.project_id] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", task.project_id] });
     }
   };
 
@@ -326,6 +431,14 @@ export default function LogSubmitPage() {
         if (error) throw error;
       }
 
+      // Update task progress for submitted logs that have a task_id
+      const touchedTaskIds = new Set(
+        pendingLogs.filter((l: any) => l.task_id).map((l: any) => l.task_id)
+      );
+      for (const taskId of touchedTaskIds) {
+        await updateTaskProgress(taskId);
+      }
+
       // Only auto clock out if at least one of today's logs is being submitted AND the open session is from today
       const hasTodayLogs = pendingLogs.some((log: any) => log.log_date === todayStr);
 
@@ -374,11 +487,12 @@ export default function LogSubmitPage() {
         toast.success(`${pendingLogs.length} logs submitted successfully`);
       }
 
-      form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today });
+      form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
       queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-date"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-totals-range"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-project-tasks"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       if (clockedOut) {
         await queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
@@ -536,6 +650,41 @@ export default function LogSubmitPage() {
                 </FormItem>
               )} />
             </div>
+
+            {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && (
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task (Optional)</span>
+                {tasksWithRemaining.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No tasks assigned for this project</p>
+                ) : (
+                  <div className="space-y-1">
+                    {tasksWithRemaining.map((t: any) => (
+                      <div
+                        key={t.id}
+                        className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
+                          form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                        }`}
+                        onClick={() => form.setValue("task_id", form.watch("task_id") === t.id ? null : t.id, { shouldDirty: true })}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                            form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
+                          }`}>
+                            {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                          </div>
+                          <span className="text-sm font-medium truncate">{t.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {t.remaining_hours !== null && <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>}
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem>
                 <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</FormLabel>
@@ -593,6 +742,7 @@ export default function LogSubmitPage() {
                       <Badge variant="secondary" className="bg-primary border-primary/20">
                         {log.projects?.name || projects.find((p: any) => p.id === log.project_id)?.name || "Project"}
                       </Badge>
+                      {log.tasks?.title && <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">{log.tasks.title}</Badge>}
                       <Badge variant="secondary" className="capitalize text-[10px] bg-primary">{log.category.replace("_", " ")}</Badge>
                       <span className="text-sm font-bold text-black">
                         {formatHours(log.hours)}

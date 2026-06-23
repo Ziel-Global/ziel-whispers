@@ -77,7 +77,7 @@ export default function GoalNewPage() {
         .from("tasks")
         .select("id, title, priority, description")
         .eq("project_id", selectedProject)
-        .eq("status", "unlinked")
+        .is("goal_id", "null")
         .order("created_at", { ascending: true });
       return data || [];
     },
@@ -164,7 +164,7 @@ export default function GoalNewPage() {
         if (taskIds.length === 0) continue;
         const { error: taskError } = await supabase
           .from("tasks")
-          .update({ goal_id: goal.id, assigned_to: userId, status: "linked" })
+          .update({ goal_id: goal.id, assigned_to: userId })
           .in("id", taskIds);
         if (taskError) throw taskError;
       }
@@ -187,7 +187,7 @@ export default function GoalNewPage() {
   return (
     <div className="max-w-3xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/goals")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/goals"); }}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-2xl font-bold tracking-tight">New Goal</h1>
       </div>
 

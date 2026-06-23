@@ -115,7 +115,7 @@ export default function GoalDetailPage() {
         .from("tasks")
         .select("id, title, priority")
         .eq("project_id", editProject)
-        .or(`status.eq.unlinked,and(status.eq.linked,goal_id.eq.${id})`)
+        .or(`goal_id.is.null,goal_id.eq.${id}`)
         .order("created_at", { ascending: true });
       return data || [];
     },

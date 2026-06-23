@@ -77,7 +77,7 @@ export default function GoalNewPage() {
         .from("tasks")
         .select("id, title, priority, description")
         .eq("project_id", selectedProject)
-        .eq("status", "unlinked")
+        .is("goal_id", "null")
         .order("created_at", { ascending: true });
       return data || [];
     },
@@ -164,7 +164,7 @@ export default function GoalNewPage() {
         if (taskIds.length === 0) continue;
         const { error: taskError } = await supabase
           .from("tasks")
-          .update({ goal_id: goal.id, assigned_to: userId, status: "linked" })
+          .update({ goal_id: goal.id, assigned_to: userId })
           .in("id", taskIds);
         if (taskError) throw taskError;
       }

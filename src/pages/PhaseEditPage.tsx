@@ -105,18 +105,29 @@ export default function PhaseEditPage() {
       }).eq("id", phaseId!);
       if (phaseError) throw phaseError;
 
-      const toUnassign = eligibleTasks
-        .filter((t: any) => t.phase_id === phaseId && !selectedTaskIds.has(t.id))
-        .map((t: any) => t.id);
-      const toAssign = eligibleTasks
-        .filter((t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id))
-        .map((t: any) => t.id);
+      const toUnassign = eligibleTasks.filter(
+        (t: any) => t.phase_id === phaseId && !selectedTaskIds.has(t.id)
+      );
+      const toAssign = eligibleTasks.filter(
+        (t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id)
+      );
 
-      if (toUnassign.length > 0) {
+      const unassignNoGoal = toUnassign.filter((t: any) => !t.goal_id).map((t: any) => t.id);
+      const unassignWithGoal = toUnassign.filter((t: any) => t.goal_id).map((t: any) => t.id);
+
+      if (unassignNoGoal.length > 0) {
         const { error } = await supabase
           .from("tasks")
           .update({ phase_id: null, status: "unlinked" })
-          .in("id", toUnassign);
+          .in("id", unassignNoGoal);
+        if (error) throw error;
+      }
+
+      if (unassignWithGoal.length > 0) {
+        const { error } = await supabase
+          .from("tasks")
+          .update({ phase_id: null })
+          .in("id", unassignWithGoal);
         if (error) throw error;
       }
 
@@ -124,7 +135,7 @@ export default function PhaseEditPage() {
         const { error } = await supabase
           .from("tasks")
           .update({ phase_id: phaseId!, status: "linked" })
-          .in("id", toAssign);
+          .in("id", toAssign.map((t: any) => t.id));
         if (error) throw error;
       }
 

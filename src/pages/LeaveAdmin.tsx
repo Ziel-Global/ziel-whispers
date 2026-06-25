@@ -741,7 +741,8 @@ export default function LeaveAdminPage() {
               <TableHeader><TableRow>
                 <TableHead className="w-8"></TableHead>
                 <TableHead>Employee</TableHead>
-                <TableHead>Requested Date</TableHead>
+                <TableHead>Date Range</TableHead>
+                <TableHead>Days</TableHead>
                 <TableHead>Submitted On</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Reviewed</TableHead>
@@ -749,13 +750,19 @@ export default function LeaveAdminPage() {
               </TableRow></TableHeader>
               <TableBody>
                 {wfhFiltered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No Remote Requests</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No Remote Requests</TableCell></TableRow>
                 ) : wfhFiltered.map((r: any) => (
                   <>
                     <TableRow key={r.id} className={`cursor-pointer relative${r.users?.is_oversight ? " bg-amber-50/70" : r.status === "pending" ? " bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
                       <TableCell className="relative">{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
                       <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                      <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {r.start_date === r.end_date
+                          ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
+                          : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
+                        }
+                      </TableCell>
+                      <TableCell>{r.days_count}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d, yyyy")}</TableCell>
                       <TableCell>{statusBadge(r.status)}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
@@ -781,7 +788,7 @@ export default function LeaveAdminPage() {
                     </TableRow>
                     {expandedId === r.id && (
                       <TableRow key={`${r.id}-detail`}>
-                        <TableCell colSpan={7} className="bg-muted/50 p-0">
+                        <TableCell colSpan={8} className="bg-muted/50 p-0">
                           <div className="p-4">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
                               <div>
@@ -790,8 +797,14 @@ export default function LeaveAdminPage() {
                                 <p className="text-xs text-muted-foreground">{r.users?.designation || "—"}</p>
                               </div>
                               <div>
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Requested Date</p>
-                                <p className="text-sm">{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</p>
+                                <p className="text-[12px] text-muted-foreground mb-0.5">Date Range</p>
+                                <p className="text-sm">
+                                  {r.start_date === r.end_date
+                                    ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
+                                    : `${format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
+                                  }
+                                </p>
+                                <p className="text-xs text-muted-foreground">{r.days_count} working day(s)</p>
                               </div>
                               <div>
                                 <p className="text-[12px] text-muted-foreground mb-0.5">Submitted On</p>

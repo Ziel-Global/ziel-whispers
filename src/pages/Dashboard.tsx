@@ -206,7 +206,7 @@ export default function DashboardPage() {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from("remote_work_requests")
-        .select("id, status, start_date, end_date")
+        .select("id, status, date")
         .eq("user_id", user!.id)
         .in("status", ["approved", "rejected"])
         .gte("reviewed_at", thirtyDaysAgo);
@@ -561,17 +561,13 @@ export default function DashboardPage() {
                     );
                   } else {
                     const w = n.data;
-                    const sDate = w.start_date;
-                    const eDate = w.end_date;
-                    const dateRange = sDate === eDate
-                      ? format(new Date(sDate + "T00:00:00"), "MMM d, yyyy")
-                      : `${format(new Date(sDate + "T00:00:00"), "MMM d")} - ${format(new Date(eDate + "T00:00:00"), "MMM d, yyyy")}`;
+                    const date = format(new Date(w.date + "T00:00:00"), "MMM d, yyyy");
                     return (
                       <p key={idx}>
                         <span className={`font-bold uppercase tracking-wider ${w.status === 'approved' ? 'text-green-400' : 'text-red-400'}`}>
                           {w.status}
                         </span>
-                        : Work From Home for <span className="font-bold text-white tracking-wider">{dateRange}</span>
+                        : Work From Home for <span className="font-bold text-white tracking-wider">{date}</span>
                       </p>
                     );
                   }

@@ -70,8 +70,7 @@ Deno.serve(async (req) => {
       employeeName = (data as Record<string, unknown>).users?.full_name || "Employee";
       employeeEmail = (data as Record<string, unknown>).users?.email || "";
       requestData = {
-        start_date: (data as Record<string, unknown>).start_date,
-        end_date: (data as Record<string, unknown>).end_date,
+        date: (data as Record<string, unknown>).date,
         reason: (data as Record<string, unknown>).reason,
       };
     } else {
@@ -271,9 +270,6 @@ function buildNewLeaveRequestHtml(employeeName: string, data: Record<string, unk
 }
 
 function buildNewWfhRequestHtml(employeeName: string, data: Record<string, unknown>, adminPanelUrl: string): string {
-  const dateStr = data.start_date === data.end_date
-    ? formatDate(data.start_date as string)
-    : `${formatDate(data.start_date as string)} — ${formatDate(data.end_date as string)}`;
   const body = `
     <p style="font-size:15px;color:#1A1B1E;margin-bottom:20px;">
       A new remote work request has been submitted.
@@ -283,8 +279,8 @@ function buildNewWfhRequestHtml(employeeName: string, data: Record<string, unkno
       <div class="field-value">${employeeName}</div>
     </div>
     <div class="field">
-      <div class="field-label">Date Range</div>
-      <div class="field-value">${dateStr}</div>
+      <div class="field-label">Date</div>
+      <div class="field-value">${formatDate(data.date as string)}</div>
     </div>
     <div class="field">
       <div class="field-label">Reason</div>
@@ -342,9 +338,6 @@ function buildLeaveStatusHtml(employeeName: string, statusLabel: string, data: R
 function buildWfhStatusHtml(employeeName: string, statusLabel: string, data: Record<string, unknown>, adminComment: string): string {
   const isApproved = statusLabel === "Approved";
   const badgeClass = isApproved ? "status-approved" : "status-rejected";
-  const dateStr = data.start_date === data.end_date
-    ? formatDate(data.start_date as string)
-    : `${formatDate(data.start_date as string)} — ${formatDate(data.end_date as string)}`;
   const body = `
     <p style="font-size:15px;color:#1A1B1E;margin-bottom:20px;">
       Hello <strong>${employeeName}</strong>,
@@ -356,8 +349,8 @@ function buildWfhStatusHtml(employeeName: string, statusLabel: string, data: Rec
       Your remote work request has been <strong>${statusLabel.toLowerCase()}</strong>.
     </p>
     <div class="field">
-      <div class="field-label">Date Range</div>
-      <div class="field-value">${dateStr}</div>
+      <div class="field-label">Date</div>
+      <div class="field-value">${formatDate(data.date as string)}</div>
     </div>
     <div class="field">
       <div class="field-label">Reason</div>

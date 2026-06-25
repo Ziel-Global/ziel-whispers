@@ -128,8 +128,8 @@ export default function MyAttendancePage() {
         .select("*")
         .eq("user_id", user!.id)
         .eq("status", "approved")
-        .gte("date", monthStart)
-        .lte("date", monthEnd);
+        .lte("start_date", monthEnd)
+        .gte("end_date", monthStart);
       return data || [];
     },
     enabled: !!user?.id,
@@ -137,7 +137,7 @@ export default function MyAttendancePage() {
 
   const getWfhForDay = (d: Date) => {
     const dateStr = format(d, "yyyy-MM-dd");
-    return monthWfh.find((w: any) => w.date === dateStr);
+    return monthWfh.find((w: any) => dateStr >= w.start_date && dateStr <= w.end_date);
   };
 
   // Check if there is an approved WFH request for today
@@ -148,8 +148,9 @@ export default function MyAttendancePage() {
         .from("remote_work_requests")
         .select("id")
         .eq("user_id", user!.id)
-        .eq("date", today)
         .eq("status", "approved")
+        .lte("start_date", today)
+        .gte("end_date", today)
         .maybeSingle();
       return data;
     },

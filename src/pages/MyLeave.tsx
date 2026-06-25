@@ -73,7 +73,7 @@ export default function MyLeavePage() {
     if (!wfhReason.trim()) { toast.error("Please enter a reason"); return; }
     
     // Check if there is already a pending or approved request for this date
-    const existing = wfhRequests.find((r: any) => r.date === wfhDate && (r.status === "pending" || r.status === "approved"));
+    const existing = wfhRequests.find((r: any) => r.start_date === wfhDate && r.end_date === wfhDate && (r.status === "pending" || r.status === "approved"));
     if (existing) {
       toast.error(`You already have a ${existing.status} request for this date.`);
       return;
@@ -83,7 +83,9 @@ export default function MyLeavePage() {
     try {
       const { data: newRequest, error } = await supabase.from("remote_work_requests").insert({
         user_id: user!.id,
-        date: wfhDate,
+        start_date: wfhDate,
+        end_date: wfhDate,
+        days_count: 1,
         reason: wfhReason.trim(),
         status: "pending"
       }).select("id").single();
@@ -537,7 +539,7 @@ export default function MyLeavePage() {
                 <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No Work From Home requests</TableCell></TableRow>
               ) : wfhRequests.map((r: any) => (
                 <TableRow key={r.id}>
-                  <TableCell>{format(new Date(r.date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                  <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
                   <TableCell className="max-w-[300px] truncate">{r.reason}</TableCell>
                   <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">

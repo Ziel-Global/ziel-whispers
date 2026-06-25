@@ -47,6 +47,13 @@ export default function LeaveAdminPage() {
   const [annualEntitlement, setAnnualEntitlement] = useState("12");
   const [savingEntitlement, setSavingEntitlement] = useState(false);
 
+  // Bulk remote access
+  const [bulkRemoteFrom, setBulkRemoteFrom] = useState("");
+  const [bulkRemoteTo, setBulkRemoteTo] = useState("");
+  const [bulkRemoteSubmitting, setBulkRemoteSubmitting] = useState(false);
+  const [showBulkEnableConfirm, setShowBulkEnableConfirm] = useState(false);
+  const [showBulkDisableConfirm, setShowBulkDisableConfirm] = useState(false);
+
   const { data: settings } = useQuery({
     queryKey: ["system-settings"],
     queryFn: async () => {
@@ -80,6 +87,59 @@ export default function LeaveAdminPage() {
       toast.success("Annual leave entitlement updated");
     } catch (err: any) { toast.error(err.message); }
     finally { setSavingEntitlement(false); }
+  };
+
+  const handleBulkEnable = async () => {
+    if (!bulkRemoteFrom) { toast.error("Please select From date"); return; }
+    const to = bulkRemoteTo || bulkRemoteFrom;
+    setBulkRemoteSubmitting(true);
+    try {
+      const { error } = await supabase.from("users")
+        .update({
+          remote_access: true,
+          remote_access_from: bulkRemoteFrom,
+          remote_access_to: to,
+          remote_access_bulk: true,
+        } as any)
+        .neq("role", "admin")
+        .not("remote_access", "is", true);
+      if (error) throw error;
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "remote_access.bulk_enabled",
+        target_entity: "users",
+        metadata: { from: bulkRemoteFrom, to },
+      });
+      toast.success("Remote access enabled for all non-admin users");
+      setShowBulkEnableConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ["admin-all-employees"] });
+    } catch (err: any) { toast.error(err.message); }
+    finally { setBulkRemoteSubmitting(false); }
+  };
+
+  const handleBulkDisable = async () => {
+    setBulkRemoteSubmitting(true);
+    try {
+      const { error } = await supabase.from("users")
+        .update({
+          remote_access: false,
+          remote_access_from: null,
+          remote_access_to: null,
+          remote_access_bulk: null,
+        } as any)
+        .neq("role", "admin")
+        .eq("remote_access_bulk", true);
+      if (error) throw error;
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "remote_access.bulk_disabled",
+        target_entity: "users",
+      });
+      toast.success("Bulk remote access disabled for all non-admin users");
+      setShowBulkDisableConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ["admin-all-employees"] });
+    } catch (err: any) { toast.error(err.message); }
+    finally { setBulkRemoteSubmitting(false); }
   };
 
   const { data: requests = [] } = useQuery({
@@ -865,6 +925,70 @@ export default function LeaveAdminPage() {
               <p className="text-xs text-muted-foreground mt-1">These categories are fixed and used for tracking purposes only. All draw from the single annual pool.</p>
             </div>
           </Card>
+
+          <Card className="p-6 space-y-4">
+            <h3 className="font-semibold">Remote Access</h3>
+            <p className="text-sm text-muted-foreground">
+              Enable or disable remote work for all non-admin users at once.
+              Employees who already have individual remote access enabled will be skipped.
+            </p>
+            <div className="grid grid-cols-2 gap-3 max-w-xs">
+              <div className="space-y-1">
+                <Label>From Date</Label>
+                <Input type="date" value={bulkRemoteFrom} onChange={(e) => setBulkRemoteFrom(e.target.value)} />
+              </div>
+              <div className="space-y-1">
+                <Label>To Date</Label>
+                <Input type="date" value={bulkRemoteTo} onChange={(e) => setBulkRemoteTo(e.target.value)} />
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => setShowBulkEnableConfirm(true)} disabled={bulkRemoteSubmitting}>
+                Enable Remote Access
+              </Button>
+              <Button variant="outline" onClick={() => setShowBulkDisableConfirm(true)} disabled={bulkRemoteSubmitting}>
+                Disable Remote Access
+              </Button>
+            </div>
+          </Card>
+
+          <AlertDialog open={showBulkEnableConfirm} onOpenChange={setShowBulkEnableConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Enable Remote Access for All Users?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will enable remote access for all non-admin users from{" "}
+                  <strong>{bulkRemoteFrom || "—"}</strong> to{" "}
+                  <strong>{bulkRemoteTo || bulkRemoteFrom || "—"}</strong>.
+                  Users who already have individual remote access settings will not be affected.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={bulkRemoteSubmitting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleBulkEnable} disabled={bulkRemoteSubmitting}>
+                  {bulkRemoteSubmitting ? "Enabling…" : "Enable"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          <AlertDialog open={showBulkDisableConfirm} onOpenChange={setShowBulkDisableConfirm}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Disable Bulk Remote Access?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This will disable remote access for all non-admin users who were previously enabled
+                  via the bulk action. Users with individual remote access settings will not be affected.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={bulkRemoteSubmitting}>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleBulkDisable} disabled={bulkRemoteSubmitting}>
+                  {bulkRemoteSubmitting ? "Disabling…" : "Disable"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </TabsContent>
       </Tabs>
 

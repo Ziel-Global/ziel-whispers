@@ -527,6 +527,7 @@ export default function EmployeeProfilePage() {
         remote_access: employeeRemoteAccess,
         remote_access_from: employeeRemoteAccess ? employeeRemoteAccessFrom : null,
         remote_access_to: employeeRemoteAccess ? employeeRemoteAccessTo : null,
+        remote_access_bulk: null,
         is_on_leave: employeeIsOnLeave,
         is_on_leave_from: employeeIsOnLeave ? employeeIsOnLeaveFrom : null,
         is_on_leave_to: employeeIsOnLeave ? employeeIsOnLeaveTo : null,

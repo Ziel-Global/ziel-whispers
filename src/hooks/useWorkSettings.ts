@@ -10,6 +10,7 @@ type WorkSettings = {
   timezone: string;
   workingDays: number;
   graceMinutes: number;
+  expectedDailyHours: number;
 };
 
 /**
@@ -31,6 +32,7 @@ export function useWorkSettings() {
           "annual_leave_entitlement",
           "timezone",
           "late_grace_minutes",
+          "expected_daily_hours",
         ]);
       const map: Record<string, string> = {};
       (data || []).forEach((s) => {
@@ -75,6 +77,7 @@ export function useWorkSettings() {
     timezone,
     workingDays: Number((userShift as any)?.working_days || 5),
     graceMinutes,
+    expectedDailyHours: Number(globalSettings?.expected_daily_hours ?? 8),
   };
 
   return resolved;

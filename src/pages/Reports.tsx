@@ -33,8 +33,11 @@ async function exportPNG(ref: React.RefObject<HTMLDivElement>, filename: string)
   const a = document.createElement("a"); a.href = url; a.download = filename; a.click();
 }
 
-function getWorkingDays(start: Date, end: Date) {
-  return eachDayOfInterval({ start, end }).filter((d) => !isWeekend(d)).length;
+function getWorkingDays(start: Date, end: Date, workWeek: number = 5) {
+  return eachDayOfInterval({ start, end }).filter((d) => {
+    const day = d.getDay();
+    return day !== 0 && (day !== 6 || workWeek === 6);
+  }).length;
 }
 
 export default function ReportsPage() {
@@ -71,7 +74,7 @@ function UtilizationReport() {
   const [startDate, setStartDate] = useState(format(startOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
   const [endDate, setEndDate] = useState(format(endOfMonth(new Date(getPKTDateString())), "yyyy-MM-dd"));
 
-  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end, created_at").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["report-employees"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, department, shift_start, shift_end, created_at, working_days").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; } });
   const { data: logs } = useQuery({
     queryKey: ["report-logs", startDate, endDate],
     queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, hours").gte("log_date", startDate).lte("log_date", endDate).eq("status", "submitted"); return data || []; },
@@ -89,7 +92,7 @@ function UtilizationReport() {
       
       let available = 0;
       if (effectiveStart <= effectiveEnd) {
-        const effectiveWorkingDays = getWorkingDays(parseISO(effectiveStart), parseISO(effectiveEnd));
+        const effectiveWorkingDays = getWorkingDays(parseISO(effectiveStart), parseISO(effectiveEnd), e.working_days ?? 5);
         available = effectiveWorkingDays * 8;
       }
 
@@ -149,7 +152,7 @@ function HeatmapReport() {
   const end = format(endOfMonth(parseISO(start)), "yyyy-MM-dd");
   const days = eachDayOfInterval({ start: parseISO(start), end: parseISO(end) });
 
-  const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department, created_at").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
+  const { data: employees } = useQuery({ queryKey: ["heatmap-emp", dept], queryFn: async () => { let q = supabase.from("users").select("id, full_name, department, created_at, working_days").eq("status", "active").neq("role", "admin"); if (dept !== "all") q = q.eq("department", dept); const { data } = await q.order("full_name"); return data || []; } });
   const { data: logs } = useQuery({ queryKey: ["heatmap-logs", start, end], queryFn: async () => { const { data } = await supabase.from("daily_logs").select("user_id, log_date, hours").gte("log_date", start).lte("log_date", end).eq("status", "submitted"); return data || []; } });
 
   const grid = useMemo(() => {
@@ -173,7 +176,7 @@ function HeatmapReport() {
           <div className="flex">
             <div className="w-32 shrink-0" />
             {days.map((d) => (
-              <div key={d.toISOString()} className={`w-7 text-center text-[10px] ${isWeekend(d) ? "text-muted-foreground/40" : "text-muted-foreground"}`}>{format(d, "d")}</div>
+              <div key={d.toISOString()} className={`w-7 text-center text-[10px] ${d.getDay() === 0 ? "text-muted-foreground/40" : "text-muted-foreground"}`}>{format(d, "d")}</div>
             ))}
           </div>
           {grid.map((row) => (
@@ -187,10 +190,13 @@ function HeatmapReport() {
                 const emp = employees?.find(e => e.id === row.id);
                 const notJoined = emp?.created_at && dateStr <= emp.created_at.split("T")[0];
 
+                const cellWd = emp?.working_days ?? 5;
+                const isCellWeekend = d.getDay() === 0 || (d.getDay() === 6 && cellWd === 5);
+
                 return (
                   <div 
                     key={dateStr} 
-                    className={`w-7 h-6 m-px rounded-sm ${isWeekend(d) ? "bg-muted/30" : notJoined ? "bg-gray-50/50" : cellColor(h)}`} 
+                    className={`w-7 h-6 m-px rounded-sm ${isCellWeekend ? "bg-muted/30" : notJoined ? "bg-gray-50/50" : cellColor(h)}`} 
                     title={`${row.name} · ${format(d, "MMM d")} · ${notJoined ? 'Account Not Created' : h + 'h'}`} 
                   />
                 );
@@ -216,7 +222,7 @@ function MonthlySummaryReport() {
   const [selectedUser, setSelectedUser] = useState(isAdmin ? "" : profile?.id || "");
   const [month, setMonth] = useState(format(subDays(startOfMonth(new Date(getPKTDateString())), 1), "yyyy-MM"));
 
-  const { data: employees } = useQuery({ queryKey: ["summary-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, created_at").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; }, enabled: isAdmin });
+  const { data: employees } = useQuery({ queryKey: ["summary-emp"], queryFn: async () => { const { data } = await supabase.from("users").select("id, full_name, created_at, working_days").eq("status", "active").neq("role", "admin").order("full_name"); return data || []; }, enabled: isAdmin });
 
   const userId = isAdmin ? selectedUser : profile?.id;
   const start = `${month}-01`;
@@ -232,7 +238,7 @@ function MonthlySummaryReport() {
   
   let workingDays = 0;
   if (effectiveStart <= effectiveEnd) {
-    workingDays = getWorkingDays(parseISO(effectiveStart), parseISO(effectiveEnd));
+    workingDays = getWorkingDays(parseISO(effectiveStart), parseISO(effectiveEnd), empData?.working_days ?? 5);
   }
   
   const totalHours = logs?.reduce((s, l) => s + Number(l.hours), 0) || 0;
@@ -321,7 +327,7 @@ function AttendanceTrendReport() {
     if (!attendance || !employees) return [];
     const empIds = new Set(employees.map((e) => e.id));
     const filtered = attendance.filter((a) => empIds.has(a.user_id!));
-    const days = eachDayOfInterval({ start: parseISO(startDate), end: parseISO(endDate) }).filter((d) => !isWeekend(d));
+    const days = eachDayOfInterval({ start: parseISO(startDate), end: parseISO(endDate) }).filter((d) => d.getDay() !== 0);
 
     return days.map((d) => {
       const dateStr = format(d, "yyyy-MM-dd");
@@ -448,7 +454,7 @@ function MissedLogsReport() {
   const { data: missed } = useQuery({
     queryKey: ["missed-report", startDate, endDate],
     queryFn: async () => {
-      const { data } = await supabase.from("missed_logs").select("*, users(full_name, created_at)").gte("log_date", startDate).lte("log_date", endDate).order("log_date", { ascending: false });
+      const { data } = await supabase.from("missed_logs").select("*, users(full_name, created_at, working_days)").gte("log_date", startDate).lte("log_date", endDate).order("log_date", { ascending: false });
       return data || [];
     },
   });
@@ -484,7 +490,8 @@ function MissedLogsReport() {
     return missed.filter((m) => {
       // 1. Weekend check
       const day = parseISO(m.log_date).getDay();
-      if (day === 0 || day === 6) return false;
+      const userWd = (m.users as any)?.working_days ?? 5;
+      if (day === 0 || (day === 6 && userWd === 5)) return false;
 
       // 2. Created at check
       const createdAtDate = (m.users as any)?.created_at ? (m.users as any).created_at.split("T")[0] : null;

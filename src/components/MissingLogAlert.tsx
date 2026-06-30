@@ -6,10 +6,11 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { getPKTDateString } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString } from "@/hooks/useWorkSettings";
 
 export function MissingLogAlert() {
   const { user, profile } = useAuth();
+  const { expectedDailyHours } = useWorkSettings();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
 
@@ -18,14 +19,14 @@ export function MissingLogAlert() {
   const todayPKTStr = getPKTDateString(today);
   const todayPKT = new Date(todayPKTStr + "T00:00:00");
   const dayOfWeek = todayPKT.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
+  const workingDays = Number(profile?.working_days || 5);
 
   // Weekends: Suppress alert entirely
-  const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+  const isWeekend = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
 
   // Determine the previous working day in PKT
   // For 5-day: Mon -> Fri (sub 3), Tue-Sat -> Yesterday (sub 1)
   // For 6-day: Mon -> Sat (sub 2), Tue-Sun -> Yesterday (sub 1)
-  const workingDays = Number(profile?.working_days || 5);
   let daysToSubtract = 1;
   if (workingDays === 5) {
     if (dayOfWeek === 1) daysToSubtract = 3; // Monday -> Friday
@@ -41,15 +42,15 @@ export function MissingLogAlert() {
   const targetDayOfWeek = targetDate.getDay();
 
   const { data: logsData } = useQuery({
-    queryKey: ["missing-log-check", user?.id, targetDateStr, profile?.created_at, workingDays],
+    queryKey: ["missing-log-check", user?.id, targetDateStr, profile?.created_at, workingDays, expectedDailyHours],
     queryFn: async () => {
       // Suppress on Sun for everyone, and Sat for 5-day workers
-      if (dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5)) return { totalLogged: 8, expectedHours: 8 };
+      if (dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5)) return { totalLogged: expectedDailyHours, expectedHours: expectedDailyHours };
 
       // Use created_at as the strict boundary
       const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
       if (createdAtDate && targetDateStr <= createdAtDate) {
-        return { totalLogged: 8, expectedHours: 8 }; // Suppress alert
+        return { totalLogged: expectedDailyHours, expectedHours: expectedDailyHours }; // Suppress alert
       }
 
       // 1. Get logs for the target day
@@ -61,25 +62,26 @@ export function MissingLogAlert() {
         .eq("status", "submitted");
       
       const totalLogged = (logs || []).reduce((sum, log) => sum + Number(log.hours), 0);
-      const expectedHours = 8;
+      const expectedHours = expectedDailyHours;
 
       return { totalLogged, expectedHours };
     },
+    staleTime: 30000,
     enabled: !!user?.id && !!profile && profile.role !== "admin" && !isWeekend,
   });
 
   useEffect(() => {
     if (logsData) {
       const { totalLogged, expectedHours } = logsData;
-      // Requirement: Only show if logged less than 8 hours
       if (totalLogged < expectedHours) {
-        // Requirement: Track dismissal in localStorage (once per day)
         const storageKey = `missing_log_alert_dismissed_${user?.id}`;
         const lastDismissedDate = localStorage.getItem(storageKey);
         
         if (lastDismissedDate !== todayPKTStr) {
           setOpen(true);
         }
+      } else {
+        setOpen(false);
       }
     }
   }, [logsData, todayPKTStr, user?.id]);
@@ -110,7 +112,7 @@ export function MissingLogAlert() {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()}>
+      <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
             <AlertCircle className="h-5 w-5" />

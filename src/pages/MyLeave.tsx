@@ -53,7 +53,8 @@ export default function MyLeavePage() {
   const [leaveHours, setLeaveHours] = useState("");
 
   // Work From Home state
-  const [wfhDate, setWfhDate] = useState("");
+  const [wfhStartDate, setWfhStartDate] = useState("");
+  const [wfhEndDate, setWfhEndDate] = useState("");
   const [wfhReason, setWfhReason] = useState("");
   const [wfhSubmitting, setWfhSubmitting] = useState(false);
 
@@ -68,14 +69,20 @@ export default function MyLeavePage() {
 
   const handleWfhSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!wfhDate) { toast.error("Please select a date"); return; }
-    if (wfhDate <= today) { toast.error("Work From Home requests can only be submitted for future dates (tomorrow or later)"); setWfhDate(""); return; }
+    if (!wfhStartDate || !wfhEndDate) { toast.error("Please select both From and To dates"); return; }
+    if (wfhStartDate <= today) { toast.error("Start date must be a future date (tomorrow or later)"); return; }
+    if (wfhEndDate < wfhStartDate) { toast.error("End date must be on or after start date"); return; }
     if (!wfhReason.trim()) { toast.error("Please enter a reason"); return; }
-    
-    // Check if there is already a pending or approved request for this date
-    const existing = wfhRequests.find((r: any) => r.start_date === wfhDate && r.end_date === wfhDate && (r.status === "pending" || r.status === "approved"));
+
+    const wfhDaysCount = countWorkingDays(wfhStartDate, wfhEndDate, workingDays);
+
+    // Check if there is already a pending or approved request overlapping this range
+    const existing = wfhRequests.find((r: any) =>
+      r.start_date <= wfhEndDate && r.end_date >= wfhStartDate &&
+      (r.status === "pending" || r.status === "approved")
+    );
     if (existing) {
-      toast.error(`You already have a ${existing.status} request for this date.`);
+      toast.error(`You already have a ${existing.status} request that overlaps this date range.`);
       return;
     }
 
@@ -83,22 +90,23 @@ export default function MyLeavePage() {
     try {
       const { data: newRequest, error } = await supabase.from("remote_work_requests").insert({
         user_id: user!.id,
-        start_date: wfhDate,
-        end_date: wfhDate,
-        days_count: 1,
+        start_date: wfhStartDate,
+        end_date: wfhEndDate,
+        days_count: wfhDaysCount,
         reason: wfhReason.trim(),
         status: "pending"
       }).select("id").single();
       if (error) throw error;
-      
+
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "wfh.requested", target_entity: "remote_work_requests" });
-      
+
       supabase.functions.invoke("send-request-notification", {
         body: { type: "wfh", action: "new", request_id: newRequest.id, app_url: window.location.origin },
       }).catch(() => {});
-      
+
       toast.success("Work From Home request submitted");
-      setWfhDate("");
+      setWfhStartDate("");
+      setWfhEndDate("");
       setWfhReason("");
       queryClient.invalidateQueries({ queryKey: ["my-wfh-requests"] });
       queryClient.invalidateQueries({ queryKey: ["pending-leave-count"] });
@@ -491,31 +499,57 @@ export default function MyLeavePage() {
 
         <Card className="p-6">
           <form onSubmit={handleWfhSubmit} className="space-y-4 max-w-lg">
-            <div className="space-y-2">
-              <Label htmlFor="wfhDate">Date <span className="text-destructive">*</span></Label>
-              <Input 
-                id="wfhDate" 
-                type="date" 
-                value={wfhDate} 
-                onChange={(e) => {
-                  const v = e.target.value;
-                  if (v <= today) { toast.error("Work From Home requests can only be submitted for future dates (tomorrow or later)"); setWfhDate(""); return; }
-                  const d = new Date(v + "T00:00:00");
-                  const day = d.getDay();
-                  if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); setWfhDate(""); return; }
-                  setWfhDate(v);
-                }} 
-                min={tomorrow} 
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label htmlFor="wfhStartDate">From Date <span className="text-destructive">*</span></Label>
+                <Input
+                  id="wfhStartDate"
+                  type="date"
+                  value={wfhStartDate}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) { setWfhStartDate(v); return; }
+                    if (v <= today) { toast.error("Start date must be a future date (tomorrow or later)"); return; }
+                    const d = new Date(v + "T00:00:00");
+                    const day = d.getDay();
+                    if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); return; }
+                    setWfhStartDate(v);
+                  }}
+                  min={tomorrow}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="wfhEndDate">To Date <span className="text-destructive">*</span></Label>
+                <Input
+                  id="wfhEndDate"
+                  type="date"
+                  value={wfhEndDate}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    if (!v) { setWfhEndDate(v); return; }
+                    if (v <= today) { toast.error("End date must be a future date (tomorrow or later)"); return; }
+                    const d = new Date(v + "T00:00:00");
+                    const day = d.getDay();
+                    if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); return; }
+                    setWfhEndDate(v);
+                  }}
+                  min={wfhStartDate || tomorrow}
+                />
+              </div>
             </div>
+            {wfhStartDate && wfhEndDate && (
+              <p className="text-sm text-muted-foreground">
+                {countWorkingDays(wfhStartDate, wfhEndDate, workingDays)} working day(s)
+              </p>
+            )}
             <div className="space-y-2">
               <Label htmlFor="wfhReason">Reason <span className="text-destructive">*</span></Label>
-              <Textarea 
-                id="wfhReason" 
-                value={wfhReason} 
-                onChange={(e) => setWfhReason(e.target.value)} 
-                placeholder="Why are you requesting to work from home?" 
-                rows={3} 
+              <Textarea
+                id="wfhReason"
+                value={wfhReason}
+                onChange={(e) => setWfhReason(e.target.value)}
+                placeholder="Why are you requesting to work from home?"
+                rows={3}
               />
             </div>
             <Button type="submit" disabled={wfhSubmitting}>
@@ -528,7 +562,8 @@ export default function MyLeavePage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Requested Date</TableHead>
+                <TableHead>Date Range</TableHead>
+                <TableHead>Days</TableHead>
                 <TableHead>Reason</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Reviewed Date</TableHead>
@@ -536,10 +571,11 @@ export default function MyLeavePage() {
             </TableHeader>
             <TableBody>
               {wfhRequests.length === 0 ? (
-                <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No Work From Home requests</TableCell></TableRow>
+                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No Work From Home requests</TableCell></TableRow>
               ) : wfhRequests.map((r: any) => (
                 <TableRow key={r.id}>
-                  <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
+                  <TableCell>{r.start_date === r.end_date ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy") : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} – ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`}</TableCell>
+                  <TableCell className="text-center">{r.days_count ?? 1}</TableCell>
                   <TableCell className="max-w-[300px] truncate">{r.reason}</TableCell>
                   <TableCell>{statusBadge(r.status)}</TableCell>
                   <TableCell className="text-sm text-muted-foreground">

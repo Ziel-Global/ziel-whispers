@@ -6,7 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { formatTime12h, getPKTDateString } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatTime12h, getPKTDateString } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,7 @@ export default function EmployeeProfilePage() {
   const navigate = useNavigate();
   const { profile: myProfile } = useAuth();
   const queryClient = useQueryClient();
+  const { expectedDailyHours } = useWorkSettings();
   const [saving, setSaving] = useState(false);
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [deactivating, setDeactivating] = useState(false);
@@ -240,7 +241,7 @@ export default function EmployeeProfilePage() {
       cur.setDate(cur.getDate() + 1);
     }
 
-    const expected = workingDayCount * 8;
+    const expected = workingDayCount * expectedDailyHours;
     let logged = 0;
     let overtime = 0;
     for (const log of monthlyLogs) {
@@ -256,7 +257,7 @@ export default function EmployeeProfilePage() {
       overtimeHours: overtime,
       overtimeEnabled: otEnabled,
     };
-  }, [monthStart, monthEnd, monthlyLogs, monthlyLeaves, employee]);
+  }, [monthStart, monthEnd, monthlyLogs, monthlyLeaves, employee, expectedDailyHours]);
 
   const form = useForm({
     resolver: zodResolver(adminSchema),

@@ -96,6 +96,7 @@ export default function MyAttendancePage() {
         .lte("log_date", monthEnd);
       return data || [];
     },
+    staleTime: 30000,
     enabled: !!user?.id,
   });
 
@@ -195,6 +196,7 @@ export default function MyAttendancePage() {
         .eq("status", "submitted");
       return data || [];
     },
+    staleTime: 30000,
     enabled: !!user?.id && !!selectedDay,
   });
 

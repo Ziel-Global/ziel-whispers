@@ -851,7 +851,7 @@ export default function LeaveAdminPage() {
               {calDays.map((d) => {
                 const leaves = getLeavesForDay(d);
                 return (
-                  <div key={d.toISOString()} className={`min-h-[60px] p-1 rounded text-xs border ${isWeekend(d) ? "bg-muted opacity-60 blur-sm" : "bg-card"}`}>
+                  <div key={d.toISOString()} className={`min-h-[60px] p-1 rounded text-xs border ${d.getDay() === 0 ? "bg-muted opacity-60 blur-sm" : "bg-card"}`}>
                     <span className="font-medium">{d.getDate()}</span>
                     <div className="mt-0.5 space-y-0.5">
                       {leaves.slice(0, 2).map((l: any) => {

@@ -63,7 +63,7 @@ export default function LogSubmitPage() {
   const navigate = useNavigate();
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const { shiftStart, shiftEnd: resolvedShiftEnd, workingDays } = useWorkSettings();
+  const { shiftStart, shiftEnd: resolvedShiftEnd, workingDays, expectedDailyHours } = useWorkSettings();
   const overtimeEnabled = profile?.overtime_enabled ?? false;
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
@@ -118,6 +118,7 @@ export default function LogSubmitPage() {
       });
       return totals;
     },
+    staleTime: 30000,
     enabled: !!user?.id,
   });
 
@@ -493,6 +494,9 @@ export default function LogSubmitPage() {
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-totals-range"] });
       await queryClient.invalidateQueries({ queryKey: ["my-project-tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["missing-log-check"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-day-logs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-month-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
       if (clockedOut) {
         await queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
@@ -508,8 +512,8 @@ export default function LogSubmitPage() {
     }
   };
 
-  const progressPercentage = Math.min((totalHoursForSelectedDate / 8) * 100, 100);
-  const remainingHoursForTarget = Math.max(8 - totalHoursForSelectedDate, 0);
+  const progressPercentage = Math.min((totalHoursForSelectedDate / expectedDailyHours) * 100, 100);
+  const remainingHoursForTarget = Math.max(expectedDailyHours - totalHoursForSelectedDate, 0);
 
   return (
     <div className="max-w-3xl mx-auto space-y-8">
@@ -531,12 +535,12 @@ export default function LogSubmitPage() {
               <CalendarClock className="h-4 w-4 text-black" />
               <span className="text-md font-semibold">Logging Progress for {format(parseISO(selectedDate), "MMM d")}</span>
             </div>
-            <span className="text-xs font-medium px-2 py-0.5 bg-primary rounded-full">Target: 8 Hours</span>
+            <span className="text-xs font-medium px-2 py-0.5 bg-primary rounded-full">Target: {expectedDailyHours} Hours</span>
           </div>
           <Progress value={progressPercentage} className="h-2 bg-gray-200" />
           <div className="flex justify-between items-center mt-2 text-xs">
             <div>
-              <p className="font-medium text-black">{totalHoursForSelectedDate} of 8 hours total</p>
+              <p className="font-medium text-black">{totalHoursForSelectedDate} of {expectedDailyHours} hours total</p>
               {submittedHours > 0 && <p className="text-[10px] text-muted-foreground">({submittedHours}h already submitted)</p>}
             </div>
             {remainingHoursForTarget > 0 ? (

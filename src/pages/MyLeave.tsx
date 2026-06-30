@@ -512,7 +512,7 @@ export default function MyLeavePage() {
                     if (v <= today) { toast.error("Start date must be a future date (tomorrow or later)"); return; }
                     const d = new Date(v + "T00:00:00");
                     const day = d.getDay();
-                    if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); return; }
+                    if (day === 0 || (day === 6 && workingDays === 5)) { toast.error(workingDays === 5 ? "Date cannot be on Saturday or Sunday" : "Date cannot be on Sunday"); return; }
                     setWfhStartDate(v);
                   }}
                   min={tomorrow}
@@ -530,7 +530,7 @@ export default function MyLeavePage() {
                     if (v <= today) { toast.error("End date must be a future date (tomorrow or later)"); return; }
                     const d = new Date(v + "T00:00:00");
                     const day = d.getDay();
-                    if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); return; }
+                    if (day === 0 || (day === 6 && workingDays === 5)) { toast.error(workingDays === 5 ? "Date cannot be on Saturday or Sunday" : "Date cannot be on Sunday"); return; }
                     setWfhEndDate(v);
                   }}
                   min={wfhStartDate || tomorrow}
@@ -626,8 +626,8 @@ export default function MyLeavePage() {
                     const v = e.target.value;
                     if (!v) { setStartDate(v); setEndDate(v); return; }
                     const d = new Date(v + "T00:00:00");
-                    const day = d.getDay(); // 0=Sun .. 6=Sat
-                    if (day === 6 || day === 0) { toast.error("Date cannot be on Saturday or Sunday"); setStartDate(""); setEndDate(""); return; }
+                    const day = d.getDay();
+                    if (day === 0 || (day === 6 && workingDays === 5)) { toast.error(workingDays === 5 ? "Date cannot be on Saturday or Sunday" : "Date cannot be on Sunday"); setStartDate(""); setEndDate(""); return; }
                     setStartDate(v);
                     setEndDate(v);
                   }} min={today} />
@@ -640,8 +640,8 @@ export default function MyLeavePage() {
                       const v = e.target.value;
                       if (!v) { setStartDate(v); return; }
                       const d = new Date(v + "T00:00:00");
-                      const day = d.getDay(); // 0=Sun .. 6=Sat
-                      if (day === 6 || day === 0) { toast.error("Start date cannot be on Saturday or Sunday"); setStartDate(""); return; }
+                      const day = d.getDay();
+                      if (day === 0 || (day === 6 && workingDays === 5)) { toast.error(workingDays === 5 ? "Start date cannot be on Saturday or Sunday" : "Start date cannot be on Sunday"); setStartDate(""); return; }
                       setStartDate(v);
                     }} min={today} />
                   </div>
@@ -652,7 +652,7 @@ export default function MyLeavePage() {
                       if (!v) { setEndDate(v); return; }
                       const d = new Date(v + "T00:00:00");
                       const day = d.getDay();
-                      if (day === 6 || day === 0) { toast.error("End date cannot be on Saturday or Sunday"); setEndDate(""); return; }
+                      if (day === 0 || (day === 6 && workingDays === 5)) { toast.error(workingDays === 5 ? "End date cannot be on Saturday or Sunday" : "End date cannot be on Sunday"); setEndDate(""); return; }
                       setEndDate(v);
                     }} min={startDate || today} />
                   </div>

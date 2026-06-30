@@ -142,6 +142,7 @@ export default function LogsAdminPage() {
       queryClient.invalidateQueries({ queryKey: ["system-settings-global"] });
       queryClient.invalidateQueries({ queryKey: ["system-setting-log-edit-days"] });
       queryClient.invalidateQueries({ queryKey: ["auto-clockout-display-label"] });
+      queryClient.invalidateQueries({ queryKey: ["user-shift-info"] });
       toast.success("Log Rules saved");
     } catch (err: any) { toast.error(err.message); }
     finally { setSavingSettings(false); }
@@ -165,7 +166,7 @@ export default function LogsAdminPage() {
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at, overtime_enabled, is_oversight").eq("status", "active").neq("role", "admin").order("full_name");
+      const { data } = await supabase.from("users").select("id, full_name, shift_start, shift_end, has_custom_shift, created_at, overtime_enabled, is_oversight, working_days").eq("status", "active").neq("role", "admin").order("full_name");
       return data || [];
     },
   });
@@ -253,7 +254,7 @@ export default function LogsAdminPage() {
       // Log status: missed / added / late / on_leave / half_day_leave / partial_day
       const hasLogs = empLogs.length > 0;
       const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date));
-      const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
+      const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || (new Date(selectedDate + "T00:00:00").getDay() === 6 && (emp.working_days ?? 5) === 5);
       
       let logStatus: "missed" | "added" | "late" | "none" | "on_leave" | "half_day_leave" | "partial_day" = "missed";
       if (isFullLeave) {
@@ -332,7 +333,7 @@ export default function LogsAdminPage() {
       const hasLogs = empLogs.length > 0;
       const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
       const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date));
-      const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || new Date(selectedDate + "T00:00:00").getDay() === 6;
+      const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || (new Date(selectedDate + "T00:00:00").getDay() === 6 && (emp.working_days ?? 5) === 5);
 
       const leave = leavesByUser[emp.id];
       const isFullLeave = leave && !leave.hours;

@@ -9,14 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Flag, ChevronDown, ChevronUp, Search, Save, FileX, FileText, Clock, Trash2, Pencil } from "lucide-react";
+import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
@@ -413,6 +413,29 @@ export default function LogsAdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
   };
 
+  const filteredLogs = useMemo(() => {
+    let list = [...logs];
+    if (employeeFilter !== "all") {
+      list = list.filter((l: any) => l.user_id === employeeFilter);
+    }
+    if (statusFilter === "late") {
+      list = list.filter((l: any) => {
+        const emp = employees.find((e: any) => e.id === l.user_id);
+        if (!emp) return false;
+        const esEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
+        return l.submitted_at && esEnd && isLogSubmissionLate(l.submitted_at, esEnd, l.log_date);
+      });
+    }
+    if (searchQ) {
+      const q = searchQ.toLowerCase();
+      list = list.filter((l: any) =>
+        l.users?.full_name?.toLowerCase().includes(q) ||
+        l.description?.toLowerCase().includes(q)
+      );
+    }
+    return list.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+  }, [logs, employeeFilter, statusFilter, searchQ, employees, globalShiftEnd]);
+
   const exportCSV = () => {
     const header = "Employee,Logged Hours,Unlogged Hours,Log Status,Standup Status\n";
     const rows = groupedRows.map((r) =>
@@ -524,401 +547,59 @@ export default function LogsAdminPage() {
             </Select>
           </div>
 
-          <Card>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-8"></TableHead>
-                  <TableHead>Employee Name</TableHead>
-                  <TableHead>Logged Hours</TableHead>
-                  <TableHead>Unlogged Hours</TableHead>
-                  <TableHead>Overtime Hours</TableHead>
-                  <TableHead>Log Status</TableHead>
-                  <TableHead>Standup</TableHead>
-                </TableRow>
+          {isLoading ? (
+            <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>
+          ) : filteredLogs.length === 0 ? (
+            <Card><div className="py-12 text-center text-muted-foreground">No logs found for the selected filters</div></Card>
+          ) : (
+            <div>
+              <TableHeader gridCols="1fr 112px 80px 96px 80px 96px 80px">
+                <span>EMPLOYEE</span>
+                <span>DATE</span>
+                <span>HOURS</span>
+                <span>STATUS</span>
+                <span>LATE</span>
+                <span>FLAGGED</span>
+                <span className="text-right">ACTIONS</span>
               </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-                ) : groupedRows.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
-                ) : (
-                  groupedRows.map((row) => (
-                    <>
-                      <TableRow
-                        key={row.userId}
-                        className={`cursor-pointer${row.isOversight ? " relative bg-amber-50/70" : ""}${row.logStatus === "missed" ? " bg-red-50/50" : ""}`}
-                        onClick={() => setExpandedId(expandedId === row.userId ? null : row.userId)}
-                      >
-                        <TableCell className="relative">{expandedId === row.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                        <TableCell className="font-medium">
-                          <span className="flex items-center gap-2">
-                            {row.name}
-                            {row.overtimeEnabled && (
-                              <Badge variant="outline" className="text-[10px] border-purple-200 text-purple-700 bg-purple-50 px-1 h-4">OT</Badge>
-                            )}
-                            {row.hasFlaggedLog && <Flag className="h-3.5 w-3.5 text-destructive fill-destructive" />}
-                          </span>
-                        </TableCell>
-                        <TableCell>{formatHours(row.loggedHours)}</TableCell>
-                        <TableCell>
-                          <span className={row.unloggedHours > 0 ? "text-amber-600 font-medium" : "text-muted-foreground"}>
-                            {row.unloggedHours > 0 ? formatHours(row.unloggedHours) : "0"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {row.overtimeEnabled ? (
-                            <span className={row.overtimeHours > 0 ? "text-purple-600 font-bold" : "text-muted-foreground"}>
-                              {formatHours(row.overtimeHours)}
-                            </span>
-                          ) : (
-                            <span className="text-muted-foreground">—</span>
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {row.logStatus === "missed" ? <Badge className="bg-red-100 text-red-700">Missed</Badge> :
-                            row.logStatus === "late" ? <Badge className="bg-yellow-100 text-yellow-800">Late</Badge> :
-                            row.logStatus === "none" ? <Badge className="bg-gray-100 text-gray-500">N/A</Badge> :
-                            row.logStatus === "on_leave" ? <Badge className="bg-purple-100 text-purple-700">On Leave</Badge> :
-                            row.logStatus === "half_day_leave" ? <Badge className="bg-purple-100 text-purple-700">{`Hourly Leave — ${row.leaveHours} hours`}</Badge> :
-                            row.logStatus === "partial_day" ? <Badge className="bg-blue-100 text-blue-700">{`Partial Day — ${row.loggedHours.toFixed(1)}h worked, ${row.leaveHours}h on leave`}</Badge> :
-                                <Badge className="bg-green-100 text-green-800">Added</Badge>}
-                        </TableCell>
-                        <TableCell onClick={(e) => e.stopPropagation()}>
-                          <Switch 
-                            checked={row.standupDone} 
-                            disabled={!isAdmin}
-                            onCheckedChange={() => toggleStandup(row.userId, selectedDate, row.standupDone)}
-                          />
-                        </TableCell>
-                      </TableRow>
-                      {expandedId === row.userId && (
-                        <TableRow key={`${row.userId}-detail`}>
-                          <TableCell colSpan={7} className="bg-muted/50 p-0">
-                            {row.logCount === 0 ? (
-                              <div className="p-4 text-sm text-muted-foreground text-center">No log entries submitted for this date.</div>
-                            ) : (
-                              <div className="divide-y">
-                                {/* Regular Logs */}
-                                {row.regularLogs.map((log: any) =>
-                                  <div key={log.id} className="p-3">
-                                    <div className="flex items-start justify-between gap-2">
-                                      <div className="flex-1">
-                                        {/* Vertical column grid layout with labels above values */}
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
-                                          <div>
-                                            <p className="text-[12px] text-muted-foreground mb-0.5">Logged Hours</p>
-                                            <p className="text-sm font-medium">{formatHours(log.hours)}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-[12px] text-muted-foreground mb-0.5">Submitted Time</p>
-                                            <p className="text-sm">{formatPKTTime(log.submitted_at)}</p>
-                                          </div>
-                                          <div>
-                                            <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
-                                            {editingLogId === log.id ? (
-                                              <Select value={editProjectId || MISC_PROJECT_ID} onValueChange={(v) => setEditProjectId(v === MISC_PROJECT_ID ? null : v)}>
-                                                <SelectTrigger className="h-8 text-xs">
-                                                  <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
-                                                  {allProjects.map((p) => (
-                                                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
-                                            ) : (
-                                              <p className="text-sm">{getProjectName(log)}</p>
-                                            )}
-                                          </div>
-                                          <div>
-                                            <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>
-                                            {editingLogId === log.id ? (
-                                              <Select value={editCategory} onValueChange={setEditCategory}>
-                                                <SelectTrigger className="h-8 text-xs">
-                                                  <SelectValue />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                  {CATEGORIES.map((c) => (
-                                                    <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
-                                                  ))}
-                                                </SelectContent>
-                                              </Select>
-                                            ) : (
-                                              <Badge variant="secondary">{log.category}</Badge>
-                                            )}
-                                          </div>
-                                        </div>
-                                        <div className="mb-2">
-                                          <p className="text-[12px] text-muted-foreground mb-0.5">Description</p>
-                                          <p className="text-sm text-muted-foreground">{log.description}</p>
-                                        </div>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          {(() => {
-                                            const emp = employees.find((e: any) => e.id === log.user_id);
-                                            const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
-                                            return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
-                                          })()}
-                                          {log.admin_comment && (
-                                            <div>
-                                              <p className="text-[12px] text-muted-foreground mb-0.5">Admin Comment</p>
-                                              <p className="text-sm">{log.admin_comment}</p>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                      {isAdmin && (
-                                        <div className="flex gap-1 items-center">
-                                          {editingLogId === log.id ? (
-                                            <>
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); handleEditLog(log.id); }}
-                                                className="shrink-0 p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
-                                                title="Save Changes"
-                                              >
-                                                <Save className="h-4 w-4" />
-                                              </button>
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); setEditingLogId(null); }}
-                                                className="shrink-0 p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
-                                                title="Cancel"
-                                              >
-                                                <FileX className="h-4 w-4" />
-                                              </button>
-                                            </>
-                                          ) : (
-                                            <button
-                                              onClick={(e) => {
-                                                e.stopPropagation();
-                                                setEditingLogId(log.id);
-                                                setEditProjectId(log.project_id);
-                                                setEditCategory(log.category);
-                                              }}
-                                              className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-                                              title="Edit Log"
-                                            >
-                                              <Pencil className="h-4 w-4" />
-                                            </button>
-                                          )}
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
-                                            className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-                                            title={log.admin_flagged ? "Unflag" : "Flag"}
-                                          >
-                                            <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/40"}`} />
-                                          </button>
-                                          <button
-                                            onClick={(e) => { e.stopPropagation(); setDeleteId(log.id); }}
-                                            className="shrink-0 p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
-                                            title="Delete Log"
-                                          >
-                                            <Trash2 className="h-4 w-4" />
-                                          </button>
-                                        </div>
-                                      )}
-                                    </div>
-                                    {isAdmin && expandedLogId === log.id && (
-                                      <div className="mt-3 space-y-3 border-t pt-3">
-                                        <div className="flex items-center gap-4">
-                                          <div className="flex items-center gap-2">
-                                            <Label className="text-xs">Lock</Label>
-                                            <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
-                                          </div>
-                                        </div>
-                                        <div className="space-y-1">
-                                          <Label className="text-xs">Admin Comment</Label>
-                                          <div className="flex gap-2">
-                                            <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1" />
-                                            <Button size="sm" onClick={() => saveComment(log.id)}>Save</Button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-                                    {isAdmin && (
-                                      <Button
-                                        size="sm"
-                                        className="mt-1 text-xs bg-primary text-primary-foreground hover:bg-foreground hover:text-white transition-[background] duration-150 ease-in-out"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setExpandedLogId(expandedLogId === log.id ? null : log.id);
-                                          setComment(log.admin_comment || "");
-                                        }}
-                                      >
-                                        {expandedLogId === log.id ? "Hide Actions" : "Admin Actions"}
-                                      </Button>
-                                    )}
-                                  </div>
-                                )}
-                                {/* Overtime Separator & Logs */}
-                                {row.overtimeLogs.length > 0 && (
-                                  <>
-                                    <div className="px-3 py-2 bg-purple-50 border-t-2 border-purple-200">
-                                      <p className="text-xs font-bold text-purple-700 uppercase tracking-wider">Overtime Logs ({formatHours(row.overtimeHours)})</p>
-                                    </div>
-                                    {row.overtimeLogs.map((log: any) => (
-                                      <div key={log.id} className="p-3 bg-purple-50/50 border-l-4 border-purple-400">
-                                        <div className="flex items-start justify-between gap-2">
-                                          <div className="flex-1">
-                                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-2">
-                                              <div>
-                                                <p className="text-[12px] text-purple-600 mb-0.5">Overtime Hours</p>
-                                                <p className="text-sm font-medium text-purple-700">{formatHours(log.hours)}</p>
-                                              </div>
-                                              <div>
-                                                <p className="text-[12px] text-muted-foreground mb-0.5">Submitted Time</p>
-                                                <p className="text-sm">{formatPKTTime(log.submitted_at)}</p>
-                                              </div>
-                                              <div>
-                                                <p className="text-[12px] text-muted-foreground mb-0.5">Project Name</p>
-                                                {editingLogId === log.id ? (
-                                                  <Select value={editProjectId || MISC_PROJECT_ID} onValueChange={(v) => setEditProjectId(v === MISC_PROJECT_ID ? null : v)}>
-                                                    <SelectTrigger className="h-8 text-xs">
-                                                      <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
-                                                      {allProjects.map((p) => (
-                                                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                                                      ))}
-                                                    </SelectContent>
-                                                  </Select>
-                                                ) : (
-                                                  <p className="text-sm">{getProjectName(log)}</p>
-                                                )}
-                                              </div>
-                                              <div>
-                                                <p className="text-[12px] text-muted-foreground mb-0.5">Category</p>
-                                                {editingLogId === log.id ? (
-                                                  <Select value={editCategory} onValueChange={setEditCategory}>
-                                                    <SelectTrigger className="h-8 text-xs">
-                                                      <SelectValue />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      {CATEGORIES.map((c) => (
-                                                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
-                                                      ))}
-                                                    </SelectContent>
-                                                  </Select>
-                                                ) : (
-                                                  <Badge variant="secondary" className="bg-purple-100 text-purple-700">{log.category}</Badge>
-                                                )}
-                                              </div>
-                                            </div>
-                                            <div className="mb-2">
-                                              <p className="text-[12px] text-muted-foreground mb-0.5">Description</p>
-                                              <p className="text-sm text-muted-foreground">{log.description}</p>
-                                            </div>
-                                            <div className="flex flex-wrap items-center gap-2">
-                                              <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge>
-                                              {(() => {
-                                                const emp = employees.find((e: any) => e.id === log.user_id);
-                                                const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
-                                              return log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date) ? <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> : null;
-                                            })()}
-                                            {log.admin_comment && (
-                                              <div className="mt-1">
-                                                <p className="text-[12px] text-purple-600 mb-0.5 font-medium">Admin Comment</p>
-                                                <p className="text-sm">{log.admin_comment}</p>
-                                              </div>
-                                              )}
-                                            </div>
-                                          </div>
-                                          {isAdmin && (
-                                            <div className="flex gap-1 items-center">
-                                              {editingLogId === log.id ? (
-                                                <>
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); handleEditLog(log.id); }}
-                                                    className="shrink-0 p-1 rounded hover:bg-green-100 text-green-600 transition-colors"
-                                                    title="Save Changes"
-                                                  >
-                                                    <Save className="h-4 w-4" />
-                                                  </button>
-                                                  <button
-                                                    onClick={(e) => { e.stopPropagation(); setEditingLogId(null); }}
-                                                    className="shrink-0 p-1 rounded hover:bg-red-100 text-red-600 transition-colors"
-                                                    title="Cancel"
-                                                  >
-                                                    <FileX className="h-4 w-4" />
-                                                  </button>
-                                                </>
-                                              ) : (
-                                                <button
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    setEditingLogId(log.id);
-                                                    setEditProjectId(log.project_id);
-                                                    setEditCategory(log.category);
-                                                  }}
-                                                  className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-                                                  title="Edit Log"
-                                                >
-                                                  <Pencil className="h-4 w-4" />
-                                                </button>
-                                              )}
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); toggleFlag(log); }}
-                                                className="shrink-0 p-1 rounded hover:bg-muted transition-colors"
-                                                title={log.admin_flagged ? "Unflag" : "Flag"}
-                                              >
-                                                <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-muted-foreground/40"}`} />
-                                              </button>
-                                              <button
-                                                onClick={(e) => { e.stopPropagation(); setDeleteId(log.id); }}
-                                                className="shrink-0 p-1 rounded hover:bg-destructive/10 text-destructive transition-colors"
-                                                title="Delete Log"
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </button>
-                                            </div>
-                                          )}
-                                        </div>
-                                        {isAdmin && expandedLogId === log.id && (
-                                          <div className="mt-3 space-y-3 border-t border-purple-200 pt-3">
-                                            <div className="flex items-center gap-4">
-                                              <div className="flex items-center gap-2">
-                                                <Label className="text-xs text-purple-700 font-bold">Lock Log</Label>
-                                                <Switch checked={log.is_locked} onCheckedChange={() => toggleLock(log)} />
-                                              </div>
-                                            </div>
-                                            <div className="space-y-1">
-                                              <Label className="text-xs text-purple-700 font-bold">Admin Comment</Label>
-                                              <div className="flex gap-2">
-                                                <Textarea value={comment} onChange={(e) => setComment(e.target.value)} rows={2} className="flex-1 border-purple-100 focus-visible:ring-purple-400" />
-                                                <Button size="sm" className="bg-purple-600 hover:bg-purple-700" onClick={() => saveComment(log.id)}>Save</Button>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        )}
-                                        {isAdmin && (
-                                          <Button
-                                            size="sm"
-                                            className="mt-2 text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              setExpandedLogId(expandedLogId === log.id ? null : log.id);
-                                              setComment(log.admin_comment || "");
-                                            }}
-                                          >
-                                            {expandedLogId === log.id ? "Hide Actions" : "Admin Actions"}
-                                          </Button>
-                                        )}
-                                      </div>
-                                    ))}
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      )}
-                    </>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </Card>
+              {filteredLogs.map((log: any) => {
+                const emp = employees.find((e: any) => e.id === log.user_id);
+                const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
+                const isLate = log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date);
+                return (
+                  <DataRow key={log.id} gridCols="1fr 112px 80px 96px 80px 96px 80px">
+                    <div>
+                      <RowPrimary>{log.users?.full_name}</RowPrimary>
+                      <RowSecondary>{(log.projects?.name || "Miscellaneous")} · {log.category?.replace(/_/g, " ")}</RowSecondary>
+                    </div>
+                    <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                    <RowDataItem label="HOURS">{formatHours(log.hours)}</RowDataItem>
+                    <RowBadgeItem label="STATUS">
+                      <Badge className="bg-green-100 text-green-800">Submitted</Badge>
+                    </RowBadgeItem>
+                    {isLate ? (
+                      <RowBadgeItem label="LATE" className="bg-yellow-100 text-yellow-800">Late</RowBadgeItem>
+                    ) : (
+                      <RowBadgeItem label="LATE">—</RowBadgeItem>
+                    )}
+                    {log.admin_flagged ? (
+                      <RowBadgeItem label="FLAGGED" className="bg-red-100 text-red-700">Flagged</RowBadgeItem>
+                    ) : (
+                      <RowBadgeItem label="FLAGGED">—</RowBadgeItem>
+                    )}
+                    <RowActions className="justify-self-end">
+                      <button onClick={() => toggleFlag(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.admin_flagged ? "Unflag" : "Flag"}>
+                        <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-[#d1d5db]"}`} />
+                      </button>
+                      <button onClick={() => toggleLock(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.is_locked ? "Unlock" : "Lock"}>
+                        <Lock className={`h-4 w-4 ${log.is_locked ? "text-blue-600" : "text-[#d1d5db]"}`} />
+                      </button>
+                    </RowActions>
+                  </DataRow>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         {isAdmin && (

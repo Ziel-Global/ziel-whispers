@@ -11,8 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { Plus, Search, Archive, ArchiveRestore, Pencil, Building2, Trash2 } from "lucide-react";
+import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface ClientForm {
@@ -189,58 +190,48 @@ export default function ClientsPage() {
         </Select>
       </div>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead>Location</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Projects</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
+      {isLoading && <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>}
+      {!isLoading && filtered.length === 0 && <Card><div className="py-12 text-center text-muted-foreground">No clients found</div></Card>}
+      {!isLoading && filtered.length > 0 && (
+        <div>
+          <TableHeader gridCols="1fr 96px 96px 112px 80px">
+            <span>CLIENT</span>
+            <span>PROJECTS</span>
+            <span>STATUS</span>
+            <span>CREATED</span>
+            <span className="text-right">ACTIONS</span>
           </TableHeader>
-          <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No clients found</TableCell></TableRow>}
-            {filtered.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    {c.name}
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{c.industry || "—"}</TableCell>
-                <TableCell className="text-sm">{c.contact_phone || "—"}</TableCell>
-                <TableCell>
-                  <div className="text-sm">{c.contact_name || "—"}</div>
-                  {c.contact_email && <div className="text-xs text-muted-foreground">{c.contact_email}</div>}
-                </TableCell>
-                <TableCell>{projectCounts?.[c.id] || 0}</TableCell>
-                <TableCell>
-                  <Badge className={c.status === "active" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
-                    {c.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => toggleArchive(c.id, c.status)}>
-                      {c.status === "archived" ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(c.id)} className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+          {filtered.map((c) => (
+            <DataRow key={c.id} gridCols="1fr 96px 96px 112px 80px">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-[#6b7280] shrink-0" />
+                  <RowPrimary>{c.name}</RowPrimary>
+                </div>
+                <RowSecondary>{c.contact_email || "—"} · {c.contact_phone || "—"}</RowSecondary>
+              </div>
+              <RowDataItem label="PROJECTS">{projectCounts?.[c.id] || 0}</RowDataItem>
+              <RowDataItem label="STATUS">
+                <Badge className={c.status === "active" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
+                  {c.status}
+                </Badge>
+              </RowDataItem>
+              <RowDataItem label="CREATED">{format(new Date(c.created_at), "MMM d, yyyy")}</RowDataItem>
+              <RowActions className="justify-self-end">
+                <button onClick={() => openEdit(c)} className={editButtonClass} title="Edit">
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button onClick={() => toggleArchive(c.id, c.status)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={c.status === "archived" ? "Restore" : "Archive"}>
+                  {c.status === "archived" ? <ArchiveRestore className="h-4 w-4 text-[#6b7280]" /> : <Archive className="h-4 w-4 text-[#6b7280]" />}
+                </button>
+                <button onClick={() => setDeleteId(c.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Delete">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </RowActions>
+            </DataRow>
+          ))}
+        </div>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">

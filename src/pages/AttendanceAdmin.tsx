@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -287,63 +287,60 @@ export default function AttendanceAdminPage() {
         )}
       </div>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Employee</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Clock In</TableHead>
-              <TableHead>Clock Out</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead>Work Mode</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No records for this date</TableCell></TableRow>
-            ) : (
-              filtered.map((r: any) => {
-                const isOversight = r.users?.is_oversight === true;
-                return (
-                <TableRow key={r.id} className={`${isOversight ? "relative bg-amber-50/70" : ""}`}>
-                  <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                  <TableCell>{r.users?.department}</TableCell>
-                  <TableCell>
-                    {r.clock_in ? formatPKTTime(r.clock_in) : "—"}
-                    {r.is_late && <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Late</Badge>}
-                  </TableCell>
-                  <TableCell>
-                    {r.clock_out ? formatPKTTime(r.clock_out) : "—"}
-                    {r.auto_clocked_out && (
-                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[9px] px-1">Auto</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "—"}</TableCell>
-                  <TableCell><Badge variant="outline" className="capitalize text-[10px]">{r.work_mode}</Badge></TableCell>
-                  <TableCell>
-                    {!r.clock_out
-                      ? <Badge className="bg-green-100 text-green-800 text-[10px]">Active</Badge>
-                      : <Badge className="bg-muted text-muted-foreground text-[10px]">Complete</Badge>
-                    }
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {isAdmin && (
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>)
-              })
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+      <div className="border border-border rounded-card bg-card overflow-hidden">
+        {isLoading ? (
+          <div className="px-4 py-8 text-center text-muted-foreground">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="px-4 py-8 text-center text-muted-foreground">No records for this date</div>
+        ) : (
+          <div>
+            <TableHeader gridCols="1fr 96px 96px 80px 96px 80px 80px">
+              <span>EMPLOYEE</span>
+              <span>CLOCK IN</span>
+              <span>CLOCK OUT</span>
+              <span>HOURS</span>
+              <span>WORK MODE</span>
+              <span>STATUS</span>
+              <span className="text-right">ACTIONS</span>
+            </TableHeader>
+            {filtered.map((r: any) => {
+            const isOversight = r.users?.is_oversight === true;
+            return (
+              <DataRow key={r.id} className={isOversight ? "bg-amber-50/70 hover:bg-amber-50/70" : ""} gridCols="1fr 96px 96px 80px 96px 80px 80px">
+                <div>
+                  <RowPrimary>{r.users?.full_name || 'Unknown'}</RowPrimary>
+                  <RowSecondary>{r.users?.department || ''}</RowSecondary>
+                </div>
+                <RowDataItem label="CLOCK IN">{r.clock_in ? formatPKTTime(r.clock_in) : '—'}</RowDataItem>
+                <RowDataItem label="CLOCK OUT">{r.clock_out ? formatPKTTime(r.clock_out) : '—'}</RowDataItem>
+                <RowDataItem label="HOURS">{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : '—'}</RowDataItem>
+                <RowBadgeItem label="WORK MODE">
+                  <Badge variant="outline" className="capitalize text-[10px]">{r.work_mode || '—'}</Badge>
+                </RowBadgeItem>
+                <RowBadgeItem label="STATUS">
+                  {!r.clock_in ? (
+                    <Badge className="bg-muted text-muted-foreground text-[10px]">Absent</Badge>
+                  ) : !r.clock_out ? (
+                    <Badge className="bg-green-100 text-green-800 text-[10px]">Active</Badge>
+                  ) : r.is_late ? (
+                    <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>
+                  ) : (
+                    <Badge className="bg-green-100 text-green-800 text-[10px]">On Time</Badge>
+                  )}
+                </RowBadgeItem>
+                <RowActions className="justify-self-end">
+                  {isAdmin && (
+                    <button onClick={() => openEdit(r)} className={editButtonClass}>
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                </RowActions>
+              </DataRow>
+            );
+          })}
+          </div>
+        )}
+      </div>
 
       <Dialog open={!!editRecord} onOpenChange={(o) => !o && setEditRecord(null)}>
         <DialogContent>

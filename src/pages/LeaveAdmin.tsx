@@ -9,13 +9,13 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, ChevronLeft, ChevronRight, Save, ChevronDown, ChevronUp, Trash2, CalendarCheck, CalendarDays, AlertTriangle } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Save, Trash2, CalendarCheck, CalendarDays, AlertTriangle, Eye } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 
@@ -613,115 +613,52 @@ export default function LeaveAdminPage() {
             </DialogContent>
           </Dialog>
 
-          <Card>
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead>Employee</TableHead><TableHead>Type</TableHead><TableHead>Dates</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Submitted</TableHead><TableHead>Used / Total</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {groupedByUser.length === 0 ? (
-                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No requests</TableCell></TableRow>
-                ) : groupedByUser.map((group) => (
-                  <React.Fragment key={group.userId}>
-                    <TableRow
-                      className={`cursor-pointer relative${group.isOversight ? " bg-amber-50/70" : group.latest.status === "pending" ? " bg-yellow-50/50" : " bg-muted/20"}`}
-                      onClick={() => setExpandedEmployeeId(expandedEmployeeId === group.userId ? null : group.userId)}
-                    >
-                      <TableCell className="relative">
-                        {expandedEmployeeId === group.userId ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-                                              </TableCell>
-                      <TableCell>
-                        <div>
-                          <p className="font-medium text-sm">{group.user?.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{group.user?.department}</p>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-sm">{getLeaveTypeName(group.latest)}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        {format(new Date(group.latest.start_date + "T00:00:00"), "MMM d")}
-                        {(group.latest.start_date !== group.latest.end_date || !group.latest.hours) && (
-                          <> — {format(new Date(group.latest.end_date + "T00:00:00"), "MMM d")}</>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-sm">{group.latest.hours ? `${group.latest.hours} hrs` : group.latest.days_count}</TableCell>
-                      <TableCell className="max-w-[180px] whitespace-normal break-words text-sm">{group.latest.reason || "—"}</TableCell>
-                      <TableCell>{statusBadge(group.latest.status)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground whitespace-nowrap">{format(new Date(group.latest.created_at), "MMM d")}</TableCell>
-                      <TableCell className="text-sm whitespace-nowrap">
-                        <span className={group.usedDays >= group.totalDays ? "text-destructive font-medium" : ""}>
-                          {group.usedDays} / {group.totalDays} days
-                        </span>
-                        {group.usedDays >= group.totalDays && (
-                          <span className="text-destructive text-xs block">limit reached</span>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                    {expandedEmployeeId === group.userId && (
-                      <TableRow key={`${group.userId}-detail`}>
-                        <TableCell colSpan={9} className="bg-muted/50 p-0">
-                          <div className="p-4 space-y-3">
-                            {expandedEmployeeRequests.length === 0 ? (
-                              <p className="text-sm text-muted-foreground text-center py-4">No leave requests found for this period</p>
-                            ) : expandedEmployeeRequests.map((r: any) => (
-                              <div key={r.id} className="border rounded-lg p-3 bg-card">
-                                <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-2">
-                                  <div className="md:col-span-1">
-                                    <p className="text-[11px] text-muted-foreground mb-0.5">Leave Type</p>
-                                    <p className="text-sm font-medium">{getLeaveTypeName(r)}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[11px] text-muted-foreground mb-0.5">Dates</p>
-                                    <p className="text-sm">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — {format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</p>
-                                    <p className="text-xs text-muted-foreground">{r.hours ? `${r.hours} hrs` : `${r.days_count} day(s)`}</p>
-                                  </div>
-                                  <div>
-                                    <p className="text-[11px] text-muted-foreground mb-0.5">Status</p>
-                                    <div>{statusBadge(r.status)}</div>
-                                  </div>
-                                  <div>
-                                    <p className="text-[11px] text-muted-foreground mb-0.5">Submitted</p>
-                                    <p className="text-sm">{format(new Date(r.created_at), "MMM d, yyyy")}</p>
-                                    {r.reviewed_at && (
-                                      <p className="text-xs text-muted-foreground">Reviewed {format(new Date(r.reviewed_at), "MMM d")}</p>
-                                    )}
-                                  </div>
-                                  <div className="flex items-start justify-end gap-1 pt-4">
-                                    {r.status === "pending" && (
-                                      <>
-                                        <Button size="sm" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "approve", request: r }); }}>Approve</Button>
-                                        <Button size="sm" variant="destructive" onClick={(e) => { e.stopPropagation(); setActionModal({ type: "reject", request: r }); }}>Reject</Button>
-                                      </>
-                                    )}
-                                    <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }} className="text-destructive">
-                                      <Trash2 className="h-4 w-4" />
-                                    </Button>
-                                    {r.status !== "pending" && r.admin_comment && (
-                                      <span className="text-xs text-muted-foreground" title={r.admin_comment}>💬</span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="mb-2">
-                                  <p className="text-[11px] text-muted-foreground mb-0.5">Reason</p>
-                                  <p className="text-sm whitespace-normal break-words">{r.reason || "—"}</p>
-                                </div>
-                                {r.admin_comment && (
-                                  <div className="mb-2">
-                                    <p className="text-[11px] text-muted-foreground mb-0.5">Admin Comment</p>
-                                    <p className="text-sm">{r.admin_comment}</p>
-                                  </div>
-                                )}
-                              </div>
-                            ))}
-                          </div>
-                        </TableCell>
-                      </TableRow>
+          {filtered.length === 0 ? (
+            <Card><div className="py-12 text-center text-muted-foreground">No requests</div></Card>
+          ) : (
+            <div>
+              <TableHeader gridCols="1fr 112px 112px 80px 96px 80px">
+                <span>EMPLOYEE</span>
+                <span>FROM</span>
+                <span>TO</span>
+                <span>DAYS</span>
+                <span>STATUS</span>
+                <span className="text-right">ACTIONS</span>
+              </TableHeader>
+              {filtered.map((r: any) => (
+                <DataRow key={r.id} gridCols="1fr 112px 112px 80px 96px 80px">
+                  <div>
+                    <RowPrimary>{r.users?.full_name}</RowPrimary>
+                    <RowSecondary>{getLeaveTypeName(r)}</RowSecondary>
+                  </div>
+                  <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                  <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                  <RowDataItem label="DAYS">{r.hours ? `${r.hours} hrs` : r.days_count}</RowDataItem>
+                  <RowBadgeItem label="STATUS">{statusBadge(r.status)}</RowBadgeItem>
+                  <RowActions className="justify-self-end">
+                    {r.status === "pending" && (
+                      <>
+                        <button onClick={() => setActionModal({ type: "approve", request: r })} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => setActionModal({ type: "reject", request: r })} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject">
+                          <X className="h-4 w-4" />
+                        </button>
+                      </>
                     )}
-                  </React.Fragment>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                  </RowActions>
+                  <div style={{ gridColumn: "1 / -1" }} className="flex gap-4 mt-1">
+                    {r.reason && (
+                      <p className="text-[11px] text-[#6b7280]"><span className="text-[10px] uppercase tracking-wider text-[#9ca3af]">Reason: </span>{r.reason}</p>
+                    )}
+                    {(r.status === "approved" || r.status === "rejected") && r.admin_comment && (
+                      <p className="text-[11px] text-[#6b7280]" title={r.admin_comment}><span className="text-[10px] uppercase tracking-wider text-[#9ca3af]">Admin: </span>{r.admin_comment}</p>
+                    )}
+                  </div>
+                </DataRow>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="wfh" className="space-y-4">
@@ -736,104 +673,97 @@ export default function LeaveAdminPage() {
               </SelectContent>
             </Select>
           </div>
-          <Card>
-            <Table>
-              <TableHeader><TableRow>
-                <TableHead className="w-8"></TableHead>
-                <TableHead>Employee</TableHead>
-                <TableHead>Date Range</TableHead>
-                <TableHead>Days</TableHead>
-                <TableHead>Submitted On</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Reviewed</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow></TableHeader>
-              <TableBody>
-                {wfhFiltered.length === 0 ? (
-                  <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No Remote Requests</TableCell></TableRow>
-                ) : wfhFiltered.map((r: any) => (
-                  <>
-                    <TableRow key={r.id} className={`cursor-pointer relative${r.users?.is_oversight ? " bg-amber-50/70" : r.status === "pending" ? " bg-yellow-50/50" : ""}`} onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
-                      <TableCell className="relative">{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                      <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                      <TableCell className="whitespace-nowrap">
-                        {r.start_date === r.end_date
-                          ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
-                          : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
-                        }
-                      </TableCell>
-                      <TableCell>{r.days_count}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{format(new Date(r.created_at), "MMM d, yyyy")}</TableCell>
-                      <TableCell>{statusBadge(r.status)}</TableCell>
-                      <TableCell className="text-sm text-muted-foreground">
-                        {r.reviewed_at ? (
-                          <>
-                            {format(new Date(r.reviewed_at), "MMM d")}
-                            <br />
-                            <span className="text-xs">by {r.reviewer?.full_name || "Admin"}</span>
-                          </>
-                        ) : "—"}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1 items-center">
-                          {r.status === "pending" && (
-                            <>
-                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "approve", r.user_id); }} className="text-green-600"><Check className="h-4 w-4" /></Button>
-                              <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "reject", r.user_id); }} className="text-destructive"><X className="h-4 w-4" /></Button>
-                            </>
-                          )}
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setWfhDeleteId(r.id); }} className="text-destructive"><Trash2 className="h-4 w-4" /></Button>
+          {wfhFiltered.length === 0 ? (
+            <Card><div className="py-12 text-center text-muted-foreground">No Remote Requests</div></Card>
+          ) : (
+            <div>
+              <TableHeader gridCols="1fr 1fr 80px 112px 96px 1fr 80px">
+                <span>EMPLOYEE</span>
+                <span>DATE RANGE</span>
+                <span>DAYS</span>
+                <span>SUBMITTED</span>
+                <span>STATUS</span>
+                <span>REVIEWED</span>
+                <span className="text-right">ACTIONS</span>
+              </TableHeader>
+              {wfhFiltered.map((r: any) => (
+                <React.Fragment key={r.id}>
+                  <DataRow
+                    className={`${r.users?.is_oversight ? "bg-amber-50/70" : r.status === "pending" ? "bg-yellow-50/50" : ""}`}
+                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+                    gridCols="1fr 1fr 80px 112px 96px 1fr 80px"
+                  >
+                    <div>
+                      <RowPrimary>{r.users?.full_name}</RowPrimary>
+                      <RowSecondary>{r.users?.designation || "—"}</RowSecondary>
+                    </div>
+                    <RowDataItem label="DATE RANGE">
+                      {r.start_date === r.end_date
+                        ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
+                        : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
+                      }
+                    </RowDataItem>
+                    <RowDataItem label="DAYS">{r.days_count}</RowDataItem>
+                    <RowDataItem label="SUBMITTED">{format(new Date(r.created_at), "MMM d, yyyy")}</RowDataItem>
+                    <RowBadgeItem label="STATUS">{statusBadge(r.status)}</RowBadgeItem>
+                    <RowDataItem label="REVIEWED">
+                      {r.reviewed_at ? (
+                        <>{format(new Date(r.reviewed_at), "MMM d")} <span className="text-[11px] text-[#9ca3af]">by {r.reviewer?.full_name || "Admin"}</span></>
+                      ) : "—"}
+                    </RowDataItem>
+                    <RowActions className="justify-self-end">
+                      {r.status === "pending" && (
+                        <>
+                          <button onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "approve", r.user_id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve"><Check className="h-4 w-4" /></button>
+                          <button onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "reject", r.user_id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject"><X className="h-4 w-4" /></button>
+                        </>
+                      )}
+                      <button onClick={(e) => { e.stopPropagation(); setWfhDeleteId(r.id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                    </RowActions>
+                  </DataRow>
+                  {expandedId === r.id && (
+                    <div className="bg-[#f9fafb] border-b border-[#f3f4f6] px-4 py-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Employee</p>
+                          <p className="text-sm font-medium text-[#111827] mt-0.5">{r.users?.full_name}</p>
+                          <p className="text-xs text-[#6b7280]">{r.users?.designation || "—"}</p>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                    {expandedId === r.id && (
-                      <TableRow key={`${r.id}-detail`}>
-                        <TableCell colSpan={8} className="bg-muted/50 p-0">
-                          <div className="p-4">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
-                              <div>
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Employee</p>
-                                <p className="text-sm font-medium">{r.users?.full_name}</p>
-                                <p className="text-xs text-muted-foreground">{r.users?.designation || "—"}</p>
-                              </div>
-                              <div>
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Date Range</p>
-                                <p className="text-sm">
-                                  {r.start_date === r.end_date
-                                    ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
-                                    : `${format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
-                                  }
-                                </p>
-                                <p className="text-xs text-muted-foreground">{r.days_count} working day(s)</p>
-                              </div>
-                              <div>
-                                <p className="text-[12px] text-muted-foreground mb-0.5">Submitted On</p>
-                                <p className="text-sm">{format(new Date(r.created_at), "MMM d, yyyy 'at' h:mm a")}</p>
-                              </div>
-                            </div>
-                            <div className="mb-3">
-                              <p className="text-[12px] text-muted-foreground mb-0.5">Reason</p>
-                              <p className="text-sm whitespace-pre-wrap">{r.reason || "No reason provided"}</p>
-                            </div>
-                            {r.status !== "pending" && (
-                              <div className="flex items-center gap-2 mt-2">
-                                {statusBadge(r.status)}
-                                {r.reviewed_at && (
-                                  <span className="text-xs text-muted-foreground">
-                                    Reviewed {format(new Date(r.reviewed_at), "MMM d, yyyy 'at' h:mm a")} by {r.reviewer?.full_name || "Admin"}
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Date Range</p>
+                          <p className="text-sm text-[#374151] mt-0.5">
+                            {r.start_date === r.end_date
+                              ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
+                              : `${format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
+                            }
+                          </p>
+                          <p className="text-xs text-[#6b7280]">{r.days_count} working day(s)</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Submitted On</p>
+                          <p className="text-sm text-[#374151] mt-0.5">{format(new Date(r.created_at), "MMM d, yyyy 'at' h:mm a")}</p>
+                        </div>
+                      </div>
+                      <div className="mb-3">
+                        <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Reason</p>
+                        <p className="text-sm text-[#374151] mt-0.5 whitespace-pre-wrap">{r.reason || "No reason provided"}</p>
+                      </div>
+                      {r.status !== "pending" && (
+                        <div className="flex items-center gap-2 mt-2">
+                          {statusBadge(r.status)}
+                          {r.reviewed_at && (
+                            <span className="text-xs text-[#6b7280]">
+                              Reviewed {format(new Date(r.reviewed_at), "MMM d, yyyy 'at' h:mm a")} by {r.reviewer?.full_name || "Admin"}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="calendar" className="space-y-4">

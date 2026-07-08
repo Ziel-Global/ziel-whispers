@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkSettings } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, formatPKTTime, getPKTISOString, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -12,61 +13,137 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Trash2 } from "lucide-react";
-import { format } from "date-fns";
+import { Trash2, Pencil, CheckCircle2, History, Send, ListPlus, AlertCircle, CalendarClock, Lock, Calendar as CalendarIcon } from "lucide-react";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
+import { format, parseISO, startOfDay, subDays, isSameDay } from "date-fns";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { cn, formatHours, MISC_PROJECT_ID } from "@/lib/utils";
 
-const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "other"];
-const NO_PROJECT = "__none__";
-
-function getTodayStr() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
+const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
+import { PRIORITY_COLORS } from "@/lib/workflow";
 
 function getMinDateStr(days: number) {
-  const d = new Date();
+  const d = new Date(getPKTDateString());
   d.setDate(d.getDate() - days);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return format(d, "yyyy-MM-dd");
 }
 
-function formatHours(h: number) {
-  const hrs = Math.floor(h);
-  const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}m`;
-  if (mins === 0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
+function isWithinLogEditWindow(dateStr: string, todayStr: string, windowDays: number, workingDays: number): boolean {
+  if (dateStr === todayStr) return true;
+  if (windowDays <= 0) return false;
+
+  const checkDate = new Date(dateStr + "T00:00:00");
+  const today = new Date(todayStr + "T00:00:00");
+
+  if (checkDate >= today) return false;
+
+  let workingDayCount = 0;
+  const cursor = new Date(today);
+
+  while (true) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (cursor < checkDate) break;
+
+    const day = cursor.getDay();
+    const isWorkingDay = day !== 0 && (day !== 6 || workingDays === 6);
+    if (isWorkingDay) {
+      workingDayCount++;
+      if (workingDayCount > windowDays) return false;
+    }
+  }
+
+  return true;
 }
 
 export default function LogSubmitPage() {
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const { shiftEnd: resolvedShiftEnd } = useWorkSettings();
+  const { shiftStart, shiftEnd: resolvedShiftEnd, workingDays, expectedDailyHours } = useWorkSettings();
+  const overtimeEnabled = profile?.overtime_enabled ?? false;
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const today = getTodayStr();
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editId, setEditId] = useState<string | null>(null);
+  const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
 
-  // Fetch configurable log edit window (in days)
-  const { data: logEditDays = 3 } = useQuery({
-    queryKey: ["system-setting-log-edit-days"],
+  const today = getPKTDateString();
+
+  // Fetch draft logs from database (cross-device sync)
+  const { data: pendingLogs = [] } = useQuery({
+    queryKey: ["my-draft-logs", user?.id],
     queryFn: async () => {
-      const { data } = await supabase.from("system_settings").select("value").eq("key", "log_edit_window_days").maybeSingle();
-      return data ? Number(data.value) : 3;
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("*, projects(name), tasks(title)")
+        .eq("user_id", user!.id)
+        .eq("status", "draft")
+        .order("created_at", { ascending: true });
+      return data || [];
     },
+    enabled: !!user?.id,
   });
 
-  const minDate = getMinDateStr(logEditDays);
+  const { data: perEmployeeLogEditDays } = useQuery({
+    queryKey: ["my-log-edit-days", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.from("users").select("log_edit_days").eq("id", user!.id).single();
+      return data?.log_edit_days ?? null;
+    },
+    enabled: !!user?.id,
+  });
+
+  const effectiveLogEditDays = perEmployeeLogEditDays ?? 1;
+
+  const minDate = getMinDateStr(10);
+
+  const { data: logsTotals = {} } = useQuery({
+    queryKey: ["my-logs-totals-range", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("log_date, hours")
+        .eq("user_id", user!.id)
+        .eq("status", "submitted")
+        .gte("log_date", minDate);
+      
+      const totals: Record<string, number> = {};
+      data?.forEach((l: any) => {
+        totals[l.log_date] = (totals[l.log_date] || 0) + Number(l.hours);
+      });
+      return totals;
+    },
+    staleTime: 30000,
+    enabled: !!user?.id,
+  });
 
   const schema = z.object({
-    project_id: z.string().optional(),
+    project_id: z.string().min(1, "Please select a project"),
     category: z.string().min(1, "Category is required"),
-    hours: z.number().min(0.5, "Min 0.5 hours").max(24, "Max 24 hours"),
+    hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
     description: z.string().min(20, "Min 20 characters"),
     log_date: z.string().min(1, "Date is required").refine((v) => {
-      return v >= minDate && v <= today;
-    }, `You can only submit logs for today or up to ${logEditDays} days in the past`),
+      const day = new Date(v + "T00:00:00").getDay();
+      // Overtime users can log on any day (including weekends)
+      if (overtimeEnabled) return true;
+      if (day === 0) return false;
+      if (day === 6 && workingDays === 5) return false;
+      return true;
+    }, "Cannot submit logs for this day").refine((v) => {
+      return isWithinLogEditWindow(v, today, effectiveLogEditDays, workingDays);
+    }, "You are not allowed to edit logs for this date").refine((v) => {
+      // Overtime users have no daily cap
+      if (overtimeEnabled) return true;
+      const total = logsTotals[v] || 0;
+      return total < 24;
+    }, "This day already has the maximum hours logged"),
+    task_id: z.string().nullable().optional(),
   });
 
   const { data: projects = [] } = useQuery({
@@ -79,97 +156,436 @@ export default function LogSubmitPage() {
         .is("removed_at", null);
       return (memberships || [])
         .map((m: any) => m.projects)
-        .filter((p: any) => p && p.status === "active");
-    },
-    enabled: !!user?.id,
-  });
-
-  const { data: todayLogs = [] } = useQuery({
-    queryKey: ["my-logs-today", user?.id, today],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("daily_logs")
-        .select("*, projects(name)")
-        .eq("user_id", user!.id)
-        .eq("log_date", today)
-        .order("created_at", { ascending: false });
-      return data || [];
+        .filter((p: any) => p && p.status === "active")
+        .sort((a: any, b: any) => a.name.localeCompare(b.name));
     },
     enabled: !!user?.id,
   });
 
   const form = useForm({
     resolver: zodResolver(schema),
-    defaultValues: { project_id: NO_PROJECT, category: "", hours: 1, description: "", log_date: today },
+    defaultValues: { project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null },
   });
 
   const descValue = form.watch("description");
+  const selectedDate = form.watch("log_date");
+  const selectedProjectId = form.watch("project_id");
 
-  const onSubmit = async (data: z.infer<typeof schema>) => {
+  const { data: workflowStatuses } = useQuery({
+    queryKey: ["logsubmit-workflow", selectedProjectId],
+    queryFn: async () => {
+      const { data: proj } = await supabase
+        .from("projects")
+        .select("workflow_template_id")
+        .eq("id", selectedProjectId!)
+        .single();
+      if (!proj?.workflow_template_id) return null;
+      const { data } = await supabase
+        .from("workflow_statuses")
+        .select("*")
+        .eq("workflow_template_id", proj.workflow_template_id);
+      return data || [];
+    },
+    enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
+  });
+
+  const { data: availableTasks = [] } = useQuery({
+    queryKey: ["my-project-tasks", selectedProjectId, user?.id],
+    queryFn: async () => {
+      const { data: tasks } = await supabase
+        .from("tasks")
+        .select("id, title, priority, estimated_hours, status, status_id")
+        .eq("project_id", selectedProjectId!)
+        .eq("assigned_to", user!.id)
+        .neq("status", "complete")
+        .order("title");
+      if (!tasks) return [];
+      const taskIds = tasks.map((t: any) => t.id);
+      const { data: logs } = await supabase
+        .from("daily_logs")
+        .select("task_id, hours")
+        .in("task_id", taskIds)
+        .neq("status", "draft");
+      const loggedMap: Record<string, number> = {};
+      (logs || []).forEach((l: any) => {
+        loggedMap[l.task_id] = (loggedMap[l.task_id] || 0) + Number(l.hours || 0);
+      });
+      return tasks.map((t: any) => ({
+        ...t,
+        logged_hours: loggedMap[t.id] || 0,
+      }));
+    },
+    enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && !!user?.id,
+  });
+
+  // Fetch submitted logs for the CURRENTLY SELECTED date in the form
+  const { data: dateLogs = [] } = useQuery({
+    queryKey: ["my-logs-date", user?.id, selectedDate],
+    queryFn: async () => {
+      if (!selectedDate) return [];
+      const { data } = await supabase
+        .from("daily_logs")
+        .select("*, projects(name)")
+        .eq("user_id", user!.id)
+        .eq("log_date", selectedDate)
+        .eq("status", "submitted")
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!user?.id && !!selectedDate,
+  });
+
+  const submittedHours = useMemo(() => dateLogs.reduce((sum, l) => sum + Number(l.hours), 0), [dateLogs]);
+  const pendingHoursForSelectedDate = useMemo(() => 
+    pendingLogs.filter((p: any) => p.log_date === selectedDate && p.id !== editId).reduce((sum: number, l: any) => sum + Number(l.hours), 0),
+    [pendingLogs, selectedDate, editId]
+  );
+  
+  const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
+  const remainingFor8 = overtimeEnabled ? 24 : Math.max(0, 24 - totalHoursForSelectedDate);
+  const logsAreAllForToday = useMemo(() =>
+    pendingLogs.length > 0 && pendingLogs.every((log: any) => log.log_date === today),
+    [pendingLogs, today]
+  );
+  const tasksWithRemaining = useMemo(() => {
+    const pendingMap: Record<string, number> = {};
+    pendingLogs.forEach((l: any) => {
+      if (l.task_id) {
+        pendingMap[l.task_id] = (pendingMap[l.task_id] || 0) + Number(l.hours || 0);
+      }
+    });
+    return availableTasks.map((t: any) => ({
+      ...t,
+      remaining_hours: t.estimated_hours
+        ? Math.max(t.estimated_hours - (t.logged_hours || 0) - (pendingMap[t.id] || 0), 0)
+        : null,
+    }));
+  }, [availableTasks, pendingLogs]);
+  const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
+    selectedDate === today
+      ? submittedHours > 0
+      : submittedHours >= 8
+  );
+
+  const onAddLog = async (data: z.infer<typeof schema>) => {
+    const currentHours = Number(data.hours);
+    const maxDaily = 24;
+    if (submittedHours + pendingHoursForSelectedDate + currentHours > maxDaily + 0.01 && profile?.role !== "admin") {
+      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
+      return;
+    }
+
+    try {
+      if (editId) {
+        // Update existing draft in database
+        const { error } = await supabase.from("daily_logs").update({
+          project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
+          category: data.category,
+          hours: data.hours,
+          description: data.description,
+          log_date: data.log_date,
+          task_id: data.task_id || null,
+        }).eq("id", editId).eq("status", "draft");
+        if (error) throw error;
+        setEditId(null);
+        toast.success("Log updated");
+      } else {
+        // Insert new draft into database
+        const { error } = await supabase.from("daily_logs").insert({
+          user_id: user!.id,
+          project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
+          category: data.category,
+          hours: data.hours,
+          description: data.description,
+          log_date: data.log_date,
+          status: "draft",
+          is_late: false,
+          is_overtime: false,
+          task_id: data.task_id || null,
+        });
+        if (error) throw error;
+        toast.success("Log added to list");
+      }
+      queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
+      form.reset({ ...form.getValues(), hours: 1, description: "", task_id: null });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const startEdit = (log: any) => {
+    setEditId(log.id);
+    form.reset({
+      project_id: log.project_id || "",
+      category: log.category,
+      hours: log.hours,
+      description: log.description,
+      log_date: log.log_date,
+      task_id: log.task_id || null,
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelEdit = () => {
+    setEditId(null);
+    form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
+  };
+
+  const removePendingLog = async (logId: string) => {
+    try {
+      const { error } = await supabase.from("daily_logs").delete().eq("id", logId).eq("status", "draft");
+      if (error) throw error;
+      if (editId === logId) cancelEdit();
+      queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const updateTaskProgress = async (taskId: string) => {
+    const { data: sumData } = await supabase
+      .from("daily_logs")
+      .select("hours")
+      .eq("task_id", taskId)
+      .neq("status", "draft");
+    const totalHours = (sumData || []).reduce((sum: number, l: any) => sum + Number(l.hours || 0), 0);
+
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("estimated_hours, status, status_id, phase_id, project_id")
+      .eq("id", taskId)
+      .single();
+
+    if (!task || task.estimated_hours === null) return;
+
+    const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+    const completeStatus = workflowStatuses?.find((s: any) => s.name === "complete");
+    const inProgressStatus = workflowStatuses?.find((s: any) => s.name === "in_progress");
+
+    const isLinked = linkedStatus ? task.status_id === linkedStatus.id : task.status === "linked";
+
+    const needsUpdate =
+      (totalHours >= task.estimated_hours) ||
+      (totalHours < task.estimated_hours && isLinked);
+
+    if (needsUpdate) {
+      if (totalHours >= task.estimated_hours) {
+        const update: any = { completed_at: getPKTISOString() };
+        if (completeStatus) {
+          update.status_id = completeStatus.id;
+        } else {
+          update.status = "complete";
+        }
+        if (totalHours > task.estimated_hours) {
+          update.is_flagged = true;
+        }
+        await supabase.from("tasks").update(update).eq("id", taskId);
+      } else if (totalHours < task.estimated_hours && isLinked) {
+        const update: any = {};
+        if (inProgressStatus) {
+          update.status_id = inProgressStatus.id;
+        } else {
+          update.status = "in_progress";
+        }
+        await supabase.from("tasks").update(update).eq("id", taskId);
+      }
+    }
+
+    if (task.phase_id) {
+      queryClient.invalidateQueries({ queryKey: ["project-phases", task.project_id] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", task.project_id] });
+    }
+  };
+
+  const handleSubmitAll = async () => {
+    if (pendingLogs.length === 0) return;
     setSubmitting(true);
     try {
-      const now = new Date();
-      const [h, m] = resolvedShiftEnd.split(":").map(Number);
-      const shiftEndTime = new Date();
-      shiftEndTime.setHours(h, m, 0);
-      const isLate = data.log_date === today && now > shiftEndTime;
-      const isPastDate = data.log_date < today;
+      const nowPKTStr = getPKTISOString();
+      const nowPKT = new Date(nowPKTStr);
+      const todayStr = getPKTDateString();
 
-      const projectId = data.project_id === NO_PROJECT ? null : data.project_id || null;
+      // Compute per-log late flag: if log_date is before today, always late;
+      // otherwise compare submission time against today's shift end deadline
+      const isLateForDate = (logDate: string): boolean => {
+        if (logDate < todayStr) return true;
+        if (resolvedShiftEnd && resolvedShiftEnd.includes(":")) {
+          const shiftEndTrimmed = resolvedShiftEnd.substring(0, 5);
+          const todayDeadline = new Date(`${todayStr}T${shiftEndTrimmed}:00+05:00`);
+          if (shiftStart && resolvedShiftEnd < shiftStart) {
+            todayDeadline.setDate(todayDeadline.getDate() + 1);
+          }
+          return nowPKT.getTime() > todayDeadline.getTime();
+        }
+        return false;
+      };
 
-      const { error } = await supabase.from("daily_logs").insert({
-        user_id: user!.id,
-        project_id: projectId,
-        category: data.category,
-        hours: data.hours,
-        description: data.description,
-        log_date: data.log_date,
-        is_late: isLate || isPastDate,
-      });
-      if (error) throw error;
+      // Build per-log overtime flags
+      const overtimeFlags: Record<string, boolean> = {};
+      if (overtimeEnabled) {
+        const logsByDate: Record<string, any[]> = {};
+        pendingLogs.forEach((log: any) => {
+          if (!logsByDate[log.log_date]) logsByDate[log.log_date] = [];
+          logsByDate[log.log_date].push(log);
+        });
+        for (const [date, dLogs] of Object.entries(logsByDate)) {
+          const existingTotal = logsTotals[date] || 0;
+          let runningTotal = existingTotal;
+          for (const log of dLogs) {
+            const logHours = Number(log.hours);
+            overtimeFlags[log.id] = runningTotal >= 8 || runningTotal + logHours > 8;
+            runningTotal += logHours;
+          }
+        }
+      }
+
+      // Update each draft to submitted with computed fields
+      for (const log of pendingLogs) {
+        const { error } = await supabase.from("daily_logs").update({
+          status: "submitted",
+          is_late: isLateForDate(log.log_date),
+          is_overtime: overtimeFlags[log.id] || false,
+          submitted_at: nowPKTStr,
+        }).eq("id", log.id).eq("status", "draft");
+        if (error) throw error;
+      }
+
+      // Update task progress for submitted logs that have a task_id
+      const touchedTaskIds = new Set(
+        pendingLogs.filter((l: any) => l.task_id).map((l: any) => l.task_id)
+      );
+      for (const taskId of touchedTaskIds) {
+        await updateTaskProgress(taskId);
+      }
+
+      // Only auto clock out if at least one of today's logs is being submitted AND the open session is from today
+      const hasTodayLogs = pendingLogs.some((log: any) => log.log_date === todayStr);
+
+      const { data: openSession } = await supabase
+        .from("attendance")
+        .select("*")
+        .eq("user_id", user!.id)
+        .is("clock_out", null)
+        .not("clock_in", "is", null)
+        .order("clock_in", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      let clockedOut = false;
+      if (openSession && hasTodayLogs && openSession.date === todayStr) {
+        const { error: clockOutError } = await supabase
+          .from("attendance")
+          .update({ clock_out: nowPKTStr })
+          .eq("id", openSession.id);
+        if (clockOutError) throw clockOutError;
+
+        await supabase.from("audit_logs").insert({
+          actor_id: user!.id,
+          action: "attendance.clocked_out",
+          target_entity: "attendance",
+          target_id: openSession.id,
+          metadata: {
+            clock_out: nowPKTStr,
+            date: openSession.date,
+            trigger: "log_submission",
+          },
+        });
+        clockedOut = true;
+      }
 
       await supabase.from("audit_logs").insert({
-        actor_id: user!.id, action: "log.submitted", target_entity: "daily_logs",
+        actor_id: user!.id,
+        action: "log.bulk_submitted",
+        target_entity: "daily_logs",
+        metadata: { count: pendingLogs.length }
       });
 
-      toast.success("Log submitted successfully");
-      form.reset({ project_id: NO_PROJECT, category: "", hours: 1, description: "", log_date: today });
-      queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSubmitting(false); }
+      if (clockedOut) {
+        toast.success(`${pendingLogs.length} logs submitted and clocked out successfully`);
+      } else {
+        toast.success(`${pendingLogs.length} logs submitted successfully`);
+      }
+
+      form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
+      queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-logs-date"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-logs-totals-range"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-project-tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["missing-log-check"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-day-logs"] });
+      await queryClient.invalidateQueries({ queryKey: ["my-month-logs"] });
+      await queryClient.invalidateQueries({ queryKey: ["dashboard-summary"] });
+      if (clockedOut) {
+        await queryClient.invalidateQueries({ queryKey: ["attendance-today"] });
+        await queryClient.invalidateQueries({ queryKey: ["attendance-month"] });
+        await queryClient.invalidateQueries({ queryKey: ["attendance-open-session"] });
+        await queryClient.invalidateQueries({ queryKey: ["dashboard-team-today"] });
+      }
+      setShowSubmitConfirm(false);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const deleteLog = async (id: string) => {
-    const { error } = await supabase.from("daily_logs").delete().eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    toast.success("Log entry deleted.");
-    setDeleteConfirmId(null);
-    queryClient.invalidateQueries({ queryKey: ["my-logs-today"] });
-  };
+  const progressPercentage = Math.min((totalHoursForSelectedDate / expectedDailyHours) * 100, 100);
+  const remainingHoursForTarget = Math.max(expectedDailyHours - totalHoursForSelectedDate, 0);
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Submit Daily Log</h1>
-        <p className="text-muted-foreground mt-1">{format(new Date(), "EEEE, MMMM d, yyyy")}</p>
+    <div className="max-w-3xl mx-auto space-y-8">
+      <div className="flex justify-between items-end">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Daily Logs</h1>
+          <p className="text-muted-foreground mt-1">{new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(new Date())}</p>
+        </div>
+        <div className="text-right">
+          <Badge variant="outline" className="text-xs font-mono">PKT Time</Badge>
+        </div>
       </div>
 
-      <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">
-        You can submit logs for the past {logEditDays} days only.
-      </p>
+      <Card className="p-6 border-2 border-primary/5 shadow-lg bg-card/50 backdrop-blur-sm">
+        {/* Daily Progress Bar */}
+        <div className="mb-8 p-4 bg-muted rounded-xl border border-primary/10">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-2">
+              <CalendarClock className="h-4 w-4 text-black" />
+              <span className="text-md font-semibold">Logging Progress for {format(parseISO(selectedDate), "MMM d")}</span>
+            </div>
+            <span className="text-xs font-medium px-2 py-0.5 bg-primary rounded-full">Target: {expectedDailyHours} Hours</span>
+          </div>
+          <Progress value={progressPercentage} className="h-2 bg-gray-200" />
+          <div className="flex justify-between items-center mt-2 text-xs">
+            <div>
+              <p className="font-medium text-black">{totalHoursForSelectedDate} of {expectedDailyHours} hours total</p>
+              {submittedHours > 0 && <p className="text-[10px] text-muted-foreground">({submittedHours}h already submitted)</p>}
+            </div>
+            {remainingHoursForTarget > 0 ? (
+              <p className="text-muted-foreground">{remainingHoursForTarget}h remaining</p>
+            ) : (
+              <p className="text-green-600 font-bold flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> Day Limit Reached</p>
+            )}
+          </div>
+        </div>
 
-      <Card className="p-6">
+        <div className="flex items-center gap-2 mb-6">
+          <div className="p-2 bg-primary rounded-lg text-primary">
+            <ListPlus className="h-5 w-5" />
+          </div>
+          <h2 className="text-lg font-semibold">{editId ? "Edit Log Entry" : "Add New Log Entry"}</h2>
+        </div>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onAddLog)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField control={form.control} name="project_id" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Project</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select project" /></SelectTrigger></FormControl>
+                  <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Project</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLocked}>
+                    <FormControl><SelectTrigger className="bg-background"><SelectValue placeholder="Select project" /></SelectTrigger></FormControl>
                     <SelectContent>
-                      <SelectItem value={NO_PROJECT}>No project</SelectItem>
                       {projects.map((p: any) => <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>)}
+                      <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
                     </SelectContent>
                   </Select>
                   <FormMessage />
@@ -177,9 +593,9 @@ export default function LogSubmitPage() {
               )} />
               <FormField control={form.control} name="category" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Category <span className="text-destructive">*</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
+                  <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Category</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isLocked}>
+                    <FormControl><SelectTrigger className="bg-background"><SelectValue placeholder="Select category" /></SelectTrigger></FormControl>
                     <SelectContent>
                       {CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}
                     </SelectContent>
@@ -189,83 +605,259 @@ export default function LogSubmitPage() {
               )} />
               <FormField control={form.control} name="hours" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Hours <span className="text-destructive">*</span></FormLabel>
+                  <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duration (Hours)</FormLabel>
                   <FormControl>
-                    <Input type="number" step="0.5" min="0.5" max="24" {...field} onChange={(e) => field.onChange(Number(e.target.value))} />
+                  <Input type="number" step="0.25" min="0.25" className="bg-background" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isLocked} max={24} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="log_date" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Date <span className="text-destructive">*</span></FormLabel>
-                  <FormControl><Input type="date" {...field} min={minDate} max={today} /></FormControl>
+                <FormItem className="flex flex-col">
+                  <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-1.5">Log Date</FormLabel>
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button
+                          variant={"outline"}
+                          className={cn(
+                            "w-full pl-3 text-left font-normal bg-background h-10",
+                            !field.value && "text-muted-foreground"
+                          )}
+                          disabled={isLocked}
+                        >
+                          {field.value ? format(parseISO(field.value), "PPP") : <span>Pick a date</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value ? parseISO(field.value) : undefined}
+                        onSelect={(date) => {
+                          if (date) {
+                            field.onChange(format(date, "yyyy-MM-dd"));
+                            setIsCalendarOpen(false);
+                          }
+                        }}
+                        disabled={(date) => {
+                          const dateStr = format(date, "yyyy-MM-dd");
+                          const day = date.getDay();
+                          
+                          // Overtime users can log on any day
+                          if (!overtimeEnabled) {
+                            // Disable Sunday
+                            if (day === 0) return true;
+                            // Disable Saturday if 5-day worker
+                            if (day === 6 && workingDays === 5) return true;
+                          }
+                          
+                          // Enforce per-employee log edit window (working days only)
+                          if (!isWithinLogEditWindow(dateStr, today, effectiveLogEditDays, workingDays)) return true;
+                          
+                          // Disable if already has 24+ hours (hard cap)
+                          if ((logsTotals[dateStr] || 0) >= 24) return true;
+                          
+                          // Future dates (just in case)
+                          if (date > new Date()) return true;
+
+                          return false;
+                        }}
+                        initialFocus
+                      />
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
                 </FormItem>
               )} />
             </div>
+
+            {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && (
+              <div className="space-y-2">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task (Optional)</span>
+                {tasksWithRemaining.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No tasks assigned for this project</p>
+                ) : (
+                  <div className="space-y-1">
+                    {tasksWithRemaining.map((t: any) => (
+                      <div
+                        key={t.id}
+                        className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
+                          form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                        }`}
+                        onClick={() => form.setValue("task_id", form.watch("task_id") === t.id ? null : t.id, { shouldDirty: true })}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                            form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
+                          }`}>
+                            {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                          </div>
+                          <span className="text-sm font-medium truncate">{t.title}</span>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0 ml-2">
+                          {t.remaining_hours !== null && <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>}
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem>
-                <FormLabel>Description <span className="text-destructive">*</span></FormLabel>
-                <FormControl><Textarea {...field} rows={3} placeholder="What did you work on? (min 20 chars)" /></FormControl>
-                <div className="flex justify-between">
+                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</FormLabel>
+                <FormControl><Textarea {...field} rows={3} className="bg-background resize-none" placeholder="Explain your progress..." disabled={isLocked} /></FormControl>
+                <div className="flex justify-between items-center px-1">
                   <FormMessage />
-                  <span className="text-xs text-muted-foreground">{descValue?.length || 0} chars</span>
+                  <span className={`text-[10px] font-mono ${descValue?.length < 20 ? "text-destructive" : "text-muted-foreground"}`}>{descValue?.length || 0} / 20 chars min</span>
                 </div>
               </FormItem>
             )} />
-            <div className="flex justify-end">
-              <Button type="submit" disabled={submitting} className="rounded-button">
-                {submitting ? "Submitting…" : "Submit Log"}
-              </Button>
-            </div>
+
+            {isLocked ? (
+              <div className="bg-muted p-6 rounded-xl border-2 border-dashed flex flex-col items-center text-center space-y-3">
+                <div className="p-3 bg-primary/10 rounded-full"><Lock className="h-6 w-6 text-primary" /></div>
+                <div>
+                  <p className="font-bold">Daily Limit Reached</p>
+                  <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={() => navigate("/logs/my")} className="rounded-button">Go to My Logs</Button>
+              </div>
+            ) : (
+              <div className="flex justify-end gap-3 pt-2">
+                {editId && (
+                  <Button type="button" variant="ghost" onClick={cancelEdit} className="rounded-button">Cancel Edit</Button>
+                )}
+                <Button type="submit" className="rounded-button px-8" disabled={!overtimeEnabled && totalHoursForSelectedDate >= 24 && !editId}>
+                  {editId ? "Update Log Entry" : "Add Log Entry"}
+                </Button>
+              </div>
+            )}
           </form>
         </Form>
       </Card>
 
-      {todayLogs.length > 0 && (
-        <Card className="p-6">
-          <h3 className="font-semibold mb-3">Today's Logs</h3>
-          <div className="space-y-3">
-            {todayLogs.map((log: any) => (
-              <div key={log.id} className="flex items-start justify-between p-3 bg-muted rounded-md">
-                <div className="space-y-1">
-                  <div className="flex gap-2">
-                    {log.projects?.name && <Badge variant="outline">{log.projects.name}</Badge>}
-                    <Badge variant="secondary">{log.category}</Badge>
-                    <span className="text-sm font-medium">{formatHours(log.hours)}</span>
-                    {log.is_late && <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>}
-                  </div>
-                  <p className="text-sm text-muted-foreground">{log.description}</p>
+      {/* Pending Section */}
+      {pendingLogs.length > 0 && (
+        <div className="space-y-6">
+          <div className="flex items-center justify-between px-1 pt-2">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="h-5 w-5 text-black" />
+              <h2 className="text-lg font-semibold">Unsubmitted Logs</h2>
+              <Badge variant="secondary" className="ml-1 bg-primary">{pendingLogs.length}</Badge>
+            </div>
+            <Button onClick={() => setShowSubmitConfirm(true)} disabled={submitting} className="rounded-button bg-primary hover:bg-primary/90 text-white px-6">
+              <Send className="h-4 w-4 mr-2" />
+              {submitting ? "Submitting..." : "Submit All Logs"}
+            </Button>
+          </div>
+          <div>
+            <TableHeader gridCols="1fr 112px 80px 200px 80px">
+              <span>PROJECT</span>
+              <span>DATE</span>
+              <span>HOURS</span>
+              <span>DESCRIPTION</span>
+              <span className="text-right">ACTIONS</span>
+            </TableHeader>
+            {pendingLogs.map((log: any) => (
+              <DataRow key={log.id} gridCols="1fr 112px 80px 200px 80px">
+                <div>
+                  <RowPrimary>{log.projects?.name || "Project"}</RowPrimary>
+                  <RowSecondary>{log.category.replace(/_/g, " ")} · {log.tasks?.title || "No task"}</RowSecondary>
                 </div>
-                {!log.is_locked && (
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteConfirmId(log.id)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
-                )}
-              </div>
+                <RowDataItem label="DATE">{format(parseISO(log.log_date), "MMM d, yyyy")}</RowDataItem>
+                <RowDataItem label="HOURS">{formatHours(log.hours)}</RowDataItem>
+                <RowDataItem label="DESCRIPTION" className="truncate">{log.description}</RowDataItem>
+                <RowActions className="justify-self-end">
+                  <button onClick={() => startEdit(log)} className={editButtonClass} title="Edit">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => removePendingLog(log.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </RowActions>
+              </DataRow>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Delete Confirmation Dialog */}
-      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+      {/* History Section for the SELECTED date */}
+      {dateLogs.length > 0 && (
+        <div className="space-y-4 pt-4">
+          <div className="flex items-center gap-2 px-1">
+            <History className="h-5 w-5 text-muted-foreground" />
+            <h2 className="text-lg font-semibold text-muted-foreground">Submitted Logs for {format(parseISO(selectedDate), "MMM d")}</h2>
+          </div>
+          <div className="grid gap-3 opacity-75">
+            {dateLogs.map((log: any) => (
+              <Card key={log.id} className={`p-4 border-none shadow-none ${log.is_overtime ? "bg-purple-50 border-l-4 border-purple-400" : "bg-muted"}`}>
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-2 flex-1">
+                    <div className="flex flex-wrap gap-2 items-center">
+                      {log.projects?.name && <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">{log.projects.name}</Badge>}
+                      <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">{log.category}</Badge>
+                      <span className="text-sm font-medium">{formatHours(log.hours)}</span>
+                      {log.is_overtime && <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge>}
+                      {log.submitted_at && isLogSubmissionLate(log.submitted_at, resolvedShiftEnd, log.log_date) && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                    </div>
+                    <p className="text-sm text-black">{log.description}</p>
+                  </div>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-[12px] text-muted-foreground font-mono">{formatPKTTime(log.submitted_at)}</span>
+                    <Badge variant="secondary" className="text-[12px] bg-primary">Submitted</Badge>
+                  </div>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Help Info */}
+      <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-xl border-black border border-2 border-dashed text-muted-foreground">
+        <AlertCircle className="h-5 w-5 shrink-0" />
+        <p className="text-xs">
+          {overtimeEnabled
+            ? "Tip: Overtime is enabled for your account. You can log hours beyond 8h and submit logs on weekends. Hours above 8h per day are tracked as overtime."
+            : "Tip: You can select a past date to submit logs you might have missed. You can submit multiple logs for the same day until you reach the daily limit."}
+        </p>
+      </div>
+
+      <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Are you sure you want to delete this log?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action is permanent and cannot be undone. This log entry will be removed from your record.
+            <AlertDialogTitle className="flex items-center gap-2 text-primary"><Send className="h-5 w-5" />Final Submission</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p className="font-semibold text-foreground">Are you sure you want to submit all {pendingLogs.length} logs?</p>
+              {logsAreAllForToday && (
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-800 text-xs flex gap-3">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <div className="space-y-1">
+                    <p><strong>Warning:</strong> This action is irreversible.</p>
+                    <p>You will be automatically clocked out from your current attendance session when these logs are submitted.</p>
+                  </div>
+                </div>
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => deleteConfirmId && deleteLog(deleteConfirmId)}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              Yes, Delete
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleSubmitAll} className="rounded-button bg-primary hover:bg-primary/90 text-white">Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This unsubmitted log will be removed from your list.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirmId && removePendingLog(deleteConfirmId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

@@ -8,45 +8,35 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Download, Pencil, AlertTriangle } from "lucide-react";
 import { format } from "date-fns";
-import { formatLateness } from "@/hooks/useWorkSettings";
-
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
+import { formatLateness, getPKTDateString, formatPKTTime, isAttendanceLate } from "@/hooks/useWorkSettings";
 
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
-  const [deptFilter, setDeptFilter] = useState("all");
+  const [selectedDate, setSelectedDate] = useState(getPKTDateString());
+  const [statusFilter, setStatusFilter] = useState("present");
   const [workModeFilter, setWorkModeFilter] = useState("all");
-  const [employeeFilter, setEmployeeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [editRecord, setEditRecord] = useState<any>(null);
   const [editClockIn, setEditClockIn] = useState("");
   const [editClockOut, setEditClockOut] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [editWorkMode, setEditWorkMode] = useState("");
   const [saving, setSaving] = useState(false);
-
-  const { data: allEmployees = [] } = useQuery({
-    queryKey: ["all-employees-for-filter"],
-    queryFn: async () => {
-      const { data } = await supabase.from("users").select("id, full_name").eq("status", "active").order("full_name");
-      return data || [];
-    },
-  });
 
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["admin-attendance", selectedDate],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance")
-        .select("*, users!attendance_user_id_fkey(full_name, department, email)")
+        .select("*, users!attendance_user_id_fkey(full_name, department, email, is_oversight, shift_start, has_custom_shift)")
         .eq("date", selectedDate)
         .order("clock_in", { ascending: true });
       if (error) throw error;
@@ -59,7 +49,7 @@ export default function AttendanceAdminPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance")
-        .select("*, users!attendance_user_id_fkey(full_name, department)")
+        .select("*, users!attendance_user_id_fkey(full_name, department, is_oversight)")
         .is("clock_out", null)
         .not("clock_in", "is", null)
         .order("clock_in", { ascending: true });
@@ -68,27 +58,73 @@ export default function AttendanceAdminPage() {
     },
   });
 
+  const { data: activeUsers = [] } = useQuery({
+    queryKey: ["admin-active-users", selectedDate],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("users")
+        .select("id, full_name, department, is_oversight, shift_start, has_custom_shift")
+        .eq("status", "active")
+        .lte("join_date", selectedDate);
+      return data || [];
+    },
+  });
+
   const filtered = useMemo(() => {
+    if (statusFilter === "absent") {
+      const userIdsWithAttendance = new Set(records.map((r: any) => r.user_id));
+      return activeUsers
+        .filter((u: any) => !userIdsWithAttendance.has(u.id))
+        .filter((u: any) => {
+          if (searchQuery.trim()) {
+            const q = searchQuery.trim().toLowerCase();
+            if (!(u.full_name || "").toLowerCase().includes(q)) return false;
+          }
+          return true;
+        })
+        .map((u: any) => ({
+          user_id: u.id,
+          users: u,
+          clock_in: null,
+          clock_out: null,
+          work_mode: null,
+          notes: null,
+          is_late: false,
+          minutes_late: 0,
+          hours_late: 0,
+          date: selectedDate,
+          id: "absent-" + u.id,
+          auto_clocked_out: false,
+          auto_clockout_notes: null,
+        }))
+        .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    }
+
     return records.filter((r: any) => {
-      if (deptFilter !== "all" && r.users?.department !== deptFilter) return false;
       if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
-      if (employeeFilter !== "all" && r.user_id !== employeeFilter) return false;
+      if (statusFilter === "present") {
+        if (!r.clock_in) return false;
+      }
+      if (statusFilter === "late") {
+        if (!r.clock_in) return false;
+        if (!r.is_late) return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.trim().toLowerCase();
         if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
       }
       return true;
-    });
-  }, [records, deptFilter, workModeFilter, employeeFilter, searchQuery]);
+    }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+  }, [records, activeUsers, statusFilter, workModeFilter, searchQuery, selectedDate]);
 
-  const lateCount = useMemo(() => filtered.filter((r: any) => r.is_late).length, [filtered]);
+  const lateCount = useMemo(() => filtered.filter((r: any) => r.clock_in && r.is_late).length, [filtered]);
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
-    if (!clockOut) return "Active";
-    const secs = Math.floor((new Date(clockOut).getTime() - new Date(clockIn).getTime()) / 1000);
+    const end = clockOut ? new Date(clockOut) : new Date();
+    const secs = Math.max(0, Math.floor((end.getTime() - new Date(clockIn).getTime()) / 1000));
     const h = Math.floor(secs / 3600);
     const m = Math.floor((secs % 3600) / 60);
-    return `${h}h ${m}m`;
+    return `${h}h ${m}m${!clockOut ? " (so far)" : ""}`;
   };
 
   // Format time to 12-hour for edit fields
@@ -103,6 +139,7 @@ export default function AttendanceAdminPage() {
     setEditRecord(rec);
     setEditClockIn(rec.clock_in ? format(new Date(rec.clock_in), "HH:mm") : "");
     setEditClockOut(rec.clock_out ? format(new Date(rec.clock_out), "HH:mm") : "");
+    setEditWorkMode(rec.work_mode || "onsite");
     setEditNotes(rec.notes || "");
   };
 
@@ -111,14 +148,46 @@ export default function AttendanceAdminPage() {
     setSaving(true);
     try {
       const dateStr = editRecord.date;
-      const clockIn = editClockIn ? new Date(`${dateStr}T${editClockIn}:00`).toISOString() : editRecord.clock_in;
-      const clockOut = editClockOut ? new Date(`${dateStr}T${editClockOut}:00`).toISOString() : null;
+      const clockIn = editClockIn ? `${dateStr}T${editClockIn}:00+05:00` : editRecord.clock_in;
+      const clockOut = editClockOut ? `${dateStr}T${editClockOut}:00+05:00` : null;
+
+      // Calculate late fields up front if clock_in changed
+      let isLate = false, minutesLate = 0, hoursLate = 0;
+      if (clockIn && clockIn !== editRecord.clock_in) {
+        const dayOfWeek = new Date(clockIn).getDay();
+        const [userRes, settingsRes] = await Promise.all([
+          supabase.from("users").select("shift_start, has_custom_shift, working_days").eq("id", editRecord.user_id).single(),
+          supabase.from("system_settings").select("key, value"),
+        ]);
+        const settings = settingsRes.data || [];
+        const graceMinutes = Number(settings.find((s: any) => s.key === "late_grace_minutes")?.value || 15);
+        const defaultShiftStart = settings.find((s: any) => s.key === "default_shift_start")?.value || "09:00";
+        const workingDays = Number((userRes.data as any)?.working_days || 5);
+
+        if (!(dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5))) {
+          const shiftStart = (userRes.data as any)?.has_custom_shift && (userRes.data as any)?.shift_start
+            ? (userRes.data as any).shift_start
+            : defaultShiftStart;
+          const shiftStartTime = new Date(`${dateStr}T${shiftStart}:00+05:00`);
+          const diffMs = new Date(clockIn).getTime() - shiftStartTime.getTime();
+          const total = Math.max(0, Math.floor(diffMs / 60000));
+          if (total > graceMinutes) {
+            isLate = true;
+            minutesLate = total;
+            hoursLate = Math.floor(total / 60);
+          }
+        }
+      }
 
       const { error } = await supabase.from("attendance").update({
         clock_in: clockIn,
         clock_out: clockOut,
+        work_mode: editWorkMode,
         notes: editNotes || null,
         edited_by: user!.id,
+        is_late: isLate,
+        minutes_late: minutesLate,
+        hours_late: hoursLate,
       }).eq("id", editRecord.id);
       if (error) throw error;
 
@@ -127,6 +196,14 @@ export default function AttendanceAdminPage() {
         action: "attendance.edited",
         target_entity: "attendance",
         target_id: editRecord.id,
+        metadata: {
+          employee: editRecord.users?.full_name || editRecord.user_id,
+          date: editRecord.date,
+          new_clock_in: clockIn,
+          new_clock_out: clockOut || null,
+          work_mode: editWorkMode,
+          notes: editNotes || null,
+        },
       });
 
       toast.success("Attendance updated");
@@ -142,10 +219,10 @@ export default function AttendanceAdminPage() {
     const rows = filtered.map((r: any) => {
       const name = r.users?.full_name || "";
       const dept = r.users?.department || "";
-      const ci = r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "";
-      const co = r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "";
+      const ci = r.clock_in ? formatPKTTime(r.clock_in) : "";
+      const co = r.clock_out ? formatPKTTime(r.clock_out) : "";
       const dur = r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "";
-      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.is_late ? "Yes" : "No"}","${r.minutes_late || 0}","${r.notes || ""}"`;
+      return `"${name}","${dept}","${ci}","${co}","${dur}","${r.work_mode || ""}","${r.is_late ? "Yes" : "No"}","${r.minutes_late ?? 0}","${r.notes || ""}"`;
     }).join("\n");
     const blob = new Blob([header + rows], { type: "text/csv" });
     const a = document.createElement("a");
@@ -154,7 +231,7 @@ export default function AttendanceAdminPage() {
     a.click();
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = getPKTDateString();
   const staleOpenSessions = openSessions.filter((s: any) => s.date < today);
 
   return (
@@ -170,10 +247,10 @@ export default function AttendanceAdminPage() {
             <AlertTriangle className="h-4 w-4 text-yellow-600" />
             <h3 className="text-sm font-medium text-yellow-800">Open Sessions</h3>
           </div>
-          <div className="space-y-1">
+          <div className="divide-y divide-black/30">
             {staleOpenSessions.map((s: any) => (
-              <p key={s.id} className="text-sm text-yellow-700">
-                <strong>{s.users?.full_name}</strong> — Open session since {format(new Date(s.clock_in), "MMM d 'at' h:mm a")}
+              <p key={s.id} className="text-sm text-yellow-700 py-2 first:pt-0 last:pb-0">
+                <strong>{s.users?.full_name}</strong> — Open session since {formatPKTTime(s.clock_in)} on {format(new Date(s.clock_in), "MMM d")}
               </p>
             ))}
           </div>
@@ -189,18 +266,12 @@ export default function AttendanceAdminPage() {
           className="w-[240px]"
         />
         <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />
-        <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="Employee" /></SelectTrigger>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Employees</SelectItem>
-            {allEmployees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
-          </SelectContent>
-        </Select>
-        <Select value={deptFilter} onValueChange={setDeptFilter}>
-          <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Departments</SelectItem>
-            {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+            <SelectItem value="present">Present</SelectItem>
+            <SelectItem value="absent">Absent</SelectItem>
+            <SelectItem value="late">Late</SelectItem>
           </SelectContent>
         </Select>
         <Select value={workModeFilter} onValueChange={setWorkModeFilter}>
@@ -216,66 +287,60 @@ export default function AttendanceAdminPage() {
         )}
       </div>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Employee</TableHead>
-              <TableHead>Department</TableHead>
-              <TableHead>Clock In</TableHead>
-              <TableHead>Clock Out</TableHead>
-              <TableHead>Duration</TableHead>
-              <TableHead>Work Mode</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-            ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={8} className="text-center py-8 text-muted-foreground">No records for this date</TableCell></TableRow>
-            ) : (
-              filtered.map((r: any) => (
-                <TableRow key={r.id}>
-                  <TableCell className="font-medium">{r.users?.full_name}</TableCell>
-                  <TableCell>{r.users?.department}</TableCell>
-                  <TableCell>
-                    {r.clock_in ? format(new Date(r.clock_in), "h:mm a") : "—"}
-                    {r.is_late && (
-                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">
-                        Late by {formatLateness((r as any).hours_late, r.minutes_late)}
-                      </Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {r.clock_out ? format(new Date(r.clock_out), "h:mm a") : "—"}
-                    {r.auto_clocked_out && (
-                      <Badge className="ml-1 bg-yellow-100 text-yellow-800 text-[10px]">Auto</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "—"}</TableCell>
-                  <TableCell>{r.work_mode || "—"}</TableCell>
-                  <TableCell>
-                    {!r.clock_out && r.clock_in ? (
-                      <Badge className="bg-green-100 text-green-800">Active</Badge>
-                    ) : r.auto_clocked_out ? (
-                      <Badge className="bg-yellow-100 text-yellow-800">Auto Clock-Out</Badge>
-                    ) : (
-                      <Badge className="bg-muted text-muted-foreground">Complete</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {isAdmin && (
-                      <Button variant="ghost" size="icon" onClick={() => openEdit(r)}><Pencil className="h-4 w-4" /></Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </Card>
+      <div className="border border-border rounded-card bg-card overflow-hidden">
+        {isLoading ? (
+          <div className="px-4 py-8 text-center text-muted-foreground">Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div className="px-4 py-8 text-center text-muted-foreground">No records for this date</div>
+        ) : (
+          <div>
+            <TableHeader gridCols="1fr 96px 96px 80px 96px 80px 80px">
+              <span>EMPLOYEE</span>
+              <span>CLOCK IN</span>
+              <span>CLOCK OUT</span>
+              <span>HOURS</span>
+              <span>WORK MODE</span>
+              <span>STATUS</span>
+              <span className="text-right">ACTIONS</span>
+            </TableHeader>
+            {filtered.map((r: any) => {
+            const isOversight = r.users?.is_oversight === true;
+            return (
+              <DataRow key={r.id} className={isOversight ? "bg-amber-50/70 hover:bg-amber-50/70" : ""} gridCols="1fr 96px 96px 80px 96px 80px 80px">
+                <div>
+                  <RowPrimary>{r.users?.full_name || 'Unknown'}</RowPrimary>
+                  <RowSecondary>{r.users?.department || ''}</RowSecondary>
+                </div>
+                <RowDataItem label="CLOCK IN">{r.clock_in ? formatPKTTime(r.clock_in) : '—'}</RowDataItem>
+                <RowDataItem label="CLOCK OUT">{r.clock_out ? formatPKTTime(r.clock_out) : '—'}</RowDataItem>
+                <RowDataItem label="HOURS">{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : '—'}</RowDataItem>
+                <RowBadgeItem label="WORK MODE">
+                  <Badge variant="outline" className="capitalize text-[10px]">{r.work_mode || '—'}</Badge>
+                </RowBadgeItem>
+                <RowBadgeItem label="STATUS">
+                  {!r.clock_in ? (
+                    <Badge className="bg-muted text-muted-foreground text-[10px]">Absent</Badge>
+                  ) : !r.clock_out ? (
+                    <Badge className="bg-green-100 text-green-800 text-[10px]">Active</Badge>
+                  ) : r.is_late ? (
+                    <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>
+                  ) : (
+                    <Badge className="bg-green-100 text-green-800 text-[10px]">On Time</Badge>
+                  )}
+                </RowBadgeItem>
+                <RowActions className="justify-self-end">
+                  {isAdmin && (
+                    <button onClick={() => openEdit(r)} className={editButtonClass}>
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  )}
+                </RowActions>
+              </DataRow>
+            );
+          })}
+          </div>
+        )}
+      </div>
 
       <Dialog open={!!editRecord} onOpenChange={(o) => !o && setEditRecord(null)}>
         <DialogContent>
@@ -290,6 +355,18 @@ export default function AttendanceAdminPage() {
               <Label>Clock Out</Label>
               <Input type="time" value={editClockOut} onChange={(e) => setEditClockOut(e.target.value)} />
               {editClockOut && <p className="text-xs text-muted-foreground">{to12Hour(editClockOut)}</p>}
+            </div>
+            <div className="space-y-1">
+              <Label>Work Mode</Label>
+              <Select value={editWorkMode} onValueChange={setEditWorkMode}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select work mode" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="onsite">Onsite</SelectItem>
+                  <SelectItem value="remote">Remote</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-1">
               <Label>Notes</Label>

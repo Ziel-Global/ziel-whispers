@@ -3,33 +3,35 @@ import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toSlug } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { Plus, Search, FolderKanban } from "lucide-react";
-
-const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-100 text-green-800",
-  on_hold: "bg-yellow-100 text-yellow-800",
-  completed: "bg-blue-100 text-blue-800",
-  archived: "bg-muted text-muted-foreground",
-};
+import { format } from "date-fns";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { PROJECT_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
 
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("*, clients(name)").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("projects").select("*, clients(name)").order("name", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -60,7 +62,7 @@ export default function ProjectsPage() {
     queryFn: async () => {
       const [{ data: members }, { data: logs }] = await Promise.all([
         supabase.from("project_members").select("project_id").is("removed_at", null),
-        supabase.from("daily_logs").select("project_id, hours"),
+        supabase.from("daily_logs").select("project_id, hours").eq("status", "submitted"),
       ]);
       const teamSize: Record<string, number> = {};
       const totalHours: Record<string, number> = {};
@@ -89,6 +91,63 @@ export default function ProjectsPage() {
     return (m?.project_roles as any)?.name || "Member";
   };
 
+  const toggleArchive = async (id: string, currentStatus: string) => {
+    const newStatus = currentStatus === "archived" ? "active" : "archived";
+    const { error } = await supabase.from("projects").update({ status: newStatus }).eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    await supabase.from("audit_logs").insert({
+      actor_id: profile?.id,
+      action: newStatus === "archived" ? "project.archived" : "project.restored",
+      target_entity: "projects",
+      target_id: id,
+    });
+    toast.success(newStatus === "archived" ? "Project archived" : "Project restored");
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      // Pre-check for related data (FK constraints)
+      const [{ data: relatedLogs }, { data: relatedMembers }, { data: relatedRoles }] = await Promise.all([
+        supabase.from("daily_logs").select("id").eq("project_id", deleteId).limit(1),
+        supabase.from("project_members").select("id").eq("project_id", deleteId).limit(1),
+        supabase.from("project_roles").select("id").eq("project_id", deleteId).limit(1),
+      ]);
+      const reasons: string[] = [];
+      if (relatedLogs && relatedLogs.length > 0) reasons.push("log entries");
+      if (relatedMembers && relatedMembers.length > 0) reasons.push("team members");
+      if (relatedRoles && relatedRoles.length > 0) reasons.push("project roles");
+      if (reasons.length > 0) {
+        toast.error(`Cannot delete: ${reasons.join(" and ")} are linked to this project. Archive the project instead.`);
+        setDeleting(false);
+        return;
+      }
+
+      const { error } = await supabase.from("projects").delete().eq("id", deleteId);
+      if (error) throw error;
+      
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "project.deleted",
+        target_entity: "projects",
+        target_id: deleteId,
+      });
+      
+      toast.success("Project deleted permanently");
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["projects"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Employee card view
   if (!isAdmin) {
     return (
@@ -98,7 +157,7 @@ export default function ProjectsPage() {
         {!isLoading && filtered.length === 0 && <p className="text-muted-foreground">You're not assigned to any projects yet.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((p) => (
-            <Card key={p.id} className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${p.id}`)}>
+            <Card key={p.id} className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${toSlug(p.name)}`)}>
               <div className="flex items-start justify-between mb-2">
                 <FolderKanban className="h-5 w-5 text-muted-foreground" />
                 <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
@@ -145,32 +204,54 @@ export default function ProjectsPage() {
         </Select>
       </div>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Team</TableHead>
-              <TableHead>Hours</TableHead>
-            </TableRow>
+      {isLoading && <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>}
+      {!isLoading && filtered.length === 0 && <Card><div className="py-12 text-center text-muted-foreground">No projects found</div></Card>}
+      {!isLoading && filtered.length > 0 && (
+        <div>
+          <TableHeader gridCols="1fr 96px 96px 112px 112px">
+            <span>PROJECT</span>
+            <span>STATUS</span>
+            <span>MEMBERS</span>
+            <span>DEADLINE</span>
+            <span>CREATED</span>
           </TableHeader>
-          <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={5} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
-            {filtered.map((p) => (
-              <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${p.id}`)}>
-                <TableCell className="font-medium">{p.name}</TableCell>
-                <TableCell className="text-muted-foreground">{(p.clients as any)?.name || "—"}</TableCell>
-                <TableCell><Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge></TableCell>
-                <TableCell>{projectStats?.teamSize[p.id] || 0}</TableCell>
-                <TableCell>{(projectStats?.totalHours[p.id] || 0).toFixed(1)}h</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+          {filtered.map((p) => (
+            <DataRow
+              key={p.id}
+              onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
+              gridCols="1fr 96px 96px 112px 112px"
+            >
+              <div>
+                <RowPrimary>{p.name}</RowPrimary>
+                <RowSecondary>{(p.clients as any)?.name || "—"}</RowSecondary>
+              </div>
+              <RowDataItem label="STATUS">
+                <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
+              </RowDataItem>
+              <RowDataItem label="MEMBERS">{projectStats?.teamSize[p.id] || 0}</RowDataItem>
+              <RowDataItem label="DEADLINE">{p.deadline ? format(new Date(p.deadline + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
+              <RowDataItem label="CREATED">{format(new Date(p.created_at), "MMM d, yyyy")}</RowDataItem>
+            </DataRow>
+          ))}
+        </div>
+      )}
+
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this project? This will permanently remove the project and all related data from the system. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? "Deleting…" : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

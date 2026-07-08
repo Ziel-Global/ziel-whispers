@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
@@ -12,8 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { PasswordInput } from "@/components/ui/password-input";
-
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+import { getAvatarUrl } from "@/lib/utils";
 
 const profileSchema = z.object({
   phone: z.string().optional().refine((v) => !v || /^03\d{9}$/.test(v), "Please enter a valid Pakistani phone number (03XXXXXXXXX)"),
@@ -45,11 +44,11 @@ export default function MyProfilePage() {
     enabled: !!user?.id,
   });
 
-  useState(() => {
+  useEffect(() => {
     if (employee?.phone) setPhone(employee.phone);
-  });
+  }, [employee?.phone]);
 
-  const avatarUrl = employee?.avatar_url ? `${SUPABASE_URL}/storage/v1/object/public/avatars/${employee.avatar_url}` : undefined;
+  const avatarUrl = getAvatarUrl(employee?.avatar_url);
 
   const onSave = async () => {
     if (!employee) return;
@@ -107,10 +106,6 @@ export default function MyProfilePage() {
   };
 
   if (!employee) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
-
-  if (phone === "" && employee.phone) {
-    setPhone(employee.phone);
-  }
 
   return (
     <div className="max-w-2xl mx-auto space-y-6">

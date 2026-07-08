@@ -12,10 +12,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { editButtonClass } from "@/components/ui/data-row";
 import { Plus, Trash2, Pencil, AlertTriangle } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "Other"];
+const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 
 interface AnnouncementForm {
   title: string;
@@ -38,6 +39,7 @@ export default function AnnouncementsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 20;
+
 
   const { data: announcements, isLoading } = useQuery({
     queryKey: ["announcements", page],
@@ -147,7 +149,7 @@ export default function AnnouncementsPage() {
               </div>
               {isAdmin && (
                 <div className="flex gap-1 shrink-0">
-                  <Button variant="ghost" size="icon" onClick={() => openEdit(a)}><Pencil className="h-4 w-4" /></Button>
+                  <button onClick={() => openEdit(a)} className={editButtonClass}><Pencil className="h-4 w-4" /></button>
                   <Button variant="ghost" size="icon" onClick={() => setDeleteId(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                 </div>
               )}

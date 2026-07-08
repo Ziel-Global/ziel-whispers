@@ -11,6 +11,7 @@ import * as fs from "fs";
 import * as path from "path";
 import { exec } from "child_process";
 import { promisify } from "util";
+import os from "os";
 
 const execPromise = promisify(exec);
 
@@ -93,8 +94,8 @@ export async function getSchemaStats(
   const queries = {
     tables: `SELECT count(*) as count FROM information_schema.tables 
              WHERE table_schema NOT IN ('pg_catalog', 'information_schema', 'extensions')`,
-    indexes: `SELECT count(*) as count FROM information_schema.statistics 
-              WHERE table_schema NOT IN ('pg_catalog', 'information_schema')`,
+    indexes: `SELECT count(*) as count FROM pg_indexes 
+              WHERE schemaname NOT IN ('pg_catalog', 'information_schema')`,
     triggers: `SELECT count(*) as count FROM information_schema.triggers 
                WHERE trigger_schema NOT IN ('pg_catalog', 'information_schema')`,
     functions: `SELECT count(*) as count FROM information_schema.routines 
@@ -185,7 +186,7 @@ export async function applySchema(
 ): Promise<void> {
   console.log("📤 Applying schema...");
 
-  const tempFile = `/tmp/schema-${Date.now()}.sql`;
+  const tempFile = path.join(os.tmpdir(), `schema-${Date.now()}.sql`);
 
   try {
     fs.writeFileSync(tempFile, schemaSql);
@@ -324,7 +325,8 @@ export async function testConnection(
 }
 
 // Example usage / CLI execution
-if (require.main === module) {
+const isMainModule = process.argv[1] && (import.meta.url === `file://${process.argv[1]}` || process.argv[1].endsWith("database-util.ts"));
+if (isMainModule) {
   const command = process.argv[2];
 
   (async () => {

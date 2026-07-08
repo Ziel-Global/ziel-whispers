@@ -35,6 +35,9 @@ export default function SetPasswordPage() {
       const { error } = await supabase.auth.updateUser({ password });
       if (error) throw error;
 
+      // Mark that we're performing a password set flow so route guards can avoid redirect flashes
+      try { localStorage.setItem("_zl_just_set_password", "1"); } catch {}
+
       // 2. Clear the must_change_password flag BEFORE signing out
       const { error: profileError } = await supabase
         .from("users")
@@ -50,14 +53,16 @@ export default function SetPasswordPage() {
         target_id: userId,
       }).then(() => {});
 
-      // 4. Sign out completely to clear all session state
-      await signOut();
+      // 4. Refresh session to ensure user data is updated (optional but good practice)
+      await supabase.auth.refreshSession();
 
-      // 5. Show success and redirect
-      toast.success("Password changed successfully. Please log in with your new password.");
-      navigate("/login", { replace: true });
+      // 5. Show success and redirect directly to the app (HomeRouter will redirect Client to /projects)
+      toast.success("Password set successfully! Welcome to the portal.");
+      try { localStorage.removeItem("_zl_just_set_password"); } catch {}
+      navigate("/", { replace: true });
     } catch (error: any) {
       hasSubmitted.current = false;
+      try { localStorage.removeItem("_zl_just_set_password"); } catch {}
       toast.error(error.message || "Failed to update password");
     } finally {
       setLoading(false);
@@ -65,7 +70,7 @@ export default function SetPasswordPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#1A1B1E" }}>
+    <div className="flex min-h-screen items-center justify-center bg-background">
       <Card className="w-full max-w-sm border-border bg-card">
         <CardHeader className="text-center">
           <CardTitle className="text-xl font-bold">Set Your Password</CardTitle>

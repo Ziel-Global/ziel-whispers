@@ -78,17 +78,38 @@
   body {
     @apply bg-background text-foreground font-sans;
   }
+  /* Headings should not have primary color */
+  h1, h2, h3, h4, h5, h6 {
+    @apply text-foreground !important;
+  }
 }
 
 @layer components {
-  /* Global button hover: primary buttons hover to black */
+  /* Global button logic: Primary buttons MUST have black text in default state */
   .rounded-button,
   button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]) {
-    transition: background 150ms ease;
+    @apply text-black !important;
+    transition: all 150ms ease;
   }
+
+  /* Hover effect for primary buttons: Background turns black, text turns white */
   .rounded-button:hover,
   button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover {
-    background: hsl(0 0% 0%) !important;
-    color: white !important;
+    background-color: black !important;
+    @apply text-white !important;
+  }
+
+  /* Icons with primary background must have black icon color */
+  [class*="bg-primary"] svg,
+  [class*="bg-primary/"] svg {
+    @apply text-black !important;
+    stroke: currentColor !important;
+    transition: color 150ms ease;
+  }
+
+  /* Ensure icons turn white when their primary button parent is hovered */
+  button[class*="bg-primary"]:hover svg,
+  .rounded-button:hover svg {
+    @apply text-white !important;
   }
 }

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Camera } from "lucide-react";
@@ -12,6 +12,15 @@ type Props = {
 export function AvatarUpload({ currentUrl, onFileChange }: Props) {
   const [preview, setPreview] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const prevObjectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (prevObjectUrlRef.current) {
+        URL.revokeObjectURL(prevObjectUrlRef.current);
+      }
+    };
+  }, []);
 
   const handleSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -24,7 +33,12 @@ export function AvatarUpload({ currentUrl, onFileChange }: Props) {
       toast.error("Please select an image file");
       return;
     }
-    setPreview(URL.createObjectURL(file));
+    if (prevObjectUrlRef.current) {
+      URL.revokeObjectURL(prevObjectUrlRef.current);
+    }
+    const url = URL.createObjectURL(file);
+    prevObjectUrlRef.current = url;
+    setPreview(url);
     onFileChange(file);
   };
 

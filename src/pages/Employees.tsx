@@ -194,7 +194,7 @@ export default function EmployeesPage() {
             </Select>
           </div>
 
-          <div className="border border-border rounded-card bg-card overflow-hidden">
+          <div className="border border-border rounded-card bg-card overflow-x-auto">
             {isLoading ? (
               <div className="px-4 py-8 text-center text-muted-foreground">Loading…</div>
             ) : filtered.length === 0 ? (

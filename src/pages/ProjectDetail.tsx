@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
+import { Table, TableBody, TableCell, TableHead, TableHeader as ShadcnTableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -1272,10 +1273,10 @@ export default function ProjectDetailPage() {
               )}
             </div>
             <Table>
-              <TableHeader><TableRow>
+              <ShadcnTableHeader><TableRow>
                 <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Hours Spent</TableHead>
                 {isAdmin && <><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead></>}
-              </TableRow></TableHeader>
+              </TableRow></ShadcnTableHeader>
               <TableBody>
                 {resourceMembers.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
                   <TableRow key={m.id}>
@@ -1308,6 +1309,48 @@ export default function ProjectDetailPage() {
 
         {/* CLIENTS' MEMBER — Admin: full management; Employee: view-only */}
         <TabsContent value="clients">
+          <Card>
+            <div className="p-4 flex justify-between items-center border-b">
+              <span className="font-medium">{clientMembers.length} client member{clientMembers.length !== 1 ? "s" : ""}</span>
+              {isAdmin && (
+                <Button size="sm" onClick={() => { setAddMemberMode("client"); setAddMemberOpen(true); }} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Client Member</Button>
+              )}
+            </div>
+            <Table>
+              <ShadcnTableHeader><TableRow>
+                <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Hours Spent</TableHead>
+                {isAdmin && <><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead></>}
+              </TableRow></ShadcnTableHeader>
+              <TableBody>
+                {clientMembers.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7">
+                          <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
+                          <AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback>
+                        </Avatar>
+                        {(m.users as any)?.full_name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{(m.users as any)?.designation}</TableCell>
+                    <TableCell className="text-muted-foreground">{m._hoursSpent}h</TableCell>
+                    {isAdmin && (
+                      <>
+                        <TableCell className="text-muted-foreground">{format(new Date(m.assigned_at), "MMM d, yyyy")}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => removeMember(m.id, (m.users as any)?.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                ))}
+                {clientMembers.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 5 : 3} className="text-center text-muted-foreground py-8">No client members assigned</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
         {/* STATS — all project members */}
         <TabsContent value="stats" className="space-y-6">
           {/* Health Summary */}
@@ -1591,53 +1634,7 @@ export default function ProjectDetailPage() {
           )}
         </TabsContent>
 
-        {/* MEMBERS — Admin: full management; Employee: view-only */}
-        <TabsContent value="members">
-          <Card>
-            <div className="p-4 flex justify-between items-center border-b">
-              <span className="font-medium">{clientMembers.length} client member{clientMembers.length !== 1 ? "s" : ""}</span>
-              {isAdmin && (
-                <Button size="sm" onClick={() => { setAddMemberMode("client"); setAddMemberOpen(true); }} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Client Member</Button>
-              )}
-            </div>
-            {!members || members.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">No members assigned</div>
-            ) : (
-              <div>
-                <TableHeader gridCols="1fr 112px 112px 80px">
-                  <span>MEMBER</span>
-                  <span>HOURS SPENT</span>
-                  <span>ASSIGNED</span>
-                  <span className="text-right">ACTIONS</span>
-                </TableHeader>
-                {members.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
-                  <DataRow key={m.id} gridCols="1fr 112px 112px 80px">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7 shrink-0">
-                        <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
-                        <AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <RowPrimary>{(m.users as any)?.full_name}</RowPrimary>
-                        <RowSecondary>{(m.users as any)?.designation}</RowSecondary>
-                      </div>
-                    </div>
-                    <RowDataItem label="HOURS SPENT">{m._hoursSpent}h</RowDataItem>
-                    <RowDataItem label="ASSIGNED">{isAdmin ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}</RowDataItem>
-                    <RowActions className="justify-self-end">
-                      {isAdmin && (
-                        <button onClick={() => removeMember(m.id, (m.users as any)?.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </RowActions>
-                  </DataRow>
-                ))}
-                {clientMembers.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 5 : 3} className="text-center text-muted-foreground py-8">No client members assigned</TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </Card>
-        </TabsContent>
+
 
         {/* LOGS — admin only */}
         {isAdmin && (
@@ -1711,7 +1708,7 @@ export default function ProjectDetailPage() {
               const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id);
               if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
               return (
-                  <div>
+                  <div className="overflow-x-auto">
                     <TooltipProvider>
                       <TableHeader gridCols="1fr 96px 96px 96px 96px 80px">
                         <span>TASK</span>
@@ -1798,7 +1795,7 @@ export default function ProjectDetailPage() {
               return filteredTasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tasks yet.</p>
               ) : (
-                <div>
+                <div className="overflow-x-auto">
                   <TableHeader gridCols="1fr 112px 96px 96px 96px 96px 96px 96px 80px">
                     <span>TASK</span>
                     <span>ASSIGNED TO</span>

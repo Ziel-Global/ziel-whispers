@@ -74,7 +74,7 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="manager">Manager</SelectItem>
               <SelectItem value="employee">Employee</SelectItem>
-              <SelectItem value="client">Client</SelectItem>
+              <SelectItem value="client">Client Member</SelectItem>
             </SelectContent>
           </Select>
           {role && (
@@ -82,7 +82,7 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
               {role === "admin" && "Full system access — manage users, settings & all data"}
               {role === "manager" && "Manage team attendance, logs, leave, and projects"}
               {role === "employee" && "Standard employee — submit logs, apply for leave"}
-              {role === "client" && "External client portal access — view assigned projects only"}
+              {role === "client" && "Client Member — external portal access, view assigned projects only"}
             </p>
           )}
         </div>

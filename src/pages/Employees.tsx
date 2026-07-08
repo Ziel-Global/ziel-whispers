@@ -133,8 +133,8 @@ export default function EmployeesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Employees</h1>
-          <p className="text-muted-foreground mt-1">{employees.length} total employees</p>
+          <h1 className="text-2xl font-bold tracking-tight">Users</h1>
+          <p className="text-muted-foreground mt-1">{employees.length} total users</p>
         </div>
         {isAdmin && (
           <div className="flex gap-2">
@@ -144,7 +144,7 @@ export default function EmployeesPage() {
             </Button>
             <Button onClick={() => navigate("/employees/new")} className="rounded-button">
               <Plus className="h-4 w-4 mr-2" />
-              Add Employee
+              Add New User
             </Button>
           </div>
         )}
@@ -152,7 +152,7 @@ export default function EmployeesPage() {
 
       <Tabs defaultValue="list">
         <TabsList>
-          <TabsTrigger value="list">All Employees</TabsTrigger>
+          <TabsTrigger value="list">All Users </TabsTrigger>
           {isAdmin && <TabsTrigger value="shift">Global Shift Settings</TabsTrigger>}
         </TabsList>
 

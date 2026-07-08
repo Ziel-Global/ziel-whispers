@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AppLayout from "@/layouts/AppLayout";
 import LoginPage from "@/pages/Login";
@@ -41,6 +42,15 @@ const queryClient = new QueryClient({
   },
 });
 
+// Redirects Clients to /projects, everyone else to /dashboard
+function HomeRouter() {
+  const { profile } = useAuth();
+  if (profile?.designation === "Client") {
+    return <Navigate to="/projects" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -52,7 +62,8 @@ const App = () => (
             <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
 
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<DashboardPage />} />
+            <Route path="/" element={<HomeRouter />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
 
               {/* Employee Management — admin only */}
               <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeesPage /></ProtectedRoute>} />

@@ -36,6 +36,7 @@ export default function ProjectDetailPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
+  const [addMemberMode, setAddMemberMode] = useState<"resource" | "client">("resource");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [roleInputs, setRoleInputs] = useState<Record<string, string>>({});
   const [memberSearch, setMemberSearch] = useState("");
@@ -118,6 +119,10 @@ export default function ProjectDetailPage() {
     enabled: isAdmin,
   });
 
+  // Derived splits: resources = non-Client, clientMembers = Client designation
+  const resourceMembers = (members || []).filter((m: any) => (m.users as any)?.designation !== "Client");
+  const clientMembers = (members || []).filter((m: any) => (m.users as any)?.designation === "Client");
+
   const { data: employeeProjects } = useQuery({
     queryKey: ["employee-projects"],
     queryFn: async () => {
@@ -190,7 +195,11 @@ export default function ProjectDetailPage() {
   const availableEmployees = allEmployees?.filter((e) => {
     const notMember = !members?.some((m) => (m.users as any)?.id === e.id);
     const matchesSearch = e.full_name.toLowerCase().includes(memberSearch.toLowerCase());
-    return notMember && matchesSearch;
+    const matchesMode =
+      addMemberMode === "client"
+        ? e.designation === "Client"
+        : e.designation !== "Client";
+    return notMember && matchesSearch && matchesMode;
   }) || [];
 
   const toggleUser = (uid: string) => {
@@ -478,7 +487,8 @@ export default function ProjectDetailPage() {
       <Tabs defaultValue="overview">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="members">Members ({members?.length || 0})</TabsTrigger>
+          <TabsTrigger value="resources">Resources ({resourceMembers.length})</TabsTrigger>
+          <TabsTrigger value="clients">Clients' Member ({clientMembers.length})</TabsTrigger>
           {isAdmin && <TabsTrigger value="logs">Logs</TabsTrigger>}
           {isAdmin && <TabsTrigger value="stats">Stats</TabsTrigger>}
           <TabsTrigger value="tasks">Tasks ({tasks?.length || 0})</TabsTrigger>
@@ -534,13 +544,13 @@ export default function ProjectDetailPage() {
           </Card>
         </TabsContent>
 
-        {/* MEMBERS — Admin: full management; Employee: view-only */}
-        <TabsContent value="members">
+        {/* RESOURCES — Admin: full management; Employee: view-only */}
+        <TabsContent value="resources">
           <Card>
             <div className="p-4 flex justify-between items-center border-b">
-              <span className="font-medium">{members?.length || 0} members</span>
+              <span className="font-medium">{resourceMembers.length} resource{resourceMembers.length !== 1 ? "s" : ""}</span>
               {isAdmin && (
-                <Button size="sm" onClick={() => setAddMemberOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Member</Button>
+                <Button size="sm" onClick={() => { setAddMemberMode("resource"); setAddMemberOpen(true); }} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Resource</Button>
               )}
             </div>
             <Table>
@@ -549,7 +559,7 @@ export default function ProjectDetailPage() {
                 {isAdmin && <><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead></>}
               </TableRow></TableHeader>
               <TableBody>
-                {members?.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
+                {resourceMembers.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
                   <TableRow key={m.id}>
                     <TableCell>
                       <div className="flex items-center gap-2">
@@ -572,7 +582,51 @@ export default function ProjectDetailPage() {
                     )}
                   </TableRow>
                 ))}
-                {(!members || members.length === 0) && <TableRow><TableCell colSpan={isAdmin ? 5 : 3} className="text-center text-muted-foreground py-8">No members assigned</TableCell></TableRow>}
+                {resourceMembers.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 5 : 3} className="text-center text-muted-foreground py-8">No resources assigned</TableCell></TableRow>}
+              </TableBody>
+            </Table>
+          </Card>
+        </TabsContent>
+
+        {/* CLIENTS' MEMBER — Admin: full management; Employee: view-only */}
+        <TabsContent value="clients">
+          <Card>
+            <div className="p-4 flex justify-between items-center border-b">
+              <span className="font-medium">{clientMembers.length} client member{clientMembers.length !== 1 ? "s" : ""}</span>
+              {isAdmin && (
+                <Button size="sm" onClick={() => { setAddMemberMode("client"); setAddMemberOpen(true); }} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Client Member</Button>
+              )}
+            </div>
+            <Table>
+              <TableHeader><TableRow>
+                <TableHead>Name</TableHead><TableHead>Designation</TableHead><TableHead>Hours Spent</TableHead>
+                {isAdmin && <><TableHead>Assigned</TableHead><TableHead className="text-right">Actions</TableHead></>}
+              </TableRow></TableHeader>
+              <TableBody>
+                {clientMembers.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
+                  <TableRow key={m.id}>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-7 w-7">
+                          <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
+                          <AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback>
+                        </Avatar>
+                        {(m.users as any)?.full_name}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">{(m.users as any)?.designation}</TableCell>
+                    <TableCell className="text-muted-foreground">{m._hoursSpent}h</TableCell>
+                    {isAdmin && (
+                      <>
+                        <TableCell className="text-muted-foreground">{format(new Date(m.assigned_at), "MMM d, yyyy")}</TableCell>
+                        <TableCell className="text-right">
+                          <Button variant="ghost" size="icon" onClick={() => removeMember(m.id, (m.users as any)?.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        </TableCell>
+                      </>
+                    )}
+                  </TableRow>
+                ))}
+                {clientMembers.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 5 : 3} className="text-center text-muted-foreground py-8">No client members assigned</TableCell></TableRow>}
               </TableBody>
             </Table>
           </Card>
@@ -952,15 +1006,19 @@ export default function ProjectDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Add Member Sheet */}
+      {/* Add Member / Resource / Client Sheet */}
       <Sheet open={addMemberOpen} onOpenChange={setAddMemberOpen}>
         <SheetContent className="flex flex-col h-full">
-          <SheetHeader><SheetTitle>Add Members</SheetTitle></SheetHeader>
+          <SheetHeader>
+            <SheetTitle>
+              {addMemberMode === "client" ? "Add Client Member" : "Add Resource"}
+            </SheetTitle>
+          </SheetHeader>
           <div className="space-y-3 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
             <div className="relative mb-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search employees..."
+                placeholder={addMemberMode === "client" ? "Search client users..." : "Search resources..."}
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 className="pl-9"
@@ -968,7 +1026,11 @@ export default function ProjectDetailPage() {
             </div>
             {availableEmployees.length === 0 && (
               <p className="text-sm text-muted-foreground text-center py-4">
-                {memberSearch ? "No matching employees found." : "All employees are already on this project."}
+                {memberSearch
+                  ? "No matching users found."
+                  : addMemberMode === "client"
+                  ? "All client users are already on this project."
+                  : "All resources are already on this project."}
               </p>
             )}
             {availableEmployees.map((e) => (
@@ -997,7 +1059,9 @@ export default function ProjectDetailPage() {
             ))}
           </div>
           <SheetFooter className="mt-4 pt-4 border-t shrink-0">
-            <Button onClick={addMembers} disabled={selectedUsers.length === 0} className="rounded-button w-full">Add {selectedUsers.length} Member{selectedUsers.length !== 1 ? "s" : ""}</Button>
+            <Button onClick={addMembers} disabled={selectedUsers.length === 0} className="rounded-button w-full">
+              Add {selectedUsers.length} {addMemberMode === "client" ? "Client Member" : "Resource"}{selectedUsers.length !== 1 ? "s" : ""}
+            </Button>
           </SheetFooter>
         </SheetContent>
       </Sheet>

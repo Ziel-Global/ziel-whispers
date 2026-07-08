@@ -54,6 +54,7 @@ Deno.serve(async (req) => {
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey, {
       auth: { autoRefreshToken: false, persistSession: false },
+      global: { headers: { Origin: supabaseUrl } },
     });
 
     // Pull defaults from system_settings — no hardcoded shift/reminder values here.

@@ -39,6 +39,15 @@ export default function DashboardPage() {
     enabled: hasProfile && !!user?.id,
   });
 
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case "approved": return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
+      case "rejected": return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+      case "cancelled": return <Badge className="bg-gray-100 text-gray-800">Cancelled</Badge>;
+      default: return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+    }
+  };
+
   // ——— Admin queries ———
   const { data: stats } = useQuery({
     queryKey: ["dashboard-stats"],

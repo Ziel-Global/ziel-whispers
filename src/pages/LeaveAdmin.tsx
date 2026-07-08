@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
+import { Table, TableBody, TableCell, TableHead, TableHeader as ShadcnTableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
@@ -588,12 +589,12 @@ export default function LeaveAdminPage() {
               </DialogHeader>
               <div className="max-h-[400px] overflow-y-auto">
                 <Table>
-                  <TableHeader>
+                  <ShadcnTableHeader>
                     <TableRow>
                       <TableHead>Employee Name</TableHead>
                       <TableHead className="text-right">Remaining Leave Days</TableHead>
                     </TableRow>
-                  </TableHeader>
+                  </ShadcnTableHeader>
                   <TableBody>
                     {employeeBalanceData.length === 0 ? (
                       <TableRow>

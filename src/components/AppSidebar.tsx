@@ -9,6 +9,7 @@ import {
   Megaphone,
   Settings,
   ClipboardList,
+  GitBranch,
   Briefcase,
   Send,
   CalendarCheck,
@@ -37,7 +38,7 @@ import zielLogoWhite from "@/assets/ziel-logo-white.png";
 
 const adminNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Employees", url: "/employees", icon: Users },
+  { title: "Active Users", url: "/employees", icon: Users },
   { title: "Attendance", url: "/attendance", icon: Clock },
   { title: "Daily Logs", url: "/logs/all", icon: FileText },
   { title: "Leave", url: "/leave/requests", icon: Calendar },
@@ -46,6 +47,7 @@ const adminNav = [
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Workflow", url: "/workflow-templates", icon: GitBranch },
   { title: "Audit Log", url: "/audit", icon: Shield },
 ];
 
@@ -65,9 +67,14 @@ const employeeNav = [
   { title: "Submit Log", url: "/logs/submit", icon: Send },
   { title: "My Logs", url: "/logs/my", icon: ClipboardList },
   { title: "My Attendance", url: "/attendance/my", icon: Clock },
-  { title: "My Leave", url: "/leave/my", icon: CalendarCheck },
+  { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
+  { title: "My Projects", url: "/my-projects", icon: FolderKanban },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
   { title: "Profile", url: "/profile", icon: User },
+];
+
+const clientNav = [
+  { title: "Projects", url: "/projects", icon: FolderKanban },
 ];
 
 export function AppSidebar() {
@@ -77,8 +84,15 @@ export function AppSidebar() {
   const location = useLocation();
 
   const role = profile?.role;
+  const isClient = profile?.designation === "Client";
   const isAdminOrManager = role === "admin" || role === "manager";
-  const items = role === "admin" ? adminNav : role === "manager" ? managerNav : employeeNav;
+  const items = isClient
+    ? clientNav
+    : role === "admin"
+    ? adminNav
+    : role === "manager"
+    ? managerNav
+    : employeeNav;
 
   // Unread announcements badge
   const { data: unreadCount } = useQuery({
@@ -102,24 +116,58 @@ export function AppSidebar() {
     refetchInterval: 60000,
   });
 
-  // Pending leave requests badge (admin/manager only)
+  // Pending leave and WFH requests badge (admin/manager only)
   const { data: pendingLeaveCount } = useQuery({
     queryKey: ["pending-leave-count"],
     queryFn: async () => {
-      const { count, error } = await supabase
+      const { count: leaveCount, error: leaveError } = await supabase
         .from("leave_requests")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending");
-      if (error) throw error;
-      return count || 0;
+      if (leaveError) throw leaveError;
+
+      const { count: wfhCount, error: wfhError } = await supabase
+        .from("remote_work_requests")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending");
+      if (wfhError) throw wfhError;
+
+      return (leaveCount || 0) + (wfhCount || 0);
     },
     enabled: isAdminOrManager,
+    refetchInterval: 30000,
+  });
+
+  // Employee unseen requests badge
+  const { data: employeeUnseenCount } = useQuery({
+    queryKey: ["employee-unseen-requests", user?.id],
+    queryFn: async () => {
+      const lastSeen = localStorage.getItem(`leave_last_seen_${user!.id}`) || "2000-01-01T00:00:00Z";
+      
+      const { data: leaves } = await supabase
+        .from("leave_requests")
+        .select("id")
+        .eq("user_id", user!.id)
+        .in("status", ["approved", "rejected"])
+        .gt("reviewed_at", lastSeen);
+        
+      const { data: wfh } = await supabase
+        .from("remote_work_requests")
+        .select("id")
+        .eq("user_id", user!.id)
+        .in("status", ["approved", "rejected"])
+        .gt("reviewed_at", lastSeen);
+        
+      return (leaves?.length || 0) + (wfh?.length || 0);
+    },
+    enabled: !isAdminOrManager && !!user?.id,
     refetchInterval: 30000,
   });
 
   const getBadgeCount = (title: string): number => {
     if (title === "Announcements") return unreadCount || 0;
     if (title === "Leave" && isAdminOrManager) return pendingLeaveCount || 0;
+    if (title === "Leave & Requests" && !isAdminOrManager) return employeeUnseenCount || 0;
     return 0;
   };
 

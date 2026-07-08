@@ -11,19 +11,30 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, Archive, ArchiveRestore, Pencil, Building2 } from "lucide-react";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
+import { Plus, Search, Archive, ArchiveRestore, Pencil, Building2, Trash2 } from "lucide-react";
+import { format } from "date-fns";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface ClientForm {
   name: string;
   industry: string;
   contact_name: string;
   contact_email: string;
-  contact_phone: string;
+  location: string;
   notes: string;
 }
 
-const emptyForm: ClientForm = { name: "", industry: "", contact_name: "", contact_email: "", contact_phone: "", notes: "" };
+const INDUSTRIES = [
+  "Technology", "Healthcare", "Finance & Banking", "Education",
+  "Retail & E-commerce", "Manufacturing", "Construction", "Real Estate",
+  "Transportation & Logistics", "Media & Entertainment", "Hospitality & Tourism",
+  "Energy & Utilities", "Telecommunications", "Agriculture",
+  "Legal & Professional Services", "Marketing & Advertising", "Non-Profit",
+  "Government", "Automotive", "Food & Beverage", "Other"
+];
+
+const emptyForm: ClientForm = { name: "", industry: "", contact_name: "", contact_email: "", location: "", notes: "" };
 
 export default function ClientsPage() {
   const { profile } = useAuth();
@@ -34,11 +45,13 @@ export default function ClientsPage() {
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<ClientForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: clients, isLoading } = useQuery({
     queryKey: ["clients"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("clients").select("*").order("created_at", { ascending: false });
+      const { data, error } = await supabase.from("clients").select("*").order("name", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -68,12 +81,20 @@ export default function ClientsPage() {
   const openAdd = () => { setEditId(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (c: any) => {
     setEditId(c.id);
-    setForm({ name: c.name, industry: c.industry || "", contact_name: c.contact_name || "", contact_email: c.contact_email || "", contact_phone: c.contact_phone || "", notes: (c as any).notes || "" });
+    setForm({ 
+      name: c.name, 
+      industry: c.industry || "", 
+      contact_name: c.contact_name || "", 
+      contact_email: c.contact_email || "", 
+      location: c.contact_phone || "", // Mapping contact_phone to location
+      notes: (c as any).notes || "" 
+    });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error("Client name is required"); return; }
+    if (!form.location.trim()) { toast.error("Location is required"); return; }
     if (form.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact_email)) { toast.error("Invalid email format"); return; }
     setSaving(true);
     try {
@@ -82,7 +103,7 @@ export default function ClientsPage() {
         industry: form.industry || null,
         contact_name: form.contact_name || null,
         contact_email: form.contact_email || null,
-        contact_phone: form.contact_phone || null,
+        contact_phone: form.location.trim() || null, // Storing location in contact_phone field
         notes: form.notes || null,
       };
       if (editId) {
@@ -106,6 +127,42 @@ export default function ClientsPage() {
     if (error) { toast.error(error.message); return; }
     toast.success(newStatus === "archived" ? "Client archived" : "Client restored");
     queryClient.invalidateQueries({ queryKey: ["clients"] });
+  };
+
+  const handleDelete = async () => {
+    if (!deleteId) return;
+    setDeleting(true);
+    try {
+      // Pre-check for related projects (FK constraint)
+      const { data: relatedProjects } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("client_id", deleteId);
+      if (relatedProjects && relatedProjects.length > 0) {
+        toast.error(`Cannot delete: ${relatedProjects.length} project(s) are linked to this client. Archive the client instead.`);
+        setDeleting(false);
+        return;
+      }
+
+      const { error } = await supabase.from("clients").delete().eq("id", deleteId);
+      if (error) throw error;
+      
+      await supabase.from("audit_logs").insert({ 
+        actor_id: profile?.id, 
+        action: "client.deleted", 
+        target_entity: "clients",
+        target_id: deleteId 
+      });
+      
+      toast.success("Client deleted permanently");
+      setDeleteId(null);
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["client-project-counts"] });
+    } catch (err: any) { 
+      toast.error(err.message); 
+    } finally { 
+      setDeleting(false); 
+    }
   };
 
   return (
@@ -133,63 +190,68 @@ export default function ClientsPage() {
         </Select>
       </div>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead>Contact</TableHead>
-              <TableHead>Projects</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
+      {isLoading && <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>}
+      {!isLoading && filtered.length === 0 && <Card><div className="py-12 text-center text-muted-foreground">No clients found</div></Card>}
+      {!isLoading && filtered.length > 0 && (
+        <div>
+          <TableHeader gridCols="1fr 96px 96px 112px 80px">
+            <span>CLIENT</span>
+            <span>PROJECTS</span>
+            <span>STATUS</span>
+            <span>CREATED</span>
+            <span className="text-right">ACTIONS</span>
           </TableHeader>
-          <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No clients found</TableCell></TableRow>}
-            {filtered.map((c) => (
-              <TableRow key={c.id}>
-                <TableCell className="font-medium">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="h-4 w-4 text-muted-foreground" />
-                    {c.name}
-                  </div>
-                </TableCell>
-                <TableCell className="text-muted-foreground">{c.industry || "—"}</TableCell>
-                <TableCell>
-                  <div className="text-sm">{c.contact_name || "—"}</div>
-                  {c.contact_email && <div className="text-xs text-muted-foreground">{c.contact_email}</div>}
-                </TableCell>
-                <TableCell>{projectCounts?.[c.id] || 0}</TableCell>
-                <TableCell>
-                  <Badge className={c.status === "active" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
-                    {c.status}
-                  </Badge>
-                </TableCell>
-                <TableCell className="text-right">
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => openEdit(c)}><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => toggleArchive(c.id, c.status)}>
-                      {c.status === "archived" ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+          {filtered.map((c) => (
+            <DataRow key={c.id} gridCols="1fr 96px 96px 112px 80px">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4 text-[#6b7280] shrink-0" />
+                  <RowPrimary>{c.name}</RowPrimary>
+                </div>
+                <RowSecondary>{c.contact_email || "—"} · {c.contact_phone || "—"}</RowSecondary>
+              </div>
+              <RowDataItem label="PROJECTS">{projectCounts?.[c.id] || 0}</RowDataItem>
+              <RowDataItem label="STATUS">
+                <Badge className={c.status === "active" ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}>
+                  {c.status}
+                </Badge>
+              </RowDataItem>
+              <RowDataItem label="CREATED">{format(new Date(c.created_at), "MMM d, yyyy")}</RowDataItem>
+              <RowActions className="justify-self-end">
+                <button onClick={() => openEdit(c)} className={editButtonClass} title="Edit">
+                  <Pencil className="h-4 w-4" />
+                </button>
+                <button onClick={() => toggleArchive(c.id, c.status)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={c.status === "archived" ? "Restore" : "Archive"}>
+                  {c.status === "archived" ? <ArchiveRestore className="h-4 w-4 text-[#6b7280]" /> : <Archive className="h-4 w-4 text-[#6b7280]" />}
+                </button>
+                <button onClick={() => setDeleteId(c.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Delete">
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </RowActions>
+            </DataRow>
+          ))}
+        </div>
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>{editId ? "Edit Client" : "Add Client"}</DialogTitle></DialogHeader>
-          <div className="space-y-4">
+           <div className="space-y-4">
             <div><Label>Client Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div><Label>Industry</Label><Input value={form.industry} onChange={(e) => setForm({ ...form, industry: e.target.value })} placeholder="e.g. Technology, Healthcare" /></div>
+            <div>
+              <Label>Industry</Label>
+              <Select value={form.industry} onValueChange={(v) => setForm({ ...form, industry: v })}>
+                <SelectTrigger><SelectValue placeholder="Select industry" /></SelectTrigger>
+                <SelectContent>
+                  {INDUSTRIES.map((ind) => (
+                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} /></div>
             <div><Label>Contact Email</Label><Input type="email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></div>
-            <div><Label>Contact Phone</Label><Input value={form.contact_phone} onChange={(e) => setForm({ ...form, contact_phone: e.target.value })} /></div>
+            <div><Label>Location *</Label><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Islamabad, Pakistan" /></div>
             <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
           </div>
           <DialogFooter>
@@ -198,6 +260,22 @@ export default function ClientsPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Client?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this client? This will permanently remove the client from the system. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? "Deleting…" : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

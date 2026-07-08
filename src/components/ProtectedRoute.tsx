@@ -35,7 +35,18 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
   }
 
   if (location.pathname === "/set-password" && profile && !profile.must_change_password) {
-    return <Navigate to="/" replace />;
+    // If we're in the immediate password-set flow, don't redirect to dashboard to avoid a UI flash.
+    // This flow sets a short-lived localStorage flag `_zl_just_set_password` which we honor here.
+    try {
+      const justSet = localStorage.getItem("_zl_just_set_password");
+      if (justSet === "1") {
+        // allow staying on /set-password until the client finishes sign-out
+      } else {
+        return <Navigate to="/" replace />;
+      }
+    } catch {
+      return <Navigate to="/" replace />;
+    }
   }
 
   if (profile?.must_change_password && location.pathname !== "/set-password") {

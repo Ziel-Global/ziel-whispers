@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
@@ -122,9 +123,166 @@ Deno.serve(async (req) => {
       metadata: { email, full_name, role: role || "employee" },
     });
 
+    // 4. If the new user is a Client, send a branded welcome email with a password setup link
+    if (designation === "Client") {
+      await adminClient.from("audit_logs").insert({
+        actor_id: callerId,
+        action: "debug.email_block_entered",
+        target_entity: "users",
+        target_id: userId,
+        metadata: { email, designation },
+      });
+
+      // Generate a password recovery / setup link
+      // redirectTo must be added to Supabase Auth → URL Configuration → Redirect URLs
+      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+        type: "recovery",
+        email,
+        options: {
+          redirectTo: "http://localhost:8081/set-password",
+        },
+      });
+
+      if (linkError || !linkData?.properties?.action_link) {
+        console.error("Failed to generate setup link:", linkError?.message);
+        await adminClient.from("audit_logs").insert({
+          actor_id: callerId,
+          action: "debug.link_generation_failed",
+          target_entity: "users",
+          target_id: userId,
+          metadata: { email, designation, error: linkError?.message || "No action_link returned" },
+        });
+      } else {
+        const setupLink = linkData.properties.action_link;
+
+        const emailHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>You've been invited to Ziel Logs</title>
+</head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#000000;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;border:1px solid #e5e5e5;">
+
+          <!-- Header with dark sidebar colour matching the app -->
+          <tr>
+            <td style="padding:28px 40px;background:#1c1c1f;">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <h1 style="margin:0;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.3px;">Ziel Logs</h1>
+                    <p style="margin:4px 0 0;font-size:12px;color:#a0a0a0;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;">Client Portal Access</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Lime accent strip -->
+          <tr>
+            <td style="height:4px;background:#d0ff71;"></td>
+          </tr>
+
+          <!-- Body -->
+          <tr>
+            <td style="padding:36px 40px;">
+              <h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#000000;">Welcome, ${full_name}!</h2>
+              <p style="margin:0 0 20px;font-size:14px;color:#737373;line-height:1.6;">
+                You have been invited to the <strong style="color:#000000;">Ziel Logs</strong> client portal.<br/>
+                You can now view your projects and track progress in real time.
+              </p>
+
+              <table cellpadding="0" cellspacing="0" style="background:#f5f5f5;border-radius:8px;border:1px solid #e5e5e5;width:100%;margin-bottom:24px;">
+                <tr>
+                  <td style="padding:16px 20px;">
+                    <p style="margin:0 0 4px;font-size:12px;color:#737373;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Your account email</p>
+                    <p style="margin:0;font-size:15px;color:#000000;font-weight:500;">${email}</p>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 24px;font-size:14px;color:#737373;line-height:1.6;">
+                Click the button below to set your password and access your account immediately.
+              </p>
+
+              <!-- CTA Button -->
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="border-radius:8px;background:#d0ff71;">
+                    <a href="${setupLink}" target="_blank"
+                      style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#000000;text-decoration:none;letter-spacing:-0.2px;border-radius:8px;"
+                    >
+                      Set Your Password &amp; Sign In →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 40px;border-top:1px solid #e5e5e5;background:#fafafa;">
+              <p style="margin:0;font-size:12px;color:#a3a3a3;">
+                This invitation was sent by <strong style="color:#737373;">Ziel Admin</strong>. If you did not expect this email, you can safely ignore it.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+
+        <!-- Bottom caption -->
+        <p style="margin:16px 0 0;font-size:11px;color:#a3a3a3;">© Ziel Logs · Client Portal</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+        try {
+          const res = await adminClient.functions.invoke("send-email", {
+            body: {
+              to: email,
+              subject: "You've been invited to Ziel Logs — Set your password",
+              html: emailHtml,
+              fromName: "Ziel Admin",
+            },
+          });
+          
+          if (res.error) throw res.error;
+
+          await adminClient.from("audit_logs").insert({
+            actor_id: callerId,
+            action: "debug.invoke_send_email_success",
+            target_entity: "users",
+            target_id: userId,
+            metadata: { email, designation, res: res.data },
+          });
+        } catch (emailErr: any) {
+          const emailErrMsg = emailErr instanceof Error ? emailErr.message : (emailErr?.context?.name || String(emailErr));
+          console.error("Failed to send client welcome email:", emailErrMsg, emailErr);
+          await adminClient.from("audit_logs").insert({
+            actor_id: callerId,
+            action: "debug.invoke_send_email_failed",
+            target_entity: "users",
+            target_id: userId,
+            metadata: { email, designation, error: emailErrMsg, full_error: emailErr },
+          });
+        }
+      }
+    }
+
     return jsonResponse({ ok: true, user_id: userId, email });
   } catch (err) {
-    console.error("Unexpected error:", err);
-    return jsonResponse({ ok: false, error: err.message || "Unexpected error" });
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("invite-user error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

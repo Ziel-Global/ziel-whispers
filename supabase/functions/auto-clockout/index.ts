@@ -2,8 +2,17 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.1";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
+
+// Always status 200 — errors surface in the body so supabase-js never swallows them.
+function jsonResponse(body: Record<string, unknown>) {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -17,69 +26,123 @@ Deno.serve(async (req) => {
       auth: { autoRefreshToken: false, persistSession: false },
     });
 
-    // Find all open sessions (clock_in set, clock_out null) excluding night shift employees
+    // 1. Fetch configuration from system_settings
+    const { data: settings } = await adminClient
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["auto_clockout_time", "timezone"]);
+    
+    const settingsMap = Object.fromEntries((settings || []).map(s => [s.key, s.value]));
+    const timezone = settingsMap.timezone || "Asia/Karachi";
+    const autoClockoutTime = (settingsMap.auto_clockout_time as string) || "00:00";
+
+    // 2. Identify "Today" in the target timezone (PKT)
+    const now = new Date();
+    const todayPKT = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(now); // Result: "YYYY-MM-DD"
+
+    console.log(`Current server time (UTC): ${now.toISOString()}`);
+    console.log(`Using timezone: ${timezone}; configured autoClockoutTime: ${autoClockoutTime}`);
+    console.log(`Current ${timezone} date: ${todayPKT}`);
+
+    const nowInTZ = new Intl.DateTimeFormat("en-GB", { timeZone: timezone, hour: "2-digit", minute: "2-digit", hour12: false }).format(now); // HH:MM
+    const [cfgHour, cfgMin] = autoClockoutTime.split(":").map((v) => Number(v));
+    const [nowHour, nowMin] = nowInTZ.split(":").map((v) => Number(v));
+    const cfgMinutes = cfgHour * 60 + cfgMin;
+    const nowMinutes = nowHour * 60 + nowMin;
+
+    console.log(`Current time (PKT): ${nowInTZ} (${nowMinutes} mins); Auto-clockout time: ${autoClockoutTime} (${cfgMinutes} mins)`);
+
+    // 3. Find all open sessions from PREVIOUS dates only
+    // FIX: Using .lt (strictly less than) instead of .lte to prevent immediate clock-out of today's sessions
     const { data: openSessions, error: fetchError } = await adminClient
       .from("attendance")
-      .select("id, user_id, clock_in, date, users!attendance_user_id_fkey(is_night_shift)")
+      .select(`
+        id,
+        user_id,
+        clock_in,
+        date
+      `)
       .is("clock_out", null)
-      .not("clock_in", "is", null);
+      .not("clock_in", "is", null)
+      .lt("date", todayPKT);
 
     if (fetchError) {
       console.error("Error fetching open sessions:", fetchError);
-      return new Response(JSON.stringify({ error: fetchError.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ ok: false, error: fetchError.message });
     }
 
-    let processed = 0;
+    console.log(`Found ${openSessions?.length || 0} open stale sessions. Processing...`);
+
+    const tzOffset = "+05:00"; // Asia/Karachi fixed offset
+    const succeeded: Array<{ id: string; user_id: string; sessionDate: string; clock_out: string }> = [];
+    
     for (const session of openSessions || []) {
-      // Skip night shift employees
-      const user = session.users as any;
-      if (user?.is_night_shift) continue;
+      // Calculate clock out based on session date + config time
+      // FIX: If autoClockoutTime is 00:00, it refers to the midnight at the END of that session date.
+      // We calculate a timestamp and ensure it's after the clock_in.
+      
+      const clockInTime = new Date(session.clock_in);
+      let clockOutDateStr = session.date;
+      let clockOutTimestamp = new Date(`${clockOutDateStr}T${autoClockoutTime}:00${tzOffset}`);
+      
+      // If the calculated clock-out is before or equal to clock-in (e.g. 00:00 on the same day), 
+      // move it to the next day to ensure a positive duration.
+      if (clockOutTimestamp <= clockInTime) {
+        console.log(`Clock-out ${clockOutTimestamp.toISOString()} is before clock-in ${clockInTime.toISOString()}. Advancing by 24h.`);
+        clockOutTimestamp = new Date(clockOutTimestamp.getTime() + 24 * 60 * 60 * 1000);
+      }
 
-      // Calculate midnight of the clock-in date (end of that day)
-      const clockInDate = session.date;
-      const today = new Date().toISOString().split("T")[0];
-
-      // Only auto clock-out if the session is from a previous day
-      if (clockInDate >= today) continue;
-
-      // Set clock-out to midnight (end of clock-in day)
-      const midnightClockOut = `${clockInDate}T23:59:59.999Z`;
-
-      const { error: updateError } = await adminClient
-        .from("attendance")
-        .update({
-          clock_out: midnightClockOut,
-          auto_clocked_out: true,
-          auto_clockout_notes: "System auto clock-out — employee did not clock out manually.",
-        })
-        .eq("id", session.id)
-        .is("clock_out", null); // Idempotent: only update if still open
-
-      if (!updateError) {
-        processed++;
-        // Audit log
-        await adminClient.from("audit_logs").insert({
-          actor_id: null,
-          action: "attendance.auto_clockout",
-          target_entity: "attendance",
-          target_id: session.id,
-          metadata: { user_id: session.user_id, clock_in_date: clockInDate },
-        });
+      const clockOutValue = clockOutTimestamp.toISOString();
+      console.log(`Clocking out session ${session.id} for user ${session.user_id} at ${clockOutValue}`);
+      
+      try {
+        const { error: updateError } = await adminClient
+          .from("attendance")
+          .update({ 
+            clock_out: clockOutValue, 
+            auto_clocked_out: true, 
+            auto_clockout_notes: `System auto clock-out at ${autoClockoutTime}.` 
+          })
+          .eq("id", session.id)
+          .is("clock_out", null);
+          
+        if (!updateError) {
+          succeeded.push({ id: session.id, user_id: session.user_id, sessionDate: session.date, clock_out: clockOutValue });
+        } else {
+          console.error(`Failed to update attendance ${session.id}:`, updateError);
+        }
+      } catch (e) {
+        console.error(`Exception updating attendance ${session.id}:`, e instanceof Error ? e.message : String(e));
       }
     }
 
-    return new Response(
-      JSON.stringify({ success: true, processed }),
-      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    let processed = succeeded.length;
+    if (processed > 0) {
+      const auditRows = succeeded.map(s => ({
+        actor_id: null,
+        action: "attendance.auto_clockout",
+        target_entity: "attendance",
+        target_id: s.id,
+        metadata: { 
+          user_id: s.user_id, 
+          clock_in_date: s.sessionDate, 
+          clock_out_recorded: s.clock_out, 
+          timezone_used: timezone, 
+          suppress_notifications: true 
+        },
+      }));
+      await adminClient.from("audit_logs").insert(auditRows);
+    }
+
+    return jsonResponse({ ok: true, processed, timezone, todayPKT });
   } catch (err) {
-    console.error("auto-clockout error:", err);
-    return new Response(
-      JSON.stringify({ error: (err as Error).message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("auto-clockout error:", message);
+    return jsonResponse({ ok: false, error: message });
   }
 });

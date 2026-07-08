@@ -1,1 +1,7 @@
 project_id = "goutpygixoxkgbrfmkey"
+
+[functions.send-email]
+verify_jwt = false
+
+[functions.send-log-reminder]
+verify_jwt = false

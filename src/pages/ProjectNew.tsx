@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { toSlug } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,12 +22,14 @@ const schema = z.object({
   client_id: z.string().min(1, "Required"),
   start_date: z.string().min(1, "Required"),
   end_date: z.string().optional(),
+  document_link: z.string().url("Must be a valid URL").optional().or(z.literal("")),
 });
 
 export default function ProjectNewPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [templateId, setTemplateId] = useState<string>("");
 
   const { data: clients } = useQuery({
     queryKey: ["clients-active"],
@@ -36,7 +39,15 @@ export default function ProjectNewPage() {
     },
   });
 
-  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", client_id: "", start_date: new Date().toISOString().split("T")[0], end_date: "" } });
+  const { data: templates } = useQuery({
+    queryKey: ["workflow-templates-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("workflow_templates").select("id, name").order("name");
+      return data || [];
+    },
+  });
+
+  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", client_id: "", start_date: new Date().toISOString().split("T")[0], end_date: "", document_link: "" } });
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSaving(true);
@@ -47,19 +58,21 @@ export default function ProjectNewPage() {
         client_id: data.client_id,
         start_date: data.start_date,
         end_date: data.end_date || null,
+        document_link: data.document_link || null,
+        workflow_template_id: templateId || null,
         created_by: profile?.id,
       }).select("id").single();
       if (error) throw error;
       await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "project.created", target_entity: "projects", target_id: project.id });
       toast.success("Project created");
-      navigate(`/projects/${project.id}`);
+      navigate(`/projects/${toSlug(data.name)}`);
     } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
   };
 
   return (
     <div className="max-w-xl mx-auto space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => navigate("/projects")}><ArrowLeft className="h-4 w-4" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/projects"); }}><ArrowLeft className="h-4 w-4" /></Button>
         <h1 className="text-2xl font-bold tracking-tight">New Project</h1>
       </div>
       <Card className="p-6">
@@ -80,6 +93,15 @@ export default function ProjectNewPage() {
                 <FormMessage />
               </FormItem>
             )} />
+            <FormItem>
+              <FormLabel>Workflow Template</FormLabel>
+              <Select value={templateId} onValueChange={setTemplateId}>
+                <SelectTrigger><SelectValue placeholder="Select workflow template" /></SelectTrigger>
+                <SelectContent>
+                  {(templates || []).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormItem>
             <div className="grid grid-cols-2 gap-4">
               <FormField control={form.control} name="start_date" render={({ field }) => (
                 <FormItem><FormLabel>Start Date *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
@@ -88,6 +110,9 @@ export default function ProjectNewPage() {
                 <FormItem><FormLabel>End Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
+            <FormField control={form.control} name="document_link" render={({ field }) => (
+              <FormItem><FormLabel>Document Link <span className="text-muted-foreground font-normal">(optional)</span></FormLabel><FormControl><Input {...field} placeholder="https://drive.google.com/..." /></FormControl><FormMessage /></FormItem>
+            )} />
             <div className="flex justify-end pt-2">
               <Button type="submit" disabled={saving} className="rounded-button">{saving ? "Creating…" : "Create Project"}</Button>
             </div>

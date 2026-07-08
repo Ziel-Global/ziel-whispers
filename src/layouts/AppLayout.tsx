@@ -3,6 +3,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { TopBar } from "@/components/TopBar";
 import { AutoClockoutAlert } from "@/components/AutoClockoutAlert";
+import { MissingLogAlert } from "@/components/MissingLogAlert";
 
 export default function AppLayout() {
   return (
@@ -13,6 +14,7 @@ export default function AppLayout() {
           <TopBar />
           <main className="flex-1 p-6 overflow-auto bg-background">
             <AutoClockoutAlert />
+            <MissingLogAlert />
             <Outlet />
           </main>
         </div>

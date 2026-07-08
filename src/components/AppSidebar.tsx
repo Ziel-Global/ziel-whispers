@@ -9,12 +9,12 @@ import {
   Megaphone,
   Settings,
   ClipboardList,
+  GitBranch,
   Briefcase,
   Send,
   CalendarCheck,
   Shield,
   User,
-  Flag,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -44,10 +44,10 @@ const adminNav = [
   { title: "Leave", url: "/leave/requests", icon: Calendar },
   { title: "Clients", url: "/clients", icon: Briefcase },
   { title: "Projects", url: "/projects", icon: FolderKanban },
-  { title: "Project Goals", url: "/goals", icon: Flag },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
   { title: "Settings", url: "/settings", icon: Settings },
+  { title: "Workflow", url: "/workflow-templates", icon: GitBranch },
   { title: "Audit Log", url: "/audit", icon: Shield },
 ];
 

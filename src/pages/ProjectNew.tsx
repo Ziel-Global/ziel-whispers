@@ -29,11 +29,20 @@ export default function ProjectNewPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [templateId, setTemplateId] = useState<string>("");
 
   const { data: clients } = useQuery({
     queryKey: ["clients-active"],
     queryFn: async () => {
       const { data } = await supabase.from("clients").select("id, name").eq("status", "active").order("name");
+      return data || [];
+    },
+  });
+
+  const { data: templates } = useQuery({
+    queryKey: ["workflow-templates-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("workflow_templates").select("id, name").order("name");
       return data || [];
     },
   });
@@ -50,6 +59,7 @@ export default function ProjectNewPage() {
         start_date: data.start_date,
         end_date: data.end_date || null,
         document_link: data.document_link || null,
+        workflow_template_id: templateId || null,
         created_by: profile?.id,
       }).select("id").single();
       if (error) throw error;
@@ -83,6 +93,15 @@ export default function ProjectNewPage() {
                 <FormMessage />
               </FormItem>
             )} />
+            <FormItem>
+              <FormLabel>Workflow Template</FormLabel>
+              <Select value={templateId} onValueChange={setTemplateId}>
+                <SelectTrigger><SelectValue placeholder="Select workflow template" /></SelectTrigger>
+                <SelectContent>
+                  {(templates || []).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormItem>
             <div className="grid grid-cols-2 gap-4">
               <FormField control={form.control} name="start_date" render={({ field }) => (
                 <FormItem><FormLabel>Start Date *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>

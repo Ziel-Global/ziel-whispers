@@ -10,23 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save } from "lucide-react";
+import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
+import { ArrowLeft, Save, Check } from "lucide-react";
 import { format } from "date-fns";
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: "bg-red-100 text-red-800",
-  medium: "bg-yellow-100 text-yellow-800",
-  low: "bg-green-100 text-green-800",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  unlinked: "bg-gray-100 text-gray-800",
-  linked: "bg-blue-100 text-blue-800",
-  in_progress: "bg-yellow-100 text-yellow-800",
-  complete: "bg-green-100 text-green-800",
-  returned: "bg-red-100 text-red-800",
-};
+import { PRIORITY_COLORS, TASK_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
 
 export default function PhaseEditPage() {
   const { slug, phaseId } = useParams<{ slug: string; phaseId: string }>();
@@ -112,22 +99,13 @@ export default function PhaseEditPage() {
         (t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id)
       );
 
-      const unassignNoGoal = toUnassign.filter((t: any) => !t.goal_id).map((t: any) => t.id);
-      const unassignWithGoal = toUnassign.filter((t: any) => t.goal_id).map((t: any) => t.id);
+      const unassignIds = toUnassign.map((t: any) => t.id);
 
-      if (unassignNoGoal.length > 0) {
+      if (unassignIds.length > 0) {
         const { error } = await supabase
           .from("tasks")
           .update({ phase_id: null, status: "unlinked" })
-          .in("id", unassignNoGoal);
-        if (error) throw error;
-      }
-
-      if (unassignWithGoal.length > 0) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ phase_id: null })
-          .in("id", unassignWithGoal);
+          .in("id", unassignIds);
         if (error) throw error;
       }
 
@@ -213,7 +191,15 @@ export default function PhaseEditPage() {
         {eligibleTasks.length === 0 ? (
           <p className="text-sm text-muted-foreground">No tasks available for this project.</p>
         ) : (
-          <div className="space-y-2">
+          <div>
+            <TableHeader gridCols="40px 1fr 112px 80px 96px 80px">
+              <span></span>
+              <span>TASK</span>
+              <span>ASSIGNEE</span>
+              <span>EST.</span>
+              <span>STATUS</span>
+              <span>PRIORITY</span>
+            </TableHeader>
             {[...eligibleTasks].filter((t: any) => {
               if (taskFilter === "all") return true;
               if (taskFilter === "complete") return t.status === "complete";
@@ -226,32 +212,28 @@ export default function PhaseEditPage() {
             }).map((t: any) => {
               const checked = selectedTaskIds.has(t.id);
               return (
-                <label
+                <DataRow
                   key={t.id}
-                  className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                    checked ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                  }`}
+                  gridCols="40px 1fr 112px 80px 96px 80px"
+                  className={checked ? "bg-primary/5" : ""}
                 >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={() => toggleTask(t.id)}
-                    className="border-black"
-                  />
-                  <div className="flex-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{t.title}</span>
-                      {checked && (
-                        <span className="text-xs text-foreground font-medium">(assigned)</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
-                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
-                      <Badge className={STATUS_COLORS[t.status] || ""}>{t.status}</Badge>
-                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                    </div>
+                  <button
+                    onClick={() => toggleTask(t.id)}
+                    className={`mt-1 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                      checked ? "bg-primary border-primary text-white" : "border-[#d1d5db]"
+                    }`}
+                  >
+                    {checked && <Check className="h-3 w-3" />}
+                  </button>
+                  <div>
+                    <RowPrimary>{t.title}</RowPrimary>
+                    {checked && <RowSecondary>Assigned</RowSecondary>}
                   </div>
-                </label>
+                  <RowDataItem label="ASSIGNEE">{(t as any).users?.full_name || "—"}</RowDataItem>
+                  <RowDataItem label="EST.">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</RowDataItem>
+                  <RowBadgeItem label="STATUS"><Badge className={STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge></RowBadgeItem>
+                  <RowBadgeItem label="PRIORITY"><Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge></RowBadgeItem>
+                </DataRow>
               );
             })}
           </div>

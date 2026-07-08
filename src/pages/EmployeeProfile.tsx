@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { ArrowLeft, Shield, ShieldOff, Download, Trash2, Save } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -922,40 +922,35 @@ export default function EmployeeProfilePage() {
             </div>
 
             {/* Table */}
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Hours</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
+            {workLogs.length === 0 ? (
+              <Card><div className="py-12 text-center text-muted-foreground">No logs found</div></Card>
+            ) : (
+              <div>
+                <TableHeader gridCols="1fr 112px 80px 112px 80px">
+                  <span>PROJECT</span>
+                  <span>DATE</span>
+                  <span>HOURS</span>
+                  <span>SUBMITTED AT</span>
+                  <span className="text-right">ACTIONS</span>
                 </TableHeader>
-                <TableBody>
-                  {workLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No logs found</TableCell></TableRow>
-                  ) : (
-                    workLogs.map((log: any) => (
-                      <TableRow key={log.id}>
-                        <TableCell>{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                        <TableCell>{getProjectName(log)}</TableCell>
-                        <TableCell className="max-w-[250px] truncate">{log.description}</TableCell>
-                        <TableCell className="font-medium">{formatHours(log.hours)}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{format(new Date(log.submitted_at), "h:mm a")}</TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteLogId(log.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </Card>
+                {workLogs.map((log: any) => (
+                  <DataRow key={log.id} gridCols="1fr 112px 80px 112px 80px">
+                    <div>
+                      <RowPrimary>{getProjectName(log)}</RowPrimary>
+                      <RowSecondary>{log.description}</RowSecondary>
+                    </div>
+                    <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                    <RowDataItem label="HOURS"><span className="font-medium">{formatHours(log.hours)}</span></RowDataItem>
+                    <RowDataItem label="SUBMITTED AT">{format(new Date(log.submitted_at), "h:mm a")}</RowDataItem>
+                    <RowActions className="justify-self-end">
+                      <button onClick={() => setDeleteLogId(log.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Delete">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </RowActions>
+                  </DataRow>
+                ))}
+              </div>
+            )}
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!deleteLogId} onOpenChange={(open) => !open && setDeleteLogId(null)}>

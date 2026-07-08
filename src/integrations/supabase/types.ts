@@ -284,10 +284,12 @@ export type Database = {
           is_late: boolean
           is_locked: boolean
           is_missed: boolean
+          is_overtime: boolean
           log_date: string
           project_id: string | null
           status: string
           submitted_at: string
+          task_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -301,10 +303,12 @@ export type Database = {
           is_late?: boolean
           is_locked?: boolean
           is_missed?: boolean
+          is_overtime?: boolean
           log_date: string
           project_id?: string | null
           status?: string
           submitted_at?: string
+          task_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -318,10 +322,12 @@ export type Database = {
           is_late?: boolean
           is_locked?: boolean
           is_missed?: boolean
+          is_overtime?: boolean
           log_date?: string
           project_id?: string | null
           status?: string
           submitted_at?: string
+          task_id?: string | null
           user_id?: string | null
         }
         Relationships: [
@@ -337,6 +343,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_logs_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
         ]
@@ -658,36 +671,42 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          document_link: string | null
           end_date: string | null
           id: string
           name: string
           start_date: string
           status: string
           status_note: string | null
+          workflow_template_id: string | null
         }
         Insert: {
           client_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          document_link?: string | null
           end_date?: string | null
           id?: string
           name: string
           start_date: string
           status?: string
           status_note?: string | null
+          workflow_template_id?: string | null
         }
         Update: {
           client_id?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
+          document_link?: string | null
           end_date?: string | null
           id?: string
           name?: string
           start_date?: string
           status?: string
           status_note?: string | null
+          workflow_template_id?: string | null
         }
         Relationships: [
           {
@@ -702,6 +721,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_workflow_template_id_fkey"
+            columns: ["workflow_template_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -735,125 +761,65 @@ export type Database = {
           },
         ]
       }
-      goal_resources: {
-        Row: {
-          assigned_at: string
-          goal_id: string
-          id: string
-          user_id: string
-        }
-        Insert: {
-          assigned_at?: string
-          goal_id: string
-          id?: string
-          user_id: string
-        }
-        Update: {
-          assigned_at?: string
-          goal_id?: string
-          id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goal_resources_goal_id_fkey"
-            columns: ["goal_id"]
-            isOneToOne: false
-            referencedRelation: "goals"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "goal_resources_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      goals: {
-        Row: {
-          created_at: string
-          created_by: string | null
-          description: string | null
-          id: string
-          project_id: string
-          status: string
-          title: string
-        }
-        Insert: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          project_id: string
-          status?: string
-          title: string
-        }
-        Update: {
-          created_at?: string
-          created_by?: string | null
-          description?: string | null
-          id?: string
-          project_id?: string
-          status?: string
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "goals_project_id_fkey"
-            columns: ["project_id"]
-            isOneToOne: false
-            referencedRelation: "projects"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "goals_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       tasks: {
         Row: {
           assigned_to: string | null
+          client_visible: boolean
           completed_at: string | null
           created_at: string
           created_by: string | null
           description: string | null
-          goal_id: string | null
+          due_date: string | null
+          estimated_hours: number | null
           id: string
+          is_flagged: boolean | null
+          phase_id: string | null
           priority: string
           project_id: string
           status: string
+          status_id: string | null
+          sprint_id: string | null
+          story_points: number | null
           title: string
         }
         Insert: {
           assigned_to?: string | null
+          client_visible?: boolean
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
-          goal_id?: string | null
+          due_date?: string | null
+          estimated_hours?: number | null
           id?: string
+          is_flagged?: boolean | null
+          phase_id?: string | null
           priority: string
           project_id: string
+          sprint_id?: string | null
           status?: string
+          status_id?: string | null
+          story_points?: number | null
           title: string
         }
         Update: {
           assigned_to?: string | null
+          client_visible?: boolean
           completed_at?: string | null
           created_at?: string
           created_by?: string | null
           description?: string | null
-          goal_id?: string | null
+          due_date?: string | null
+          estimated_hours?: number | null
           id?: string
+          is_flagged?: boolean | null
+          phase_id?: string | null
           priority?: string
           project_id?: string
+          sprint_id?: string | null
           status?: string
+          status_id?: string | null
+          story_points?: number | null
           title?: string
         }
         Relationships: [
@@ -879,10 +845,560 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "tasks_goal_id_fkey"
-            columns: ["goal_id"]
+            foreignKeyName: "tasks_status_id_fkey"
+            columns: ["status_id"]
             isOneToOne: false
-            referencedRelation: "goals"
+            referencedRelation: "workflow_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_dependencies: {
+        Row: {
+          id: string
+          task_id: string
+          depends_on_task_id: string
+          dependency_type: string
+          created_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          depends_on_task_id: string
+          dependency_type: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          depends_on_task_id?: string
+          dependency_type?: string
+          created_by?: string | null
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_dependencies_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_dependencies_depends_on_task_id_fkey"
+            columns: ["depends_on_task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_dependencies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_schedule_snapshots: {
+        Row: {
+          id: string
+          task_id: string
+          snapshot_date: string
+          earliest_start: string | null
+          earliest_finish: string | null
+          latest_start: string | null
+          latest_finish: string | null
+          slack_days: number | null
+          is_critical: boolean
+        }
+        Insert: {
+          id?: string
+          task_id: string
+          snapshot_date: string
+          earliest_start?: string | null
+          earliest_finish?: string | null
+          latest_start?: string | null
+          latest_finish?: string | null
+          slack_days?: number | null
+          is_critical?: boolean
+        }
+        Update: {
+          id?: string
+          task_id?: string
+          snapshot_date?: string
+          earliest_start?: string | null
+          earliest_finish?: string | null
+          latest_start?: string | null
+          latest_finish?: string | null
+          slack_days?: number | null
+          is_critical?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_schedule_snapshots_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_health_snapshots: {
+        Row: {
+          id: string
+          project_id: string
+          snapshot_date: string
+          health_status: string
+          planned_hours: number | null
+          logged_hours: number | null
+          tasks_total: number | null
+          tasks_complete: number | null
+          tasks_overdue: number | null
+          open_blockers: number | null
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          snapshot_date: string
+          health_status: string
+          planned_hours?: number | null
+          logged_hours?: number | null
+          tasks_total?: number | null
+          tasks_complete?: number | null
+          tasks_overdue?: number | null
+          open_blockers?: number | null
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          snapshot_date?: string
+          health_status?: string
+          planned_hours?: number | null
+          logged_hours?: number | null
+          tasks_total?: number | null
+          tasks_complete?: number | null
+          tasks_overdue?: number | null
+          open_blockers?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_health_snapshots_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_status_updates: {
+        Row: {
+          id: string
+          project_id: string
+          author_type: string
+          author_id: string | null
+          summary: string
+          visible_to_client: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          author_type: string
+          author_id?: string | null
+          summary: string
+          visible_to_client?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          author_type?: string
+          author_id?: string | null
+          summary?: string
+          visible_to_client?: boolean
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_status_updates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_status_updates_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sprints: {
+        Row: {
+          id: string
+          project_id: string
+          name: string
+          start_date: string
+          end_date: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          name: string
+          start_date: string
+          end_date: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          name?: string
+          start_date?: string
+          end_date?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sprints_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sprint_snapshots: {
+        Row: {
+          id: string
+          sprint_id: string
+          snapshot_date: string
+          committed_points: number | null
+          completed_points: number | null
+          points_added_mid_sprint: number | null
+          points_removed_mid_sprint: number | null
+        }
+        Insert: {
+          id?: string
+          sprint_id: string
+          snapshot_date: string
+          committed_points?: number | null
+          completed_points?: number | null
+          points_added_mid_sprint?: number | null
+          points_removed_mid_sprint?: number | null
+        }
+        Update: {
+          id?: string
+          sprint_id?: string
+          snapshot_date?: string
+          committed_points?: number | null
+          completed_points?: number | null
+          points_added_mid_sprint?: number | null
+          points_removed_mid_sprint?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sprint_snapshots_sprint_id_fkey"
+            columns: ["sprint_id"]
+            isOneToOne: false
+            referencedRelation: "sprints"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          changed_by_type: string
+          from_status_id: string | null
+          id: string
+          task_id: string
+          to_status_id: string
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_type: string
+          from_status_id?: string | null
+          id?: string
+          task_id: string
+          to_status_id: string
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_type?: string
+          from_status_id?: string | null
+          id?: string
+          task_id?: string
+          to_status_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_status_history_changed_by_fkey"
+            columns: ["changed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_status_history_from_status_id_fkey"
+            columns: ["from_status_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_status_history_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_status_history_to_status_id_fkey"
+            columns: ["to_status_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_statuses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comments: {
+        Row: {
+          author_id: string | null
+          author_type: string
+          body: string
+          created_at: string
+          id: string
+          task_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_type?: string
+          body: string
+          created_at?: string
+          id?: string
+          task_id: string
+        }
+        Update: {
+          author_id?: string | null
+          author_type?: string
+          body?: string
+          created_at?: string
+          id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_blockers: {
+        Row: {
+          client_visible: boolean
+          description: string
+          id: string
+          project_id: string
+          raised_at: string
+          raised_by: string
+          resolved_at: string | null
+          resolved_by: string | null
+          status: string
+          task_id: string | null
+        }
+        Insert: {
+          client_visible?: boolean
+          description: string
+          id?: string
+          project_id: string
+          raised_at?: string
+          raised_by: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Update: {
+          client_visible?: boolean
+          description?: string
+          id?: string
+          project_id?: string
+          raised_at?: string
+          raised_by?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          status?: string
+          task_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_blockers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_blockers_raised_by_fkey"
+            columns: ["raised_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_blockers_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_blockers_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_statuses: {
+        Row: {
+          category: string
+          color: string
+          id: string
+          is_initial: boolean | null
+          name: string
+          sort_order: number | null
+          workflow_template_id: string
+        }
+        Insert: {
+          category: string
+          color?: string
+          id?: string
+          is_initial?: boolean | null
+          name: string
+          sort_order?: number | null
+          workflow_template_id: string
+        }
+        Update: {
+          category?: string
+          color?: string
+          id?: string
+          is_initial?: boolean | null
+          name?: string
+          sort_order?: number | null
+          workflow_template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_statuses_workflow_template_id_fkey"
+            columns: ["workflow_template_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workflow_transitions: {
+        Row: {
+          from_status_id: string | null
+          id: string
+          to_status_id: string
+          workflow_template_id: string
+        }
+        Insert: {
+          from_status_id?: string | null
+          id?: string
+          to_status_id: string
+          workflow_template_id: string
+        }
+        Update: {
+          from_status_id?: string | null
+          id?: string
+          to_status_id?: string
+          workflow_template_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workflow_transitions_from_status_id_fkey"
+            columns: ["from_status_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_transitions_to_status_id_fkey"
+            columns: ["to_status_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "workflow_transitions_workflow_template_id_fkey"
+            columns: ["workflow_template_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -991,6 +1507,12 @@ export type Database = {
     }
     Functions: {
       get_my_role: { Args: never; Returns: string }
+      compute_sprint_snapshot: { Args: { p_sprint_id: string }; Returns: undefined }
+      compute_all_active_sprint_snapshots: { Args: Record<string, never>; Returns: undefined }
+      compute_critical_path: { Args: { p_project_id: string }; Returns: undefined }
+      compute_all_critical_paths: { Args: Record<string, never>; Returns: undefined }
+      compute_project_health: { Args: { p_project_id: string }; Returns: undefined }
+      compute_all_project_health: { Args: Record<string, never>; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

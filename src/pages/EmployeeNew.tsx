@@ -74,7 +74,7 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="manager">Manager</SelectItem>
               <SelectItem value="employee">Employee</SelectItem>
-              <SelectItem value="client">Client</SelectItem>
+              <SelectItem value="client">Client Member</SelectItem>
             </SelectContent>
           </Select>
           {role && (

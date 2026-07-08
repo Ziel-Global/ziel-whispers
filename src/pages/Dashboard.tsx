@@ -486,7 +486,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex gap-3 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Employee</Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Users</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/projects/new")}><Plus className="h-4 w-4 mr-1" />Add Project</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/clients")}><Building2 className="h-4 w-4 mr-1" />Add Client</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/reports")}><BarChart3 className="h-4 w-4 mr-1" />View Reports</Button>

@@ -38,7 +38,7 @@ import zielLogoWhite from "@/assets/ziel-logo-white.png";
 
 const adminNav = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Employees", url: "/employees", icon: Users },
+  { title: "Active Users", url: "/employees", icon: Users },
   { title: "Attendance", url: "/attendance", icon: Clock },
   { title: "Daily Logs", url: "/logs/all", icon: FileText },
   { title: "Leave", url: "/leave/requests", icon: Calendar },
@@ -73,6 +73,10 @@ const employeeNav = [
   { title: "Profile", url: "/profile", icon: User },
 ];
 
+const clientNav = [
+  { title: "Projects", url: "/projects", icon: FolderKanban },
+];
+
 export function AppSidebar() {
   const { profile, user } = useAuth();
   const { state } = useSidebar();
@@ -80,8 +84,15 @@ export function AppSidebar() {
   const location = useLocation();
 
   const role = profile?.role;
+  const isClient = profile?.designation === "Client";
   const isAdminOrManager = role === "admin" || role === "manager";
-  const items = role === "admin" ? adminNav : role === "manager" ? managerNav : employeeNav;
+  const items = isClient
+    ? clientNav
+    : role === "admin"
+    ? adminNav
+    : role === "manager"
+    ? managerNav
+    : employeeNav;
 
   // Unread announcements badge
   const { data: unreadCount } = useQuery({

@@ -1509,6 +1509,10 @@ export type Database = {
       get_my_role: { Args: never; Returns: string }
       compute_sprint_snapshot: { Args: { p_sprint_id: string }; Returns: undefined }
       compute_all_active_sprint_snapshots: { Args: Record<string, never>; Returns: undefined }
+      compute_critical_path: { Args: { p_project_id: string }; Returns: undefined }
+      compute_all_critical_paths: { Args: Record<string, never>; Returns: undefined }
+      compute_project_health: { Args: { p_project_id: string }; Returns: undefined }
+      compute_all_project_health: { Args: Record<string, never>; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

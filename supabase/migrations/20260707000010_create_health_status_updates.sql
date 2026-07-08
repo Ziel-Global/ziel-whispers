@@ -118,7 +118,7 @@ BEGIN
   JOIN task_schedule_snapshots tss ON tss.task_id = tb.task_id AND tss.is_critical = true
   WHERE tb.project_id = p_project_id AND tb.status = 'open';
 
-  SELECT COALESCE(MIN(v_snapshot_date - tb.raised_at::DATE), 999) INTO v_oldest_blocker_days
+  SELECT COALESCE(MAX(v_snapshot_date - tb.raised_at::DATE), 999) INTO v_oldest_blocker_days
   FROM task_blockers tb WHERE tb.project_id = p_project_id AND tb.status = 'open';
 
   SELECT EXISTS (
@@ -175,4 +175,4 @@ END;
 $$;
 
 -- Schedule nightly (requires pg_cron)
--- SELECT cron.schedule('compute-project-health-daily', '0 2 * * *', 'SELECT compute_all_project_health()');
+SELECT cron.schedule('compute-project-health-daily', '0 2 * * *', 'SELECT compute_all_project_health()');

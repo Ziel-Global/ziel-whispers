@@ -28,7 +28,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
-import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
+import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS, getAllowedTransitions } from "@/lib/workflow";
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 
 export default function ProjectDetailPage() {
@@ -207,6 +207,19 @@ export default function ProjectDetailPage() {
         .select("*")
         .eq("workflow_template_id", project.workflow_template_id)
         .order("sort_order", { ascending: true });
+      return data || [];
+    },
+    enabled: !!id && !!project?.workflow_template_id,
+  });
+
+  const { data: workflowTransitions } = useQuery({
+    queryKey: ["project-workflow-transitions", id],
+    queryFn: async () => {
+      if (!project?.workflow_template_id) return [];
+      const { data } = await supabase
+        .from("workflow_transitions")
+        .select("*")
+        .eq("workflow_template_id", project.workflow_template_id);
       return data || [];
     },
     enabled: !!id && !!project?.workflow_template_id,
@@ -1269,16 +1282,34 @@ export default function ProjectDetailPage() {
 
           {/* Burndown (stats version) */}
           <Card className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Burndown</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-sm font-semibold">Burndown</h3>
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-muted-foreground">Scope:</label>
+                <Select value={burndownScope} onValueChange={setBurndownScope}>
+                  <SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="project">Project</SelectItem>
+                    {phases.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
             {(() => {
-              const estimated = (tasks || []).filter((t: any) => t.estimated_hours != null);
-              const unestimated = (tasks || []).filter((t: any) => t.estimated_hours == null);
+              const scopeTasks = burndownScope === "project"
+                ? (tasks || [])
+                : (tasks || []).filter((t: any) => t.phase_id === burndownScope);
+              const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
+              const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
               const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
-              const logged = (tasks || []).reduce((s: number, t: any) => {
+              const logged = scopeTasks.reduce((s: number, t: any) => {
                 const taskLogs = (logs || []).filter((l: any) => l.task_id === t.id);
                 return s + taskLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
               }, 0);
-              const endDate = project?.end_date;
+              const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
+              const endDate = scopePhase?.due_date || project?.end_date;
               const startDate = project?.start_date;
               if (estimated.length === 0 || !endDate || !startDate) {
                 return <p className="text-xs text-muted-foreground">Burndown requires estimated tasks and project dates.</p>;
@@ -2124,11 +2155,21 @@ export default function ProjectDetailPage() {
                 <Select value={editTaskStatusId} onValueChange={setEditTaskStatusId}>
                   <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
                   <SelectContent>
-                    {workflowStatuses.map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.name}</span>
-                      </SelectItem>
-                    ))}
+                    {(() => {
+                      const allowed = (workflowTransitions && editTaskStatusId)
+                        ? (() => {
+                            const fromAllowed = getAllowedTransitions(workflowStatuses, workflowTransitions, editTaskStatusId);
+                            const curr = workflowStatuses.find((s: any) => s.id === editTaskStatusId);
+                            return curr && !fromAllowed.some((a: any) => a.id === curr.id)
+                              ? [curr, ...fromAllowed] : fromAllowed;
+                          })()
+                        : workflowStatuses;
+                      return allowed.map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.name}</span>
+                        </SelectItem>
+                      ));
+                    })()}
                   </SelectContent>
                 </Select>
               </div>

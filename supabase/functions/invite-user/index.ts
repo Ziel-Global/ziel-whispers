@@ -134,27 +134,7 @@ Deno.serve(async (req) => {
         metadata: { email, designation },
       });
 
-      // Generate a password recovery / setup link
-      // redirectTo must be added to Supabase Auth → URL Configuration → Redirect URLs
-      const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
-        type: "recovery",
-        email,
-        options: {
-          redirectTo: `${app_url}/set-password`,
-        },
-      });
-
-      if (linkError || !linkData?.properties?.action_link) {
-        console.error("Failed to generate setup link:", linkError?.message);
-        await adminClient.from("audit_logs").insert({
-          actor_id: callerId,
-          action: "debug.link_generation_failed",
-          target_entity: "users",
-          target_id: userId,
-          metadata: { email, designation, error: linkError?.message || "No action_link returned" },
-        });
-      } else {
-        const setupLink = linkData.properties.action_link;
+      const setupLink = `${app_url || "http://localhost:8080"}/set-password`;
 
         const emailHtml = `
 <!DOCTYPE html>
@@ -277,7 +257,6 @@ Deno.serve(async (req) => {
             metadata: { email, designation, error: emailErrMsg, full_error: emailErr },
           });
         }
-      }
     }
 
     return jsonResponse({ ok: true, user_id: userId, email });

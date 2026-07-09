@@ -117,7 +117,7 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
     for (const row of valid) {
       const passwordToUse = useDefault ? defaultPassword : generateId().slice(0, 12) + "A1!";
       try {
-        const res = await supabase.functions.invoke("invite-user", { body: { ...row, password: passwordToUse } });
+        const res = await supabase.functions.invoke("invite-user", { body: { ...row, password: passwordToUse, app_url: window.location.origin } });
         const { data, error } = res as any;
         if (error) {
           failed++;

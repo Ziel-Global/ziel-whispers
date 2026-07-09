@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     const {
       email, full_name, department, designation, employment_type,
       join_date, role, phone, shift_start, shift_end,
-      reminder_offset_minutes, password,
+      reminder_offset_minutes, password, app_url,
     } = body;
 
     if (!email || !full_name || !department || !designation || !employment_type || !join_date) {
@@ -140,7 +140,7 @@ Deno.serve(async (req) => {
         type: "recovery",
         email,
         options: {
-          redirectTo: "http://localhost:8081/set-password",
+          redirectTo: `${app_url}/set-password`,
         },
       });
 

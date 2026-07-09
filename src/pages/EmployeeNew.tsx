@@ -149,7 +149,7 @@ function StaffForm({ selectedRole, onBack }: { selectedRole: RoleType; onBack: (
     }
     setSubmitting(true);
     try {
-      const { data: result, error } = await supabase.functions.invoke("invite-user", { body: data });
+      const { data: result, error } = await supabase.functions.invoke("invite-user", { body: { ...data, app_url: window.location.origin } });
       if (error) { toast.error(error.message || "Failed to create user"); setSubmitting(false); return; }
       const res = result as { ok?: boolean; user_id?: string; error?: string };
       if (!res.ok) { toast.error(res.error || "Failed to create user"); setSubmitting(false); return; }
@@ -307,7 +307,7 @@ function ClientForm({ onBack }: { onBack: () => void }) {
         join_date: new Date().toISOString().split("T")[0],
       };
 
-      const { data: result, error } = await supabase.functions.invoke("invite-user", { body: payload });
+      const { data: result, error } = await supabase.functions.invoke("invite-user", { body: { ...payload, app_url: window.location.origin } });
       if (error) { toast.error(error.message || "Failed to create client"); setSubmitting(false); return; }
       const res = result as { ok?: boolean; user_id?: string; error?: string };
       if (!res.ok) { toast.error(res.error || "Failed to create client"); setSubmitting(false); return; }

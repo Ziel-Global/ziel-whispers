@@ -134,7 +134,7 @@ Deno.serve(async (req) => {
         metadata: { email, designation },
       });
 
-      const setupLink = `${app_url || "http://localhost:8080"}/set-password`;
+      const loginLink = `${app_url || "http://localhost:8080"}/login`;
 
         const emailHtml = `
 <!DOCTYPE html>
@@ -178,27 +178,33 @@ Deno.serve(async (req) => {
                 You can now view your projects and track progress in real time.
               </p>
 
-              <table cellpadding="0" cellspacing="0" style="background:#f5f5f5;border-radius:8px;border:1px solid #e5e5e5;width:100%;margin-bottom:24px;">
+              <table cellpadding="0" cellspacing="0" style="background:#f5f5f5;border-radius:8px;border:1px solid #e5e5e5;width:100%;margin-bottom:16px;">
+                <tr>
+                  <td style="padding:16px 20px;border-bottom:1px solid #e5e5e5;">
+                    <p style="margin:0 0 4px;font-size:12px;color:#737373;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Account email</p>
+                    <p style="margin:0;font-size:15px;color:#000000;font-weight:500;">${email}</p>
+                  </td>
+                </tr>
                 <tr>
                   <td style="padding:16px 20px;">
-                    <p style="margin:0 0 4px;font-size:12px;color:#737373;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">Your account email</p>
-                    <p style="margin:0;font-size:15px;color:#000000;font-weight:500;">${email}</p>
+                    <p style="margin:0 0 4px;font-size:12px;color:#737373;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;">One-time password</p>
+                    <p style="margin:0;font-size:15px;color:#000000;font-weight:500;font-family:monospace;letter-spacing:1px;">${userPassword}</p>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 24px;font-size:14px;color:#737373;line-height:1.6;">
-                Click the button below to set your password and access your account immediately.
+              <p style="margin:0 0 4px;font-size:14px;color:#737373;line-height:1.6;">
+                This is a <strong style="color:#000000;">one-time password</strong>. Please sign in using the credentials above and create a new password of your choice when prompted.
               </p>
 
               <!-- CTA Button -->
-              <table cellpadding="0" cellspacing="0">
+              <table cellpadding="0" cellspacing="0" style="margin-top:24px;">
                 <tr>
                   <td style="border-radius:8px;background:#d0ff71;">
-                    <a href="${setupLink}" target="_blank"
+                    <a href="${loginLink}" target="_blank"
                       style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#000000;text-decoration:none;letter-spacing:-0.2px;border-radius:8px;"
                     >
-                      Set Your Password &amp; Sign In →
+                      Sign In to Your Account →
                     </a>
                   </td>
                 </tr>
@@ -231,7 +237,7 @@ Deno.serve(async (req) => {
           const res = await adminClient.functions.invoke("send-email", {
             body: {
               to: email,
-              subject: "You've been invited to Ziel Logs — Set your password",
+              subject: "You've been invited to Ziel Logs — Sign in with your one-time password",
               html: emailHtml,
               fromName: "Ziel Admin",
             },

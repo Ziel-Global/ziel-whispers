@@ -1234,7 +1234,9 @@ export type Database = {
           resolved_at: string | null
           resolved_by: string | null
           status: string
-          task_id: string | null
+          status_id: string | null
+          sprint_id: string | null
+          title: string
         }
         Insert: {
           client_visible?: boolean
@@ -1246,7 +1248,8 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           status?: string
-          task_id?: string | null
+          status_id?: string | null
+          title: string
         }
         Update: {
           client_visible?: boolean
@@ -1258,7 +1261,8 @@ export type Database = {
           resolved_at?: string | null
           resolved_by?: string | null
           status?: string
-          task_id?: string | null
+          status_id?: string | null
+          title?: string
         }
         Relationships: [
           {
@@ -1333,6 +1337,51 @@ export type Database = {
           },
         ]
       }
+      project_settings: {
+        Row: {
+          id: string
+          project_id: string
+          at_risk_variance_percent: number
+          delayed_variance_percent: number
+          blocker_warning_days: number
+          critical_blocker_warning_days: number
+          hours_per_day: number
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          at_risk_variance_percent?: number
+          delayed_variance_percent?: number
+          blocker_warning_days?: number
+          critical_blocker_warning_days?: number
+          hours_per_day?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          at_risk_variance_percent?: number
+          delayed_variance_percent?: number
+          blocker_warning_days?: number
+          critical_blocker_warning_days?: number
+          hours_per_day?: number
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      project_health_snapshots: {
       task_dependencies: {
         Row: {
           created_at: string
@@ -1373,11 +1422,52 @@ export type Database = {
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
+        ]
+      }
+      sprints: {
+        Row: {
+          id: string
+          project_id: string
+          phase_id: string
+          name: string
+          start_date: string
+          end_date: string
+          status: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          project_id: string
+          phase_id?: string
+          name: string
+          start_date: string
+          end_date: string
+          status?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          project_id?: string
+          phase_id?: string
+          name?: string
+          start_date?: string
+          end_date?: string
+          status?: string
+          created_at?: string
+        }
+        Relationships: [
           {
             foreignKeyName: "task_dependencies_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sprints_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "project_phases"
             referencedColumns: ["id"]
           },
         ]

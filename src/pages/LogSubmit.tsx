@@ -776,7 +776,7 @@ export default function LogSubmitPage() {
                   <button onClick={() => startEdit(log)} className={editButtonClass} title="Edit">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button onClick={() => removePendingLog(log.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
+                  <button onClick={() => setDeleteConfirmId(log.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </RowActions>

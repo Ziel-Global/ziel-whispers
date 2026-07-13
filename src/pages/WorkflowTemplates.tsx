@@ -14,6 +14,10 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Pencil, Trash2, GripVertical, ArrowUpDown } from "lucide-react";
 import { DataRow, TableHeader, RowPrimary, RowSecondary, RowDataItem, RowActions, editButtonClass } from "@/components/ui/data-row";
@@ -80,6 +84,8 @@ export default function WorkflowTemplatesPage() {
   const [statusInitial, setStatusInitial] = useState(false);
 
   const [deletingStatusId, setDeletingStatusId] = useState<string | null>(null);
+  const [confirmDelTemplateId, setConfirmDelTemplateId] = useState<string | null>(null);
+  const [confirmDelStatusId, setConfirmDelStatusId] = useState<string | null>(null);
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["workflow-templates"],
@@ -245,7 +251,7 @@ export default function WorkflowTemplatesPage() {
                       title="Edit template"
                     ><Pencil className="h-3.5 w-3.5" /></button>
                     <button
-                      onClick={(e) => { e.stopPropagation(); deleteTemplate(t.id); }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDelTemplateId(t.id); }}
                       className="shrink-0 p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
                       title="Delete template"
                     ><Trash2 className="h-3.5 w-3.5" /></button>
@@ -281,7 +287,7 @@ export default function WorkflowTemplatesPage() {
                           <RowDataItem label="Sort">{s.sort_order}</RowDataItem>
                           <RowActions>
                             <button onClick={() => openEditStatus(s)} className={editButtonClass} title="Edit status"><Pencil className="h-3.5 w-3.5" /></button>
-                            <button onClick={() => deleteStatus(s.id)} disabled={deletingStatusId === s.id} className="shrink-0 p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50" title="Delete status"><Trash2 className="h-3.5 w-3.5" /></button>
+                            <button onClick={() => setConfirmDelStatusId(s.id)} disabled={deletingStatusId === s.id} className="shrink-0 p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50" title="Delete status"><Trash2 className="h-3.5 w-3.5" /></button>
                           </RowActions>
                         </DataRow>
                       ))}
@@ -412,6 +418,34 @@ export default function WorkflowTemplatesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Delete Template Confirmation */}
+      <AlertDialog open={!!confirmDelTemplateId} onOpenChange={(open) => !open && setConfirmDelTemplateId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workflow template?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete this template and all its statuses and transitions. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmDelTemplateId) deleteTemplate(confirmDelTemplateId); setConfirmDelTemplateId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete Status Confirmation */}
+      <AlertDialog open={!!confirmDelStatusId} onOpenChange={(open) => !open && setConfirmDelStatusId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete status?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete this status and all its transitions. Tasks using this status may need to be updated.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmDelStatusId) deleteStatus(confirmDelStatusId); setConfirmDelStatusId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

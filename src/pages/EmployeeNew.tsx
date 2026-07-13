@@ -48,7 +48,7 @@ const clientSchema = z.object({
 type StaffFormData = z.infer<typeof staffSchema>;
 type ClientFormData = z.infer<typeof clientSchema>;
 
-type RoleType = "admin" | "manager" | "employee" | "client";
+type RoleType = "admin" | "manager" | "employee" | "client" | "client member";
 
 // ─── Step 1: Role Picker (Dropdown style) ─────────────────────────────────────
 function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
@@ -74,7 +74,8 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="manager">Manager</SelectItem>
               <SelectItem value="employee">Employee</SelectItem>
-              <SelectItem value="client">Client Member</SelectItem>
+              <SelectItem value="client">Client</SelectItem>
+              <SelectItem value="client member">Client Member</SelectItem>
             </SelectContent>
           </Select>
           {role && (
@@ -82,7 +83,8 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
               {role === "admin" && "Full system access — manage users, settings & all data"}
               {role === "manager" && "Manage team attendance, logs, leave, and projects"}
               {role === "employee" && "Standard employee — submit logs, apply for leave"}
-              {role === "client" && "External client portal access — view assigned projects only"}
+              {role === "client" && "Client who owns the project — portal access to assigned projects"}
+              {role === "client member" && "Member of the client's team — portal access to assigned projects"}
             </p>
           )}
         </div>
@@ -301,7 +303,7 @@ function ClientForm({ onBack }: { onBack: () => void }) {
         email: data.email,
         password: data.password,
         designation: "Client",
-        role: "employee",
+        role: "client",
         department: "Other",
         employment_type: "contract",
         join_date: new Date().toISOString().split("T")[0],
@@ -437,6 +439,171 @@ function ClientForm({ onBack }: { onBack: () => void }) {
   );
 }
 
+// ─── Step 2C: Client Member Form ────────────────────────────────────────────────
+function ClientMemberForm({ onBack }: { onBack: () => void }) {
+  const navigate = useNavigate();
+  const { profile } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+
+  const { data: projects = [] } = useQuery({
+    queryKey: ["projects-list-for-client-member"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("projects")
+        .select("id, name")
+        .in("status", ["active", "on_hold"])
+        .order("name");
+      return data || [];
+    },
+  });
+
+  const form = useForm<ClientFormData>({
+    resolver: zodResolver(clientSchema),
+    defaultValues: { full_name: "", email: "", password: "", project_id: "" },
+  });
+
+  const onSubmit = async (data: ClientFormData) => {
+    setSubmitting(true);
+    try {
+      const payload = {
+        full_name: data.full_name,
+        email: data.email,
+        password: data.password,
+        designation: "Client Member",
+        role: "client member",
+        department: "Other",
+        employment_type: "contract",
+        join_date: new Date().toISOString().split("T")[0],
+      };
+
+      const { data: result, error } = await supabase.functions.invoke("invite-user", { body: { ...payload, app_url: window.location.origin } });
+      if (error) { toast.error(error.message || "Failed to create client member"); setSubmitting(false); return; }
+      const res = result as { ok?: boolean; user_id?: string; error?: string };
+      if (!res.ok) { toast.error(res.error || "Failed to create client member"); setSubmitting(false); return; }
+
+      // If a project was selected, add the client member as a project member
+      if (data.project_id && res.user_id) {
+        let roleId: string | null = null;
+        const { data: existingRole } = await supabase
+          .from("project_roles")
+          .select("id")
+          .eq("project_id", data.project_id)
+          .eq("name", "Client")
+          .maybeSingle();
+
+        if (existingRole) {
+          roleId = existingRole.id;
+        } else {
+          const { data: newRole } = await supabase
+            .from("project_roles")
+            .insert({ project_id: data.project_id, name: "Client" })
+            .select("id")
+            .single();
+          roleId = newRole?.id || null;
+        }
+
+        await supabase.from("project_members").insert({
+          project_id: data.project_id,
+          user_id: res.user_id,
+          project_role_id: roleId,
+        });
+
+        await supabase.from("audit_logs").insert({
+          actor_id: profile?.id,
+          action: "project.member_added",
+          target_entity: "project_members",
+          target_id: data.project_id,
+          metadata: { user_id: res.user_id, via: "client_member_creation" },
+        });
+      }
+
+      toast.success("Client Member created successfully. A welcome email with password setup link has been sent.");
+      navigate("/employees");
+    } catch (err: any) { toast.error(err.message || "Unexpected error"); }
+    finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="max-w-lg mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Add New Client Member</h1>
+          <p className="text-muted-foreground mt-1">Create an account for a member of the client's team</p>
+        </div>
+      </div>
+
+      <Card className="p-6">
+        <div className="mb-6 p-4 rounded-lg bg-muted border border-border text-sm text-foreground">
+          <p className="font-semibold mb-1">📧 Welcome Email</p>
+          <p className="text-muted-foreground">The client member will automatically receive a branded welcome email with a link to set their password and access the portal.</p>
+        </div>
+
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
+            <FormField control={form.control} name="full_name" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
+                <FormControl><Input {...field} placeholder="e.g. Sara Ahmed" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="email" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email Address <span className="text-destructive">*</span></FormLabel>
+                <FormControl><Input {...field} type="email" placeholder="member@client-company.com" /></FormControl>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="password" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password <span className="text-destructive">*</span></FormLabel>
+                <FormControl>
+                  <PasswordInput {...field} placeholder="Min 8 characters" showStrength />
+                </FormControl>
+                <p className="text-xs text-muted-foreground">The client member will be prompted to change this via the welcome email link.</p>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="project_id" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Assign to Project <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a project…" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {projects.map((p: any) => (
+                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                    ))}
+                    {projects.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">No active projects found</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">The client member will be added as a member to this project immediately.</p>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={onBack}>Back</Button>
+              <Button type="submit" disabled={submitting} className="rounded-button">
+                {submitting ? "Creating…" : "Create Client Member"}
+              </Button>
+            </div>
+          </form>
+        </Form>
+      </Card>
+    </div>
+  );
+}
+
 // ─── Main Page: Orchestrates the 2-step flow ───────────────────────────────────
 export default function EmployeeNewPage() {
   const navigate = useNavigate();
@@ -459,6 +626,11 @@ export default function EmployeeNewPage() {
   // Step 2B: Client selected
   if (selectedRole === "client") {
     return <ClientForm onBack={handleBack} />;
+  }
+
+  // Step 2C: Client Member selected
+  if (selectedRole === "client member") {
+    return <ClientMemberForm onBack={handleBack} />;
   }
 
   // Step 2A: Admin / Manager / Employee

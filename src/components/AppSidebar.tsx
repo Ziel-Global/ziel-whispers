@@ -84,7 +84,7 @@ export function AppSidebar() {
   const location = useLocation();
 
   const role = profile?.role;
-  const isClient = profile?.designation === "Client";
+  const isClient = profile?.designation === "Client" || profile?.designation === "Client Member";
   const isAdminOrManager = role === "admin" || role === "manager";
   const items = isClient
     ? clientNav

@@ -45,6 +45,7 @@ export default function ProjectDetailPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isClient = profile?.role === "client" || profile?.role === "client member";
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [addMemberMode, setAddMemberMode] = useState<"resource" | "client">("resource");
@@ -115,6 +116,15 @@ export default function ProjectDetailPage() {
   const [editSprintEndDate, setEditSprintEndDate] = useState("");
   const [editSprintStatus, setEditSprintStatus] = useState("");
   const [editSprintPhaseId, setEditSprintPhaseId] = useState("");
+
+  const [newActionItemTitle, setNewActionItemTitle] = useState("");
+  const [newActionItemDesc, setNewActionItemDesc] = useState("");
+  const [newActionItemDue, setNewActionItemDue] = useState("");
+
+  const [newPortalMsgTitle, setNewPortalMsgTitle] = useState("");
+  const [newPortalMsgBody, setNewPortalMsgBody] = useState("");
+  const [newPortalMsgCtaLabel, setNewPortalMsgCtaLabel] = useState("");
+  const [newPortalMsgCtaUrl, setNewPortalMsgCtaUrl] = useState("");
   const [sprintTasksOpen, setSprintTasksOpen] = useState(false);
   const [selectedSprint, setSelectedSprint] = useState<any>(null);
   const [taskPhaseId, setTaskPhaseId] = useState("");
@@ -172,9 +182,8 @@ export default function ProjectDetailPage() {
     enabled: isAdmin,
   });
 
-  // Derived splits: resources = non-Client, clientMembers = Client designation
-  const resourceMembers = (members || []).filter((m: any) => (m.users as any)?.designation !== "Client");
-  const clientMembers = (members || []).filter((m: any) => (m.users as any)?.designation === "Client");
+  const resourceMembers = (members || []).filter((m: any) => !["Client", "Client Member"].includes((m.users as any)?.designation));
+  const clientMembers = (members || []).filter((m: any) => ["Client", "Client Member"].includes((m.users as any)?.designation));
 
   const { data: employeeProjects } = useQuery({
     queryKey: ["employee-projects"],
@@ -424,6 +433,35 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
+  const { data: actionItems = [] } = useQuery({
+    queryKey: ["project-action-items", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data } = await supabase
+        .from("client_action_items")
+        .select("*")
+        .eq("project_id", id)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
+  const { data: portalMessages = [] } = useQuery({
+    queryKey: ["project-portal-messages", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data } = await supabase
+        .from("client_portal_messages")
+        .select("*")
+        .eq("project_id", id)
+        .eq("active", true)
+        .order("created_at", { ascending: false });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
   const { data: projectBlockers = [] } = useQuery({
     queryKey: ["project-blockers-all", id],
     queryFn: async () => {
@@ -614,6 +652,56 @@ export default function ProjectDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["project-status-updates", id] });
   };
 
+  const addActionItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newActionItemTitle.trim() || !profile || !id) return;
+    const { error } = await supabase.from("client_action_items").insert({
+      project_id: id,
+      title: newActionItemTitle.trim(),
+      description: newActionItemDesc.trim() || null,
+      due_date: newActionItemDue || null,
+      requested_by: profile.id,
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewActionItemTitle("");
+    setNewActionItemDesc("");
+    setNewActionItemDue("");
+    toast.success("Action item created");
+    queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+  };
+
+  const addPortalMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPortalMsgTitle.trim() || !profile || !id) return;
+    const { error } = await supabase.from("client_portal_messages").insert({
+      project_id: id,
+      title: newPortalMsgTitle.trim(),
+      body: newPortalMsgBody.trim() || null,
+      cta_label: newPortalMsgCtaLabel.trim() || null,
+      cta_url: newPortalMsgCtaUrl.trim() || null,
+      created_by: profile.id,
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewPortalMsgTitle("");
+    setNewPortalMsgBody("");
+    setNewPortalMsgCtaLabel("");
+    setNewPortalMsgCtaUrl("");
+    toast.success("Portal message posted");
+    queryClient.invalidateQueries({ queryKey: ["project-portal-messages", id] });
+  };
+
+  const completeActionItem = async (itemId: string) => {
+    if (!id) return;
+    const { error } = await supabase
+      .from("client_action_items")
+      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .eq("id", itemId)
+      .eq("project_id", id);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Action item completed");
+    queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+  };
+
   const createSprint = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sprintName.trim() || !sprintStartDate || !sprintEndDate || !sprintPhaseId || !id) return;
@@ -720,8 +808,8 @@ export default function ProjectDetailPage() {
     const matchesSearch = e.full_name.toLowerCase().includes(memberSearch.toLowerCase());
     const matchesMode =
       addMemberMode === "client"
-        ? e.designation === "Client"
-        : e.designation !== "Client";
+        ? e.designation === "Client" || e.designation === "Client Member"
+        : e.designation !== "Client" && e.designation !== "Client Member";
     return notMember && matchesSearch && matchesMode;
   }) || [];
 
@@ -1071,9 +1159,202 @@ export default function ProjectDetailPage() {
           <TabsTrigger value="tasks">Tasks ({tasks?.length || 0})</TabsTrigger>
           {isAdmin && <TabsTrigger value="phases">Phases</TabsTrigger>}
           <TabsTrigger value="sprints">Sprints ({sprints?.length || 0})</TabsTrigger>
+          {isAdmin && <TabsTrigger value="action-items">Action Items ({actionItems.length})</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="portal-messages">Portal Messages ({portalMessages.length})</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview">
+          {isClient ? (
+            <div className="space-y-6">
+              <Card className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h2 className="text-xl font-bold">{project.name}</h2>
+                    <p className="text-sm text-muted-foreground">{(project.clients as any)?.name}</p>
+                  </div>
+                  <Badge className={
+                    latestHealth?.health_status === "on_track" ? "bg-green-100 text-green-800" :
+                    latestHealth?.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800" :
+                    latestHealth?.health_status === "delayed" ? "bg-red-100 text-red-800" :
+                    "bg-gray-100 text-gray-800"
+                  }>
+                    {latestHealth ? latestHealth.health_status.replace(/_/g, " ") : "No health data"}
+                  </Badge>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-muted-foreground block">Status</span><span className="font-medium">{project.status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
+                  <div><span className="text-muted-foreground block">Start Date</span><span className="font-medium">{format(new Date(project.start_date), "MMM d, yyyy")}</span></div>
+                  <div><span className="text-muted-foreground block">End Date</span><span className="font-medium">{project.end_date ? format(new Date(project.end_date), "MMM d, yyyy") : "—"}</span></div>
+                  <div><span className="text-muted-foreground block">Workflow</span><span className="font-medium">{workflowTemplate?.name || "—"}</span></div>
+                </div>
+                {project.description && <p className="text-sm text-muted-foreground mt-4">{project.description}</p>}
+                {(project as any).document_link && (
+                  <div className="mt-4">
+                    <a href={(project as any).document_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-primary hover:underline font-medium">
+                      <ExternalLink className="h-4 w-4" /> Open Document
+                    </a>
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-sm font-semibold mb-3">Phase Progress</h3>
+                {phases.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No phases defined.</p>
+                ) : (
+                  <div className="space-y-4">
+                    {phases.map((p: any) => (
+                      <div key={p.id}>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="text-sm font-medium">{p.title}</span>
+                          <span className="text-xs text-muted-foreground">{phaseProgress[p.id] || 0}%</span>
+                        </div>
+                        <div className="w-full bg-muted rounded-full h-2 mb-1">
+                          <div
+                            className="bg-primary h-2 rounded-full transition-all"
+                            style={{ width: `${phaseProgress[p.id] || 0}%` }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {phaseTaskCount[p.id] || 0} task{(phaseTaskCount[p.id] || 0) !== 1 ? "s" : ""}
+                          {p.due_date ? <> · Due {format(new Date(p.due_date + "T00:00:00"), "MMM d, yyyy")}</> : ""}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-sm font-semibold mb-3">Status Updates</h3>
+                {statusUpdatesLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading...</p>
+                ) : statusUpdates.filter((u: any) => u.visible_to_client).length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No status updates yet.</p>
+                ) : (
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {statusUpdates.filter((u: any) => u.visible_to_client).map((u: any) => (
+                      <div key={u.id} className="flex gap-2 bg-muted/30 rounded-md p-3">
+                        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                          <AvatarImage src={getAvatarUrl(u.author?.full_name)} />
+                          <AvatarFallback className="text-[10px]">{u.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold">{u.author?.full_name || "Team"}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(new Date(u.created_at), "MMM d, h:mm a")}</span>
+                          </div>
+                          <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{u.summary}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-sm font-semibold mb-3">Open Blockers</h3>
+                {projectBlockers.filter((b: any) => b.client_visible && b.status === "open").length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No open blockers.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {projectBlockers.filter((b: any) => b.client_visible && b.status === "open").map((b: any) => (
+                      <div key={b.id} className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
+                        <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{b.description}</p>
+                          <p className="text-[10px] text-muted-foreground">Raised by {b.raiser?.full_name || "Unknown"}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-sm font-semibold mb-3">Action Items</h3>
+                {actionItems.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No action items.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {actionItems.filter((a: any) => a.status !== "completed").map((a: any) => (
+                      <div key={a.id} className="flex items-center justify-between p-3 border rounded-md">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Checkbox
+                            checked={false}
+                            onCheckedChange={() => completeActionItem(a.id)}
+                          />
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{a.title}</p>
+                            {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {a.due_date && <Badge variant="secondary" className="text-xs">Due {format(new Date(a.due_date + "T00:00:00"), "MMM d")}</Badge>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-sm font-semibold mb-3">Portal Messages</h3>
+                {portalMessages.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No messages.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {portalMessages.map((m: any) => (
+                      <div key={m.id} className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                        <h4 className="text-sm font-semibold">{m.title}</h4>
+                        {m.body && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{m.body}</p>}
+                        {m.cta_label && m.cta_url && (
+                          <a href={m.cta_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline mt-2">
+                            {m.cta_label} <ExternalLink className="h-3 w-3" />
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </Card>
+
+              <Card className="p-6">
+                <h3 className="text-sm font-semibold mb-3">Tasks</h3>
+                {(() => {
+                  const clientTasks = (tasks || []).filter((t: any) => t.client_visible);
+                  const statusCounts = clientTasks.reduce((acc: Record<string, number>, t: any) => {
+                    acc[t.status] = (acc[t.status] || 0) + 1;
+                    return acc;
+                  }, {} as Record<string, number>);
+                  if (clientTasks.length === 0) return <p className="text-xs text-muted-foreground">No tasks available.</p>;
+                  return (
+                    <div className="space-y-2">
+                      {Object.entries(statusCounts).length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mb-3">
+                          {Object.entries(statusCounts).map(([status, count]) => (
+                            <Badge key={status} variant="secondary" className="text-xs">
+                              {status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}: {count}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                      {clientTasks.map((t: any) => (
+                        <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{t.title}</p>
+                            <p className="text-xs text-muted-foreground">{t.status.replace(/_/g, " ")}</p>
+                            <p className="text-xs text-muted-foreground">Assigned to {(t as any).users?.full_name || "Unassigned"}</p>
+                          </div>
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+              </Card>
+            </div>
+          ) : (
           <Card className="p-6 space-y-4">
             {project.description && <p className="text-muted-foreground">{project.description}</p>}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
@@ -1264,6 +1545,7 @@ export default function ProjectDetailPage() {
               </div>
             </div>
           </Card>
+          )}
         </TabsContent>
 
         {/* RESOURCES — Admin: full management; Employee: view-only */}
@@ -2013,6 +2295,120 @@ export default function ProjectDetailPage() {
             </div>
           )}
         </TabsContent>
+
+        {isAdmin && (
+          <TabsContent value="action-items" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Action Items</h3>
+            </div>
+            <form onSubmit={addActionItem} className="flex gap-2 items-end">
+              <div className="flex-1 space-y-1">
+                <label className="text-xs font-medium">Title *</label>
+                <Input value={newActionItemTitle} onChange={(e) => setNewActionItemTitle(e.target.value)} placeholder="Action item title" required />
+              </div>
+              <div className="flex-1 space-y-1">
+                <label className="text-xs font-medium">Description</label>
+                <Input value={newActionItemDesc} onChange={(e) => setNewActionItemDesc(e.target.value)} placeholder="Optional description" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium">Due Date</label>
+                <Input type="date" value={newActionItemDue} onChange={(e) => setNewActionItemDue(e.target.value)} className="w-[140px]" />
+              </div>
+              <Button type="submit" size="sm" className="rounded-button">Add</Button>
+            </form>
+            {actionItems.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No action items yet.</p>
+            ) : (
+              <div>
+                <TableHeader gridCols="1fr 112px 96px 96px 80px">
+                  <span>TITLE</span>
+                  <span>STATUS</span>
+                  <span>DUE DATE</span>
+                  <span>REQUESTED</span>
+                  <span className="text-right">ACTIONS</span>
+                </TableHeader>
+                {actionItems.map((a: any) => (
+                  <DataRow key={a.id} gridCols="1fr 112px 96px 96px 80px">
+                    <div>
+                      <RowPrimary>{a.title}</RowPrimary>
+                      {a.description && <RowSecondary>{a.description}</RowSecondary>}
+                    </div>
+                    <RowBadgeItem label="STATUS">
+                      <Badge className={
+                        a.status === "completed" ? "bg-green-100 text-green-800" :
+                        a.status === "waived" ? "bg-gray-100 text-gray-800" :
+                        "bg-yellow-100 text-yellow-800"
+                      }>{a.status}</Badge>
+                    </RowBadgeItem>
+                    <RowDataItem label="DUE DATE">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
+                    <RowDataItem label="REQUESTED">{a.requested_by ? "Yes" : "—"}</RowDataItem>
+                    <RowActions className="justify-self-end">
+                      {a.status === "pending" && (
+                        <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Complete">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        </button>
+                      )}
+                    </RowActions>
+                  </DataRow>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        )}
+
+        {isAdmin && (
+          <TabsContent value="portal-messages" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Portal Messages</h3>
+            </div>
+            <Card className="p-4">
+              <form onSubmit={addPortalMessage} className="space-y-3">
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Title *</label>
+                  <Input value={newPortalMsgTitle} onChange={(e) => setNewPortalMsgTitle(e.target.value)} placeholder="Message title" required />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Body</label>
+                  <Textarea value={newPortalMsgBody} onChange={(e) => setNewPortalMsgBody(e.target.value)} placeholder="Message body" rows={3} />
+                </div>
+                <div className="flex gap-2">
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs font-medium">CTA Label</label>
+                    <Input value={newPortalMsgCtaLabel} onChange={(e) => setNewPortalMsgCtaLabel(e.target.value)} placeholder="e.g. View Dashboard" />
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <label className="text-xs font-medium">CTA URL</label>
+                    <Input value={newPortalMsgCtaUrl} onChange={(e) => setNewPortalMsgCtaUrl(e.target.value)} placeholder="https://..." />
+                  </div>
+                </div>
+                <Button type="submit" size="sm" className="rounded-button">Post Message</Button>
+              </form>
+            </Card>
+            {portalMessages.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No portal messages yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {portalMessages.map((m: any) => (
+                  <Card key={m.id} className="p-4">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h4 className="text-sm font-semibold">{m.title}</h4>
+                        {m.body && <p className="text-sm text-muted-foreground mt-1">{m.body}</p>}
+                      </div>
+                      <Badge variant={m.active ? "default" : "secondary"} className="text-xs">{m.active ? "Active" : "Inactive"}</Badge>
+                    </div>
+                    {m.cta_label && m.cta_url && (
+                      <a href={m.cta_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline mt-2">
+                        {m.cta_label} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                    <p className="text-[10px] text-muted-foreground mt-2">Created {format(new Date(m.created_at), "MMM d, yyyy")}</p>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Add Task Dialog */}

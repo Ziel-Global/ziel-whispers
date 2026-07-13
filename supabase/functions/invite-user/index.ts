@@ -124,8 +124,8 @@ Deno.serve(async (req) => {
       metadata: { email, full_name, role: role || "employee" },
     });
 
-    // 4. If the new user is a Client, send a branded welcome email with a password setup link
-    if (designation === "Client") {
+    // 4. If the new user is a Client or Client Member, send a branded welcome email with a password setup link
+    if (designation === "Client" || designation === "Client Member") {
       await adminClient.from("audit_logs").insert({
         actor_id: callerId,
         action: "debug.email_block_entered",

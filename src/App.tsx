@@ -43,7 +43,7 @@ const queryClient = new QueryClient({
 // Redirects Clients to /projects, everyone else to /dashboard
 function HomeRouter() {
   const { profile } = useAuth();
-  if (profile?.designation === "Client") {
+  if (profile?.designation === "Client" || profile?.designation === "Client Member") {
     return <Navigate to="/projects" replace />;
   }
   return <Navigate to="/dashboard" replace />;

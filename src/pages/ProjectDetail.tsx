@@ -22,7 +22,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
-import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings } from "lucide-react";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -31,6 +31,13 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 
 import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS, getAllowedTransitions } from "@/lib/workflow";
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
+
+const truncateWords = (str: string | null | undefined, n: number) => {
+  if (!str) return null;
+  const words = str.split(/\s+/);
+  if (words.length <= n) return str;
+  return words.slice(0, n).join(" ") + "...";
+};
 
 export default function ProjectDetailPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -54,7 +61,6 @@ export default function ProjectDetailPage() {
   const [taskPriority, setTaskPriority] = useState("medium");
   const [taskEstimatedHours, setTaskEstimatedHours] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
-  const [taskStoryPoints, setTaskStoryPoints] = useState("");
   const [taskClientVisible, setTaskClientVisible] = useState(true);
   const [taskAssignedTo, setTaskAssignedTo] = useState("");
   const [editTaskOpen, setEditTaskOpen] = useState(false);
@@ -64,13 +70,12 @@ export default function ProjectDetailPage() {
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
   const [editTaskEstimatedHours, setEditTaskEstimatedHours] = useState("");
   const [editTaskDueDate, setEditTaskDueDate] = useState("");
-  const [editTaskStoryPoints, setEditTaskStoryPoints] = useState("");
   const [editTaskClientVisible, setEditTaskClientVisible] = useState(true);
   const [editTaskAssignedTo, setEditTaskAssignedTo] = useState("");
   const [editTaskStatusId, setEditTaskStatusId] = useState<string>("");
   const [bulkTaskOpen, setBulkTaskOpen] = useState(false);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
-  const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; estimated_hours: string; errors: string[] }[]>([]);
+  const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; errors: string[] }[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
   const [uploading, setUploading] = useState(false);
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
@@ -78,6 +83,7 @@ export default function ProjectDetailPage() {
   const [phaseDueDate, setPhaseDueDate] = useState("");
   const [selectedPhase, setSelectedPhase] = useState<any>(null);
   const [phaseTasksOpen, setPhaseTasksOpen] = useState(false);
+  const [confirmPhaseDelId, setConfirmPhaseDelId] = useState<string | null>(null);
   const [completeConfirmOpen, setCompleteConfirmOpen] = useState(false);
   const [completeTargetId, setCompleteTargetId] = useState<string | null>(null);
   const [completeTargetTitle, setCompleteTargetTitle] = useState("");
@@ -89,6 +95,10 @@ export default function ProjectDetailPage() {
   const [viewAddDepOpen, setViewAddDepOpen] = useState(false);
   const [viewAddDepTaskId, setViewAddDepTaskId] = useState("");
   const [viewAddDepType, setViewAddDepType] = useState("finish_to_start");
+  const [confirmDepDelId, setConfirmDepDelId] = useState<string | null>(null);
+  const [confirmDepDelTaskId, setConfirmDepDelTaskId] = useState<string | null>(null);
+  const [confirmMemberDelId, setConfirmMemberDelId] = useState<string | null>(null);
+  const [confirmMemberDelUserId, setConfirmMemberDelUserId] = useState<string | null>(null);
   const [newStatusUpdate, setNewStatusUpdate] = useState("");
   const [newStatusUpdateVisible, setNewStatusUpdateVisible] = useState(false);
   const [burndownScope, setBurndownScope] = useState<string>("project");
@@ -97,14 +107,18 @@ export default function ProjectDetailPage() {
   const [sprintName, setSprintName] = useState("");
   const [sprintStartDate, setSprintStartDate] = useState("");
   const [sprintEndDate, setSprintEndDate] = useState("");
+  const [sprintPhaseId, setSprintPhaseId] = useState("");
   const [editSprintOpen, setEditSprintOpen] = useState(false);
   const [editSprintId, setEditSprintId] = useState<string | null>(null);
   const [editSprintName, setEditSprintName] = useState("");
   const [editSprintStartDate, setEditSprintStartDate] = useState("");
   const [editSprintEndDate, setEditSprintEndDate] = useState("");
   const [editSprintStatus, setEditSprintStatus] = useState("");
+  const [editSprintPhaseId, setEditSprintPhaseId] = useState("");
   const [sprintTasksOpen, setSprintTasksOpen] = useState(false);
   const [selectedSprint, setSelectedSprint] = useState<any>(null);
+  const [taskPhaseId, setTaskPhaseId] = useState("");
+  const [editTaskPhaseId, setEditTaskPhaseId] = useState("");
   const [taskSprintId, setTaskSprintId] = useState("");
   const [editTaskSprintId, setEditTaskSprintId] = useState("");
 
@@ -201,7 +215,7 @@ export default function ProjectDetailPage() {
       const { data } = await supabase.from("project_phases").select("*").eq("project_id", id!).order("sort_order", { ascending: true });
       return data || [];
     },
-    enabled: !!id && isAdmin,
+    enabled: !!id,
   });
 
   const { data: workflowStatuses } = useQuery({
@@ -246,6 +260,8 @@ export default function ProjectDetailPage() {
   });
 
   const [viewTaskData, setViewTaskData] = useState<any>(null);
+  const [descExpanded, setDescExpanded] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const activeEditId = editTaskId;
   const activeViewId = viewTaskData?.id;
@@ -380,6 +396,20 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
+  const { data: projectSettings } = useQuery({
+    queryKey: ["project-settings", id],
+    queryFn: async () => {
+      if (!id) return null;
+      const { data } = await supabase
+        .from("project_settings")
+        .select("*")
+        .eq("project_id", id)
+        .single();
+      return data || null;
+    },
+    enabled: !!id,
+  });
+
   const { data: statusUpdates = [], isLoading: statusUpdatesLoading } = useQuery({
     queryKey: ["project-status-updates", id],
     queryFn: async () => {
@@ -422,54 +452,12 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
-  const { data: sprintSnapshots = [] } = useQuery({
-    queryKey: ["project-sprint-snapshots", id],
-    queryFn: async () => {
-      if (!id || sprints.length === 0) return [];
-      const { data } = await supabase
-        .from("sprint_snapshots")
-        .select("*, sprints(name, end_date)")
-        .in("sprint_id", sprints.map((s: any) => s.id))
-        .order("snapshot_date", { ascending: true });
-      return data || [];
-    },
-    enabled: !!id && sprints.length > 0,
-  });
-
-  const velocityData = useMemo(() => {
-    const completedSprints = sprints.filter((s: any) => s.status === "completed");
-    return completedSprints.map((s: any) => {
-      const snapshots = sprintSnapshots.filter((ss: any) => ss.sprint_id === s.id);
-      const lastSnapshot = snapshots[snapshots.length - 1];
-      return {
-        name: s.name,
-        velocity: Number(lastSnapshot?.completed_points || 0),
-        committed: Number(lastSnapshot?.committed_points || 0),
-        added: Number(lastSnapshot?.points_added_mid_sprint || 0),
-        removed: Number(lastSnapshot?.points_removed_mid_sprint || 0),
-      };
-    });
-  }, [sprints, sprintSnapshots]);
-
-  const avgVelocity = useMemo(() => {
-    if (velocityData.length === 0) return 0;
-    return velocityData.reduce((sum: number, v: any) => sum + v.velocity, 0) / velocityData.length;
-  }, [velocityData]);
-
   const sprintTaskCount = useMemo(() => {
     const counts: Record<string, number> = {};
     (tasks || []).forEach((t: any) => {
       if (t.sprint_id) counts[t.sprint_id] = (counts[t.sprint_id] || 0) + 1;
     });
     return counts;
-  }, [tasks]);
-
-  const sprintSpTotal = useMemo(() => {
-    const sp: Record<string, number> = {};
-    (tasks || []).forEach((t: any) => {
-      if (t.sprint_id) sp[t.sprint_id] = (sp[t.sprint_id] || 0) + Number(t.story_points || 0);
-    });
-    return sp;
   }, [tasks]);
 
   const [newComment, setNewComment] = useState("");
@@ -628,9 +616,10 @@ export default function ProjectDetailPage() {
 
   const createSprint = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sprintName.trim() || !sprintStartDate || !sprintEndDate || !id) return;
+    if (!sprintName.trim() || !sprintStartDate || !sprintEndDate || !sprintPhaseId || !id) return;
     const { error } = await supabase.from("sprints").insert({
       project_id: id,
+      phase_id: sprintPhaseId,
       name: sprintName.trim(),
       start_date: sprintStartDate,
       end_date: sprintEndDate,
@@ -641,6 +630,7 @@ export default function ProjectDetailPage() {
     setSprintName("");
     setSprintStartDate("");
     setSprintEndDate("");
+    setSprintPhaseId("");
     queryClient.invalidateQueries({ queryKey: ["project-sprints", id] });
   };
 
@@ -650,28 +640,24 @@ export default function ProjectDetailPage() {
     setEditSprintStartDate(sprint.start_date);
     setEditSprintEndDate(sprint.end_date);
     setEditSprintStatus(sprint.status);
+    setEditSprintPhaseId(sprint.phase_id);
     setEditSprintOpen(true);
   };
 
   const handleEditSprintSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editSprintName.trim() || !editSprintStartDate || !editSprintEndDate || !editSprintId) return;
+    if (!editSprintName.trim() || !editSprintStartDate || !editSprintEndDate || !editSprintPhaseId || !editSprintId) return;
     const updates: any = {
       name: editSprintName.trim(),
       start_date: editSprintStartDate,
       end_date: editSprintEndDate,
+      phase_id: editSprintPhaseId,
     };
     if (editSprintStatus) {
       const oldStatus = sprints.find((s: any) => s.id === editSprintId)?.status;
       updates.status = editSprintStatus;
       const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
       if (error) { toast.error(error.message); return; }
-      if (editSprintStatus === "active" && oldStatus !== "active") {
-        await supabase.rpc("compute_sprint_snapshot", { p_sprint_id: editSprintId });
-      }
-      if (editSprintStatus === "completed" && oldStatus !== "completed") {
-        await supabase.rpc("compute_sprint_snapshot", { p_sprint_id: editSprintId });
-      }
     } else {
       const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
       if (error) { toast.error(error.message); return; }
@@ -680,7 +666,6 @@ export default function ProjectDetailPage() {
     setEditSprintOpen(false);
     setEditSprintId(null);
     queryClient.invalidateQueries({ queryKey: ["project-sprints", id] });
-    queryClient.invalidateQueries({ queryKey: ["project-sprint-snapshots", id] });
   };
 
   const deleteSprint = async (sprintId: string) => {
@@ -721,6 +706,13 @@ export default function ProjectDetailPage() {
   const openPhaseTasks = (phase: any) => {
     setSelectedPhase(phase);
     setPhaseTasksOpen(true);
+  };
+
+  const deletePhase = async (phaseId: string) => {
+    const { error } = await supabase.from("project_phases").delete().eq("id", phaseId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Phase deleted");
+    queryClient.invalidateQueries({ queryKey: ["project-phases", id] });
   };
 
   const availableEmployees = allEmployees?.filter((e) => {
@@ -826,7 +818,6 @@ export default function ProjectDetailPage() {
         priority: taskPriority,
         estimated_hours: taskEstimatedHours ? parseFloat(taskEstimatedHours) : null,
         due_date: taskDueDate || null,
-        story_points: taskStoryPoints ? parseInt(taskStoryPoints, 10) : null,
         client_visible: taskClientVisible,
         assigned_to: taskAssignedTo || null,
         sprint_id: taskSprintId || null,
@@ -856,7 +847,6 @@ export default function ProjectDetailPage() {
     setEditTaskPriority(task.priority);
     setEditTaskEstimatedHours(task.estimated_hours ? String(task.estimated_hours) : "");
     setEditTaskDueDate(task.due_date || "");
-    setEditTaskStoryPoints(task.story_points ? String(task.story_points) : "");
     setEditTaskClientVisible(task.client_visible !== false);
     setEditTaskAssignedTo(task.assigned_to || "");
     setEditTaskStatusId(task.status_id || "");
@@ -874,7 +864,6 @@ export default function ProjectDetailPage() {
         priority: editTaskPriority,
         estimated_hours: editTaskEstimatedHours ? parseFloat(editTaskEstimatedHours) : null,
         due_date: editTaskDueDate || null,
-        story_points: editTaskStoryPoints ? parseInt(editTaskStoryPoints, 10) : null,
         client_visible: editTaskClientVisible,
         assigned_to: editTaskAssignedTo || null,
         sprint_id: editTaskSprintId || null,
@@ -891,10 +880,23 @@ export default function ProjectDetailPage() {
       setEditTaskOpen(false);
       setEditTaskId(null);
       setEditTaskDueDate("");
-      setEditTaskStoryPoints("");
       setEditTaskClientVisible(true);
       setEditTaskAssignedTo("");
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const saveProjectSettings = async (vals: { at_risk_variance_percent: number; delayed_variance_percent: number; blocker_warning_days: number; critical_blocker_warning_days: number; hours_per_day: number }) => {
+    if (!id) return;
+    try {
+      const { error } = await supabase
+        .from("project_settings")
+        .update(vals)
+        .eq("project_id", id);
+      if (error) throw error;
+      toast.success("Project settings saved");
+      setSettingsOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["project-settings", id] });
     } catch (err: any) { toast.error(err.message); }
   };
 
@@ -918,13 +920,12 @@ export default function ProjectDetailPage() {
       const prioIdx = headers.indexOf("priority");
       const estIdx = headers.indexOf("estimated_hours");
       const dueDateIdx = headers.indexOf("due_date");
-      const storyPtsIdx = headers.indexOf("story_points");
       const clientVisIdx = headers.indexOf("client_visible");
       if (titleIdx === -1) {
         toast.error("CSV must have a 'title' column");
         return;
       }
-      const rows: { rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; story_points: string; client_visible: string; errors: string[] }[] = [];
+      const rows: { rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; errors: string[] }[] = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCSVLine(lines[i]);
         const title = cols[titleIdx]?.trim() || "";
@@ -932,7 +933,6 @@ export default function ProjectDetailPage() {
         let priority = prioIdx !== -1 ? (cols[prioIdx]?.trim().toLowerCase() || "") : "";
         const estimated_hours = estIdx !== -1 ? (cols[estIdx]?.trim() || "") : "";
         const due_date = dueDateIdx !== -1 ? (cols[dueDateIdx]?.trim() || "") : "";
-        const story_points = storyPtsIdx !== -1 ? (cols[storyPtsIdx]?.trim() || "") : "";
         const client_visible = clientVisIdx !== -1 ? (cols[clientVisIdx]?.trim().toLowerCase() || "") : "";
         const errors: string[] = [];
         if (!title) errors.push("Title is required");
@@ -943,9 +943,8 @@ export default function ProjectDetailPage() {
         if (!priority) priority = "medium";
         if (estimated_hours && isNaN(Number(estimated_hours))) errors.push("Invalid estimated_hours");
         if (due_date && isNaN(Date.parse(due_date))) errors.push("Invalid due_date");
-        if (story_points && isNaN(Number(story_points))) errors.push("Invalid story_points");
         if (client_visible && !["true", "false", "yes", "no", "1", "0"].includes(client_visible)) errors.push("Invalid client_visible");
-        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, due_date, story_points, client_visible, errors });
+        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, due_date, client_visible, errors });
       }
       setCsvRows(rows);
     };
@@ -969,7 +968,6 @@ export default function ProjectDetailPage() {
         priority: r.priority,
         estimated_hours: r.estimated_hours ? parseFloat(r.estimated_hours) : null,
         due_date: r.due_date || null,
-        story_points: r.story_points ? parseInt(r.story_points, 10) : null,
         client_visible: !["false", "no", "0"].includes(r.client_visible),
         status_id: initialStatus?.id || null,
         status: initialStatus?.name || "unlinked",
@@ -1056,6 +1054,11 @@ export default function ProjectDetailPage() {
             <span className="text-muted-foreground text-sm">{(project.clients as any)?.name}</span>
           </div>
         </div>
+        {isAdmin && (
+          <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} title="Project Settings">
+            <Settings className="h-4 w-4" />
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="overview">
@@ -1298,7 +1301,7 @@ export default function ProjectDetailPage() {
                     <RowDataItem label="ASSIGNED">{isAdmin ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}</RowDataItem>
                     <RowActions className="justify-self-end">
                       {isAdmin && (
-                        <button onClick={() => removeMember(m.id, (m.users as any)?.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
+                        <button onClick={() => { setConfirmMemberDelId(m.id); setConfirmMemberDelUserId((m.users as any)?.id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       )}
@@ -1338,7 +1341,7 @@ export default function ProjectDetailPage() {
                     </TableCell>
                     {isAdmin && (
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => removeMember(m.id, (m.users as any)?.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                        <Button variant="ghost" size="icon" onClick={() => { setConfirmMemberDelId(m.id); setConfirmMemberDelUserId((m.users as any)?.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
                       </TableCell>
                     )}
                   </TableRow>
@@ -1492,36 +1495,6 @@ export default function ProjectDetailPage() {
                   <Line type="monotone" dataKey="hours" stroke="#14b8a6" strokeWidth={2} dot={{ r: 3 }} name="Hours" />
                 </LineChart>
               </ResponsiveContainer>
-            )}
-          </Card>
-
-          {/* Sprint Velocity */}
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Sprint Velocity</h3>
-            {velocityData.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No completed sprints yet.</p>
-            ) : (
-              <div className="space-y-2">
-                <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-                  <span>Sprints completed: <strong>{velocityData.length}</strong></span>
-                  <span>Avg velocity: <strong>{avgVelocity.toFixed(1)} SP</strong></span>
-                </div>
-                <ResponsiveContainer width="100%" height={200}>
-                  <BarChart data={velocityData}>
-                    <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip contentStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="committed" fill="#60a5fa" radius={[4, 4, 0, 0]} name="Committed" />
-                    <Bar dataKey="velocity" fill="#22c55e" radius={[4, 4, 0, 0]} name="Completed" />
-                    <Bar dataKey="added" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Added mid-sprint" />
-                  </BarChart>
-                </ResponsiveContainer>
-                {velocityData.length > 1 && (
-                  <div className="text-xs text-muted-foreground">
-                    Rolling avg: <strong>{avgVelocity.toFixed(1)} SP</strong> across last {velocityData.length} sprint{velocityData.length > 1 ? "s" : ""}
-                  </div>
-                )}
-              </div>
             )}
           </Card>
 
@@ -1704,19 +1677,22 @@ export default function ProjectDetailPage() {
               const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id);
               if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
               return (
-                  <div>
-                    <TooltipProvider>
-                      <TableHeader gridCols="1fr 96px 96px 96px 96px 80px">
-                        <span>TASK</span>
-                        <span>STATUS</span>
-                        <span>EST. HOURS</span>
-                        <span>PRIORITY</span>
-                        <span>DUE DATE</span>
-                        <span className="text-right">ACTIONS</span>
-                      </TableHeader>
+                <TooltipProvider>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                        <th className="px-4 py-2 text-left">TASK</th>
+                        <th className="px-4 py-2 text-left">STATUS</th>
+                        <th className="px-4 py-2 text-left">EST. HOURS</th>
+                        <th className="px-4 py-2 text-left">PRIORITY</th>
+                        <th className="px-4 py-2 text-left">DUE DATE</th>
+                        <th className="px-4 py-2 text-right">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
                       {myTasks.map((t: any) => (
-                        <DataRow key={t.id} gridCols="1fr 96px 96px 96px 96px 80px">
-                          <div>
+                        <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                          <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
                               <ShadcnTooltip delayDuration={0}>
                                 <TooltipTrigger asChild>
@@ -1734,30 +1710,41 @@ export default function ProjectDetailPage() {
                                   <p className="text-xs">Mark as Complete</p>
                                 </TooltipContent>
                               </ShadcnTooltip>
-                              <RowPrimary className={t.status === "complete" ? "line-through text-muted-foreground" : ""}>
+                              <div className={"font-semibold text-[15px] text-[#111827] truncate" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
                                 {t.title}
                                 {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
                                 {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
                                 {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
-                              </RowPrimary>
+                              </div>
                             </div>
-                            <RowSecondary>{t.description || "—"}</RowSecondary>
-                          </div>
-                          <RowBadgeItem label="STATUS"><Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge></RowBadgeItem>
-                          <RowDataItem label="EST. HOURS">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</RowDataItem>
-                          <RowBadgeItem label="PRIORITY">
-                            <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}{t.story_points ? ` (${t.story_points})` : ""}</Badge>
-                          </RowBadgeItem>
-                          <RowDataItem label="DUE DATE">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</RowDataItem>
-                          <RowActions className="justify-self-end">
+                            <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                            <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                            <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                            <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                            <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                          </td>
+                          <td className="px-4 py-3 text-right">
                             <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
                               <Info className="h-4 w-4" />
                             </button>
-                          </RowActions>
-                        </DataRow>
+                          </td>
+                        </tr>
                       ))}
-                    </TooltipProvider>
-                  </div>
+                    </tbody>
+                  </table>
+                </TooltipProvider>
               );
             })()}
           </TabsContent>
@@ -1791,51 +1778,72 @@ export default function ProjectDetailPage() {
               return filteredTasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tasks yet.</p>
               ) : (
-                <div>
-                  <TableHeader gridCols="1fr 112px 96px 96px 96px 96px 96px 96px 80px">
-                    <span>TASK</span>
-                    <span>ASSIGNED TO</span>
-                    <span>PRIORITY</span>
-                    <span>STATUS</span>
-                    <span>EST. HOURS</span>
-                    <span>DUE DATE</span>
-                    <span>FLAGGED</span>
-                    <span>VISIBLE</span>
-                    <span className="text-right">ACTIONS</span>
-                  </TableHeader>
+                <table className="w-full">
+                  <thead>
+                    <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                      <th className="px-4 py-2 text-left">TASK</th>
+                      <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                      <th className="px-4 py-2 text-left">PRIORITY</th>
+                      <th className="px-4 py-2 text-left">STATUS</th>
+                      <th className="px-4 py-2 text-left">EST. HOURS</th>
+                      <th className="px-4 py-2 text-left">DUE DATE</th>
+                      <th className="px-4 py-2 text-left">FLAGGED</th>
+                      <th className="px-4 py-2 text-left">VISIBLE</th>
+                      <th className="px-4 py-2 text-right">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                   {filteredTasks.map((t: any) => (
-                  <DataRow key={t.id} gridCols="1fr 112px 96px 96px 96px 96px 96px 96px 80px">
-                    <div>
-                      <RowPrimary>
-                        {t.title}
-                        {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
-                        {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
-                        {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
-                      </RowPrimary>
-                      <RowSecondary>{t.description || "—"}</RowSecondary>
-                    </div>
-                    <RowDataItem label="ASSIGNED TO">{(t as any).users?.full_name || "—"}</RowDataItem>
-                    <RowBadgeItem label="PRIORITY">
-                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}{t.story_points ? ` (${t.story_points})` : ""}</Badge>
-                    </RowBadgeItem>
-                    <RowBadgeItem label="STATUS"><Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge></RowBadgeItem>
-                    <RowDataItem label="EST. HOURS">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</RowDataItem>
-                    <RowDataItem label="DUE DATE">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</RowDataItem>
-                    <RowBadgeItem label="FLAGGED">{t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}</RowBadgeItem>
-                    <RowDataItem label="VISIBLE">
-                      {t.client_visible !== false ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
-                    </RowDataItem>
-                    <RowActions className="justify-self-end">
-                      <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
-                        <Info className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => openEditTask(t)} className={editButtonClass} title="Edit Task">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
+                    <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-[15px] text-[#111827] truncate">
+                          {t.title}
+                          {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                          {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                          {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
+                        </div>
+                        <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">ASSIGNED TO</div>
+                        <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                        <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                        <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                        <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">FLAGGED</div>
+                        {t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">VISIBLE</div>
+                        {t.client_visible !== false ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                          <Info className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => openEditTask(t)} className={editButtonClass} title="Edit Task">
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  </tbody>
+                </table>
             );
           })()}
           </TabsContent>
@@ -1863,7 +1871,7 @@ export default function ProjectDetailPage() {
                   <DataRow key={p.id} onClick={() => openPhaseTasks(p)} gridCols="1fr 96px 112px 192px 80px">
                     <div>
                       <RowPrimary>{p.title}</RowPrimary>
-                      <RowSecondary>{phaseTaskCount[p.id] || 0} tasks</RowSecondary>
+                      <RowSecondary>{phaseTaskCount[p.id] || 0} tasks · {(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints</RowSecondary>
                     </div>
                     <RowDataItem label="TASKS">{phaseTaskCount[p.id] || 0}</RowDataItem>
                     <RowDataItem label="DUE DATE">{p.due_date ? format(new Date(p.due_date), "MMM d, yyyy") : "—"}</RowDataItem>
@@ -1878,6 +1886,9 @@ export default function ProjectDetailPage() {
                     <RowActions className="justify-self-end">
                       <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${slug}/phases/${p.id}`); }} className={editButtonClass} title="Edit Phase">
                         <Pencil className="h-4 w-4" />
+                      </button>
+                      <button onClick={(e) => { e.stopPropagation(); setConfirmPhaseDelId(p.id); }} className={editButtonClass} title="Delete Phase">
+                        <Trash2 className="h-4 w-4 text-destructive" />
                       </button>
                     </RowActions>
                   </DataRow>
@@ -1900,47 +1911,105 @@ export default function ProjectDetailPage() {
           {sprints.length === 0 ? (
             <p className="text-sm text-muted-foreground">No sprints yet.</p>
           ) : (
-            <div>
-              <TableHeader gridCols="1fr 112px 96px 96px 96px 80px">
-                <span>SPRINT</span>
-                <span>DATES</span>
-                <span>STATUS</span>
-                <span>TASKS</span>
-                <span>STORY PTS</span>
-                <span className="text-right">ACTIONS</span>
-              </TableHeader>
-              {sprints.map((s: any) => (
-                <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 96px 80px">
+            <div className="space-y-6">
+              {(phases || [])
+                .filter((p: any) => sprints.some((s: any) => s.phase_id === p.id))
+                .map((phase: any) => {
+                  const phaseSprints = sprints.filter((s: any) => s.phase_id === phase.id);
+                  return (
+                    <div key={phase.id}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <h4 className="font-semibold text-sm">{phase.title}</h4>
+                        <Badge variant="outline" className="text-[10px]">{phaseSprints.length} sprint{phaseSprints.length !== 1 ? "s" : ""}</Badge>
+                      </div>
+                      <div>
+                        <TableHeader gridCols="1fr 112px 96px 96px 80px">
+                          <span>SPRINT</span>
+                          <span>DATES</span>
+                          <span>STATUS</span>
+                          <span>TASKS</span>
+                          <span className="text-right">ACTIONS</span>
+                        </TableHeader>
+                        {phaseSprints.map((s: any) => (
+                          <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px">
+                            <div>
+                              <RowPrimary>{s.name}</RowPrimary>
+                              <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                            </div>
+                            <RowDataItem label="DATES">
+                              {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                            </RowDataItem>
+                            <RowBadgeItem label="STATUS">
+                              <Badge className={
+                                s.status === "active" ? "bg-green-100 text-green-800" :
+                                s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                                "bg-gray-100 text-gray-800"
+                              }>{s.status}</Badge>
+                            </RowBadgeItem>
+                            <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                            <RowActions className="justify-self-end">
+                              {isAdmin && (
+                                <button onClick={(e) => { e.stopPropagation(); openEditSprint(s); }} className={editButtonClass} title="Edit Sprint">
+                                  <Pencil className="h-4 w-4" />
+                                </button>
+                              )}
+                              {isAdmin && (
+                                <button onClick={(e) => { e.stopPropagation(); deleteSprint(s.id); }} className={editButtonClass} title="Delete Sprint">
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </button>
+                              )}
+                            </RowActions>
+                          </DataRow>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              {sprints.some((s: any) => !s.phase_id) && (
+                <div>
+                  <h4 className="font-semibold text-sm mb-2">Unassigned</h4>
                   <div>
-                    <RowPrimary>{s.name}</RowPrimary>
-                    <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                    <TableHeader gridCols="1fr 112px 96px 96px 80px">
+                      <span>SPRINT</span>
+                      <span>DATES</span>
+                      <span>STATUS</span>
+                      <span>TASKS</span>
+                      <span className="text-right">ACTIONS</span>
+                    </TableHeader>
+                    {sprints.filter((s: any) => !s.phase_id).map((s: any) => (
+                      <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px">
+                        <div>
+                          <RowPrimary>{s.name}</RowPrimary>
+                          <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                        </div>
+                        <RowDataItem label="DATES">
+                          {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                        </RowDataItem>
+                        <RowBadgeItem label="STATUS">
+                          <Badge className={
+                            s.status === "active" ? "bg-green-100 text-green-800" :
+                            s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                            "bg-gray-100 text-gray-800"
+                          }>{s.status}</Badge>
+                        </RowBadgeItem>
+                        <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                        <RowActions className="justify-self-end">
+                          {isAdmin && (
+                            <button onClick={(e) => { e.stopPropagation(); openEditSprint(s); }} className={editButtonClass} title="Edit Sprint">
+                              <Pencil className="h-4 w-4" />
+                            </button>
+                          )}
+                          {isAdmin && (
+                            <button onClick={(e) => { e.stopPropagation(); deleteSprint(s.id); }} className={editButtonClass} title="Delete Sprint">
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </button>
+                          )}
+                        </RowActions>
+                      </DataRow>
+                    ))}
                   </div>
-                  <RowDataItem label="DATES">
-                    {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
-                  </RowDataItem>
-                  <RowBadgeItem label="STATUS">
-                    <Badge className={
-                      s.status === "active" ? "bg-green-100 text-green-800" :
-                      s.status === "completed" ? "bg-blue-100 text-blue-800" :
-                      "bg-gray-100 text-gray-800"
-                    }>{s.status}</Badge>
-                  </RowBadgeItem>
-                  <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
-                  <RowDataItem label="STORY PTS">{sprintSpTotal[s.id] || 0}</RowDataItem>
-                  <RowActions className="justify-self-end">
-                    {isAdmin && (
-                      <button onClick={(e) => { e.stopPropagation(); openEditSprint(s); }} className={editButtonClass} title="Edit Sprint">
-                        <Pencil className="h-4 w-4" />
-                      </button>
-                    )}
-                    {isAdmin && (
-                      <button onClick={(e) => { e.stopPropagation(); deleteSprint(s.id); }} className={editButtonClass} title="Delete Sprint">
-                        <Trash2 className="h-4 w-4 text-destructive" />
-                      </button>
-                    )}
-                  </RowActions>
-                </DataRow>
-              ))}
+                </div>
+              )}
             </div>
           )}
         </TabsContent>
@@ -1988,10 +2057,6 @@ export default function ProjectDetailPage() {
               </Popover>
               {taskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setTaskDueDate("")}>Clear</button>}
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Story Points</label>
-              <Input type="number" min="1" step="1" value={taskStoryPoints} onChange={(e) => setTaskStoryPoints(e.target.value)} placeholder="e.g. 3" />
-            </div>
             <div className="flex items-center gap-2">
               <Checkbox id="task-client-visible" checked={taskClientVisible} onCheckedChange={(v) => setTaskClientVisible(v === true)} />
               <label htmlFor="task-client-visible" className="text-sm font-medium cursor-pointer">Visible to client</label>
@@ -2010,11 +2075,22 @@ export default function ProjectDetailPage() {
               </Select>
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Phase</label>
+              <Select value={taskPhaseId} onValueChange={(v) => { setTaskPhaseId(v); setTaskSprintId(""); }}>
+                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                <SelectContent>
+                  {(phases || []).map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">Sprint</label>
               <Select value={taskSprintId} onValueChange={setTaskSprintId}>
                 <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
                 <SelectContent>
-                  {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
+                  {sprints.filter((s: any) => s.status !== "completed" && (!taskPhaseId || s.phase_id === taskPhaseId)).map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} ({s.status})
                     </SelectItem>
@@ -2038,14 +2114,13 @@ export default function ProjectDetailPage() {
             <Card className="p-4 space-y-2">
               <p className="text-sm font-medium">CSV Format</p>
               <p className="text-xs text-muted-foreground">Your CSV must have these column headers on the first row:</p>
-              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority,estimated_hours,due_date,story_points,client_visible</div>
+              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority,estimated_hours,due_date,client_visible</div>
               <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
                 <li><strong>title</strong> — required</li>
                 <li><strong>description</strong> — optional</li>
                 <li><strong>priority</strong> — must be one of: high, medium, low (case-insensitive, defaults to medium)</li>
                 <li><strong>estimated_hours</strong> — optional decimal number (e.g. 1, 1.5, 2.25)</li>
                 <li><strong>due_date</strong> — optional date (YYYY-MM-DD)</li>
-                <li><strong>story_points</strong> — optional integer</li>
                 <li><strong>client_visible</strong> — optional, true/false/yes/no (defaults to true)</li>
               </ul>
               <p className="text-xs text-muted-foreground pt-1">All uploaded tasks will have status <strong>Unlinked</strong> and be assigned to this project.</p>
@@ -2070,7 +2145,6 @@ export default function ProjectDetailPage() {
                         <th className="text-left p-2 font-medium">Priority</th>
                         <th className="text-left p-2 font-medium">Est. Hours</th>
                         <th className="text-left p-2 font-medium">Due Date</th>
-                        <th className="text-left p-2 font-medium">SP</th>
                         <th className="text-left p-2 font-medium">Visible</th>
                         <th className="text-left p-2 font-medium">Errors</th>
                       </tr>
@@ -2080,13 +2154,12 @@ export default function ProjectDetailPage() {
                         <tr key={r.rowNum} className={r.errors.length > 0 ? "bg-red-50" : "border-t"}>
                           <td className="p-2 text-muted-foreground">{r.rowNum}</td>
                           <td className={`p-2 font-medium ${!r.title ? "text-red-500" : ""}`}>{r.title || <span className="italic text-red-400">empty</span>}</td>
-                          <td className="p-2 text-muted-foreground">{r.description || "—"}</td>
+                          <td className="p-2 text-muted-foreground">{truncateWords(r.description, 4) || "—"}</td>
                           <td className="p-2">
                             <Badge className={PRIORITY_COLORS[r.priority] || ""}>{r.priority}</Badge>
                           </td>
                           <td className="p-2 text-muted-foreground">{r.estimated_hours || "—"}</td>
                           <td className="p-2 text-muted-foreground">{r.due_date || "—"}</td>
-                          <td className="p-2 text-muted-foreground">{r.story_points || "—"}</td>
                           <td className="p-2">{r.client_visible && !["false", "no", "0"].includes(r.client_visible) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</td>
                           <td className="p-2">
                             {r.errors.length > 0 ? (
@@ -2165,10 +2238,6 @@ export default function ProjectDetailPage() {
               </Popover>
               {editTaskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setEditTaskDueDate("")}>Clear</button>}
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Story Points</label>
-              <Input type="number" min="1" step="1" value={editTaskStoryPoints} onChange={(e) => setEditTaskStoryPoints(e.target.value)} placeholder="e.g. 3" />
-            </div>
             <div className="flex items-center gap-2">
               <Checkbox id="edit-task-client-visible" checked={editTaskClientVisible} onCheckedChange={(v) => setEditTaskClientVisible(v === true)} />
               <label htmlFor="edit-task-client-visible" className="text-sm font-medium cursor-pointer">Visible to client</label>
@@ -2187,11 +2256,22 @@ export default function ProjectDetailPage() {
               </Select>
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Phase</label>
+              <Select value={editTaskPhaseId} onValueChange={(v) => { setEditTaskPhaseId(v); setEditTaskSprintId(""); }}>
+                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                <SelectContent>
+                  {(phases || []).map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">Sprint</label>
               <Select value={editTaskSprintId} onValueChange={setEditTaskSprintId}>
                 <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
                 <SelectContent>
-                  {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
+                  {sprints.filter((s: any) => s.status !== "completed" && (!editTaskPhaseId || s.phase_id === editTaskPhaseId)).map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} ({s.status})
                     </SelectItem>
@@ -2253,7 +2333,7 @@ export default function ProjectDetailPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeDependency(d.id, editTaskId!)}
+                      onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(editTaskId!); }}
                       className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors text-muted-foreground hover:text-red-600"
                       title="Remove dependency"
                     >
@@ -2402,6 +2482,7 @@ export default function ProjectDetailPage() {
       <Dialog open={!!viewTaskData} onOpenChange={(open) => {
         if (!open) {
           setViewTaskData(null);
+          setDescExpanded(false);
           setNewViewComment("");
           setShowViewAddBlocker(false);
           setNewViewBlockerDescription("");
@@ -2416,14 +2497,22 @@ export default function ProjectDetailPage() {
               {viewTaskData?.title || "Task Details"}
               {viewTaskData?.is_flagged && <Flag className="h-4 w-4 text-red-500 shrink-0" />}
             </DialogTitle>
-            {viewTaskData?.description && <p className="text-sm text-muted-foreground mt-1">{viewTaskData.description}</p>}
+            {viewTaskData?.description && (
+              <div className="mt-1">
+                <p className="text-sm text-muted-foreground">{descExpanded ? viewTaskData.description : truncateWords(viewTaskData.description, 4)}</p>
+                {viewTaskData.description.split(/\s+/).length > 4 && (
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setDescExpanded(!descExpanded)}>
+                    {descExpanded ? "Show less" : "Show more"}
+                  </Button>
+                )}
+              </div>
+            )}
           </DialogHeader>
 
           <div className="flex flex-wrap gap-2 mt-2">
             {viewTaskData?.priority && <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>}
             {viewTaskData?.status && <Badge className={TASK_STATUS_COLORS[viewTaskData.status] || ""}>{viewTaskData.status.replace(/_/g, " ")}</Badge>}
             {viewTaskData?.estimated_hours && <span className="text-xs text-muted-foreground">{viewTaskData.estimated_hours}h est.</span>}
-            {viewTaskData?.story_points && <span className="text-xs text-muted-foreground">{viewTaskData.story_points} SP</span>}
             {viewTaskData?.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d")}</span>}
             {viewTaskData?.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null; })()}
           </div>
@@ -2487,7 +2576,7 @@ export default function ProjectDetailPage() {
                     </div>
                     <button
                       type="button"
-                      onClick={() => removeDependency(d.id, viewTaskData?.id)}
+                      onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(viewTaskData?.id); }}
                       className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors text-muted-foreground hover:text-red-600"
                       title="Remove dependency"
                     >
@@ -2675,13 +2764,39 @@ export default function ProjectDetailPage() {
       {/* Phase Tasks Dialog */}
       <Dialog open={phaseTasksOpen} onOpenChange={setPhaseTasksOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{selectedPhase?.title} — Tasks</DialogTitle></DialogHeader>
-          {(() => {
-            const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === selectedPhase?.id);
-            if (phaseTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this phase.</p>;
-            return (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {phaseTasks.map((t: any) => (
+          <DialogHeader><DialogTitle>{selectedPhase?.title}</DialogTitle></DialogHeader>
+          <Tabs defaultValue="sprints">
+            <TabsList className="grid w-full grid-cols-2">
+              <TabsTrigger value="sprints">Sprints</TabsTrigger>
+              <TabsTrigger value="tasks">Tasks</TabsTrigger>
+            </TabsList>
+            <TabsContent value="sprints" className="space-y-2 max-h-80 overflow-y-auto">
+              {(() => {
+                const phaseSprints = (sprints || []).filter((s: any) => s.phase_id === selectedPhase?.id);
+                if (phaseSprints.length === 0) return <p className="text-sm text-muted-foreground py-4">No sprints in this phase.</p>;
+                return phaseSprints.map((s: any) => (
+                  <div key={s.id} className="flex items-center justify-between p-3 border rounded-md">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-sm font-medium">{s.name}</span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-xs">{format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}</Badge>
+                      <Badge className={
+                        s.status === "active" ? "bg-green-100 text-green-800" :
+                        s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                        "bg-gray-100 text-gray-800"
+                      }>{s.status}</Badge>
+                      <Badge variant="secondary" className="text-xs">{sprintTaskCount[s.id] || 0} tasks</Badge>
+                    </div>
+                  </div>
+                ));
+              })()}
+            </TabsContent>
+            <TabsContent value="tasks" className="space-y-2 max-h-80 overflow-y-auto">
+              {(() => {
+                const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === selectedPhase?.id);
+                if (phaseTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this phase.</p>;
+                return phaseTasks.map((t: any) => (
                   <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
                     <div className="flex items-center gap-3 min-w-0">
                       <span className="text-sm font-medium">{t.title}</span>
@@ -2693,10 +2808,10 @@ export default function ProjectDetailPage() {
                       <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                     </div>
                   </div>
-                ))}
-              </div>
-            );
-          })()}
+                ));
+              })()}
+            </TabsContent>
+          </Tabs>
         </DialogContent>
       </Dialog>
 
@@ -2718,7 +2833,6 @@ export default function ProjectDetailPage() {
                       <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
                       {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
                       {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
-                      {t.story_points && <Badge variant="secondary" className="text-xs">{t.story_points} SP</Badge>}
                       <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                     </div>
                   </div>
@@ -2737,6 +2851,17 @@ export default function ProjectDetailPage() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Sprint Name *</label>
               <Input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="e.g. Sprint 1" required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phase *</label>
+              <Select value={sprintPhaseId} onValueChange={setSprintPhaseId}>
+                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                <SelectContent>
+                  {(phases || []).map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Start Date *</label>
@@ -2759,6 +2884,17 @@ export default function ProjectDetailPage() {
             <div className="space-y-2">
               <label className="text-sm font-medium">Sprint Name *</label>
               <Input value={editSprintName} onChange={(e) => setEditSprintName(e.target.value)} placeholder="Sprint name" required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Phase *</label>
+              <Select value={editSprintPhaseId} onValueChange={setEditSprintPhaseId}>
+                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+                <SelectContent>
+                  {(phases || []).map((p: any) => (
+                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Start Date *</label>
@@ -2801,6 +2937,34 @@ export default function ProjectDetailPage() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Remove Dependency Confirmation */}
+      <AlertDialog open={!!confirmDepDelId} onOpenChange={(open) => !open && setConfirmDepDelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove dependency?</AlertDialogTitle>
+            <AlertDialogDescription>This will unlink the dependency between these tasks.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmDepDelId && confirmDepDelTaskId) removeDependency(confirmDepDelId, confirmDepDelTaskId); setConfirmDepDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Remove Member Confirmation */}
+      <AlertDialog open={!!confirmMemberDelId} onOpenChange={(open) => !open && setConfirmMemberDelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove member?</AlertDialogTitle>
+            <AlertDialogDescription>This will remove them from the project. They can be re-added later.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmMemberDelId && confirmMemberDelUserId) removeMember(confirmMemberDelId, confirmMemberDelUserId); setConfirmMemberDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Completion Warning */}
       <AlertDialog open={completionWarning} onOpenChange={setCompletionWarning}>
         <AlertDialogContent>
@@ -2814,6 +2978,64 @@ export default function ProjectDetailPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Phase Confirmation */}
+      <AlertDialog open={!!confirmPhaseDelId} onOpenChange={(open) => !open && setConfirmPhaseDelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete phase?</AlertDialogTitle>
+            <AlertDialogDescription>This will unlink all tasks from this phase and cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmPhaseDelId) deletePhase(confirmPhaseDelId); setConfirmPhaseDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Project Settings */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Project Settings</DialogTitle>
+          </DialogHeader>
+          {projectSettings ? (
+            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); saveProjectSettings({ at_risk_variance_percent: Number(fd.get("at_risk_variance_percent")), delayed_variance_percent: Number(fd.get("delayed_variance_percent")), blocker_warning_days: Number(fd.get("blocker_warning_days")), critical_blocker_warning_days: Number(fd.get("critical_blocker_warning_days")), hours_per_day: Number(fd.get("hours_per_day")) }); }} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">At Risk Variance (%)</label>
+                <Input name="at_risk_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.at_risk_variance_percent} />
+                <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "at risk"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Delayed Variance (%)</label>
+                <Input name="delayed_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.delayed_variance_percent} />
+                <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Blocker Warning (days)</label>
+                <Input name="blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.blocker_warning_days} />
+                <p className="text-[11px] text-muted-foreground">Open blocker age in days before it contributes to "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Critical Blocker Warning (days)</label>
+                <Input name="critical_blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.critical_blocker_warning_days} />
+                <p className="text-[11px] text-muted-foreground">Blocker on critical-path task age in days before "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Hours Per Day</label>
+                <Input name="hours_per_day" type="number" min="1" step="0.5" defaultValue={projectSettings.hours_per_day} />
+                <p className="text-[11px] text-muted-foreground">Used to convert estimated hours to calendar days for critical path</p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+                <Button type="submit">Save</Button>
+              </DialogFooter>
+            </form>
+          ) : (
+            <p className="text-sm text-muted-foreground py-4">Loading settings...</p>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

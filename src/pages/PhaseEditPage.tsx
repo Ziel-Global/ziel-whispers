@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
-import { ArrowLeft, Save, Check } from "lucide-react";
+import { ArrowLeft, Save, Check, Plus, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
 import { PRIORITY_COLORS, TASK_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
 
@@ -27,6 +29,12 @@ export default function PhaseEditPage() {
   const [saving, setSaving] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [taskFilter, setTaskFilter] = useState<string>("all");
+
+  const [addSprintOpen, setAddSprintOpen] = useState(false);
+  const [sprintName, setSprintName] = useState("");
+  const [sprintStartDate, setSprintStartDate] = useState("");
+  const [sprintEndDate, setSprintEndDate] = useState("");
+  const [confirmSprintDelId, setConfirmSprintDelId] = useState<string | null>(null);
 
   const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
@@ -53,6 +61,19 @@ export default function PhaseEditPage() {
     enabled: !!phaseId,
   });
 
+  const { data: phaseSprints = [], isLoading: sprintsLoading } = useQuery({
+    queryKey: ["phase-sprints", phaseId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("sprints")
+        .select("*")
+        .eq("phase_id", phaseId!)
+        .order("start_date", { ascending: false });
+      return data || [];
+    },
+    enabled: !!phaseId && !!projectId,
+  });
+
   // Fetch all project tasks eligible for this phase:
   // phase_id IS NULL (unassigned) OR phase_id = this phase
   // Exclude tasks assigned to a different phase
@@ -69,6 +90,14 @@ export default function PhaseEditPage() {
     },
     enabled: !!projectId && !!phaseId,
   });
+
+  const sprintTaskCount = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (eligibleTasks || []).forEach((t: any) => {
+      if (t.sprint_id) counts[t.sprint_id] = (counts[t.sprint_id] || 0) + 1;
+    });
+    return counts;
+  }, [eligibleTasks]);
 
   const assignedTaskIds = useMemo(
     () => new Set(eligibleTasks.filter((t: any) => t.phase_id === phaseId).map((t: any) => t.id)),
@@ -135,6 +164,34 @@ export default function PhaseEditPage() {
     });
   };
 
+  const handleAddSprint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sprintName.trim() || !sprintStartDate || !sprintEndDate) return;
+    const { error } = await supabase.from("sprints").insert({
+      project_id: projectId,
+      phase_id: phaseId,
+      name: sprintName.trim(),
+      start_date: sprintStartDate,
+      end_date: sprintEndDate,
+      status: "planned",
+    });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Sprint created");
+    setAddSprintOpen(false);
+    setSprintName("");
+    setSprintStartDate("");
+    setSprintEndDate("");
+    queryClient.invalidateQueries({ queryKey: ["phase-sprints", phaseId] });
+  };
+
+  const deleteSprint = async (sprintId: string) => {
+    const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Sprint deleted");
+    setConfirmSprintDelId(null);
+    queryClient.invalidateQueries({ queryKey: ["phase-sprints", phaseId] });
+  };
+
   if (!isAdmin) {
     return <div className="text-center py-12 text-muted-foreground">Access denied</div>;
   }
@@ -170,6 +227,56 @@ export default function PhaseEditPage() {
             <Input type="date" value={editingDueDate} onChange={(e) => setEditingDueDate(e.target.value)} />
           </div>
         </div>
+      </Card>
+
+      <Card className="p-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold">
+            Sprints ({phaseSprints.length})
+          </h2>
+          <Button size="sm" onClick={() => setAddSprintOpen(true)} className="rounded-button bg-primary text-black hover:bg-black hover:text-white">
+            <Plus className="h-4 w-4 mr-1" /> Add Sprint
+          </Button>
+        </div>
+        {sprintsLoading ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : phaseSprints.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No sprints in this phase yet.</p>
+        ) : (
+          <div>
+            <TableHeader gridCols="1fr 112px 96px 96px 80px">
+              <span>SPRINT</span>
+              <span>DATES</span>
+              <span>STATUS</span>
+              <span>TASKS</span>
+              <span className="text-right">ACTIONS</span>
+            </TableHeader>
+            {phaseSprints.map((s: any) => (
+              <DataRow key={s.id} gridCols="1fr 112px 96px 96px 80px">
+                <div>
+                  <RowPrimary>{s.name}</RowPrimary>
+                  <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                </div>
+                <RowDataItem label="DATES">
+                  {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                </RowDataItem>
+                <RowBadgeItem label="STATUS">
+                  <Badge className={
+                    s.status === "active" ? "bg-green-100 text-green-800" :
+                    s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                    "bg-gray-100 text-gray-800"
+                  }>{s.status}</Badge>
+                </RowBadgeItem>
+                <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                <RowActions className="justify-self-end">
+                  <button onClick={() => setConfirmSprintDelId(s.id)} className={editButtonClass} title="Delete Sprint">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </button>
+                </RowActions>
+              </DataRow>
+            ))}
+          </div>
+        )}
       </Card>
 
       <Card className="p-6">
@@ -239,6 +346,45 @@ export default function PhaseEditPage() {
           </div>
         )}
       </Card>
+
+      {/* Add Sprint Dialog */}
+      <Dialog open={addSprintOpen} onOpenChange={setAddSprintOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add Sprint to {phase?.title}</DialogTitle></DialogHeader>
+          <form onSubmit={handleAddSprint} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Sprint Name *</label>
+              <Input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="e.g. Sprint 1" required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Start Date *</label>
+              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">End Date *</label>
+              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddSprintOpen(false)}>Cancel</Button>
+              <Button type="submit">Create Sprint</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Sprint Confirmation */}
+      <AlertDialog open={!!confirmSprintDelId} onOpenChange={(open) => !open && setConfirmSprintDelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete sprint?</AlertDialogTitle>
+            <AlertDialogDescription>This will unlink all tasks from this sprint and cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmSprintDelId) deleteSprint(confirmSprintDelId); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -12,6 +12,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
@@ -22,7 +24,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
-import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, X, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -51,6 +53,7 @@ export default function ProjectDetailPage() {
   const [addMemberMode, setAddMemberMode] = useState<"resource" | "client">("resource");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [roleInputs, setRoleInputs] = useState<Record<string, string>>({});
+  const [showOtherRole, setShowOtherRole] = useState<Record<string, boolean>>({});
   const [memberSearch, setMemberSearch] = useState("");
   const [statusNote, setStatusNote] = useState("");
   const [completionWarning, setCompletionWarning] = useState(false);
@@ -76,6 +79,8 @@ export default function ProjectDetailPage() {
   const [editTaskStatusId, setEditTaskStatusId] = useState<string>("");
   const [bulkTaskOpen, setBulkTaskOpen] = useState(false);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
+  const [kanbanSprintFilter, setKanbanSprintFilter] = useState<string>("all");
+  const [kanbanPriorityFilter, setKanbanPriorityFilter] = useState<string>("all");
   const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; errors: string[] }[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -89,10 +94,6 @@ export default function ProjectDetailPage() {
   const [completeTargetId, setCompleteTargetId] = useState<string | null>(null);
   const [completeTargetTitle, setCompleteTargetTitle] = useState("");
   const [dependencyWarning, setDependencyWarning] = useState("");
-  const [addDepOpen, setAddDepOpen] = useState(false);
-  const [addDepTaskId, setAddDepTaskId] = useState("");
-  const [addDepType, setAddDepType] = useState("finish_to_start");
-  const [addDepForTaskId, setAddDepForTaskId] = useState<string | null>(null);
   const [viewAddDepOpen, setViewAddDepOpen] = useState(false);
   const [viewAddDepTaskId, setViewAddDepTaskId] = useState("");
   const [viewAddDepType, setViewAddDepType] = useState("finish_to_start");
@@ -127,12 +128,81 @@ export default function ProjectDetailPage() {
   const [newPortalMsgCtaUrl, setNewPortalMsgCtaUrl] = useState("");
   const [sprintTasksOpen, setSprintTasksOpen] = useState(false);
   const [selectedSprint, setSelectedSprint] = useState<any>(null);
-  const [taskPhaseId, setTaskPhaseId] = useState("");
-  const [editTaskPhaseId, setEditTaskPhaseId] = useState("");
   const [taskSprintId, setTaskSprintId] = useState("");
   const [editTaskSprintId, setEditTaskSprintId] = useState("");
 
-  const { data: resolvedId } = useQuery({
+  const [automationRulesOpen, setAutomationRulesOpen] = useState(false);
+const [editRuleId, setEditRuleId] = useState<string | null>(null);
+const [ruleName, setRuleName] = useState("");
+const [ruleDescription, setRuleDescription] = useState("");
+const [ruleStatus, setRuleStatus] = useState("draft");
+const [ruleTriggerType, setRuleTriggerType] = useState("status_change");
+const [rulePriority, setRulePriority] = useState(0);
+const [ruleAllowTriggering, setRuleAllowTriggering] = useState(false);
+const [ruleConditions, setRuleConditions] = useState<{field: string; operator: string; value: string}[]>([]);
+const [ruleActions, setRuleActions] = useState<{type: string; params: Record<string, string>}[]>([]);
+const [deleteRuleConfirmId, setDeleteRuleConfirmId] = useState<string | null>(null);
+const [deleteTaskConfirmId, setDeleteTaskConfirmId] = useState<string | null>(null);
+
+const addCondition = () => {
+  setRuleConditions([...ruleConditions, { field: "status_id", operator: "eq", value: "" }]);
+};
+
+const removeCondition = (idx: number) => {
+  setRuleConditions(ruleConditions.filter((_, i) => i !== idx));
+};
+
+const updateCondition = (idx: number, key: string, value: string) => {
+  setRuleConditions(ruleConditions.map((c, i) => i === idx ? { ...c, [key]: value } : c));
+};
+
+const addAction = () => {
+  setRuleActions([...ruleActions, { type: "change_status", params: {} }]);
+};
+
+const removeAction = (idx: number) => {
+  setRuleActions(ruleActions.filter((_, i) => i !== idx));
+};
+
+const setActionType = (idx: number, type: string) => {
+  setRuleActions(ruleActions.map((a, i) => i === idx ? { type, params: {} } : a));
+};
+
+const setActionParam = (idx: number, key: string, value: string) => {
+  setRuleActions(ruleActions.map((a, i) => i === idx ? { ...a, params: { ...a.params, [key]: value } } : a));
+};
+
+const resetRuleForm = () => {
+  setEditRuleId(null);
+  setRuleName("");
+  setRuleDescription("");
+  setRuleStatus("draft");
+  setRuleTriggerType("status_change");
+  setRulePriority(0);
+  setRuleAllowTriggering(false);
+  setRuleConditions([]);
+  setRuleActions([]);
+};
+
+const openAddRule = () => {
+  resetRuleForm();
+  setAutomationRulesOpen(true);
+};
+
+const openEditRule = (rule: any) => {
+  setEditRuleId(rule.id);
+  setRuleName(rule.name);
+  setRuleDescription(rule.description || "");
+  setRuleStatus(rule.status);
+  setRuleTriggerType(rule.trigger_type);
+  setRulePriority(rule.priority);
+  setRuleAllowTriggering(rule.allow_triggering_other_rules);
+  setRuleConditions(rule.conditions || []);
+  setRuleActions(rule.actions || []);
+  setAutomationRulesOpen(true);
+};
+
+const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
     queryFn: async () => {
       const { data } = await supabase.from("projects").select("id, name");
@@ -272,36 +342,7 @@ export default function ProjectDetailPage() {
   const [descExpanded, setDescExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  const activeEditId = editTaskId;
   const activeViewId = viewTaskData?.id;
-
-  const { data: comments = [], isLoading: commentsLoading } = useQuery({
-    queryKey: ["task-comments", activeEditId],
-    queryFn: async () => {
-      if (!activeEditId) return [];
-      const { data } = await supabase
-        .from("task_comments")
-        .select("*, author:users!task_comments_author_id_fkey(full_name)")
-        .eq("task_id", activeEditId)
-        .order("created_at", { ascending: true });
-      return data || [];
-    },
-    enabled: !!activeEditId,
-  });
-
-  const { data: blockers = [], isLoading: blockersLoading } = useQuery({
-    queryKey: ["task-blockers", activeEditId],
-    queryFn: async () => {
-      if (!activeEditId) return [];
-      const { data } = await supabase
-        .from("task_blockers")
-        .select("*, raiser:users!task_blockers_raised_by_fkey(full_name), resolver:users!task_blockers_resolved_by_fkey(full_name)")
-        .eq("task_id", activeEditId)
-        .order("raised_at", { ascending: false });
-      return data || [];
-    },
-    enabled: !!activeEditId,
-  });
 
   const { data: viewComments = [], isLoading: viewCommentsLoading } = useQuery({
     queryKey: ["task-comments-view", activeViewId],
@@ -329,19 +370,6 @@ export default function ProjectDetailPage() {
       return data || [];
     },
     enabled: !!activeViewId,
-  });
-
-  const { data: editDeps = [], isLoading: editDepsLoading } = useQuery({
-    queryKey: ["task-deps-edit", activeEditId],
-    queryFn: async () => {
-      if (!activeEditId) return [];
-      const { data } = await supabase
-        .from("task_dependencies")
-        .select("*, depends_on:tasks!task_dependencies_depends_on_task_id_fkey(id, title)")
-        .eq("task_id", activeEditId);
-      return data || [];
-    },
-    enabled: !!activeEditId,
   });
 
   const { data: viewDeps = [], isLoading: viewDepsLoading } = useQuery({
@@ -374,6 +402,20 @@ export default function ProjectDetailPage() {
   const criticalTaskIds = useMemo(() => {
     return new Set(scheduleSnapshots.filter((s: any) => s.is_critical).map((s: any) => s.task_id));
   }, [scheduleSnapshots]);
+
+  const { data: projectRoles = [] } = useQuery({
+    queryKey: ["project-roles", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data } = await supabase
+        .from("project_roles")
+        .select("id, name")
+        .eq("project_id", id)
+        .order("name");
+      return data || [];
+    },
+    enabled: !!id,
+  });
 
   const { data: latestHealth } = useQuery({
     queryKey: ["project-health-latest", id],
@@ -462,6 +504,20 @@ export default function ProjectDetailPage() {
     enabled: !!id,
   });
 
+  const { data: automationRules = [] } = useQuery({
+    queryKey: ["project-automation-rules", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data } = await supabase
+        .from("automation_rules")
+        .select("*")
+        .eq("project_id", id)
+        .order("priority", { ascending: false });
+      return data || [];
+    },
+    enabled: !!id,
+  });
+
   const { data: projectBlockers = [] } = useQuery({
     queryKey: ["project-blockers-all", id],
     queryFn: async () => {
@@ -498,25 +554,10 @@ export default function ProjectDetailPage() {
     return counts;
   }, [tasks]);
 
-  const [newComment, setNewComment] = useState("");
   const [newViewComment, setNewViewComment] = useState("");
-  const [newBlockerDescription, setNewBlockerDescription] = useState("");
   const [newViewBlockerDescription, setNewViewBlockerDescription] = useState("");
-  const [showAddBlocker, setShowAddBlocker] = useState(false);
   const [showViewAddBlocker, setShowViewAddBlocker] = useState(false);
 
-  const addComment = async (taskId: string) => {
-    if (!newComment.trim() || !profile) return;
-    const { error } = await supabase.from("task_comments").insert({
-      task_id: taskId,
-      author_id: profile.id,
-      author_type: "human",
-      body: newComment.trim(),
-    });
-    if (error) { toast.error(error.message); return; }
-    setNewComment("");
-    queryClient.invalidateQueries({ queryKey: ["task-comments", taskId] });
-  };
 
   const addViewComment = async () => {
     if (!newViewComment.trim() || !viewTaskData?.id || !profile) return;
@@ -531,32 +572,31 @@ export default function ProjectDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["task-comments-view", viewTaskData.id] });
   };
 
-  const addBlocker = async (taskId: string, projectId: string) => {
-    if (!newBlockerDescription.trim() || !profile) return;
-    const { error } = await supabase.from("task_blockers").insert({
-      project_id: projectId,
-      task_id: taskId,
-      description: newBlockerDescription.trim(),
-      raised_by: profile.id,
-    });
-    if (error) { toast.error(error.message); return; }
-    setNewBlockerDescription("");
-    setShowAddBlocker(false);
-    queryClient.invalidateQueries({ queryKey: ["task-blockers", taskId] });
-  };
 
   const addViewBlocker = async () => {
     if (!newViewBlockerDescription.trim() || !viewTaskData?.id || !profile) return;
-    const { error } = await supabase.from("task_blockers").insert({
+    const { data: newBlocker, error } = await supabase.from("task_blockers").insert({
       project_id: viewTaskData.project_id,
       task_id: viewTaskData.id,
       description: newViewBlockerDescription.trim(),
       raised_by: profile.id,
-    });
+    }).select("id").single();
     if (error) { toast.error(error.message); return; }
     setNewViewBlockerDescription("");
     setShowViewAddBlocker(false);
+    if (newBlocker) {
+      const { error: rpcError } = await supabase.rpc("run_automation_rules", {
+        p_project_id: viewTaskData.project_id,
+        p_trigger_type: "blocker_raised",
+        p_entity_type: "blocker",
+        p_entity_id: newBlocker.id,
+      });
+      if (rpcError) console.error("Automation engine error:", rpcError);
+    }
     queryClient.invalidateQueries({ queryKey: ["task-blockers-view", viewTaskData.id] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", viewTaskData.project_id] });
+    const { data: updatedTask } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
+    if (updatedTask) setViewTaskData(updatedTask);
   };
 
   const resolveBlocker = async (blockerId: string, taskId: string) => {
@@ -566,8 +606,17 @@ export default function ProjectDetailPage() {
       .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile.id })
       .eq("id", blockerId);
     if (error) { toast.error(error.message); return; }
-    queryClient.invalidateQueries({ queryKey: ["task-blockers", taskId] });
+    const { error: rpcError } = await supabase.rpc("run_automation_rules", {
+      p_project_id: viewTaskData?.project_id || id,
+      p_trigger_type: "blocker_resolved",
+      p_entity_type: "blocker",
+      p_entity_id: blockerId,
+    });
+    if (rpcError) console.error("Automation engine error:", rpcError);
     queryClient.invalidateQueries({ queryKey: ["task-blockers-view", taskId] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", viewTaskData?.project_id || id] });
+    const { data: updatedTask } = await supabase.from("tasks").select("*").eq("id", taskId).single();
+    if (updatedTask) setViewTaskData(updatedTask);
   };
 
   // Dependency warning effect — fires when edit status changes to done/in_progress
@@ -596,27 +645,10 @@ export default function ProjectDetailPage() {
       });
   }, [editTaskStatusId, editTaskId, workflowStatuses]);
 
-  const addDependency = async (taskId: string) => {
-    if (!addDepTaskId || !profile) return;
-    const { error } = await supabase.from("task_dependencies").insert({
-      task_id: taskId,
-      depends_on_task_id: addDepTaskId,
-      dependency_type: addDepType,
-      created_by: profile.id,
-    });
-    if (error) { toast.error(error.message); return; }
-    setAddDepOpen(false);
-    setAddDepTaskId("");
-    setAddDepType("finish_to_start");
-    setAddDepForTaskId(null);
-    queryClient.invalidateQueries({ queryKey: ["task-deps-edit", taskId] });
-    queryClient.invalidateQueries({ queryKey: ["task-deps-view", taskId] });
-  };
 
   const removeDependency = async (depId: string, taskId: string) => {
     const { error } = await supabase.from("task_dependencies").delete().eq("id", depId);
     if (error) { toast.error(error.message); return; }
-    queryClient.invalidateQueries({ queryKey: ["task-deps-edit", taskId] });
     queryClient.invalidateQueries({ queryKey: ["task-deps-view", taskId] });
   };
 
@@ -633,7 +665,6 @@ export default function ProjectDetailPage() {
     setViewAddDepTaskId("");
     setViewAddDepType("finish_to_start");
     queryClient.invalidateQueries({ queryKey: ["task-deps-view", viewTaskData.id] });
-    queryClient.invalidateQueries({ queryKey: ["task-deps-edit", viewTaskData.id] });
   };
 
   const addStatusUpdate = async () => {
@@ -688,6 +719,80 @@ export default function ProjectDetailPage() {
     setNewPortalMsgCtaUrl("");
     toast.success("Portal message posted");
     queryClient.invalidateQueries({ queryKey: ["project-portal-messages", id] });
+  };
+
+  const saveAutomationRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!ruleName.trim() || !ruleDescription.trim() || !id || !profile) {
+      toast.error("Name and description are required");
+      return;
+    }
+    if (ruleActions.length === 0) {
+      toast.error("At least one action is required");
+      return;
+    }
+
+    const payload = {
+      name: ruleName.trim(),
+      description: ruleDescription.trim(),
+      status: ruleStatus,
+      trigger_type: ruleTriggerType,
+      conditions: ruleConditions,
+      actions: ruleActions,
+      priority: rulePriority,
+      allow_triggering_other_rules: ruleAllowTriggering,
+    };
+
+    if (editRuleId) {
+      const { error } = await supabase
+        .from("automation_rules")
+        .update(payload)
+        .eq("id", editRuleId);
+      if (error) { toast.error(error.message); return; }
+      toast.success("Automation rule updated");
+    } else {
+      const { error } = await supabase.from("automation_rules").insert({
+        ...payload,
+        project_id: id,
+        created_by: profile.id,
+      });
+      if (error) { toast.error(error.message); return; }
+      toast.success("Automation rule created");
+    }
+    resetRuleForm();
+    setAutomationRulesOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["project-automation-rules", id] });
+  };
+
+  const toggleRuleStatus = async (ruleId: string, enabled: boolean) => {
+    if (!id) return;
+    const { error } = await supabase
+      .from("automation_rules")
+      .update({ status: enabled ? "enabled" : "disabled" })
+      .eq("id", ruleId);
+    if (error) { toast.error(error.message); return; }
+    queryClient.invalidateQueries({ queryKey: ["project-automation-rules", id] });
+  };
+
+  const deleteAutomationRule = async () => {
+    if (!deleteRuleConfirmId || !id) return;
+    const { error } = await supabase
+      .from("automation_rules")
+      .delete()
+      .eq("id", deleteRuleConfirmId);
+    if (error) { toast.error(error.message); return; }
+    setDeleteRuleConfirmId(null);
+    toast.success("Automation rule deleted");
+    queryClient.invalidateQueries({ queryKey: ["project-automation-rules", id] });
+  };
+
+  const deleteTask = async () => {
+    if (!deleteTaskConfirmId || !id) return;
+    const { error } = await supabase.from("tasks").delete().eq("id", deleteTaskConfirmId);
+    if (error) { toast.error(error.message); return; }
+    setDeleteTaskConfirmId(null);
+    toast.success("Task deleted");
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
   };
 
   const completeActionItem = async (itemId: string) => {
@@ -835,6 +940,7 @@ export default function ProjectDetailPage() {
       toast.success(`${selectedUsers.length} member(s) added`);
       setSelectedUsers([]);
       setRoleInputs({});
+      setShowOtherRole({});
       setAddMemberOpen(false);
       queryClient.invalidateQueries({ queryKey: ["project-members", id] });
     } catch (err: any) { toast.error(err.message); }
@@ -898,7 +1004,9 @@ export default function ProjectDetailPage() {
     e.preventDefault();
     if (!taskTitle.trim()) return;
     try {
-      const initialStatus = workflowStatuses?.find((s: any) => s.is_initial);
+      const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
+      const hasSprint = !!taskSprintId;
       const { error } = await supabase.from("tasks").insert({
         project_id: id!,
         title: taskTitle.trim(),
@@ -909,8 +1017,8 @@ export default function ProjectDetailPage() {
         client_visible: taskClientVisible,
         assigned_to: taskAssignedTo || null,
         sprint_id: taskSprintId || null,
-        status_id: initialStatus?.id || null,
-        status: initialStatus?.name || "unlinked",
+        status_id: hasSprint ? linkedStatus?.id : (unlinkedStatus?.id || null),
+        status: hasSprint ? "linked" : "unlinked",
         created_by: profile?.id,
       });
       if (error) throw error;
@@ -921,7 +1029,6 @@ export default function ProjectDetailPage() {
       setTaskPriority("medium");
       setTaskEstimatedHours("");
       setTaskDueDate("");
-      setTaskStoryPoints("");
       setTaskClientVisible(true);
       setTaskAssignedTo("");
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
@@ -937,7 +1044,6 @@ export default function ProjectDetailPage() {
     setEditTaskDueDate(task.due_date || "");
     setEditTaskClientVisible(task.client_visible !== false);
     setEditTaskAssignedTo(task.assigned_to || "");
-    setEditTaskStatusId(task.status_id || "");
     setEditTaskSprintId(task.sprint_id || "");
     setEditTaskOpen(true);
   };
@@ -946,6 +1052,9 @@ export default function ProjectDetailPage() {
     e.preventDefault();
     if (!editTaskTitle.trim() || !editTaskId) return;
     try {
+      const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
+      const hasSprint = !!editTaskSprintId;
       const updates: any = {
         title: editTaskTitle.trim(),
         description: editTaskDescription.trim() || null,
@@ -955,16 +1064,22 @@ export default function ProjectDetailPage() {
         client_visible: editTaskClientVisible,
         assigned_to: editTaskAssignedTo || null,
         sprint_id: editTaskSprintId || null,
+        status_id: hasSprint ? linkedStatus?.id : (unlinkedStatus?.id || null),
+        status: hasSprint ? "linked" : "unlinked",
       };
-      if (editTaskStatusId) {
-        updates.status_id = editTaskStatusId;
-      }
       const { error } = await supabase
         .from("tasks")
         .update(updates)
         .eq("id", editTaskId);
       if (error) throw error;
       toast.success("Task updated");
+      const { error: rpcError } = await supabase.rpc("run_automation_rules", {
+        p_project_id: id,
+        p_trigger_type: "status_change",
+        p_entity_type: "task",
+        p_entity_id: editTaskId,
+      });
+      if (rpcError) console.error("Automation engine error:", rpcError);
       setEditTaskOpen(false);
       setEditTaskId(null);
       setEditTaskDueDate("");
@@ -1157,10 +1272,12 @@ export default function ProjectDetailPage() {
           {isAdmin && <TabsTrigger value="logs">Logs</TabsTrigger>}
           <TabsTrigger value="stats">Stats</TabsTrigger>
           <TabsTrigger value="tasks">Tasks ({tasks?.length || 0})</TabsTrigger>
+          <TabsTrigger value="kanban">Kanban</TabsTrigger>
           {isAdmin && <TabsTrigger value="phases">Phases</TabsTrigger>}
           <TabsTrigger value="sprints">Sprints ({sprints?.length || 0})</TabsTrigger>
           {isAdmin && <TabsTrigger value="action-items">Action Items ({actionItems.length})</TabsTrigger>}
           {isAdmin && <TabsTrigger value="portal-messages">Portal Messages ({portalMessages.length})</TabsTrigger>}
+          {isAdmin && <TabsTrigger value="automation-rules">Automation ({automationRules.length})</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview">
@@ -2114,13 +2231,18 @@ export default function ProjectDetailPage() {
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">VISIBLE</div>
                         {t.client_visible !== false ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
                       </td>
-                      <td className="px-4 py-3 text-right">
+                      <td className="px-4 py-3 text-right flex gap-2">
                         <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
                           <Info className="h-4 w-4" />
                         </button>
                         <button onClick={() => openEditTask(t)} className={editButtonClass} title="Edit Task">
                           <Pencil className="h-4 w-4" />
                         </button>
+                        {profile?.role === "admin" && (
+                          <button onClick={() => setDeleteTaskConfirmId(t.id)} className={editButtonClass} title="Delete Task">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        )}
                       </td>
                     </tr>
                   ))}
@@ -2296,6 +2418,106 @@ export default function ProjectDetailPage() {
           )}
         </TabsContent>
 
+        {/* KANBAN BOARD — all project members */}
+        <TabsContent value="kanban" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Kanban Board</h2>
+            <div className="flex gap-2">
+              <Select value={kanbanSprintFilter} onValueChange={setKanbanSprintFilter}>
+                <SelectTrigger className="w-[160px] h-9">
+                  <SelectValue placeholder="All Sprints" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sprints</SelectItem>
+                  <SelectItem value="__backlog__">Backlog</SelectItem>
+                  {sprints.map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={kanbanPriorityFilter} onValueChange={setKanbanPriorityFilter}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue placeholder="All Priorities" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Priorities</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                </SelectContent>
+              </Select>
+              {isAdmin && (
+                <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button">
+                  <Plus className="h-4 w-4 mr-1" />Add Task
+                </Button>
+              )}
+            </div>
+          </div>
+
+          <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "500px" }}>
+            {(workflowStatuses || []).map((status: any) => {
+              const tasksInColumn = (tasks || []).filter((t: any) => {
+                const statusMatch = t.status === status.name;
+                const sprintMatch = kanbanSprintFilter === "all"
+                  || (kanbanSprintFilter === "__backlog__" ? !t.sprint_id : t.sprint_id === kanbanSprintFilter);
+                const priorityMatch = kanbanPriorityFilter === "all" || t.priority === kanbanPriorityFilter;
+                return statusMatch && sprintMatch && priorityMatch;
+              });
+
+              return (
+                <div key={status.id} className="flex-shrink-0 w-72 bg-muted/30 rounded-lg border flex flex-col">
+                  <div className="p-3 border-b flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${(TASK_STATUS_COLORS[status.name] || "").split(" ")[0] || "bg-gray-400"}`} />
+                      <span className="font-semibold text-sm capitalize">{status.name.replace(/_/g, " ")}</span>
+                    </div>
+                    <Badge variant="secondary" className="text-xs">{tasksInColumn.length}</Badge>
+                  </div>
+                  <div className="p-2 space-y-2 flex-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 360px)" }}>
+                    {tasksInColumn.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-8">No tasks</p>
+                    ) : (
+                      tasksInColumn.map((t: any) => (
+                        <div
+                          key={t.id}
+                          className="bg-white rounded-md p-3 border cursor-pointer hover:shadow-md transition-shadow"
+                          onClick={() => setViewTaskData(t)}
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-sm font-medium leading-tight line-clamp-2">{t.title}</span>
+                            <Badge className={`shrink-0 ${PRIORITY_COLORS[t.priority] || ""}`}>{t.priority}</Badge>
+                          </div>
+                          <div className="flex items-center gap-2 mt-2">
+                            {(t as any).users?.full_name && (
+                              <Avatar className="h-5 w-5">
+                                <AvatarImage src={getAvatarUrl((t as any).users?.full_name)} />
+                                <AvatarFallback className="text-[8px]">{(t as any).users?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                              </Avatar>
+                            )}
+                            {(t as any).users?.full_name && (
+                              <span className="text-xs text-muted-foreground truncate">{(t as any).users?.full_name}</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                            {t.due_date && (
+                              <span className="text-xs text-muted-foreground">Due {format(new Date(t.due_date + "T00:00:00"), "MMM d")}</span>
+                            )}
+                            {t.sprint_id && (() => {
+                              const s = sprints.find((sp: any) => sp.id === t.sprint_id);
+                              return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null;
+                            })()}
+                            {t.is_flagged && <Flag className="h-3 w-3 text-red-500 shrink-0" />}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </TabsContent>
+
         {isAdmin && (
           <TabsContent value="action-items" className="space-y-4">
             <div className="flex items-center justify-between">
@@ -2409,7 +2631,277 @@ export default function ProjectDetailPage() {
             )}
           </TabsContent>
         )}
+        {isAdmin && (
+          <TabsContent value="automation-rules" className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Automation Rules</h3>
+              <Button onClick={openAddRule}><Plus className="h-4 w-4" /> Add Rule</Button>
+            </div>
+            {automationRules.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No automation rules yet. Create rules to automate project workflows.</p>
+            ) : (
+              <div className="space-y-3">
+                {automationRules.map((rule: any) => (
+                  <Card key={rule.id} className="p-4">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="text-sm font-semibold">{rule.name}</h4>
+                          <Badge variant="outline">{rule.trigger_type.replace(/_/g, " ")}</Badge>
+                          <Badge variant={rule.status === "enabled" ? "default" : "secondary"}>{rule.status}</Badge>
+                        </div>
+                        {rule.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{rule.description}</p>}
+                        <p className="text-xs text-muted-foreground mt-1">Priority: {rule.priority} &middot; {rule.allow_triggering_other_rules ? "Chainable" : "No chaining"}</p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Switch checked={rule.status === "enabled"} onCheckedChange={(c) => toggleRuleStatus(rule.id, c)} />
+                        <Button variant="ghost" size="icon" onClick={() => openEditRule(rule)} title="Edit">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setDeleteRuleConfirmId(rule.id)} title="Delete">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+        )}
       </Tabs>
+
+      {/* Automation Rule Dialog */}
+      <Dialog open={automationRulesOpen} onOpenChange={(o) => { if (!o) { resetRuleForm(); } setAutomationRulesOpen(o); }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{editRuleId ? "Edit Automation Rule" : "Add Automation Rule"}</DialogTitle></DialogHeader>
+          <form onSubmit={saveAutomationRule} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="ruleName">Name *</Label>
+              <Input id="ruleName" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g. Block critical task on blocker" required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ruleDescription">Description *</Label>
+              <Textarea id="ruleDescription" value={ruleDescription} onChange={(e) => setRuleDescription(e.target.value)} placeholder="Describe what this rule does" rows={2} required />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select value={ruleStatus} onValueChange={setRuleStatus}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="draft">Draft</SelectItem>
+                    <SelectItem value="enabled">Enabled</SelectItem>
+                    <SelectItem value="disabled">Disabled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Trigger</Label>
+                <Select value={ruleTriggerType} onValueChange={setRuleTriggerType}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="status_change">Status Change</SelectItem>
+                    <SelectItem value="blocker_raised">Blocker Raised</SelectItem>
+                    <SelectItem value="blocker_resolved">Blocker Resolved</SelectItem>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="rulePriority">Priority (higher = runs first)</Label>
+                <Input id="rulePriority" type="number" value={rulePriority} onChange={(e) => setRulePriority(Number(e.target.value))} />
+              </div>
+              <div className="flex items-end pb-2">
+                <div className="flex items-center gap-2">
+                  <Switch id="ruleAllowTriggering" checked={ruleAllowTriggering} onCheckedChange={setRuleAllowTriggering} />
+                  <Label htmlFor="ruleAllowTriggering" className="text-sm">Allow triggering other rules</Label>
+                </div>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Conditions (all must match)</Label>
+                <Button variant="outline" size="sm" onClick={addCondition} type="button">
+                  <Plus className="h-4 w-4" /> Add Condition
+                </Button>
+              </div>
+              {ruleConditions.length === 0 ? (
+                <p className="text-xs text-muted-foreground">No conditions — rule matches all events.</p>
+              ) : (
+                ruleConditions.map((cond, idx) => (
+                  <div key={idx} className="flex items-start gap-2">
+                    <Select value={cond.field} onValueChange={(v) => setRuleConditions(ruleConditions.map((c, i) => i === idx ? { field: v, operator: "eq", value: "" } : c))}>
+                      <SelectTrigger className="w-[160px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="status_id">Task Status</SelectItem>
+                        <SelectItem value="priority">Task Priority</SelectItem>
+                        <SelectItem value="due_date">Due Date</SelectItem>
+                        <SelectItem value="assigned_to">Assigned To</SelectItem>
+                        <SelectItem value="description">Task Description</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={cond.operator} onValueChange={(v) => updateCondition(idx, "operator", v)}>
+                      <SelectTrigger className="w-[130px]"><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="eq">equals</SelectItem>
+                        <SelectItem value="neq">not equals</SelectItem>
+                        <SelectItem value="gt">greater than</SelectItem>
+                        <SelectItem value="lt">less than</SelectItem>
+                        <SelectItem value="contains">contains</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {cond.field === "status_id" ? (
+                      <Select value={cond.value} onValueChange={(v) => updateCondition(idx, "value", v)}>
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Select status" /></SelectTrigger>
+                        <SelectContent>
+                          {(workflowStatuses || []).map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : cond.field === "priority" ? (
+                      <Select value={cond.value} onValueChange={(v) => updateCondition(idx, "value", v)}>
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Select priority" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="low">Low</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : cond.field === "due_date" ? (
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button variant="outline" className={cn("flex-1 justify-start text-left font-normal", !cond.value && "text-muted-foreground")}>
+                            <CalendarIcon className="mr-2 h-4 w-4" />
+                            {cond.value ? format(new Date(cond.value + "T00:00:00"), "PPP") : <span>Pick a date</span>}
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-auto p-0" align="start">
+                          <Calendar mode="single" selected={cond.value ? new Date(cond.value + "T00:00:00") : undefined} onSelect={(d) => updateCondition(idx, "value", d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
+                        </PopoverContent>
+                      </Popover>
+                    ) : cond.field === "assigned_to" ? (
+                      <Select value={cond.value} onValueChange={(v) => updateCondition(idx, "value", v)}>
+                        <SelectTrigger className="flex-1"><SelectValue placeholder="Select user" /></SelectTrigger>
+                        <SelectContent>
+                          {(members || []).map((m: any) => (
+                            <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input value={cond.value} onChange={(e) => updateCondition(idx, "value", e.target.value)} placeholder="value" className="flex-1" />
+                    )}
+                    <Button variant="ghost" size="icon" onClick={() => removeCondition(idx)} type="button">
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="space-y-3">
+              <Label>Actions (run in sequence) *</Label>
+              {ruleActions.length === 0 && (
+                <p className="text-xs text-muted-foreground">No actions yet. Add at least one action.</p>
+              )}
+              {ruleActions.map((act, idx) => (
+                <Card key={idx} className="p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-medium text-muted-foreground">#{idx + 1}</span>
+                      <Select value={act.type} onValueChange={(v) => setActionType(idx, v)}>
+                        <SelectTrigger className="w-[200px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="change_status">Change Task Status</SelectItem>
+                          <SelectItem value="assign_user">Assign to Member</SelectItem>
+                          <SelectItem value="assign_role">Assign to Role</SelectItem>
+                          <SelectItem value="add_comment">Add Comment to Task</SelectItem>
+                          <SelectItem value="resolve_blocker">Resolve the Blocker</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button variant="ghost" size="icon" onClick={() => removeAction(idx)} type="button">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  {act.type === "change_status" && (
+                    <Select value={act.params.status_id || ""} onValueChange={(v) => setActionParam(idx, "status_id", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select target status" /></SelectTrigger>
+                      <SelectContent>
+                        {(workflowStatuses || []).map((s: any) => (
+                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {act.type === "assign_user" && (
+                    <Select value={act.params.user_id || ""} onValueChange={(v) => setActionParam(idx, "user_id", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select user" /></SelectTrigger>
+                      <SelectContent>
+                        {(members || []).map((m: any) => (
+                          <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {act.type === "assign_role" && (
+                    <Select value={act.params.role_id || ""} onValueChange={(v) => setActionParam(idx, "role_id", v)}>
+                      <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
+                      <SelectContent>
+                        {(projectRoles || []).map((r: any) => (
+                          <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                  {act.type === "add_comment" && (
+                    <Textarea value={act.params.body || ""} onChange={(e) => setActionParam(idx, "body", e.target.value)} placeholder="Comment text" rows={2} />
+                  )}
+                  {act.type === "resolve_blocker" && (
+                    <p className="text-xs text-muted-foreground">This action resolves the blocker that triggered the rule. No additional parameters needed.</p>
+                  )}
+                </Card>
+              ))}
+              <Button variant="outline" size="sm" onClick={addAction} type="button">
+                <Plus className="h-4 w-4" /> Add Action
+              </Button>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { resetRuleForm(); setAutomationRulesOpen(false); }}>Cancel</Button>
+              <Button type="submit">{editRuleId ? "Update Rule" : "Create Rule"}</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!deleteRuleConfirmId} onOpenChange={(o) => { if (!o) setDeleteRuleConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Automation Rule?</AlertDialogTitle>
+            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteRuleConfirmId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteAutomationRule}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteTaskConfirmId} onOpenChange={(o) => { if (!o) setDeleteTaskConfirmId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Task?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete this task and its blockers. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setDeleteTaskConfirmId(null)}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={deleteTask} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Add Task Dialog */}
       <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
@@ -2471,22 +2963,12 @@ export default function ProjectDetailPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Phase</label>
-              <Select value={taskPhaseId} onValueChange={(v) => { setTaskPhaseId(v); setTaskSprintId(""); }}>
-                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
-                <SelectContent>
-                  {(phases || []).map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <label className="text-sm font-medium">Sprint</label>
-              <Select value={taskSprintId} onValueChange={setTaskSprintId}>
+              <Select value={taskSprintId || "__backlog__"} onValueChange={(v) => setTaskSprintId(v === "__backlog__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
                 <SelectContent>
-                  {sprints.filter((s: any) => s.status !== "completed" && (!taskPhaseId || s.phase_id === taskPhaseId)).map((s: any) => (
+                  <SelectItem value="__backlog__">Backlog</SelectItem>
+                  {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} ({s.status})
                     </SelectItem>
@@ -2583,15 +3065,7 @@ export default function ProjectDetailPage() {
 
       {/* Edit Task Dialog */}
       <Dialog open={editTaskOpen} onOpenChange={(open) => {
-        if (!open) {
-          setNewComment("");
-          setShowAddBlocker(false);
-          setNewBlockerDescription("");
-          setAddDepOpen(false);
-          setAddDepTaskId("");
-          setAddDepType("finish_to_start");
-          setDependencyWarning("");
-        }
+        if (!open) setDependencyWarning("");
         setEditTaskOpen(open);
       }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
@@ -2652,22 +3126,12 @@ export default function ProjectDetailPage() {
               </Select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Phase</label>
-              <Select value={editTaskPhaseId} onValueChange={(v) => { setEditTaskPhaseId(v); setEditTaskSprintId(""); }}>
-                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
-                <SelectContent>
-                  {(phases || []).map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
               <label className="text-sm font-medium">Sprint</label>
-              <Select value={editTaskSprintId} onValueChange={setEditTaskSprintId}>
+              <Select value={editTaskSprintId || "__backlog__"} onValueChange={(v) => setEditTaskSprintId(v === "__backlog__" ? "" : v)}>
                 <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
                 <SelectContent>
-                  {sprints.filter((s: any) => s.status !== "completed" && (!editTaskPhaseId || s.phase_id === editTaskPhaseId)).map((s: any) => (
+                  <SelectItem value="__backlog__">Backlog</SelectItem>
+                  {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name} ({s.status})
                     </SelectItem>
@@ -2675,31 +3139,6 @@ export default function ProjectDetailPage() {
                 </SelectContent>
               </Select>
             </div>
-            {workflowStatuses && workflowStatuses.length > 0 && (
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Status</label>
-                <Select value={editTaskStatusId} onValueChange={setEditTaskStatusId}>
-                  <SelectTrigger><SelectValue placeholder="Select status" /></SelectTrigger>
-                  <SelectContent>
-                    {(() => {
-                      const allowed = (workflowTransitions && editTaskStatusId)
-                        ? (() => {
-                            const fromAllowed = getAllowedTransitions(workflowStatuses, workflowTransitions, editTaskStatusId);
-                            const curr = workflowStatuses.find((s: any) => s.id === editTaskStatusId);
-                            return curr && !fromAllowed.some((a: any) => a.id === curr.id)
-                              ? [curr, ...fromAllowed] : fromAllowed;
-                          })()
-                        : workflowStatuses;
-                      return allowed.map((s: any) => (
-                        <SelectItem key={s.id} value={s.id}>
-                          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.name}</span>
-                        </SelectItem>
-                      ));
-                    })()}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             {dependencyWarning && (
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
                 <span className="font-medium">⚠ {dependencyWarning}</span>
@@ -2710,167 +3149,6 @@ export default function ProjectDetailPage() {
               <Button type="submit">Save</Button>
             </DialogFooter>
           </form>
-
-          {/* Dependencies */}
-          <Separator className="my-4" />
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg> Dependencies</h4>
-            {editDepsLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : editDeps.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No dependencies.</p>
-            ) : (
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {editDeps.map((d: any) => (
-                  <div key={d.id} className="flex items-center justify-between bg-muted/30 rounded-md p-2.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm truncate">{d.depends_on?.title || "Unknown"}</span>
-                      <Badge variant="outline" className="text-[10px]">{d.dependency_type.replace(/_/g, " ")}</Badge>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(editTaskId!); }}
-                      className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors text-muted-foreground hover:text-red-600"
-                      title="Remove dependency"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {addDepOpen ? (
-              <div className="space-y-2 border rounded-md p-3">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium">Depends on</label>
-                  <Select value={addDepTaskId} onValueChange={setAddDepTaskId}>
-                    <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
-                    <SelectContent>
-                      {(tasks || [])
-                        .filter((t: any) => t.id !== editTaskId)
-                        .map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.title}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium">Dependency type</label>
-                  <Select value={addDepType} onValueChange={setAddDepType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="finish_to_start">Finish → Start</SelectItem>
-                      <SelectItem value="start_to_start">Start → Start</SelectItem>
-                      <SelectItem value="finish_to_finish">Finish → Finish</SelectItem>
-                      <SelectItem value="start_to_finish">Start → Finish</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={() => addDependency(editTaskId!)} disabled={!addDepTaskId}>Add</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setAddDepOpen(false); setAddDepTaskId(""); setAddDepForTaskId(null); }}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => setAddDepOpen(true)} className="w-full">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Dependency
-              </Button>
-            )}
-          </div>
-
-          {/* Comments */}
-          <Separator className="my-4" />
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Comments</h4>
-            {commentsLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : comments.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No comments yet.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {comments.map((c: any) => (
-                  <div key={c.id} className="flex gap-2 bg-muted/30 rounded-md p-2.5">
-                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                      <AvatarImage src={getAvatarUrl(c.author?.full_name)} />
-                      <AvatarFallback className="text-[10px]">{c.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : "Unknown")}</span>
-                        <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), "MMM d, h:mm a")}</span>
-                      </div>
-                      <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Add a comment..."
-                rows={2}
-                className="text-sm resize-none"
-              />
-              <Button type="button" size="sm" onClick={() => addComment(editTaskId!)} disabled={!newComment.trim()} className="shrink-0 self-end">Comment</Button>
-            </div>
-          </div>
-
-          {/* Blockers */}
-          <Separator className="my-4" />
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Blockers</h4>
-            {blockersLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : blockers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No blockers reported.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {blockers.map((b: any) => (
-                  <div key={b.id} className="flex items-start justify-between gap-2 bg-muted/30 rounded-md p-2.5">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{b.description}</span>
-                        {b.status === "resolved" ? (
-                          <Badge className="bg-green-100 text-green-700 text-[10px]">Resolved</Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-700 text-[10px]">Open</Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-muted-foreground">by {b.raiser?.full_name || "Unknown"}</span>
-                        <span className="text-[10px] text-muted-foreground">{format(new Date(b.raised_at), "MMM d")}</span>
-                        {b.status === "resolved" && b.resolver && (
-                          <span className="text-[10px] text-muted-foreground">· resolved by {b.resolver.full_name}</span>
-                        )}
-                      </div>
-                    </div>
-                    {b.status !== "resolved" && (
-                      <Button type="button" size="sm" variant="ghost" onClick={() => resolveBlocker(b.id, editTaskId!)} className="shrink-0 h-7 px-2" title="Resolve">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {showAddBlocker ? (
-              <div className="space-y-2 border rounded-md p-3">
-                <Textarea value={newBlockerDescription} onChange={(e) => setNewBlockerDescription(e.target.value)} placeholder="Describe the blocker..." rows={2} className="text-sm resize-none" />
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={() => addBlocker(editTaskId!, id!)} disabled={!newBlockerDescription.trim()}>Add</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setShowAddBlocker(false); setNewBlockerDescription(""); }}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => setShowAddBlocker(true)} className="w-full">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Report Blocker
-              </Button>
-            )}
-          </div>
         </DialogContent>
       </Dialog>
 
@@ -2897,7 +3175,7 @@ export default function ProjectDetailPage() {
               <div className="mt-1">
                 <p className="text-sm text-muted-foreground">{descExpanded ? viewTaskData.description : truncateWords(viewTaskData.description, 4)}</p>
                 {viewTaskData.description.split(/\s+/).length > 4 && (
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => setDescExpanded(!descExpanded)}>
+                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-foreground" onClick={() => setDescExpanded(!descExpanded)}>
                     {descExpanded ? "Show less" : "Show more"}
                   </Button>
                 )}
@@ -3126,7 +3404,28 @@ export default function ProjectDetailPage() {
                   {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
                 </div>
                 {selectedUsers.includes(e.id) && (
-                  <Input className="mt-2" placeholder="Project role (e.g. Lead Developer)" value={roleInputs[e.id] || ""} onChange={(e2) => setRoleInputs({ ...roleInputs, [e.id]: e2.target.value })} onClick={(e2) => e2.stopPropagation()} />
+                  <div className="mt-2 space-y-2" onClick={(e2) => e2.stopPropagation()}>
+                    <Select value={showOtherRole[e.id] ? "__other__" : roleInputs[e.id] || ""} onValueChange={(v) => {
+                      if (v === "__other__") {
+                        setShowOtherRole({ ...showOtherRole, [e.id]: true });
+                        setRoleInputs({ ...roleInputs, [e.id]: "" });
+                      } else {
+                        setShowOtherRole({ ...showOtherRole, [e.id]: false });
+                        setRoleInputs({ ...roleInputs, [e.id]: v });
+                      }
+                    }}>
+                      <SelectTrigger><SelectValue placeholder="Select role..." /></SelectTrigger>
+                      <SelectContent>
+                        {projectRoles.map((r: any) => (
+                          <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>
+                        ))}
+                        <SelectItem value="__other__">Other…</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {showOtherRole[e.id] && (
+                      <Input placeholder="Enter role name" value={roleInputs[e.id] || ""} onChange={(e2) => setRoleInputs({ ...roleInputs, [e.id]: e2.target.value })} />
+                    )}
+                  </div>
                 )}
               </div>
             ))}

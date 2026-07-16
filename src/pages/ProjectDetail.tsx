@@ -3210,7 +3210,7 @@ const { data: resolvedId } = useQuery({
                     </Avatar>
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : "Unknown")}</span>
+                        <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}</span>
                         <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), "MMM d, h:mm a")}</span>
                       </div>
                       <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>

@@ -15,9 +15,11 @@ import {
   CalendarCheck,
   Shield,
   User,
+
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
+import { useState, useEffect } from "react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +32,9 @@ import {
   SidebarGroupLabel,
   SidebarMenu,
   SidebarMenuButton,
+  SidebarMenuSub,
+  SidebarMenuSubItem,
+  SidebarMenuSubButton,
   SidebarMenuItem,
   SidebarFooter,
   useSidebar,
@@ -93,6 +98,25 @@ export function AppSidebar() {
     : role === "manager"
     ? managerNav
     : employeeNav;
+
+  // Project detail sub-navigation (client portal only)
+  const projectMatch = location.pathname.match(/^\/projects\/([^/]+)/);
+  const [projectsSubOpen, setProjectsSubOpen] = useState(false);
+  const currentProjectSlug = projectMatch?.[1] || null;
+  const isOnProjectDetail = isClient && !!currentProjectSlug;
+  const currentTab = new URLSearchParams(location.search).get("tab") || "overview";
+  const clientProjectNav = [
+    { label: "Overview", value: "overview" },
+    { label: "Phase Progress", value: "phase-progress" },
+    { label: "Tasks", value: "tasks" },
+    { label: "Blockers", value: "blockers" },
+    { label: "Project Updates", value: "status-updates" },
+    { label: "Action Items", value: "action-items" },
+    { label: "Resources", value: "resources" },
+  ];
+  useEffect(() => {
+    if (isOnProjectDetail) setProjectsSubOpen(true);
+  }, [isOnProjectDetail]);
 
   // Unread announcements badge
   const { data: unreadCount } = useQuery({
@@ -191,28 +215,69 @@ export function AppSidebar() {
                 const isActive = item.url === "/" ? location.pathname === "/" : location.pathname.startsWith(item.url);
                 const badgeCount = getBadgeCount(item.title);
                 const showBadge = badgeCount > 0;
+                const isProjectsItem = item.title === "Projects" && isClient;
                 return (
                   <SidebarMenuItem key={item.title}>
-                    <SidebarMenuButton asChild isActive={isActive}>
-                      <NavLink
-                        to={item.url}
-                        end={item.url === "/"}
-                        className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                        activeClassName="!bg-sidebar-accent !text-sidebar-primary font-medium"
-                      >
-                        <item.icon className="h-4 w-4 shrink-0" />
-                        {!collapsed && (
-                          <span className="flex items-center gap-2 flex-1">
-                            {item.title}
-                            {showBadge && (
-                              <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
-                                {badgeCount > 99 ? "99+" : badgeCount}
-                              </span>
-                            )}
-                          </span>
+                    {isProjectsItem ? (
+                      <>
+                        <SidebarMenuButton
+                          onClick={() => setProjectsSubOpen(!projectsSubOpen)}
+                          isActive={isActive}
+                        >
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          {!collapsed && (
+                            <span className="flex items-center gap-2 flex-1">
+                              {item.title}
+                            </span>
+                          )}
+                        </SidebarMenuButton>
+                        {!collapsed && projectsSubOpen && isOnProjectDetail && (
+                          <SidebarMenuSub>
+                            {clientProjectNav.map((sub) => (
+                              <SidebarMenuSubItem key={sub.value}>
+                                  <SidebarMenuSubButton
+                                  asChild
+                                >
+                                  <NavLink
+                                    to={`/projects/${currentProjectSlug}?tab=${sub.value}`}
+                                    className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
+                                      currentTab === sub.value
+                                        ? "text-primary font-medium"
+                                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
+                                    }`}
+                                  >
+                                    <span className="text-xs">
+                                      {sub.label}
+                                    </span>
+                                  </NavLink>
+                                </SidebarMenuSubButton>
+                              </SidebarMenuSubItem>
+                            ))}
+                          </SidebarMenuSub>
                         )}
-                      </NavLink>
-                    </SidebarMenuButton>
+                      </>
+                    ) : (
+                      <SidebarMenuButton asChild isActive={isActive}>
+                        <NavLink
+                          to={item.url}
+                          end={item.url === "/"}
+                          className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
+                          activeClassName="!bg-sidebar-accent !text-sidebar-primary font-medium"
+                        >
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          {!collapsed && (
+                            <span className="flex items-center gap-2 flex-1">
+                              {item.title}
+                              {showBadge && (
+                                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+                                  {badgeCount > 99 ? "99+" : badgeCount}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                        </NavLink>
+                      </SidebarMenuButton>
+                    )}
                   </SidebarMenuItem>
                 );
               })}

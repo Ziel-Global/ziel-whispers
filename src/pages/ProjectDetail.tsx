@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useWorkSettings, getPKTDateString } from "@/hooks/useWorkSettings";
+import { createNotification, createProjectRelatedNotifications, getClientMemberIds } from "@/lib/notification-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, ChevronDown, ChevronRight, Send } from "lucide-react";
 import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, X, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -48,6 +50,21 @@ export default function ProjectDetailPage() {
   const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
   const isClient = profile?.role === "client" || profile?.role === "client member";
+
+  const renderMessageContent = (content: string) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = content.split(urlRegex);
+    return parts.map((part, i) =>
+      urlRegex.test(part) ? (
+        <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800 break-all">{part}</a>
+      ) : (
+        <span key={i}>{part}</span>
+      )
+    );
+  };
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") || "overview";
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [addMemberMode, setAddMemberMode] = useState<"resource" | "client">("resource");
@@ -121,11 +138,11 @@ export default function ProjectDetailPage() {
   const [newActionItemTitle, setNewActionItemTitle] = useState("");
   const [newActionItemDesc, setNewActionItemDesc] = useState("");
   const [newActionItemDue, setNewActionItemDue] = useState("");
+  const [newActionItemVisible, setNewActionItemVisible] = useState(false);
+  const [newActionItemBlockerId, setNewActionItemBlockerId] = useState("");
+  const [expandedActionItemId, setExpandedActionItemId] = useState<string | null>(null);
+  const [newActionItemMessage, setNewActionItemMessage] = useState("");
 
-  const [newPortalMsgTitle, setNewPortalMsgTitle] = useState("");
-  const [newPortalMsgBody, setNewPortalMsgBody] = useState("");
-  const [newPortalMsgCtaLabel, setNewPortalMsgCtaLabel] = useState("");
-  const [newPortalMsgCtaUrl, setNewPortalMsgCtaUrl] = useState("");
   const [sprintTasksOpen, setSprintTasksOpen] = useState(false);
   const [selectedSprint, setSelectedSprint] = useState<any>(null);
   const [taskSprintId, setTaskSprintId] = useState("");
@@ -427,7 +444,7 @@ const { data: resolvedId } = useQuery({
         .eq("project_id", id)
         .order("snapshot_date", { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
       return data || null;
     },
     enabled: !!id,
@@ -481,12 +498,54 @@ const { data: resolvedId } = useQuery({
       if (!id) return [];
       const { data } = await supabase
         .from("client_action_items")
-        .select("*")
+        .select("*, blockers:task_blockers(id, status, description), resolver:users!client_action_items_resolved_by_fkey(full_name)")
         .eq("project_id", id)
         .order("created_at", { ascending: false });
       return data || [];
     },
     enabled: !!id,
+  });
+
+  const { data: actionItemMessages = [] } = useQuery({
+    queryKey: ["action-item-messages", expandedActionItemId],
+    queryFn: async () => {
+      if (!expandedActionItemId) return [];
+      const { data } = await supabase
+        .from("client_action_item_messages")
+        .select("*, sender:users(full_name, role)")
+        .eq("action_item_id", expandedActionItemId)
+        .order("created_at", { ascending: true });
+      return data || [];
+    },
+    enabled: !!expandedActionItemId,
+  });
+
+  const sendActionItemMessage = async (actionItemId: string) => {
+    if (!newActionItemMessage.trim() || !profile) return;
+    const { error } = await supabase.from("client_action_item_messages").insert({
+      action_item_id: actionItemId,
+      sender_id: profile.id,
+      content: newActionItemMessage.trim(),
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewActionItemMessage("");
+    queryClient.invalidateQueries({ queryKey: ["action-item-messages", actionItemId] });
+  };
+
+  const { data: eligibleBlockers = [] } = useQuery({
+    queryKey: ["eligible-blockers", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data, error } = await supabase
+        .from("task_blockers")
+        .select("id, description")
+        .eq("project_id", id)
+        .eq("status", "open")
+        .eq("client_visible", true);
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!id && isAdmin,
   });
 
   const { data: portalMessages = [] } = useQuery({
@@ -524,7 +583,7 @@ const { data: resolvedId } = useQuery({
       if (!id) return [];
       const { data } = await supabase
         .from("task_blockers")
-        .select("*, raiser:users!task_blockers_raised_by_fkey(full_name)")
+        .select("*, raiser:users!task_blockers_raised_by_fkey(full_name), linked_action_items:client_action_items(id, title, status)")
         .eq("project_id", id)
         .order("raised_at", { ascending: false });
       return data || [];
@@ -572,6 +631,27 @@ const { data: resolvedId } = useQuery({
     queryClient.invalidateQueries({ queryKey: ["task-comments-view", viewTaskData.id] });
   };
 
+  const addBlocker = async (taskId: string, projectId: string) => {
+    if (!newBlockerDescription.trim() || !profile) return;
+    const { data: blockerData, error } = await supabase.from("task_blockers").insert({
+      project_id: projectId,
+      task_id: taskId,
+      description: newBlockerDescription.trim(),
+      raised_by: profile.id,
+    });
+    if (error) { toast.error(error.message); return; }
+    setNewBlockerDescription("");
+    setShowAddBlocker(false);
+    queryClient.invalidateQueries({ queryKey: ["task-blockers", taskId] });
+    
+    await createNotification({
+      userId: profile.id,
+      type: "blocker_created",
+      title: "New Blocker Created",
+      message: `${profile.full_name} created a new blocker`,
+      projectId: projectId,
+    });
+  };
 
   const addViewBlocker = async () => {
     if (!newViewBlockerDescription.trim() || !viewTaskData?.id || !profile) return;
@@ -594,6 +674,24 @@ const { data: resolvedId } = useQuery({
       if (rpcError) console.error("Automation engine error:", rpcError);
     }
     queryClient.invalidateQueries({ queryKey: ["task-blockers-view", viewTaskData.id] });
+    
+    const { data: blockers } = await supabase
+      .from("task_blockers")
+      .select("*, raised_by:users(full_name), resolved_by:users!task_blockers_resolved_by_fkey(full_name)")
+      .eq("id", viewTaskData?.blockerId);
+    
+    const blocker = blockers?.[0];
+    const isClientAction = blocker?.requires_client_action || false;
+    
+    const message = `${profile.full_name} created a new blocker`;
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId: viewTaskData.project_id,
+      type: "blocker_created",
+      title: "New Blocker Created",
+      message,
+      requiresClientAction: isClientAction,
+    });
     queryClient.invalidateQueries({ queryKey: ["project-tasks", viewTaskData.project_id] });
     const { data: updatedTask } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
     if (updatedTask) setViewTaskData(updatedTask);
@@ -614,6 +712,64 @@ const { data: resolvedId } = useQuery({
     });
     if (rpcError) console.error("Automation engine error:", rpcError);
     queryClient.invalidateQueries({ queryKey: ["task-blockers-view", taskId] });
+    
+    const { data: blockers } = await supabase
+      .from("task_blockers")
+      .select("*, project_id")
+      .eq("id", blockerId);
+    
+    if (blockers?.[0]) {
+      const blocker = blockers[0];
+      const isClientAction = blocker.requires_client_action || false;
+      const message = `${profile.full_name} resolved a blocker`;
+      await createProjectRelatedNotifications({
+        createdByUserId: profile.id,
+        projectId: blocker.project_id,
+        type: "blocker_resolved",
+        title: "Blocker Resolved",
+        message,
+        requiresClientAction: isClientAction,
+      });
+
+      // Auto-complete linked action items
+      const { data: linkedItems } = await supabase
+        .from("client_action_items")
+        .select("id, title, status")
+        .eq("blocker_id", blockerId)
+        .eq("status", "pending");
+
+      if (linkedItems && linkedItems.length > 0) {
+        const now = new Date().toISOString();
+        for (const item of linkedItems) {
+          await supabase
+            .from("client_action_items")
+            .update({ status: "completed", completed_at: now })
+            .eq("id", item.id);
+
+          await supabase.from("audit_logs").insert({
+            actor_id: profile.id,
+            action: "action_item.auto_completed",
+            target_entity: "client_action_items",
+            target_id: item.id,
+            metadata: {
+              previous_status: item.status,
+              new_status: "completed",
+              trigger: "blocker_resolved",
+              blocker_id: blockerId,
+            },
+          });
+
+          await createProjectRelatedNotifications({
+            createdByUserId: profile.id,
+            projectId: blocker.project_id,
+            type: "action_item_auto_completed",
+            title: "Action Item Auto-Completed",
+            message: `"${item.title}" was automatically completed due to blocker resolution`,
+          });
+        }
+        queryClient.invalidateQueries({ queryKey: ["project-action-items", blocker.project_id] });
+      }
+    }
     queryClient.invalidateQueries({ queryKey: ["project-tasks", viewTaskData?.project_id || id] });
     const { data: updatedTask } = await supabase.from("tasks").select("*").eq("id", taskId).single();
     if (updatedTask) setViewTaskData(updatedTask);
@@ -645,6 +801,38 @@ const { data: resolvedId } = useQuery({
       });
   }, [editTaskStatusId, editTaskId, workflowStatuses]);
 
+  useEffect(() => {
+    if (!expandedActionItemId) return;
+    const channel = supabase
+      .channel("action-item-msgs-" + expandedActionItemId)
+      .on("postgres_changes", {
+        event: "INSERT",
+        schema: "public",
+        table: "client_action_item_messages",
+        filter: `action_item_id=eq.${expandedActionItemId}`,
+      }, () => {
+        queryClient.invalidateQueries({ queryKey: ["action-item-messages", expandedActionItemId] });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [expandedActionItemId, queryClient]);
+
+  const addDependency = async (taskId: string) => {
+    if (!addDepTaskId || !profile) return;
+    const { error } = await supabase.from("task_dependencies").insert({
+      task_id: taskId,
+      depends_on_task_id: addDepTaskId,
+      dependency_type: addDepType,
+      created_by: profile.id,
+    });
+    if (error) { toast.error(error.message); return; }
+    setAddDepOpen(false);
+    setAddDepTaskId("");
+    setAddDepType("finish_to_start");
+    setAddDepForTaskId(null);
+    queryClient.invalidateQueries({ queryKey: ["task-deps-edit", taskId] });
+    queryClient.invalidateQueries({ queryKey: ["task-deps-view", taskId] });
+  };
 
   const removeDependency = async (depId: string, taskId: string) => {
     const { error } = await supabase.from("task_dependencies").delete().eq("id", depId);
@@ -681,6 +869,14 @@ const { data: resolvedId } = useQuery({
     setNewStatusUpdateVisible(false);
     toast.success("Status update posted");
     queryClient.invalidateQueries({ queryKey: ["project-status-updates", id] });
+    
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId: id,
+      type: "project_update",
+      title: "New Project Update",
+      message: `${profile.full_name} posted a project update`,
+    });
   };
 
   const addActionItem = async (e: React.FormEvent) => {
@@ -692,33 +888,38 @@ const { data: resolvedId } = useQuery({
       description: newActionItemDesc.trim() || null,
       due_date: newActionItemDue || null,
       requested_by: profile.id,
+      visible_to_client: newActionItemVisible,
+      blocker_id: newActionItemBlockerId || null,
     });
     if (error) { toast.error(error.message); return; }
     setNewActionItemTitle("");
     setNewActionItemDesc("");
     setNewActionItemDue("");
+    setNewActionItemVisible(false);
+    setNewActionItemBlockerId("");
     toast.success("Action item created");
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
-  };
-
-  const addPortalMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newPortalMsgTitle.trim() || !profile || !id) return;
-    const { error } = await supabase.from("client_portal_messages").insert({
-      project_id: id,
-      title: newPortalMsgTitle.trim(),
-      body: newPortalMsgBody.trim() || null,
-      cta_label: newPortalMsgCtaLabel.trim() || null,
-      cta_url: newPortalMsgCtaUrl.trim() || null,
-      created_by: profile.id,
+    
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId: id,
+      type: "action_item_created",
+      title: "New Action Item",
+      message: `${profile.full_name} created a new action item`,
     });
-    if (error) { toast.error(error.message); return; }
-    setNewPortalMsgTitle("");
-    setNewPortalMsgBody("");
-    setNewPortalMsgCtaLabel("");
-    setNewPortalMsgCtaUrl("");
-    toast.success("Portal message posted");
-    queryClient.invalidateQueries({ queryKey: ["project-portal-messages", id] });
+
+    if (newActionItemVisible && newActionItemBlockerId) {
+      const clientIds = await getClientMemberIds(id);
+      for (const clientId of clientIds) {
+        await createNotification({
+          userId: clientId,
+          type: "action_item_linked",
+          title: "Action Required (Blocker)",
+          message: `A new action item "${newActionItemTitle.trim()}" is linked to an active blocker and requires your attention.`,
+          projectId: id,
+        });
+      }
+    }
   };
 
   const saveAutomationRule = async (e: React.FormEvent) => {
@@ -796,15 +997,31 @@ const { data: resolvedId } = useQuery({
   };
 
   const completeActionItem = async (itemId: string) => {
-    if (!id) return;
+    if (!id || !profile) return;
     const { error } = await supabase
       .from("client_action_items")
-      .update({ status: "completed", completed_at: new Date().toISOString() })
+      .update({ status: "completed", completed_at: new Date().toISOString(), resolved_by: profile.id })
       .eq("id", itemId)
       .eq("project_id", id);
     if (error) { toast.error(error.message); return; }
     toast.success("Action item completed");
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+
+    await supabase.from("audit_logs").insert({
+      actor_id: profile.id,
+      action: "action_item.completed",
+      target_entity: "client_action_items",
+      target_id: itemId,
+    });
+
+    const message = `${profile.full_name} completed an action item`;
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId: id,
+      type: "action_item_completed",
+      title: "Action Item Completed",
+      message,
+    });
   };
 
   const createSprint = async (e: React.FormEvent) => {
@@ -1264,7 +1481,8 @@ const { data: resolvedId } = useQuery({
         )}
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={(tab) => setSearchParams({ tab })}>
+        {!isClient && (
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="resources">Resources ({resourceMembers.length})</TabsTrigger>
@@ -1276,202 +1494,13 @@ const { data: resolvedId } = useQuery({
           {isAdmin && <TabsTrigger value="phases">Phases</TabsTrigger>}
           <TabsTrigger value="sprints">Sprints ({sprints?.length || 0})</TabsTrigger>
           {isAdmin && <TabsTrigger value="action-items">Action Items ({actionItems.length})</TabsTrigger>}
-          {isAdmin && <TabsTrigger value="portal-messages">Portal Messages ({portalMessages.length})</TabsTrigger>}
+
           {isAdmin && <TabsTrigger value="automation-rules">Automation ({automationRules.length})</TabsTrigger>}
+
         </TabsList>
+        )}
 
         <TabsContent value="overview">
-          {isClient ? (
-            <div className="space-y-6">
-              <Card className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h2 className="text-xl font-bold">{project.name}</h2>
-                    <p className="text-sm text-muted-foreground">{(project.clients as any)?.name}</p>
-                  </div>
-                  <Badge className={
-                    latestHealth?.health_status === "on_track" ? "bg-green-100 text-green-800" :
-                    latestHealth?.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800" :
-                    latestHealth?.health_status === "delayed" ? "bg-red-100 text-red-800" :
-                    "bg-gray-100 text-gray-800"
-                  }>
-                    {latestHealth ? latestHealth.health_status.replace(/_/g, " ") : "No health data"}
-                  </Badge>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-muted-foreground block">Status</span><span className="font-medium">{project.status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}</span></div>
-                  <div><span className="text-muted-foreground block">Start Date</span><span className="font-medium">{format(new Date(project.start_date), "MMM d, yyyy")}</span></div>
-                  <div><span className="text-muted-foreground block">End Date</span><span className="font-medium">{project.end_date ? format(new Date(project.end_date), "MMM d, yyyy") : "—"}</span></div>
-                  <div><span className="text-muted-foreground block">Workflow</span><span className="font-medium">{workflowTemplate?.name || "—"}</span></div>
-                </div>
-                {project.description && <p className="text-sm text-muted-foreground mt-4">{project.description}</p>}
-                {(project as any).document_link && (
-                  <div className="mt-4">
-                    <a href={(project as any).document_link} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-sm text-primary hover:underline font-medium">
-                      <ExternalLink className="h-4 w-4" /> Open Document
-                    </a>
-                  </div>
-                )}
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Phase Progress</h3>
-                {phases.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No phases defined.</p>
-                ) : (
-                  <div className="space-y-4">
-                    {phases.map((p: any) => (
-                      <div key={p.id}>
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-sm font-medium">{p.title}</span>
-                          <span className="text-xs text-muted-foreground">{phaseProgress[p.id] || 0}%</span>
-                        </div>
-                        <div className="w-full bg-muted rounded-full h-2 mb-1">
-                          <div
-                            className="bg-primary h-2 rounded-full transition-all"
-                            style={{ width: `${phaseProgress[p.id] || 0}%` }}
-                          />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {phaseTaskCount[p.id] || 0} task{(phaseTaskCount[p.id] || 0) !== 1 ? "s" : ""}
-                          {p.due_date ? <> · Due {format(new Date(p.due_date + "T00:00:00"), "MMM d, yyyy")}</> : ""}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Status Updates</h3>
-                {statusUpdatesLoading ? (
-                  <p className="text-xs text-muted-foreground">Loading...</p>
-                ) : statusUpdates.filter((u: any) => u.visible_to_client).length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No status updates yet.</p>
-                ) : (
-                  <div className="space-y-3 max-h-64 overflow-y-auto">
-                    {statusUpdates.filter((u: any) => u.visible_to_client).map((u: any) => (
-                      <div key={u.id} className="flex gap-2 bg-muted/30 rounded-md p-3">
-                        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                          <AvatarImage src={getAvatarUrl(u.author?.full_name)} />
-                          <AvatarFallback className="text-[10px]">{u.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs font-semibold">{u.author?.full_name || "Team"}</span>
-                            <span className="text-[10px] text-muted-foreground">{format(new Date(u.created_at), "MMM d, h:mm a")}</span>
-                          </div>
-                          <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{u.summary}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Open Blockers</h3>
-                {projectBlockers.filter((b: any) => b.client_visible && b.status === "open").length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No open blockers.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {projectBlockers.filter((b: any) => b.client_visible && b.status === "open").map((b: any) => (
-                      <div key={b.id} className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-md">
-                        <AlertCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <div className="min-w-0">
-                          <p className="text-sm font-medium">{b.description}</p>
-                          <p className="text-[10px] text-muted-foreground">Raised by {b.raiser?.full_name || "Unknown"}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Action Items</h3>
-                {actionItems.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No action items.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {actionItems.filter((a: any) => a.status !== "completed").map((a: any) => (
-                      <div key={a.id} className="flex items-center justify-between p-3 border rounded-md">
-                        <div className="flex items-center gap-3 min-w-0">
-                          <Checkbox
-                            checked={false}
-                            onCheckedChange={() => completeActionItem(a.id)}
-                          />
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">{a.title}</p>
-                            {a.description && <p className="text-xs text-muted-foreground">{a.description}</p>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          {a.due_date && <Badge variant="secondary" className="text-xs">Due {format(new Date(a.due_date + "T00:00:00"), "MMM d")}</Badge>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Portal Messages</h3>
-                {portalMessages.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No messages.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {portalMessages.map((m: any) => (
-                      <div key={m.id} className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                        <h4 className="text-sm font-semibold">{m.title}</h4>
-                        {m.body && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{m.body}</p>}
-                        {m.cta_label && m.cta_url && (
-                          <a href={m.cta_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline mt-2">
-                            {m.cta_label} <ExternalLink className="h-3 w-3" />
-                          </a>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </Card>
-
-              <Card className="p-6">
-                <h3 className="text-sm font-semibold mb-3">Tasks</h3>
-                {(() => {
-                  const clientTasks = (tasks || []).filter((t: any) => t.client_visible);
-                  const statusCounts = clientTasks.reduce((acc: Record<string, number>, t: any) => {
-                    acc[t.status] = (acc[t.status] || 0) + 1;
-                    return acc;
-                  }, {} as Record<string, number>);
-                  if (clientTasks.length === 0) return <p className="text-xs text-muted-foreground">No tasks available.</p>;
-                  return (
-                    <div className="space-y-2">
-                      {Object.entries(statusCounts).length > 0 && (
-                        <div className="flex flex-wrap gap-1.5 mb-3">
-                          {Object.entries(statusCounts).map(([status, count]) => (
-                            <Badge key={status} variant="secondary" className="text-xs">
-                              {status.replace(/_/g, " ").replace(/\b\w/g, (l: string) => l.toUpperCase())}: {count}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      {clientTasks.map((t: any) => (
-                        <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                          <div className="min-w-0">
-                            <p className="text-sm font-medium">{t.title}</p>
-                            <p className="text-xs text-muted-foreground">{t.status.replace(/_/g, " ")}</p>
-                            <p className="text-xs text-muted-foreground">Assigned to {(t as any).users?.full_name || "Unassigned"}</p>
-                          </div>
-                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })()}
-              </Card>
-            </div>
-          ) : (
           <Card className="p-6 space-y-4">
             {project.description && <p className="text-muted-foreground">{project.description}</p>}
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
@@ -1533,137 +1562,523 @@ const { data: resolvedId } = useQuery({
               <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">This project is currently on hold.</div>
             )}
 
-            <Separator className="my-6" />
+            {/* Portal Messages — visible to all */}
+            {portalMessages.length > 0 && (
+              <div className="pt-4 border-t space-y-3">
+                <h3 className="text-sm font-semibold">Messages</h3>
+                {portalMessages.map((m: any) => (
+                  <div key={m.id} className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                    <h4 className="text-sm font-semibold">{m.title}</h4>
+                    {m.body && <p className="text-sm text-muted-foreground mt-1 whitespace-pre-wrap">{m.body}</p>}
+                    {m.cta_label && m.cta_url && (
+                      <a href={m.cta_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline mt-2">
+                        {m.cta_label} <ExternalLink className="h-3 w-3" />
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
 
-            {/* Burndown Chart */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-semibold">Burndown</h3>
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-muted-foreground">Scope:</label>
-                  <Select value={burndownScope} onValueChange={setBurndownScope}>
-                    <SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="project">Project</SelectItem>
-                      {phases.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            {/* Burndown Chart — admin/employee only (hours-based) */}
+            {!isClient && (
+              <>
+                <Separator className="my-6" />
+
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">Burndown</h3>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-muted-foreground">Scope:</label>
+                      <Select value={burndownScope} onValueChange={setBurndownScope}>
+                        <SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="project">Project</SelectItem>
+                          {phases.map((p: any) => (
+                            <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {(() => {
+                    const scopeTasks = burndownScope === "project"
+                      ? (tasks || [])
+                      : (tasks || []).filter((t: any) => t.phase_id === burndownScope);
+                    const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
+                    const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
+                    const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
+                    const logged = scopeTasks.reduce((s: number, t: any) => {
+                      const taskLogs = (logs || []).filter((l: any) => l.task_id === t.id);
+                      return s + taskLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
+                    }, 0);
+                    const remaining = Math.max(0, totalEst - logged);
+                    const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
+                    const endDate = scopePhase?.due_date || project?.end_date;
+                    const startDate = project?.start_date;
+
+                    if (estimated.length === 0) {
+                      return <p className="text-xs text-muted-foreground py-4">No estimated tasks to show burndown.</p>;
+                    }
+
+                    if (!endDate || !startDate) {
+                      return <p className="text-xs text-muted-foreground py-4">Project needs start and end dates for burndown.</p>;
+                    }
+
+                    const daysTotal = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000));
+                    const daysElapsed = Math.max(0, Math.round((Date.now() - new Date(startDate).getTime()) / 86400000));
+                    const idealPerDay = totalEst / daysTotal;
+                    const idealRemaining = Math.max(0, totalEst - idealPerDay * Math.min(daysElapsed, daysTotal));
+
+                    const burndownData = [
+                      { name: "Start", ideal: totalEst, actual: totalEst },
+                      { name: "Now", ideal: idealRemaining, actual: remaining },
+                      { name: "Due", ideal: 0, actual: null },
+                    ];
+
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
+                          <span>Total estimated: <strong>{totalEst}h</strong></span>
+                          <span>Logged: <strong>{logged.toFixed(1)}h</strong></span>
+                          <span>Remaining: <strong>{remaining.toFixed(1)}h</strong></span>
+                          {unestimated.length > 0 && (
+                            <span className="text-yellow-600">Unestimated: <strong>{unestimated.length} task{unestimated.length > 1 ? "s" : ""}</strong></span>
+                          )}
+                        </div>
+                        <ResponsiveContainer width="100%" height={200}>
+                          <LineChart data={burndownData}>
+                            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
+                            <YAxis tick={{ fontSize: 11 }} />
+                            <Tooltip contentStyle={{ fontSize: 12 }} />
+                            <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 4 }} name="Ideal" />
+                            <Line type="monotone" dataKey="actual" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} connectNulls name="Actual" />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    );
+                  })()}
                 </div>
+              </>
+            )}
+
+            {/* Status Updates — admin/employee only */}
+            {!isClient && (
+              <>
+                <Separator className="my-6" />
+
+                <div className="space-y-4">
+                  <h3 className="text-sm font-semibold">Status Updates</h3>
+                  {statusUpdatesLoading ? (
+                    <p className="text-xs text-muted-foreground">Loading...</p>
+                  ) : statusUpdates.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No status updates yet.</p>
+                  ) : (
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {statusUpdates.map((u: any) => (
+                        <div key={u.id} className="flex gap-2 bg-muted/30 rounded-md p-3">
+                          <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                            <AvatarImage src={getAvatarUrl(u.author?.full_name)} />
+                            <AvatarFallback className="text-[10px]">{u.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-semibold">{u.author?.full_name || (u.author_type === "ai" ? "AI" : "Unknown")}</span>
+                              <span className="text-[10px] text-muted-foreground">{format(new Date(u.created_at), "MMM d, h:mm a")}</span>
+                              {u.visible_to_client ? (
+                                <Eye className="h-3 w-3 text-muted-foreground" title="Visible to client" />
+                              ) : (
+                                <EyeOff className="h-3 w-3 text-muted-foreground" title="Internal only" />
+                              )}
+                            </div>
+                            <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{u.summary}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex gap-2 items-start">
+                    <Textarea
+                      value={newStatusUpdate}
+                      onChange={(e) => setNewStatusUpdate(e.target.value)}
+                      placeholder="Post a status update..."
+                      rows={2}
+                      className="text-sm resize-none flex-1"
+                    />
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <Checkbox id="status-update-visible" checked={newStatusUpdateVisible} onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)} />
+                        <label htmlFor="status-update-visible" className="text-[10px] cursor-pointer text-muted-foreground">Visible to client</label>
+                      </div>
+                      <Button type="button" size="sm" onClick={addStatusUpdate} disabled={!newStatusUpdate.trim()} className="shrink-0">Post</Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </Card>
+        </TabsContent>
+
+        {/* Client-only tabs (rendered via sidebar sub-nav) */}
+        {isClient && (
+          <>
+            <TabsContent value="phase-progress">
+              <div className="mb-4">
+                <h3 className="text-lg font-semibold">Phase Progress</h3>
               </div>
               {(() => {
+                const clientTasks = (tasks || []).filter((t: any) => t.client_visible === true);
+                const doneStatusIds = new Set(
+                  (workflowStatuses || []).filter((s: any) => s.category === "done").map((s: any) => s.id)
+                );
+
+                const clientPhaseTaskCount: Record<string, number> = {};
+                clientTasks.forEach((t: any) => {
+                  if (t.phase_id) clientPhaseTaskCount[t.phase_id] = (clientPhaseTaskCount[t.phase_id] || 0) + 1;
+                });
+
+                const clientPhaseProgress: Record<string, number> = {};
+                (phases || []).forEach((p: any) => {
+                  const pts = clientTasks.filter((t: any) => t.phase_id === p.id);
+                  if (pts.length === 0) { clientPhaseProgress[p.id] = 0; return; }
+                  const completed = pts.filter((t: any) => doneStatusIds.has(t.status_id)).length;
+                  clientPhaseProgress[p.id] = Math.round((completed / pts.length) * 100);
+                });
+
+                const visiblePhases = (phases || []).filter((p: any) => (clientPhaseTaskCount[p.id] || 0) > 0);
+
+                if (visiblePhases.length === 0) {
+                  return <Card className="p-6"><p className="text-muted-foreground">No phase progress to display.</p></Card>;
+                }
+
+                return (
+                  <div>
+                    <TableHeader gridCols="1fr 96px 112px 192px">
+                      <span>PHASE</span>
+                      <span>TASKS</span>
+                      <span>DUE DATE</span>
+                      <span>PROGRESS</span>
+                    </TableHeader>
+                    {visiblePhases.map((p: any) => (
+                      <DataRow key={p.id} gridCols="1fr 96px 112px 192px">
+                        <div>
+                          <RowPrimary>{p.title}</RowPrimary>
+                          <RowSecondary>
+                            {clientPhaseTaskCount[p.id] || 0} tasks · {(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints
+                          </RowSecondary>
+                        </div>
+                        <RowDataItem label="TASKS">{clientPhaseTaskCount[p.id] || 0}</RowDataItem>
+                        <RowDataItem label="DUE DATE">{p.due_date ? format(new Date(p.due_date), "MMM d, yyyy") : "—"}</RowDataItem>
+                        <RowDataItem label="PROGRESS">
+                          <div className="flex items-center gap-2">
+                            <div className="w-20 bg-muted rounded-full h-2">
+                              <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${clientPhaseProgress[p.id]}%` }} />
+                            </div>
+                            <span className="text-[11px] text-[#6b7280]">{clientPhaseProgress[p.id]}%</span>
+                          </div>
+                        </RowDataItem>
+                      </DataRow>
+                    ))}
+                  </div>
+                );
+              })()}
+            </TabsContent>
+            <TabsContent value="tasks" className="space-y-4">
+              {(() => {
                 const scopeTasks = burndownScope === "project"
-                  ? (tasks || [])
-                  : (tasks || []).filter((t: any) => t.phase_id === burndownScope);
-                const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
-                const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
-                const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
-                const logged = scopeTasks.reduce((s: number, t: any) => {
-                  const taskLogs = (logs || []).filter((l: any) => l.task_id === t.id);
-                  return s + taskLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
-                }, 0);
-                const remaining = Math.max(0, totalEst - logged);
+                  ? (tasks || []).filter((t: any) => t.client_visible === true)
+                  : (tasks || []).filter((t: any) => t.client_visible === true && t.phase_id === burndownScope);
+
+                const doneStatusIds = new Set(
+                  (workflowStatuses || []).filter((s: any) => s.category === "done").map((s: any) => s.id)
+                );
+                const completed = scopeTasks.filter((t: any) => doneStatusIds.has(t.status_id));
+                const total = scopeTasks.length;
+                const doneCount = completed.length;
+                const remainingTasks = total - doneCount;
+                const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
                 const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
                 const endDate = scopePhase?.due_date || project?.end_date;
                 const startDate = project?.start_date;
 
-                if (estimated.length === 0) {
-                  return <p className="text-xs text-muted-foreground py-4">No estimated tasks to show burndown.</p>;
+                if (total === 0) {
+                  return (
+                    <Card className="p-6 text-center">
+                      <p className="text-muted-foreground">No client-visible tasks are available for this project.</p>
+                    </Card>
+                  );
                 }
 
                 if (!endDate || !startDate) {
-                  return <p className="text-xs text-muted-foreground py-4">Project needs start and end dates for burndown.</p>;
+                  return (
+                    <Card className="p-6 text-center">
+                      <p className="text-muted-foreground">Project needs start and end dates for burndown.</p>
+                    </Card>
+                  );
                 }
 
                 const daysTotal = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000));
                 const daysElapsed = Math.max(0, Math.round((Date.now() - new Date(startDate).getTime()) / 86400000));
-                const idealPerDay = totalEst / daysTotal;
-                const idealRemaining = Math.max(0, totalEst - idealPerDay * Math.min(daysElapsed, daysTotal));
+                const idealPerDay = total / daysTotal;
+                const idealRemaining = Math.max(0, total - idealPerDay * Math.min(daysElapsed, daysTotal));
 
                 const burndownData = [
-                  { name: "Start", ideal: totalEst, actual: totalEst },
-                  { name: "Now", ideal: idealRemaining, actual: remaining },
+                  { name: "Start", ideal: total, actual: total },
+                  { name: "Now", ideal: idealRemaining, actual: remainingTasks },
                   { name: "Due", ideal: 0, actual: null },
                 ];
 
                 return (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-                      <span>Total estimated: <strong>{totalEst}h</strong></span>
-                      <span>Logged: <strong>{logged.toFixed(1)}h</strong></span>
-                      <span>Remaining: <strong>{remaining.toFixed(1)}h</strong></span>
-                      {unestimated.length > 0 && (
-                        <span className="text-yellow-600">Unestimated: <strong>{unestimated.length} task{unestimated.length > 1 ? "s" : ""}</strong></span>
-                      )}
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <Card className="p-4 text-center">
+                        <span className="text-xs text-muted-foreground block">Total Tasks</span>
+                        <span className="text-2xl font-bold">{total}</span>
+                      </Card>
+                      <Card className="p-4 text-center">
+                        <span className="text-xs text-muted-foreground block">Completed</span>
+                        <span className="text-2xl font-bold text-green-600">{doneCount}</span>
+                      </Card>
+                      <Card className="p-4 text-center">
+                        <span className="text-xs text-muted-foreground block">Remaining</span>
+                        <span className="text-2xl font-bold">{remainingTasks}</span>
+                      </Card>
+                      <Card className="p-4 text-center">
+                        <span className="text-xs text-muted-foreground block">Progress</span>
+                        <span className="text-2xl font-bold">{pct}%</span>
+                      </Card>
                     </div>
+
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold">Task Burndown</h3>
+                      <div className="flex items-center gap-2">
+                        <label className="text-xs text-muted-foreground">Scope:</label>
+                        <Select value={burndownScope} onValueChange={setBurndownScope}>
+                          <SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="project">Project</SelectItem>
+                            {phases.map((p: any) => (
+                              <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
                     <ResponsiveContainer width="100%" height={200}>
                       <LineChart data={burndownData}>
                         <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                         <Tooltip contentStyle={{ fontSize: 12 }} />
                         <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 4 }} name="Ideal" />
                         <Line type="monotone" dataKey="actual" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} connectNulls name="Actual" />
                       </LineChart>
                     </ResponsiveContainer>
-                  </div>
+
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-semibold">Tasks</h3>
+                      {(() => {
+                        const clientTasks = (tasks || []).filter((t: any) => t.client_visible === true);
+                        if (clientTasks.length === 0) {
+                          return <p className="text-sm text-muted-foreground">No client-visible tasks are available for this project.</p>;
+                        }
+                        return (
+                          <table className="w-full">
+                            <thead>
+                              <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                                <th className="px-4 py-2 text-left">TASK</th>
+                                <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                                <th className="px-4 py-2 text-left">PRIORITY</th>
+                                <th className="px-4 py-2 text-left">STATUS</th>
+                                <th className="px-4 py-2 text-left">DUE DATE</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {clientTasks.map((t: any) => (
+                                <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                                  <td className="px-4 py-3">
+                                    <div className="font-semibold text-[15px] text-[#111827] truncate">{t.title}</div>
+                                    <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                                  </td>
+                                  <td className="px-4 py-3">
+                                    <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        );
+                      })()}
+                    </div>
+
+                  </>
                 );
               })()}
-            </div>
-
-            <Separator className="my-6" />
-
-            {/* Status Updates */}
-            <div className="space-y-4">
-              <h3 className="text-sm font-semibold">Status Updates</h3>
-              {statusUpdatesLoading ? (
-                <p className="text-xs text-muted-foreground">Loading...</p>
-              ) : statusUpdates.length === 0 ? (
-                <p className="text-xs text-muted-foreground">No status updates yet.</p>
+            </TabsContent>
+            <TabsContent value="blockers" className="space-y-4">
+              <h2 className="text-lg font-semibold">Blockers</h2>
+              {projectBlockers.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No blockers reported.</p>
               ) : (
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {statusUpdates.map((u: any) => (
-                    <div key={u.id} className="flex gap-2 bg-muted/30 rounded-md p-3">
-                      <Avatar className="h-7 w-7 shrink-0 mt-0.5">
-                        <AvatarImage src={getAvatarUrl(u.author?.full_name)} />
-                        <AvatarFallback className="text-[10px]">{u.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0 flex-1">
+                <div className="space-y-2">
+                  {projectBlockers.filter((b: any) => b.client_visible !== false).map((b: any) => (
+                    <div key={b.id} className="flex items-start justify-between gap-2 bg-muted/30 rounded-md p-3">
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-semibold">{u.author?.full_name || (u.author_type === "ai" ? "AI" : "Unknown")}</span>
-                          <span className="text-[10px] text-muted-foreground">{format(new Date(u.created_at), "MMM d, h:mm a")}</span>
-                          {u.visible_to_client ? (
-                            <Eye className="h-3 w-3 text-muted-foreground" title="Visible to client" />
+                          <span className="text-sm font-medium">{b.description}</span>
+                          {b.status === "resolved" ? (
+                            <Badge className="bg-green-100 text-green-700 text-[10px]">Resolved</Badge>
                           ) : (
-                            <EyeOff className="h-3 w-3 text-muted-foreground" title="Internal only" />
+                            <Badge className="bg-red-100 text-red-700 text-[10px]">Open</Badge>
                           )}
                         </div>
-                        <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{u.summary}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="text-[10px] text-muted-foreground">by {b.raiser?.full_name || "Unknown"}</span>
+                          <span className="text-[10px] text-muted-foreground">{format(new Date(b.raised_at), "MMM d")}</span>
+                          {b.status === "resolved" && b.resolver && (
+                            <span className="text-[10px] text-muted-foreground">· resolved by {b.resolver.full_name}</span>
+                          )}
+                        </div>
+                        {b.linked_action_items && b.linked_action_items.length > 0 && (
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <span className="text-[10px] text-muted-foreground">Linked Action Items:</span>
+                            {b.linked_action_items.map((item: any) => (
+                              <Badge key={item.id} className={`text-[10px] ${item.status === "completed" ? "bg-green-100 text-green-800" : "bg-blue-100 text-blue-800"}`}>
+                                {item.title} ({item.status})
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="flex gap-2 items-start">
-                <Textarea
-                  value={newStatusUpdate}
-                  onChange={(e) => setNewStatusUpdate(e.target.value)}
-                  placeholder="Post a status update..."
-                  rows={2}
-                  className="text-sm resize-none flex-1"
-                />
-                <div className="flex flex-col gap-2 shrink-0">
-                  <div className="flex items-center gap-1.5">
-                    <Checkbox id="status-update-visible" checked={newStatusUpdateVisible} onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)} />
-                    <label htmlFor="status-update-visible" className="text-[10px] cursor-pointer text-muted-foreground">Visible to client</label>
+            </TabsContent>
+            <TabsContent value="status-updates" className="space-y-4">
+              <h2 className="text-lg font-semibold">Status Updates</h2>
+              {(() => {
+                const visibleUpdates = (statusUpdates || []).filter((u: any) => u.visible_to_client === true);
+                if (visibleUpdates.length === 0) {
+                  return <p className="text-sm text-muted-foreground">No status updates yet.</p>;
+                }
+                return (
+                  <div className="space-y-3">
+                    {visibleUpdates.map((u: any) => (
+                      <div key={u.id} className="flex gap-2 bg-muted/30 rounded-md p-3">
+                        <Avatar className="h-7 w-7 shrink-0 mt-0.5">
+                          <AvatarImage src={getAvatarUrl(u.author?.full_name)} />
+                          <AvatarFallback className="text-[10px]">{u.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold">{u.author?.full_name || (u.author_type === "ai" ? "AI" : "Unknown")}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(new Date(u.created_at), "MMM d, h:mm a")}</span>
+                          </div>
+                          <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{u.summary}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <Button type="button" size="sm" onClick={addStatusUpdate} disabled={!newStatusUpdate.trim()} className="shrink-0">Post</Button>
+                );
+              })()}
+            </TabsContent>
+            <TabsContent value="action-items" className="space-y-4">
+              <h2 className="text-lg font-semibold">Action Items</h2>
+              {actionItems.filter((a: any) => a.visible_to_client !== false).length === 0 ? (
+                <p className="text-sm text-muted-foreground">No action items yet.</p>
+              ) : (
+                <div className="space-y-0">
+                  {actionItems.filter((a: any) => a.visible_to_client !== false).map((a: any) => {
+                    const isExpanded = expandedActionItemId === a.id;
+                    return (
+                      <div key={a.id} className="border-b border-[#f3f4f6]">
+                        <button
+                          type="button"
+                          onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}
+                          className="w-full flex items-center gap-2 bg-white hover:bg-[#f1f5f9] px-4 py-3 text-left transition-colors"
+                        >
+                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-[15px] text-[#111827] truncate">{a.title}</div>
+                            {a.description && <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{a.description}</div>}
+                          </div>
+                          <Badge className={
+                            a.status === "completed" ? "bg-green-100 text-green-800" :
+                            a.status === "waived" ? "bg-gray-100 text-gray-800" :
+                            "bg-yellow-100 text-yellow-800"
+                          }>{a.status}</Badge>
+                          {a.due_date && <span className="text-[12px] text-[#6b7280] hidden sm:inline ml-2">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span>}
+                        </button>
+                        {isExpanded && (
+                          <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4">
+                            {a.status === "completed" && a.resolver && (
+                              <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
+                                Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
+                              </div>
+                            )}
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {actionItemMessages.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">No messages yet.</p>
+                              ) : (
+                                actionItemMessages.map((m: any) => (
+                                  <div key={m.id} className="flex gap-2 bg-white rounded-md p-2.5 border border-[#e5e7eb]">
+                                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                                      <AvatarImage src={getAvatarUrl(m.sender?.full_name)} />
+                                      <AvatarFallback className="text-[10px]">{m.sender?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold">{m.sender?.full_name || "Unknown"}</span>
+                                        <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "client member"}</Badge>
+                                        <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
+                                      </div>
+                                      <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            {a.status === "pending" && (
+                              <div className="flex gap-2">
+                                <Textarea
+                                  value={expandedActionItemId === a.id ? newActionItemMessage : ""}
+                                  onChange={(e) => setNewActionItemMessage(e.target.value)}
+                                  placeholder="Type a message or paste a link..."
+                                  rows={2}
+                                  className="text-sm resize-none"
+                                />
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  onClick={() => sendActionItemMessage(a.id)}
+                                  disabled={!newActionItemMessage.trim()}
+                                  className="shrink-0 self-end"
+                                >
+                                  <Send className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-            </div>
-          </Card>
-          )}
-        </TabsContent>
+              )}
+            </TabsContent>
+          </>
+        )}
 
         {/* RESOURCES — Admin: full management; Employee: view-only */}
         <TabsContent value="resources">
@@ -2068,8 +2483,8 @@ const { data: resolvedId } = useQuery({
           </TabsContent>
         )}
 
-        {/* TASKS — all users */}
-        {!isAdmin && (
+        {/* TASKS — employees only (clients have their own view above) */}
+        {!isAdmin && !isClient && (
           <TabsContent value="tasks" className="space-y-4">
             <h2 className="text-lg font-semibold">My Tasks</h2>
             {(() => {
@@ -2523,7 +2938,7 @@ const { data: resolvedId } = useQuery({
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Action Items</h3>
             </div>
-            <form onSubmit={addActionItem} className="flex gap-2 items-end">
+            <form onSubmit={addActionItem} className="flex gap-2 items-end flex-wrap">
               <div className="flex-1 space-y-1">
                 <label className="text-xs font-medium">Title *</label>
                 <Input value={newActionItemTitle} onChange={(e) => setNewActionItemTitle(e.target.value)} placeholder="Action item title" required />
@@ -2536,97 +2951,118 @@ const { data: resolvedId } = useQuery({
                 <label className="text-xs font-medium">Due Date</label>
                 <Input type="date" value={newActionItemDue} onChange={(e) => setNewActionItemDue(e.target.value)} className="w-[140px]" />
               </div>
+              <div className="flex items-center gap-2 pb-0.5">
+                <Checkbox
+                  id="action-visible-client"
+                  checked={newActionItemVisible}
+                  onCheckedChange={(v) => {
+                    setNewActionItemVisible(v === true);
+                    if (v !== true) setNewActionItemBlockerId("");
+                  }}
+                />
+                <label htmlFor="action-visible-client" className="text-xs font-medium cursor-pointer">Visible to Client</label>
+              </div>
+              {newActionItemVisible && eligibleBlockers.length > 0 && (
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Link to Blocker</label>
+                  <Select value={newActionItemBlockerId} onValueChange={setNewActionItemBlockerId}>
+                    <SelectTrigger className="w-[200px]"><SelectValue placeholder="Optional..." /></SelectTrigger>
+                    <SelectContent>
+                      {eligibleBlockers.map((b: any) => (
+                        <SelectItem key={b.id} value={b.id}>{b.description}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <Button type="submit" size="sm" className="rounded-button">Add</Button>
             </form>
             {actionItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">No action items yet.</p>
             ) : (
               <div>
-                <TableHeader gridCols="1fr 112px 96px 96px 80px">
+                <TableHeader gridCols="1fr 100px 96px 96px 80px 80px 80px">
                   <span>TITLE</span>
                   <span>STATUS</span>
                   <span>DUE DATE</span>
                   <span>REQUESTED</span>
+                  <span>VISIBLE</span>
+                  <span>BLOCKER</span>
                   <span className="text-right">ACTIONS</span>
                 </TableHeader>
-                {actionItems.map((a: any) => (
-                  <DataRow key={a.id} gridCols="1fr 112px 96px 96px 80px">
-                    <div>
-                      <RowPrimary>{a.title}</RowPrimary>
-                      {a.description && <RowSecondary>{a.description}</RowSecondary>}
-                    </div>
-                    <RowBadgeItem label="STATUS">
-                      <Badge className={
-                        a.status === "completed" ? "bg-green-100 text-green-800" :
-                        a.status === "waived" ? "bg-gray-100 text-gray-800" :
-                        "bg-yellow-100 text-yellow-800"
-                      }>{a.status}</Badge>
-                    </RowBadgeItem>
-                    <RowDataItem label="DUE DATE">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
-                    <RowDataItem label="REQUESTED">{a.requested_by ? "Yes" : "—"}</RowDataItem>
-                    <RowActions className="justify-self-end">
-                      {a.status === "pending" && (
-                        <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Complete">
-                          <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        </button>
+                {actionItems.map((a: any) => {
+                  const isExpanded = expandedActionItemId === a.id;
+                  return (
+                    <div key={a.id}>
+                      <DataRow gridCols="1fr 100px 96px 96px 80px 80px 80px">
+                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
+                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                          <div>
+                            <RowPrimary>{a.title}</RowPrimary>
+                            {a.description && <RowSecondary>{a.description}</RowSecondary>}
+                          </div>
+                        </div>
+                        <RowBadgeItem label="STATUS">
+                          <Badge className={
+                            a.status === "completed" ? "bg-green-100 text-green-800" :
+                            a.status === "waived" ? "bg-gray-100 text-gray-800" :
+                            "bg-yellow-100 text-yellow-800"
+                          }>{a.status}</Badge>
+                        </RowBadgeItem>
+                        <RowDataItem label="DUE DATE">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
+                        <RowDataItem label="REQUESTED">{a.requested_by ? "Yes" : "—"}</RowDataItem>
+                        <RowBadgeItem label="VISIBLE">
+                          {a.visible_to_client ? <Badge className="bg-blue-100 text-blue-800">Client</Badge> : <span className="text-muted-foreground">—</span>}
+                        </RowBadgeItem>
+                        <RowBadgeItem label="BLOCKER">
+                          {a.blockers ? (
+                            <Badge className={a.blockers.status === "resolved" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}>
+                              {a.blockers.status === "resolved" ? "Resolved" : "Active"}
+                            </Badge>
+                          ) : <span className="text-muted-foreground">—</span>}
+                        </RowBadgeItem>
+                        <RowActions className="justify-self-end">
+                          {a.status === "pending" && (
+                            <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            </button>
+                          )}
+                        </RowActions>
+                      </DataRow>
+                      {isExpanded && (
+                        <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
+                          {a.status === "completed" && a.resolver && (
+                            <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
+                              Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
+                            </div>
+                          )}
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {actionItemMessages.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No messages yet.</p>
+                            ) : (
+                              actionItemMessages.map((m: any) => (
+                                <div key={m.id} className="flex gap-2 bg-white rounded-md p-2.5 border border-[#e5e7eb]">
+                                  <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                                    <AvatarImage src={getAvatarUrl(m.sender?.full_name)} />
+                                    <AvatarFallback className="text-[10px]">{m.sender?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold">{m.sender?.full_name || "Unknown"}</span>
+                                      <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "client member"}</Badge>
+                                      <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
+                                    </div>
+                                    <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
                       )}
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
-            )}
-          </TabsContent>
-        )}
-
-        {isAdmin && (
-          <TabsContent value="portal-messages" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Portal Messages</h3>
-            </div>
-            <Card className="p-4">
-              <form onSubmit={addPortalMessage} className="space-y-3">
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Title *</label>
-                  <Input value={newPortalMsgTitle} onChange={(e) => setNewPortalMsgTitle(e.target.value)} placeholder="Message title" required />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Body</label>
-                  <Textarea value={newPortalMsgBody} onChange={(e) => setNewPortalMsgBody(e.target.value)} placeholder="Message body" rows={3} />
-                </div>
-                <div className="flex gap-2">
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs font-medium">CTA Label</label>
-                    <Input value={newPortalMsgCtaLabel} onChange={(e) => setNewPortalMsgCtaLabel(e.target.value)} placeholder="e.g. View Dashboard" />
-                  </div>
-                  <div className="flex-1 space-y-1">
-                    <label className="text-xs font-medium">CTA URL</label>
-                    <Input value={newPortalMsgCtaUrl} onChange={(e) => setNewPortalMsgCtaUrl(e.target.value)} placeholder="https://..." />
-                  </div>
-                </div>
-                <Button type="submit" size="sm" className="rounded-button">Post Message</Button>
-              </form>
-            </Card>
-            {portalMessages.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No portal messages yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {portalMessages.map((m: any) => (
-                  <Card key={m.id} className="p-4">
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <h4 className="text-sm font-semibold">{m.title}</h4>
-                        {m.body && <p className="text-sm text-muted-foreground mt-1">{m.body}</p>}
-                      </div>
-                      <Badge variant={m.active ? "default" : "secondary"} className="text-xs">{m.active ? "Active" : "Inactive"}</Badge>
                     </div>
-                    {m.cta_label && m.cta_url && (
-                      <a href={m.cta_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-sm font-medium text-primary hover:underline mt-2">
-                        {m.cta_label} <ExternalLink className="h-3 w-3" />
-                      </a>
-                    )}
-                    <p className="text-[10px] text-muted-foreground mt-2">Created {format(new Date(m.created_at), "MMM d, yyyy")}</p>
-                  </Card>
-                ))}
+                  );
+                })}
               </div>
             )}
           </TabsContent>

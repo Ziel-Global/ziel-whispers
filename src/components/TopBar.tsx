@@ -1,4 +1,4 @@
-import { LogOut, User } from "lucide-react";
+import { LogOut, User, Bell } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 import { getAvatarUrl } from "@/lib/utils";
+import { NotificationBell } from "@/components/NotificationBell";
 
 export function TopBar() {
   const { profile, signOut } = useAuth();
@@ -38,6 +39,7 @@ export function TopBar() {
         <span className="text-sm text-muted-foreground hidden sm:inline">
           {profile?.full_name}
         </span>
+        <NotificationBell />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="focus:outline-none">

@@ -18,6 +18,7 @@ import { Plus, X, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
 import { getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
+import { createNotification, getAdminManagerIds } from "@/lib/notification-helpers";
 
 const LEAVE_CATEGORIES = [
   { value: "sick", label: "Sick Leave" },
@@ -99,6 +100,13 @@ export default function MyLeavePage() {
       if (error) throw error;
 
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "wfh.requested", target_entity: "remote_work_requests" });
+
+      await createNotification({
+        userId: user!.id,
+        type: "remote_work_request",
+        title: "New Remote Work Request",
+        message: `${user!.email} submitted a remote work request from ${wfhStartDate} to ${wfhEndDate}`,
+      });
 
       supabase.functions.invoke("send-request-notification", {
         body: { type: "wfh", action: "new", request_id: newRequest.id, app_url: window.location.origin },
@@ -336,6 +344,13 @@ export default function MyLeavePage() {
       }).select("id").single();
       if (error) throw error;
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.requested", target_entity: "leave_requests" });
+      
+      await createNotification({
+        userId: user!.id,
+        type: "leave_request",
+        title: "New Leave Request",
+        message: `${user!.email} submitted a leave request from ${startDate} to ${finalEndDate}`, // ${daysCount} days
+      });
       
       supabase.functions.invoke("send-request-notification", {
         body: { type: "leave", action: "new", request_id: newRequest.id, app_url: window.location.origin },

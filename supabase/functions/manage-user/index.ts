@@ -178,6 +178,17 @@ Deno.serve(async (req) => {
           { table: "projects", col: "created_by" },
           { table: "users", col: "created_by" },
           { table: "system_settings", col: "updated_by" },
+          { table: "tasks", col: "assigned_to" },
+          { table: "tasks", col: "created_by" },
+          { table: "task_comments", col: "author_id" },
+          { table: "task_blockers", col: "raised_by" },
+          { table: "task_blockers", col: "resolved_by" },
+          { table: "task_status_history", col: "changed_by" },
+          { table: "task_dependencies", col: "created_by" },
+          { table: "project_status_updates", col: "author_id" },
+          { table: "goals", col: "created_by" },
+          { table: "goal_resources", col: "user_id" },
+          { table: "workflow_templates", col: "created_by" },
         ];
 
         for (const r of nullifyRefs) {

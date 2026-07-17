@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [requestBannerDismissTick, setRequestBannerDismissTick] = useState(0);
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isClient = profile?.role === "client" || profile?.role === "client member";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
   const { annualLeaveEntitlement, shiftStart, shiftEnd, workingDays, graceMinutes } = useWorkSettings();
@@ -519,6 +520,38 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
+      </div>
+    );
+  }
+
+  // ——— CLIENT DASHBOARD ———
+  if (isClient) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/projects")}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-blue-50"><FolderKanban className="h-5 w-5 text-blue-600" /></div>
+              <div><p className="text-sm text-muted-foreground">Projects</p><p className="text-2xl font-bold">—</p></div>
+            </div>
+          </Card>
+          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/announcements")}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-green-50"><FileText className="h-5 w-5 text-green-600" /></div>
+              <div><p className="text-sm text-muted-foreground">Announcements</p><p className="text-2xl font-bold">—</p></div>
+            </div>
+          </Card>
+          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/profile")}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-purple-50"><Users className="h-5 w-5 text-purple-600" /></div>
+              <div><p className="text-sm text-muted-foreground">Profile</p><p className="text-2xl font-bold">—</p></div>
+            </div>
+          </Card>
+        </div>
       </div>
     );
   }

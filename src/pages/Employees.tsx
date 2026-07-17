@@ -187,9 +187,10 @@ export default function EmployeesPage() {
               <SelectTrigger className="w-[140px]"><SelectValue placeholder="Role" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="admin">admin</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
                 <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="client member">Client Member</SelectItem>
               </SelectContent>
             </Select>
           </div>

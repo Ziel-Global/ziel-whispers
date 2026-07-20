@@ -81,6 +81,7 @@ export default function ProjectDetailPage() {
   const [taskPriority, setTaskPriority] = useState("medium");
   const [taskEstimatedHours, setTaskEstimatedHours] = useState("");
   const [taskDueDate, setTaskDueDate] = useState("");
+  const [taskDateOpen, setTaskDateOpen] = useState(false);
   const [taskClientVisible, setTaskClientVisible] = useState(true);
   const [taskAssignedTo, setTaskAssignedTo] = useState("");
   const [editTaskOpen, setEditTaskOpen] = useState(false);
@@ -90,6 +91,7 @@ export default function ProjectDetailPage() {
   const [editTaskPriority, setEditTaskPriority] = useState("medium");
   const [editTaskEstimatedHours, setEditTaskEstimatedHours] = useState("");
   const [editTaskDueDate, setEditTaskDueDate] = useState("");
+  const [editTaskDateOpen, setEditTaskDateOpen] = useState(false);
   const [editTaskClientVisible, setEditTaskClientVisible] = useState(true);
   const [editTaskAssignedTo, setEditTaskAssignedTo] = useState("");
   const [editTaskStatusId, setEditTaskStatusId] = useState<string>("");
@@ -106,9 +108,6 @@ export default function ProjectDetailPage() {
   const [selectedPhase, setSelectedPhase] = useState<any>(null);
   const [phaseTasksOpen, setPhaseTasksOpen] = useState(false);
   const [confirmPhaseDelId, setConfirmPhaseDelId] = useState<string | null>(null);
-  const [completeConfirmOpen, setCompleteConfirmOpen] = useState(false);
-  const [completeTargetId, setCompleteTargetId] = useState<string | null>(null);
-  const [completeTargetTitle, setCompleteTargetTitle] = useState("");
   const [dependencyWarning, setDependencyWarning] = useState("");
   const [viewAddDepOpen, setViewAddDepOpen] = useState(false);
   const [viewAddDepTaskId, setViewAddDepTaskId] = useState("");
@@ -153,6 +152,7 @@ export default function ProjectDetailPage() {
 const [editRuleId, setEditRuleId] = useState<string | null>(null);
 const [ruleName, setRuleName] = useState("");
 const [ruleDescription, setRuleDescription] = useState("");
+const [ruleDatePickerOpenIdx, setRuleDatePickerOpenIdx] = useState<number | null>(null);
 const [ruleStatus, setRuleStatus] = useState("draft");
 const [ruleTriggerType, setRuleTriggerType] = useState("status_change");
 const [rulePriority, setRulePriority] = useState(0);
@@ -708,9 +708,9 @@ const { data: resolvedId } = useQuery({
           queryClient.invalidateQueries({ queryKey: ["project-action-items", viewTaskData.project_id] });
           await createNotification({
             userId: newBlockerAssignUserId,
-            type: "action_item_created",
-            title: "New Action Item Assigned",
-            message: `A new action item "Resolve Blocker: ${newViewBlockerDescription.trim()}" has been assigned to you.`,
+            type: "blocker_created",
+            title: "Blocker Assigned to You",
+            message: `A blocker has been assigned to you for task "${viewTaskData.title}" in project "${project?.name}"`,
             projectId: viewTaskData.project_id,
           });
         } else {
@@ -729,22 +729,29 @@ const { data: resolvedId } = useQuery({
     }
     queryClient.invalidateQueries({ queryKey: ["task-blockers-view", viewTaskData.id] });
     
-    const { data: blockers } = await supabase
-      .from("task_blockers")
-      .select("*, raised_by:users(full_name), resolved_by:users!task_blockers_resolved_by_fkey(full_name)")
-      .eq("id", viewTaskData?.blockerId);
-    
-    const blocker = blockers?.[0];
-    const isClientAction = blocker?.requires_client_action || false;
-    
-    const message = `${profile.full_name} created a new blocker`;
+    let blockerAssigneeInfo = "";
+    if (newBlockerAssignUserId) {
+      if (newBlockerAssignType === "client") {
+        blockerAssigneeInfo = `client ${project?.clients?.name || "client"}`;
+      } else {
+        const { data: assigneeUser } = await supabase
+          .from("users")
+          .select("full_name")
+          .eq("id", newBlockerAssignUserId)
+          .single();
+        blockerAssigneeInfo = assigneeUser?.full_name || "user";
+      }
+    }
+    const assigneeSuffix = blockerAssigneeInfo ? ` (assigned to ${blockerAssigneeInfo})` : "";
+
+    const message = `${profile.full_name} created a blocker on task "${viewTaskData.title}"${assigneeSuffix} in project "${project?.name}"`;
     await createProjectRelatedNotifications({
       createdByUserId: profile.id,
       projectId: viewTaskData.project_id,
       type: "blocker_created",
       title: "New Blocker Created",
       message,
-      requiresClientAction: isClientAction,
+      requiresClientAction: newBlockerVisibility === "all",
     });
 
     if (viewTaskData?.assigned_to && viewTaskData.assigned_to !== profile.id) {
@@ -752,7 +759,7 @@ const { data: resolvedId } = useQuery({
         userId: viewTaskData.assigned_to,
         type: "blocker_created",
         title: "New Blocker on Your Task",
-        message: `A blocker was added to your task "${viewTaskData.title}"`,
+        message: `A blocker was added to your task "${viewTaskData.title}" in project "${project?.name}"`,
         projectId: viewTaskData.project_id,
       });
     }
@@ -780,13 +787,14 @@ const { data: resolvedId } = useQuery({
     
     const { data: blockers } = await supabase
       .from("task_blockers")
-      .select("*, project_id")
+      .select("*, project_id, task_id, tasks!inner(title)")
       .eq("id", blockerId);
     
     if (blockers?.[0]) {
       const blocker = blockers[0];
+      const blockerTaskTitle = (blocker as any).tasks?.title || "(unknown task)";
       const isClientAction = blocker.requires_client_action || false;
-      const message = `${profile.full_name} resolved a blocker`;
+      const message = `${profile.full_name} resolved a blocker on task "${blockerTaskTitle}" in project "${project?.name}"`;
       await createProjectRelatedNotifications({
         createdByUserId: profile.id,
         projectId: blocker.project_id,
@@ -829,7 +837,7 @@ const { data: resolvedId } = useQuery({
             projectId: blocker.project_id,
             type: "action_item_auto_completed",
             title: "Action Item Auto-Completed",
-            message: `"${item.title}" was automatically completed due to blocker resolution`,
+            message: `"${item.title}" was automatically completed due to blocker resolution in project "${project?.name}"`,
           });
         }
         queryClient.invalidateQueries({ queryKey: ["project-action-items", blocker.project_id] });
@@ -842,7 +850,7 @@ const { data: resolvedId } = useQuery({
         userId: resolveTask.assigned_to,
         type: "blocker_resolved",
         title: "Blocker Resolved on Your Task",
-        message: `A blocker on your task "${resolveTask.title}" was resolved`,
+        message: `A blocker on your task "${resolveTask.title}" in project "${project?.name}" was resolved`,
         projectId: viewTaskData?.project_id || id,
       });
     }
@@ -926,6 +934,43 @@ const { data: resolvedId } = useQuery({
       created_by: profile.id,
     });
     if (error) { toast.error(error.message); return; }
+
+    const { data: depTask } = await supabase
+      .from("tasks")
+      .select("title, assigned_to")
+      .eq("id", viewAddDepTaskId)
+      .single();
+
+    if (depTask?.assigned_to) {
+      const { error: aiError } = await supabase.from("client_action_items").insert({
+        project_id: viewTaskData.project_id,
+        title: `Complete ${depTask.title} — ${viewTaskData.title} depends on it`,
+        status: "pending",
+        requested_by: profile.id,
+        assigned_to: depTask.assigned_to,
+        priority: "medium",
+        visible_to_client: false,
+      });
+
+      if (!aiError) {
+        await createNotification({
+          userId: depTask.assigned_to,
+          type: "action_item_created",
+          title: "New Action Item (Dependency)",
+          message: `Complete "${depTask.title}" — "${viewTaskData.title}" depends on it`,
+          projectId: viewTaskData.project_id,
+        });
+        await createProjectRelatedNotifications({
+          createdByUserId: profile.id,
+          projectId: viewTaskData.project_id,
+          type: "action_item_created",
+          title: "New Dependency Action Item",
+          message: `${profile.full_name} created a dependency: Complete "${depTask.title}" — "${viewTaskData.title}" depends on it`,
+        });
+        queryClient.invalidateQueries({ queryKey: ["project-action-items", viewTaskData.project_id] });
+      }
+    }
+
     setViewAddDepOpen(false);
     setViewAddDepTaskId("");
     setViewAddDepType("finish_to_start");
@@ -981,13 +1026,34 @@ const { data: resolvedId } = useQuery({
     toast.success("Action item created");
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
     
+    let aiAssigneeInfo = "";
+    if (newActionItemAssignedTo) {
+      const { data: aiUser } = await supabase
+        .from("users")
+        .select("full_name")
+        .eq("id", newActionItemAssignedTo)
+        .single();
+      aiAssigneeInfo = aiUser?.full_name || "user";
+    }
+    const aiAssigneeSuffix = aiAssigneeInfo ? ` (assigned to ${aiAssigneeInfo})` : "";
+
     await createProjectRelatedNotifications({
       createdByUserId: profile.id,
       projectId: id,
       type: "action_item_created",
       title: "New Action Item",
-      message: `${profile.full_name} created a new action item`,
+      message: `${profile.full_name} created action item "${newActionItemTitle.trim()}"${aiAssigneeSuffix} in project "${project?.name}"`,
     });
+
+    if (newActionItemAssignedTo) {
+      await createNotification({
+        userId: newActionItemAssignedTo,
+        type: "action_item_created",
+        title: "New Action Item Assigned",
+        message: `A new action item "${newActionItemTitle.trim()}" has been assigned to you in project "${project?.name}"`,
+        projectId: id,
+      });
+    }
 
     if (newActionItemVisible && newActionItemBlockerId) {
       const clientIds = await getClientMemberIds(id);
@@ -996,7 +1062,7 @@ const { data: resolvedId } = useQuery({
           userId: clientId,
           type: "action_item_linked",
           title: "Action Required (Blocker)",
-          message: `A new action item "${newActionItemTitle.trim()}" is linked to an active blocker and requires your attention.`,
+          message: `A new action item "${newActionItemTitle.trim()}" is linked to an active blocker and requires your attention in project "${project?.name}"`,
           projectId: id,
         });
       }
@@ -1095,13 +1161,19 @@ const { data: resolvedId } = useQuery({
       target_id: itemId,
     });
 
-    const message = `${profile.full_name} completed an action item`;
+    const { data: completedItem } = await supabase
+      .from("client_action_items")
+      .select("title")
+      .eq("id", itemId)
+      .single();
+
+    const completedTitle = completedItem?.title || "(untitled)";
     await createProjectRelatedNotifications({
       createdByUserId: profile.id,
       projectId: id,
       type: "action_item_completed",
       title: "Action Item Completed",
-      message,
+      message: `${profile.full_name} completed action item "${completedTitle}" in project "${project?.name}"`,
     });
   };
 
@@ -1395,7 +1467,7 @@ const { data: resolvedId } = useQuery({
           userId: newAssignedTo,
           type: "task_assigned",
           title: "Task Assigned",
-          message: `You have been assigned to task "${editTaskTitle.trim()}"`,
+          message: `You have been assigned to task "${editTaskTitle.trim()}" in project "${project?.name}"`,
           projectId: id,
         });
       }
@@ -1408,7 +1480,7 @@ const { data: resolvedId } = useQuery({
           user_id: userId,
           type: "task_returned",
           channel: "in_app",
-          metadata: { title: "Task Returned", message: `Task "${editTaskTitle.trim()}" was moved back from completed`, project_id: id },
+          metadata: { title: "Task Returned", message: `${profile.full_name} moved task "${editTaskTitle.trim()}" back from completed in project "${project?.name}"`, project_id: id },
           read: false,
         }));
         if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
@@ -1519,52 +1591,6 @@ const { data: resolvedId } = useQuery({
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
     } catch (err: any) { toast.error(err.message); }
     finally { setUploading(false); }
-  };
-
-  const requestComplete = (task: any) => {
-    if (task.status === "complete") return;
-    setCompleteTargetId(task.id);
-    setCompleteTargetTitle(task.title);
-    setCompleteConfirmOpen(true);
-  };
-
-  const confirmComplete = async () => {
-    if (!completeTargetId) return;
-    try {
-      const { data: completeTask } = await supabase
-        .from("tasks")
-        .select("assigned_to, title")
-        .eq("id", completeTargetId)
-        .single();
-
-      const completeStatus = workflowStatuses?.find((s: any) => s.name === "complete");
-      const updateData: any = { completed_at: new Date().toISOString() };
-      if (completeStatus) {
-        updateData.status_id = completeStatus.id;
-      } else {
-        updateData.status = "complete";
-      }
-      await supabase.from("tasks").update(updateData).eq("id", completeTargetId);
-      toast.success("Task completed");
-
-      const taskTitle = completeTask?.title || completeTargetTitle;
-      const adminIds = await getAdminManagerIds(profile?.id);
-      const notifyIds = new Set(adminIds);
-      if (completeTask?.assigned_to) notifyIds.add(completeTask.assigned_to);
-      const notifications = Array.from(notifyIds).map((userId) => ({
-        user_id: userId,
-        type: "task_completed",
-        channel: "in_app",
-        metadata: { title: "Task Completed", message: `Task "${taskTitle}" was marked as completed`, project_id: id },
-        read: false,
-      }));
-      if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
-
-      setCompleteConfirmOpen(false);
-      setCompleteTargetId(null);
-      setCompleteTargetTitle("");
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
-    } catch (err: any) { toast.error(err.message); }
   };
 
   const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
@@ -2653,22 +2679,6 @@ const { data: resolvedId } = useQuery({
                         <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <ShadcnTooltip delayDuration={0}>
-                                <TooltipTrigger asChild>
-                                  <span>
-                                    <Checkbox
-                                      id={`task-${t.id}`}
-                                      checked={t.status === "complete"}
-                                      disabled={t.status === "complete"}
-                                      onCheckedChange={() => requestComplete(t)}
-                                      className="h-5 w-5 border-black"
-                                    />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  <p className="text-xs">Mark as Complete</p>
-                                </TooltipContent>
-                              </ShadcnTooltip>
                               <div className={"font-semibold text-[15px] text-[#111827] truncate" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
                                 {t.title}
                                 {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
@@ -2676,7 +2686,6 @@ const { data: resolvedId } = useQuery({
                                 {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
                               </div>
                             </div>
-                            <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
                           </td>
                           <td className="px-4 py-3">
                             <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
@@ -3451,7 +3460,7 @@ const { data: resolvedId } = useQuery({
                         </SelectContent>
                       </Select>
                     ) : cond.field === "due_date" ? (
-                      <Popover>
+                      <Popover open={ruleDatePickerOpenIdx === idx} onOpenChange={(open) => setRuleDatePickerOpenIdx(open ? idx : null)}>
                         <PopoverTrigger asChild>
                           <Button variant="outline" className={cn("flex-1 justify-start text-left font-normal", !cond.value && "text-muted-foreground")}>
                             <CalendarIcon className="mr-2 h-4 w-4" />
@@ -3459,7 +3468,7 @@ const { data: resolvedId } = useQuery({
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={cond.value ? new Date(cond.value + "T00:00:00") : undefined} onSelect={(d) => updateCondition(idx, "value", d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
+                          <Calendar mode="single" selected={cond.value ? new Date(cond.value + "T00:00:00") : undefined} onSelect={(d) => { updateCondition(idx, "value", d ? format(d, "yyyy-MM-dd") : ""); setRuleDatePickerOpenIdx(null); }} initialFocus />
                         </PopoverContent>
                       </Popover>
                     ) : cond.field === "assigned_to" ? (
@@ -3612,14 +3621,14 @@ const { data: resolvedId } = useQuery({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Due Date</label>
-              <Popover>
+              <Popover open={taskDateOpen} onOpenChange={setTaskDateOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !taskDueDate && "text-muted-foreground")}>
                     {taskDueDate ? format(new Date(taskDueDate + "T00:00:00"), "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={taskDueDate ? new Date(taskDueDate + "T00:00:00") : undefined} onSelect={(d) => setTaskDueDate(d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
+                  <Calendar mode="single" selected={taskDueDate ? new Date(taskDueDate + "T00:00:00") : undefined} onSelect={(d) => { setTaskDueDate(d ? format(d, "yyyy-MM-dd") : ""); setTaskDateOpen(false); }} initialFocus />
                 </PopoverContent>
               </Popover>
               {taskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setTaskDueDate("")}>Clear</button>}
@@ -3775,14 +3784,14 @@ const { data: resolvedId } = useQuery({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Due Date</label>
-              <Popover>
+              <Popover open={editTaskDateOpen} onOpenChange={setEditTaskDateOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editTaskDueDate && "text-muted-foreground")}>
                     {editTaskDueDate ? format(new Date(editTaskDueDate + "T00:00:00"), "PPP") : <span>Pick a date</span>}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={editTaskDueDate ? new Date(editTaskDueDate + "T00:00:00") : undefined} onSelect={(d) => setEditTaskDueDate(d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
+                  <Calendar mode="single" selected={editTaskDueDate ? new Date(editTaskDueDate + "T00:00:00") : undefined} onSelect={(d) => { setEditTaskDueDate(d ? format(d, "yyyy-MM-dd") : ""); setEditTaskDateOpen(false); }} initialFocus />
                 </PopoverContent>
               </Popover>
               {editTaskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setEditTaskDueDate("")}>Clear</button>}
@@ -3950,7 +3959,7 @@ const { data: resolvedId } = useQuery({
                     <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
                     <SelectContent>
                       {(tasks || [])
-                        .filter((t: any) => t.id !== viewTaskData?.id)
+                        .filter((t: any) => t.id !== viewTaskData?.id && t.status !== "complete")
                         .map((t: any) => (
                           <SelectItem key={t.id} value={t.id}>
                             {t.title}
@@ -4335,20 +4344,6 @@ const { data: resolvedId } = useQuery({
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Task Complete Confirmation */}
-      <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Complete task?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to mark "{completeTargetTitle}" as complete? This cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setCompleteConfirmOpen(false); setCompleteTargetId(null); setCompleteTargetTitle(""); }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmComplete}>Complete Task</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       {/* Remove Dependency Confirmation */}
       <AlertDialog open={!!confirmDepDelId} onOpenChange={(open) => !open && setConfirmDepDelId(null)}>

@@ -15,7 +15,7 @@ import {
   CalendarCheck,
   Shield,
   User,
-
+  Bell,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -47,6 +47,7 @@ const adminNav = [
   { title: "Attendance", url: "/attendance", icon: Clock },
   { title: "Daily Logs", url: "/logs/all", icon: FileText },
   { title: "Leave", url: "/leave/requests", icon: Calendar },
+  { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "Clients", url: "/clients", icon: Briefcase },
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "Reports", url: "/reports", icon: BarChart3 },
@@ -61,6 +62,7 @@ const managerNav = [
   { title: "Attendance", url: "/attendance", icon: Clock },
   { title: "Daily Logs", url: "/logs/all", icon: FileText },
   { title: "Leave", url: "/leave/requests", icon: Calendar },
+  { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "Projects", url: "/projects", icon: FolderKanban },
   { title: "Reports", url: "/reports", icon: BarChart3 },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
@@ -73,6 +75,7 @@ const employeeNav = [
   { title: "My Logs", url: "/logs/my", icon: ClipboardList },
   { title: "My Attendance", url: "/attendance/my", icon: Clock },
   { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
+  { title: "Notifications", url: "/notifications", icon: Bell },
   { title: "My Projects", url: "/my-projects", icon: FolderKanban },
   { title: "Announcements", url: "/announcements", icon: Megaphone },
   { title: "Profile", url: "/profile", icon: User },

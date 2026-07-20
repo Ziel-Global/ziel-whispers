@@ -30,6 +30,7 @@ import ReportsPage from "@/pages/Reports";
 import SettingsPage from "@/pages/Settings";
 import AuditLogPage from "@/pages/AuditLog";
 import WorkflowTemplatesPage from "@/pages/WorkflowTemplates";
+import NotificationsPage from "@/pages/Notifications";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -94,6 +95,7 @@ const App = () => (
               <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
               <Route path="/audit" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogPage /></ProtectedRoute>} />
               <Route path="/workflow-templates" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowTemplatesPage /></ProtectedRoute>} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/my-projects" element={<ProjectsPage />} />
             </Route>
 

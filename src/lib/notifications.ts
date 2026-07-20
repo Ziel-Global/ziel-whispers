@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useCallback, useEffect } from "react";
 
+const activeSubscriptions = new Set<string>();
+
 type Notification = {
   id: string;
   user_id: string;
@@ -71,6 +73,8 @@ export function useNotifications() {
 
   useEffect(() => {
     if (!profile?.id) return;
+    if (activeSubscriptions.has(profile.id)) return;
+    activeSubscriptions.add(profile.id);
     const channel = supabase
       .channel("notifications-realtime")
       .on("postgres_changes", {
@@ -82,7 +86,7 @@ export function useNotifications() {
         queryClient.invalidateQueries({ queryKey: ["notifications", profile.id] });
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => { activeSubscriptions.delete(profile.id); supabase.removeChannel(channel); };
   }, [profile?.id, queryClient]);
 
   return { notifications, isLoading, unreadCount, markAsRead, markAllAsRead };

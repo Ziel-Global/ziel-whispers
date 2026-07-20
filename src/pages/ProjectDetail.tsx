@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useWorkSettings, getPKTDateString } from "@/hooks/useWorkSettings";
-import { createNotification, createProjectRelatedNotifications, getClientMemberIds } from "@/lib/notification-helpers";
+import { createNotification, createProjectRelatedNotifications, getClientMemberIds, getAdminManagerIds } from "@/lib/notification-helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
@@ -25,8 +25,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
-import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, ChevronDown, ChevronRight, Send } from "lucide-react";
-import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, X, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, ChevronDown, ChevronRight, Send, X, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -651,6 +650,17 @@ const { data: resolvedId } = useQuery({
       message: `${profile.full_name} created a new blocker`,
       projectId: projectId,
     });
+
+    const { data: blockerTask } = await supabase.from("tasks").select("assigned_to, title").eq("id", taskId).single();
+    if (blockerTask?.assigned_to && blockerTask.assigned_to !== profile.id) {
+      await createNotification({
+        userId: blockerTask.assigned_to,
+        type: "blocker_created",
+        title: "New Blocker on Your Task",
+        message: `A blocker was added to your task "${blockerTask.title}"`,
+        projectId: projectId,
+      });
+    }
   };
 
   const addViewBlocker = async () => {
@@ -692,6 +702,17 @@ const { data: resolvedId } = useQuery({
       message,
       requiresClientAction: isClientAction,
     });
+
+    if (viewTaskData?.assigned_to && viewTaskData.assigned_to !== profile.id) {
+      await createNotification({
+        userId: viewTaskData.assigned_to,
+        type: "blocker_created",
+        title: "New Blocker on Your Task",
+        message: `A blocker was added to your task "${viewTaskData.title}"`,
+        projectId: viewTaskData.project_id,
+      });
+    }
+
     queryClient.invalidateQueries({ queryKey: ["project-tasks", viewTaskData.project_id] });
     const { data: updatedTask } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
     if (updatedTask) setViewTaskData(updatedTask);
@@ -770,6 +791,18 @@ const { data: resolvedId } = useQuery({
         queryClient.invalidateQueries({ queryKey: ["project-action-items", blocker.project_id] });
       }
     }
+
+    const { data: resolveTask } = await supabase.from("tasks").select("assigned_to, title").eq("id", taskId).single();
+    if (resolveTask?.assigned_to && resolveTask.assigned_to !== profile.id) {
+      await createNotification({
+        userId: resolveTask.assigned_to,
+        type: "blocker_resolved",
+        title: "Blocker Resolved on Your Task",
+        message: `A blocker on your task "${resolveTask.title}" was resolved`,
+        projectId: viewTaskData?.project_id || id,
+      });
+    }
+
     queryClient.invalidateQueries({ queryKey: ["project-tasks", viewTaskData?.project_id || id] });
     const { data: updatedTask } = await supabase.from("tasks").select("*").eq("id", taskId).single();
     if (updatedTask) setViewTaskData(updatedTask);
@@ -1269,6 +1302,12 @@ const { data: resolvedId } = useQuery({
     e.preventDefault();
     if (!editTaskTitle.trim() || !editTaskId) return;
     try {
+      const { data: oldTask } = await supabase
+        .from("tasks")
+        .select("assigned_to, completed_at, status_id")
+        .eq("id", editTaskId)
+        .single();
+
       const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
       const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
       const hasSprint = !!editTaskSprintId;
@@ -1284,6 +1323,10 @@ const { data: resolvedId } = useQuery({
         status_id: hasSprint ? linkedStatus?.id : (unlinkedStatus?.id || null),
         status: hasSprint ? "linked" : "unlinked",
       };
+
+      const oldAssignedTo = oldTask?.assigned_to;
+      const wasCompleted = !!oldTask?.completed_at;
+
       const { error } = await supabase
         .from("tasks")
         .update(updates)
@@ -1297,6 +1340,32 @@ const { data: resolvedId } = useQuery({
         p_entity_id: editTaskId,
       });
       if (rpcError) console.error("Automation engine error:", rpcError);
+
+      const newAssignedTo = updates.assigned_to;
+      if (newAssignedTo && oldAssignedTo !== newAssignedTo) {
+        await createNotification({
+          userId: newAssignedTo,
+          type: "task_assigned",
+          title: "Task Assigned",
+          message: `You have been assigned to task "${editTaskTitle.trim()}"`,
+          projectId: id,
+        });
+      }
+
+      if (wasCompleted) {
+        const adminIds = await getAdminManagerIds(profile?.id);
+        const notifyIds = new Set(adminIds);
+        if (oldAssignedTo) notifyIds.add(oldAssignedTo);
+        const notifications = Array.from(notifyIds).map((userId) => ({
+          user_id: userId,
+          type: "task_returned",
+          channel: "in_app",
+          metadata: { title: "Task Returned", message: `Task "${editTaskTitle.trim()}" was moved back from completed`, project_id: id },
+          read: false,
+        }));
+        if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
+      }
+
       setEditTaskOpen(false);
       setEditTaskId(null);
       setEditTaskDueDate("");
@@ -1414,6 +1483,12 @@ const { data: resolvedId } = useQuery({
   const confirmComplete = async () => {
     if (!completeTargetId) return;
     try {
+      const { data: completeTask } = await supabase
+        .from("tasks")
+        .select("assigned_to, title")
+        .eq("id", completeTargetId)
+        .single();
+
       const completeStatus = workflowStatuses?.find((s: any) => s.name === "complete");
       const updateData: any = { completed_at: new Date().toISOString() };
       if (completeStatus) {
@@ -1423,6 +1498,20 @@ const { data: resolvedId } = useQuery({
       }
       await supabase.from("tasks").update(updateData).eq("id", completeTargetId);
       toast.success("Task completed");
+
+      const taskTitle = completeTask?.title || completeTargetTitle;
+      const adminIds = await getAdminManagerIds(profile?.id);
+      const notifyIds = new Set(adminIds);
+      if (completeTask?.assigned_to) notifyIds.add(completeTask.assigned_to);
+      const notifications = Array.from(notifyIds).map((userId) => ({
+        user_id: userId,
+        type: "task_completed",
+        channel: "in_app",
+        metadata: { title: "Task Completed", message: `Task "${taskTitle}" was marked as completed`, project_id: id },
+        read: false,
+      }));
+      if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
+
       setCompleteConfirmOpen(false);
       setCompleteTargetId(null);
       setCompleteTargetTitle("");
@@ -3996,11 +4085,11 @@ const { data: resolvedId } = useQuery({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Start Date *</label>
-              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required />
+              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required max={sprintEndDate || undefined} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">End Date *</label>
-              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required />
+              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required min={sprintStartDate || undefined} />
             </div>
             <Button type="submit" className="rounded-button w-full">Create Sprint</Button>
           </form>
@@ -4029,11 +4118,11 @@ const { data: resolvedId } = useQuery({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Start Date *</label>
-              <Input type="date" value={editSprintStartDate} onChange={(e) => setEditSprintStartDate(e.target.value)} required />
+              <Input type="date" value={editSprintStartDate} onChange={(e) => setEditSprintStartDate(e.target.value)} required max={editSprintEndDate || undefined} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">End Date *</label>
-              <Input type="date" value={editSprintEndDate} onChange={(e) => setEditSprintEndDate(e.target.value)} required />
+              <Input type="date" value={editSprintEndDate} onChange={(e) => setEditSprintEndDate(e.target.value)} required min={editSprintStartDate || undefined} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>

@@ -10,7 +10,10 @@ type NotificationType =
   | 'blocker_created' 
   | 'blocker_resolved' 
   | 'leave_request' 
-  | 'remote_work_request';
+  | 'remote_work_request'
+  | 'task_completed'
+  | 'task_returned'
+  | 'task_assigned';
 
 export async function createNotification({
   userId,

@@ -358,11 +358,11 @@ export default function PhaseEditPage() {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Start Date *</label>
-              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required />
+              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required max={sprintEndDate || undefined} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">End Date *</label>
-              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required />
+              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required min={sprintStartDate || undefined} />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setAddSprintOpen(false)}>Cancel</Button>

@@ -321,6 +321,14 @@ export default function LeaveAdminPage() {
         metadata: { employee_id: userId, action: newStatus },
       });
 
+      await supabase.from("notifications").insert({
+        user_id: userId,
+        type: `remote_work.${newStatus}`,
+        channel: "in_app",
+        metadata: { title: "Remote Work Request Updated", message: `Your remote work request was ${newStatus}` },
+        read: false,
+      });
+
       supabase.functions.invoke("send-request-notification", {
         body: { type: "wfh", action: newStatus, request_id: id, app_url: window.location.origin },
       }).catch(() => {});

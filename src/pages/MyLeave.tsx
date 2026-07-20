@@ -108,6 +108,16 @@ export default function MyLeavePage() {
         message: `${user!.email} submitted a remote work request from ${wfhStartDate} to ${wfhEndDate}`,
       });
 
+      const wfhAdminIds = await getAdminManagerIds(user!.id);
+      for (const adminId of wfhAdminIds) {
+        await createNotification({
+          userId: adminId,
+          type: "remote_work_request",
+          title: "New Remote Work Request",
+          message: `${user!.email} submitted a remote work request from ${wfhStartDate} to ${wfhEndDate}`,
+        });
+      }
+
       supabase.functions.invoke("send-request-notification", {
         body: { type: "wfh", action: "new", request_id: newRequest.id, app_url: window.location.origin },
       }).catch(() => {});
@@ -349,8 +359,18 @@ export default function MyLeavePage() {
         userId: user!.id,
         type: "leave_request",
         title: "New Leave Request",
-        message: `${user!.email} submitted a leave request from ${startDate} to ${finalEndDate}`, // ${daysCount} days
+        message: `${user!.email} submitted a leave request from ${startDate} to ${finalEndDate}`,
       });
+
+      const leaveAdminIds = await getAdminManagerIds(user!.id);
+      for (const adminId of leaveAdminIds) {
+        await createNotification({
+          userId: adminId,
+          type: "leave_request",
+          title: "New Leave Request",
+          message: `${user!.email} submitted a leave request from ${startDate} to ${finalEndDate}`,
+        });
+      }
       
       supabase.functions.invoke("send-request-notification", {
         body: { type: "leave", action: "new", request_id: newRequest.id, app_url: window.location.origin },

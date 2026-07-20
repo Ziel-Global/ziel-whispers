@@ -23,6 +23,7 @@ import { format, parseISO, startOfDay, subDays, isSameDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn, formatHours, MISC_PROJECT_ID } from "@/lib/utils";
+import { getAdminManagerIds } from "@/lib/notification-helpers";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
 import { PRIORITY_COLORS } from "@/lib/workflow";
@@ -352,7 +353,7 @@ export default function LogSubmitPage() {
 
     const { data: task } = await supabase
       .from("tasks")
-      .select("estimated_hours, status, status_id, phase_id, project_id")
+      .select("estimated_hours, status, status_id, phase_id, project_id, assigned_to, title")
       .eq("id", taskId)
       .single();
 
@@ -380,6 +381,17 @@ export default function LogSubmitPage() {
           update.is_flagged = true;
         }
         await supabase.from("tasks").update(update).eq("id", taskId);
+        const adminIds = await getAdminManagerIds(profile?.id);
+        const notifyIds = new Set(adminIds);
+        if (task.assigned_to) notifyIds.add(task.assigned_to);
+        const taskNotifications = Array.from(notifyIds).map((userId) => ({
+          user_id: userId,
+          type: "task_completed",
+          channel: "in_app",
+          metadata: { title: "Task Completed", message: `${profile?.full_name} completed task "${task.title}"`, project_id: task.project_id },
+          read: false,
+        }));
+        if (taskNotifications.length > 0) await supabase.from("notifications").insert(taskNotifications);
       } else if (totalHours < task.estimated_hours && isLinked) {
         const update: any = {};
         if (inProgressStatus) {

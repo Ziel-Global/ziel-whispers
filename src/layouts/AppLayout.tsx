@@ -4,8 +4,12 @@ import { AppSidebar } from "@/components/AppSidebar";
 import { TopBar } from "@/components/TopBar";
 import { AutoClockoutAlert } from "@/components/AutoClockoutAlert";
 import { MissingLogAlert } from "@/components/MissingLogAlert";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout() {
+  const { profile } = useAuth();
+  const showMissingLog = profile?.role === "employee" || profile?.role === "manager";
+
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full">
@@ -14,7 +18,7 @@ export default function AppLayout() {
           <TopBar />
           <main className="flex-1 p-6 overflow-auto bg-background">
             <AutoClockoutAlert />
-            <MissingLogAlert />
+            {showMissingLog && <MissingLogAlert />}
             <Outlet />
           </main>
         </div>

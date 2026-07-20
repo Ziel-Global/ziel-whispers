@@ -139,6 +139,8 @@ export default function ProjectDetailPage() {
   const [newActionItemDue, setNewActionItemDue] = useState("");
   const [newActionItemVisible, setNewActionItemVisible] = useState(false);
   const [newActionItemBlockerId, setNewActionItemBlockerId] = useState("");
+  const [newActionItemPriority, setNewActionItemPriority] = useState("medium");
+  const [newActionItemAssignedTo, setNewActionItemAssignedTo] = useState<string>("");
   const [expandedActionItemId, setExpandedActionItemId] = useState<string | null>(null);
   const [newActionItemMessage, setNewActionItemMessage] = useState("");
 
@@ -245,7 +247,7 @@ const { data: resolvedId } = useQuery({
     queryKey: ["project-members", id],
     queryFn: async () => {
       const [membersResult, logsResult] = await Promise.all([
-        supabase.from("project_members").select("*, users(id, full_name, designation, avatar_url), project_roles(name)").eq("project_id", id!).is("removed_at", null),
+        supabase.from("project_members").select("*, users(id, full_name, designation, avatar_url, role), project_roles(name)").eq("project_id", id!).is("removed_at", null),
         supabase.from("daily_logs").select("user_id, hours").eq("project_id", id!).eq("status", "submitted"),
       ]);
       const members = membersResult.data || [];
@@ -495,11 +497,12 @@ const { data: resolvedId } = useQuery({
     queryKey: ["project-action-items", id],
     queryFn: async () => {
       if (!id) return [];
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("client_action_items")
-        .select("*, blockers:task_blockers(id, status, description), resolver:users!client_action_items_resolved_by_fkey(full_name)")
+        .select("id, title, description, status, priority, assigned_to, blocker_id, project_id, requested_by, visible_to_client, due_date, completed_at, created_at, resolved_by, blockers:task_blockers(id, status, description, task_id), requested_by_user:users!client_action_items_requested_by_fkey(full_name), assigned_to_user:users!client_action_items_assigned_to_fkey(full_name), resolver:users!client_action_items_resolved_by_fkey(full_name)")
         .eq("project_id", id)
         .order("created_at", { ascending: false });
+      if (error) console.error("Action items query error:", error.message);
       return data || [];
     },
     enabled: !!id,
@@ -615,6 +618,9 @@ const { data: resolvedId } = useQuery({
   const [newViewComment, setNewViewComment] = useState("");
   const [newViewBlockerDescription, setNewViewBlockerDescription] = useState("");
   const [showViewAddBlocker, setShowViewAddBlocker] = useState(false);
+  const [newBlockerVisibility, setNewBlockerVisibility] = useState<"all" | "team">("all");
+  const [newBlockerAssignType, setNewBlockerAssignType] = useState<"employee" | "client">("employee");
+  const [newBlockerAssignUserId, setNewBlockerAssignUserId] = useState<string>("");
 
 
   const addViewComment = async () => {
@@ -670,10 +676,48 @@ const { data: resolvedId } = useQuery({
       task_id: viewTaskData.id,
       description: newViewBlockerDescription.trim(),
       raised_by: profile.id,
+      client_visible: newBlockerVisibility === "all",
     }).select("id").single();
     if (error) { toast.error(error.message); return; }
     setNewViewBlockerDescription("");
     setShowViewAddBlocker(false);
+    setNewBlockerVisibility("all");
+    setNewBlockerAssignType("employee");
+    setNewBlockerAssignUserId("");
+    // Auto-create Action Item for the selected user
+    if (newBlockerAssignUserId && newBlocker) {
+      const { data: existingItem } = await supabase
+        .from("client_action_items")
+        .select("id")
+        .eq("blocker_id", newBlocker.id)
+        .limit(1)
+        .maybeSingle();
+      if (!existingItem) {
+        const { error: aiError } = await supabase.from("client_action_items").insert({
+          project_id: viewTaskData.project_id,
+          title: `Resolve Blocker: ${newViewBlockerDescription.trim()}`,
+          description: null,
+          status: "pending",
+          requested_by: profile.id,
+          blocker_id: newBlocker.id,
+          assigned_to: newBlockerAssignUserId,
+          priority: "medium",
+          visible_to_client: newBlockerVisibility === "all",
+        });
+        if (!aiError) {
+          queryClient.invalidateQueries({ queryKey: ["project-action-items", viewTaskData.project_id] });
+          await createNotification({
+            userId: newBlockerAssignUserId,
+            type: "action_item_created",
+            title: "New Action Item Assigned",
+            message: `A new action item "Resolve Blocker: ${newViewBlockerDescription.trim()}" has been assigned to you.`,
+            projectId: viewTaskData.project_id,
+          });
+        } else {
+          console.error("Failed to create action item:", aiError.message);
+        }
+      }
+    }
     if (newBlocker) {
       const { error: rpcError } = await supabase.rpc("run_automation_rules", {
         p_project_id: viewTaskData.project_id,
@@ -923,6 +967,8 @@ const { data: resolvedId } = useQuery({
       requested_by: profile.id,
       visible_to_client: newActionItemVisible,
       blocker_id: newActionItemBlockerId || null,
+      priority: newActionItemPriority,
+      assigned_to: newActionItemAssignedTo || null,
     });
     if (error) { toast.error(error.message); return; }
     setNewActionItemTitle("");
@@ -930,6 +976,8 @@ const { data: resolvedId } = useQuery({
     setNewActionItemDue("");
     setNewActionItemVisible(false);
     setNewActionItemBlockerId("");
+    setNewActionItemPriority("medium");
+    setNewActionItemAssignedTo("");
     toast.success("Action item created");
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
     
@@ -1582,7 +1630,7 @@ const { data: resolvedId } = useQuery({
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
           {isAdmin && <TabsTrigger value="phases">Phases</TabsTrigger>}
           <TabsTrigger value="sprints">Sprints ({sprints?.length || 0})</TabsTrigger>
-          {isAdmin && <TabsTrigger value="action-items">Action Items ({actionItems.length})</TabsTrigger>}
+          {!isClient && <TabsTrigger value="action-items">Action Items ({isAdmin ? actionItems.length : actionItems.filter((a: any) => a.assigned_to === profile?.id).length})</TabsTrigger>}
 
           {isAdmin && <TabsTrigger value="automation-rules">Automation ({automationRules.length})</TabsTrigger>}
 
@@ -2084,11 +2132,19 @@ const { data: resolvedId } = useQuery({
             </TabsContent>
             <TabsContent value="action-items" className="space-y-4">
               <h2 className="text-lg font-semibold">Action Items</h2>
-              {actionItems.filter((a: any) => a.visible_to_client !== false).length === 0 ? (
+              {actionItems.filter((a: any) => {
+                if (a.visible_to_client === false) return false;
+                if (a.assigned_to) return a.assigned_to === profile?.id;
+                return true;
+              }).length === 0 ? (
                 <p className="text-sm text-muted-foreground">No action items yet.</p>
               ) : (
                 <div className="space-y-0">
-                  {actionItems.filter((a: any) => a.visible_to_client !== false).map((a: any) => {
+                  {actionItems.filter((a: any) => {
+                    if (a.visible_to_client === false) return false;
+                    if (a.assigned_to) return a.assigned_to === profile?.id;
+                    return true;
+                  }).map((a: any) => {
                     const isExpanded = expandedActionItemId === a.id;
                     return (
                       <div key={a.id} className="border-b border-[#f3f4f6]">
@@ -2653,6 +2709,121 @@ const { data: resolvedId } = useQuery({
           </TabsContent>
         )}
 
+        {/* ACTION ITEMS — employees only */}
+        {!isAdmin && !isClient && (
+          <TabsContent value="action-items" className="space-y-4">
+            <h2 className="text-lg font-semibold">My Action Items</h2>
+            {(() => {
+              const myActionItems = actionItems.filter((a: any) => a.assigned_to === profile?.id);
+              if (myActionItems.length === 0) {
+                return (
+                  <div className="flex flex-col items-center justify-center py-12 text-center">
+                    <CheckCircle2 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+                    <p className="text-sm text-muted-foreground">No action items assigned to you yet.</p>
+                    <p className="text-xs text-muted-foreground mt-1">Action items linked to your tasks will appear here.</p>
+                  </div>
+                );
+              }
+              return (
+                <div>
+                  <TableHeader gridCols="1fr 140px 140px 100px 80px 120px 80px">
+                    <span>TITLE</span>
+                    <span>RELATED BLOCKER</span>
+                    <span>RELATED TASK</span>
+                    <span>STATUS</span>
+                    <span>PRIORITY</span>
+                    <span>REQUESTED BY</span>
+                    <span className="text-right">ACTIONS</span>
+                  </TableHeader>
+                  {myActionItems.map((a: any) => {
+                    const isExpanded = expandedActionItemId === a.id;
+                    const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
+                    return (
+                      <div key={a.id}>
+                        <DataRow gridCols="1fr 140px 140px 100px 80px 120px 80px">
+                          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
+                            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                            <div>
+                              <RowPrimary>{a.title}</RowPrimary>
+                              {a.description && <RowSecondary>{truncateWords(a.description, 6)}</RowSecondary>}
+                            </div>
+                          </div>
+                          <RowDataItem label="RELATED BLOCKER">{a.blockers?.description || a.blockers?.title || "—"}</RowDataItem>
+                          <RowDataItem label="RELATED TASK">{linkedTask?.title || "—"}</RowDataItem>
+                          <RowBadgeItem label="STATUS">
+                            <Badge className={
+                              a.status === "completed" ? "bg-green-100 text-green-800" :
+                              a.status === "waived" ? "bg-gray-100 text-gray-800" :
+                              "bg-yellow-100 text-yellow-800"
+                            }>{a.status}</Badge>
+                          </RowBadgeItem>
+                          <RowBadgeItem label="PRIORITY">
+                            <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge>
+                          </RowBadgeItem>
+                          <RowDataItem label="REQUESTED BY">{a.requested_by_user?.full_name || "—"}</RowDataItem>
+                          <RowActions className="justify-self-end">
+                            {a.status === "pending" && (
+                              <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
+                                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                              </button>
+                            )}
+                          </RowActions>
+                        </DataRow>
+                        {isExpanded && (
+                          <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
+                            {a.description && (
+                              <div className="text-sm text-muted-foreground">{a.description}</div>
+                            )}
+                            <div className="flex flex-wrap gap-3 text-sm">
+                              {a.due_date && <span className="text-muted-foreground">Due: <span className="text-foreground font-medium">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span></span>}
+                              {a.completed_at && <span className="text-muted-foreground">Completed: <span className="text-foreground font-medium">{format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a")}</span></span>}
+                            </div>
+                            {a.status === "completed" && a.resolver && (
+                              <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
+                                Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
+                              </div>
+                            )}
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                              {actionItemMessages.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">No messages yet.</p>
+                              ) : (
+                                actionItemMessages.map((m: any) => (
+                                  <div key={m.id} className="flex gap-2 bg-white rounded-md p-2.5 border border-[#e5e7eb]">
+                                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                                      <AvatarImage src={getAvatarUrl(m.sender?.full_name)} />
+                                      <AvatarFallback className="text-[10px]">{m.sender?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                                    </Avatar>
+                                    <div className="min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs font-semibold">{m.sender?.full_name || "Unknown"}</span>
+                                        <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "employee"}</Badge>
+                                        <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
+                                      </div>
+                                      <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                            {a.status === "pending" && (
+                              <div className="flex gap-2">
+                                <Textarea value={newActionItemMessage} onChange={(e) => setNewActionItemMessage(e.target.value)} placeholder="Type a reply..." className="min-h-[60px] text-sm" />
+                                <Button size="sm" className="rounded-button shrink-0" disabled={!newActionItemMessage.trim()} onClick={() => sendActionItemMessage(a.id)}>
+                                  <Send className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </TabsContent>
+        )}
+
         {/* TASKS — admin only */}
         {isAdmin && (
           <TabsContent value="tasks" className="space-y-4">
@@ -3027,63 +3198,27 @@ const { data: resolvedId } = useQuery({
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Action Items</h3>
             </div>
-            <form onSubmit={addActionItem} className="flex gap-2 items-end flex-wrap">
-              <div className="flex-1 space-y-1">
-                <label className="text-xs font-medium">Title *</label>
-                <Input value={newActionItemTitle} onChange={(e) => setNewActionItemTitle(e.target.value)} placeholder="Action item title" required />
-              </div>
-              <div className="flex-1 space-y-1">
-                <label className="text-xs font-medium">Description</label>
-                <Input value={newActionItemDesc} onChange={(e) => setNewActionItemDesc(e.target.value)} placeholder="Optional description" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-medium">Due Date</label>
-                <Input type="date" value={newActionItemDue} onChange={(e) => setNewActionItemDue(e.target.value)} className="w-[140px]" />
-              </div>
-              <div className="flex items-center gap-2 pb-0.5">
-                <Checkbox
-                  id="action-visible-client"
-                  checked={newActionItemVisible}
-                  onCheckedChange={(v) => {
-                    setNewActionItemVisible(v === true);
-                    if (v !== true) setNewActionItemBlockerId("");
-                  }}
-                />
-                <label htmlFor="action-visible-client" className="text-xs font-medium cursor-pointer">Visible to Client</label>
-              </div>
-              {newActionItemVisible && eligibleBlockers.length > 0 && (
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Link to Blocker</label>
-                  <Select value={newActionItemBlockerId} onValueChange={setNewActionItemBlockerId}>
-                    <SelectTrigger className="w-[200px]"><SelectValue placeholder="Optional..." /></SelectTrigger>
-                    <SelectContent>
-                      {eligibleBlockers.map((b: any) => (
-                        <SelectItem key={b.id} value={b.id}>{b.description}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-              <Button type="submit" size="sm" className="rounded-button">Add</Button>
-            </form>
             {actionItems.length === 0 ? (
               <p className="text-sm text-muted-foreground">No action items yet.</p>
             ) : (
               <div>
-                <TableHeader gridCols="1fr 100px 96px 96px 80px 80px 80px">
+                <TableHeader gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
                   <span>TITLE</span>
+                  <span>PRIORITY</span>
                   <span>STATUS</span>
                   <span>DUE DATE</span>
                   <span>REQUESTED</span>
                   <span>VISIBLE</span>
                   <span>BLOCKER</span>
+                  <span>RELATED TASK</span>
+                  <span>ASSIGNED</span>
                   <span className="text-right">ACTIONS</span>
                 </TableHeader>
                 {actionItems.map((a: any) => {
                   const isExpanded = expandedActionItemId === a.id;
                   return (
                     <div key={a.id}>
-                      <DataRow gridCols="1fr 100px 96px 96px 80px 80px 80px">
+                      <DataRow gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
                         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
                           {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
                           <div>
@@ -3091,6 +3226,9 @@ const { data: resolvedId } = useQuery({
                             {a.description && <RowSecondary>{a.description}</RowSecondary>}
                           </div>
                         </div>
+                        <RowBadgeItem label="PRIORITY">
+                          <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge>
+                        </RowBadgeItem>
                         <RowBadgeItem label="STATUS">
                           <Badge className={
                             a.status === "completed" ? "bg-green-100 text-green-800" :
@@ -3099,7 +3237,7 @@ const { data: resolvedId } = useQuery({
                           }>{a.status}</Badge>
                         </RowBadgeItem>
                         <RowDataItem label="DUE DATE">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
-                        <RowDataItem label="REQUESTED">{a.requested_by ? "Yes" : "—"}</RowDataItem>
+                        <RowDataItem label="REQUESTED">{a.requested_by_user?.full_name || "—"}</RowDataItem>
                         <RowBadgeItem label="VISIBLE">
                           {a.visible_to_client ? <Badge className="bg-blue-100 text-blue-800">Client</Badge> : <span className="text-muted-foreground">—</span>}
                         </RowBadgeItem>
@@ -3110,16 +3248,24 @@ const { data: resolvedId } = useQuery({
                             </Badge>
                           ) : <span className="text-muted-foreground">—</span>}
                         </RowBadgeItem>
-                        <RowActions className="justify-self-end">
+                        <RowDataItem label="RELATED TASK">{tasks?.find((t: any) => t.id === a.blockers?.task_id)?.title || "—"}</RowDataItem>
+                        <RowDataItem label="ASSIGNED">{a.assigned_to_user?.full_name || "—"}</RowDataItem>
+                        <div style={{ justifySelf: "end" }} className="flex items-center gap-1">
                           {a.status === "pending" && (
                             <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
                               <CheckCircle2 className="h-4 w-4 text-green-600" />
                             </button>
                           )}
-                        </RowActions>
+                        </div>
                       </DataRow>
                       {isExpanded && (
                         <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
+                          <div className="flex flex-wrap gap-3 text-sm">
+                            <span className="text-muted-foreground">Priority: <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge></span>
+                            {a.blockers && <span className="text-muted-foreground">Blocker: <span className="text-foreground font-medium">{a.blockers.description || a.blockers.title || "—"}</span></span>}
+                            {a.blockers?.task_id && <span className="text-muted-foreground">Task: <span className="text-foreground font-medium">{tasks?.find((t: any) => t.id === a.blockers.task_id)?.title || "—"}</span></span>}
+                            {a.due_date && <span className="text-muted-foreground">Due: <span className="text-foreground font-medium">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span></span>}
+                          </div>
                           {a.status === "completed" && a.resolver && (
                             <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
                               Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
@@ -3147,6 +3293,14 @@ const { data: resolvedId } = useQuery({
                               ))
                             )}
                           </div>
+                          {a.status === "pending" && (
+                            <div className="flex gap-2">
+                              <Textarea value={newActionItemMessage} onChange={(e) => setNewActionItemMessage(e.target.value)} placeholder="Type a reply..." className="min-h-[60px] text-sm" />
+                              <Button size="sm" className="rounded-button shrink-0" disabled={!newActionItemMessage.trim()} onClick={() => sendActionItemMessage(a.id)}>
+                                <Send className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -3685,6 +3839,9 @@ const { data: resolvedId } = useQuery({
           setNewViewComment("");
           setShowViewAddBlocker(false);
           setNewViewBlockerDescription("");
+          setNewBlockerVisibility("all");
+          setNewBlockerAssignType("employee");
+          setNewBlockerAssignUserId("");
           setViewAddDepOpen(false);
           setViewAddDepTaskId("");
           setViewAddDepType("finish_to_start");
@@ -3866,11 +4023,47 @@ const { data: resolvedId } = useQuery({
               </div>
             )}
             {showViewAddBlocker ? (
-              <div className="space-y-2 border rounded-md p-3">
+              <div className="space-y-3 border rounded-md p-3">
                 <Textarea value={newViewBlockerDescription} onChange={(e) => setNewViewBlockerDescription(e.target.value)} placeholder="Describe the blocker..." rows={2} className="text-sm resize-none" />
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Visibility</label>
+                  <Select value={newBlockerVisibility} onValueChange={(v: "all" | "team") => setNewBlockerVisibility(v)}>
+                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">View To All</SelectItem>
+                      <SelectItem value="team">View To Team Only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">Assign To</label>
+                  <Select value={newBlockerAssignType} onValueChange={(v: "employee" | "client") => { setNewBlockerAssignType(v); setNewBlockerAssignUserId(""); }}>
+                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="employee">Employee</SelectItem>
+                      <SelectItem value="client">Client</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-medium">{newBlockerAssignType === "employee" ? "Select Employee" : "Select Client Member"}</label>
+                  <Select value={newBlockerAssignUserId} onValueChange={setNewBlockerAssignUserId}>
+                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue placeholder="Choose..." /></SelectTrigger>
+                    <SelectContent>
+                      {(members || [])
+                        .filter((m: any) => {
+                          if (newBlockerAssignType === "employee") return m.users?.role === "employee";
+                          return m.users?.role === "client member";
+                        })
+                        .map((m: any) => (
+                          <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={addViewBlocker} disabled={!newViewBlockerDescription.trim()}>Add</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setShowViewAddBlocker(false); setNewViewBlockerDescription(""); }}>Cancel</Button>
+                  <Button type="button" size="sm" onClick={addViewBlocker} disabled={!newViewBlockerDescription.trim() || !newBlockerAssignUserId}>Add</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => { setShowViewAddBlocker(false); setNewViewBlockerDescription(""); setNewBlockerVisibility("all"); setNewBlockerAssignType("employee"); setNewBlockerAssignUserId(""); }}>Cancel</Button>
                 </div>
               </div>
             ) : (

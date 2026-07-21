@@ -615,6 +615,20 @@ const { data: resolvedId } = useQuery({
     return counts;
   }, [tasks]);
 
+  const sprintProgress = useMemo(() => {
+    const progress: Record<string, number> = {};
+    (sprints || []).forEach((s: any) => {
+      const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === s.id);
+      if (sprintTasks.length === 0) {
+        progress[s.id] = 0;
+      } else {
+        const completed = sprintTasks.filter((t: any) => t.status === "complete").length;
+        progress[s.id] = Math.round((completed / sprintTasks.length) * 100);
+      }
+    });
+    return progress;
+  }, [sprints, tasks]);
+
   const [newViewComment, setNewViewComment] = useState("");
   const [newViewBlockerDescription, setNewViewBlockerDescription] = useState("");
   const [showViewAddBlocker, setShowViewAddBlocker] = useState(false);
@@ -671,6 +685,10 @@ const { data: resolvedId } = useQuery({
 
   const addViewBlocker = async () => {
     if (!newViewBlockerDescription.trim() || !viewTaskData?.id || !profile) return;
+    if (viewTaskData.status === "complete") {
+      toast.error("Cannot add blockers to a completed task");
+      return;
+    }
     const { data: newBlocker, error } = await supabase.from("task_blockers").insert({
       project_id: viewTaskData.project_id,
       task_id: viewTaskData.id,
@@ -927,6 +945,10 @@ const { data: resolvedId } = useQuery({
 
   const addViewDependency = async () => {
     if (!viewAddDepTaskId || !viewTaskData?.id || !profile) return;
+    if (viewTaskData.status === "complete") {
+      toast.error("Cannot add dependencies to a completed task");
+      return;
+    }
     const { error } = await supabase.from("task_dependencies").insert({
       task_id: viewTaskData.id,
       depends_on_task_id: viewAddDepTaskId,
@@ -960,16 +982,17 @@ const { data: resolvedId } = useQuery({
           message: `Complete "${depTask.title}" — "${viewTaskData.title}" depends on it`,
           projectId: viewTaskData.project_id,
         });
-        await createProjectRelatedNotifications({
-          createdByUserId: profile.id,
-          projectId: viewTaskData.project_id,
-          type: "action_item_created",
-          title: "New Dependency Action Item",
-          message: `${profile.full_name} created a dependency: Complete "${depTask.title}" — "${viewTaskData.title}" depends on it`,
-        });
-        queryClient.invalidateQueries({ queryKey: ["project-action-items", viewTaskData.project_id] });
       }
     }
+
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId: viewTaskData.project_id,
+      type: "action_item_created",
+      title: "New Dependency Action Item",
+      message: `${profile.full_name} created a dependency: Complete "${depTask?.title || "(untitled)"}" — "${viewTaskData.title}" depends on it`,
+    });
+    queryClient.invalidateQueries({ queryKey: ["project-action-items", viewTaskData.project_id] });
 
     setViewAddDepOpen(false);
     setViewAddDepTaskId("");
@@ -1136,11 +1159,27 @@ const { data: resolvedId } = useQuery({
 
   const deleteTask = async () => {
     if (!deleteTaskConfirmId || !id) return;
+    const { data: delTask } = await supabase
+      .from("tasks")
+      .select("status, title")
+      .eq("id", deleteTaskConfirmId)
+      .single();
+    if (delTask?.status === "complete") {
+      toast.warning("Deleting a completed task — this will remove history");
+    }
     const { error } = await supabase.from("tasks").delete().eq("id", deleteTaskConfirmId);
     if (error) { toast.error(error.message); return; }
     setDeleteTaskConfirmId(null);
     toast.success("Task deleted");
     queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+    
+    await createProjectRelatedNotifications({
+      createdByUserId: profile?.id || "",
+      projectId: id,
+      type: "task_deleted",
+      title: "Task Deleted",
+      message: `${profile?.full_name || "A user"} deleted task "${delTask?.title || "(untitled)"}" in project "${project?.name}"`,
+    });
   };
 
   const completeActionItem = async (itemId: string) => {
@@ -1247,24 +1286,16 @@ const { data: resolvedId } = useQuery({
   const phaseProgress = useMemo(() => {
     const progress: Record<string, number> = {};
     (phases || []).forEach((p: any) => {
-      const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === p.id);
-      if (phaseTasks.length === 0) {
+      const phaseSprints = (sprints || []).filter((s: any) => s.phase_id === p.id);
+      if (phaseSprints.length === 0) {
         progress[p.id] = 0;
       } else {
-        const completed = phaseTasks.filter((t: any) => t.status === "complete").length;
-        progress[p.id] = Math.round((completed / phaseTasks.length) * 100);
+        const completed = phaseSprints.filter((s: any) => s.status === "completed").length;
+        progress[p.id] = Math.round((completed / phaseSprints.length) * 100);
       }
     });
     return progress;
-  }, [phases, tasks]);
-
-  const phaseTaskCount = useMemo(() => {
-    const counts: Record<string, number> = {};
-    (tasks || []).forEach((t: any) => {
-      if (t.phase_id) counts[t.phase_id] = (counts[t.phase_id] || 0) + 1;
-    });
-    return counts;
-  }, [tasks]);
+  }, [phases, sprints]);
 
   const openPhaseTasks = (phase: any) => {
     setSelectedPhase(phase);
@@ -1402,10 +1433,22 @@ const { data: resolvedId } = useQuery({
       setTaskClientVisible(true);
       setTaskAssignedTo("");
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+      
+      await createProjectRelatedNotifications({
+        createdByUserId: profile?.id || "",
+        projectId: id!,
+        type: "task_created",
+        title: "Task Created",
+        message: `${profile?.full_name || "A user"} created task "${taskTitle.trim()}" in project "${project?.name}"`,
+      });
     } catch (err: any) { toast.error(err.message); }
   };
 
   const openEditTask = (task: any) => {
+    if (task.status === "complete") {
+      toast.error("Cannot edit a completed task");
+      return;
+    }
     setEditTaskId(task.id);
     setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
@@ -1447,6 +1490,11 @@ const { data: resolvedId } = useQuery({
       const oldAssignedTo = oldTask?.assigned_to;
       const wasCompleted = !!oldTask?.completed_at;
 
+      if (wasCompleted) {
+        toast.error("Cannot edit a completed task");
+        return;
+      }
+
       const { error } = await supabase
         .from("tasks")
         .update(updates)
@@ -1485,6 +1533,14 @@ const { data: resolvedId } = useQuery({
         }));
         if (notifications.length > 0) await supabase.from("notifications").insert(notifications);
       }
+
+      await createProjectRelatedNotifications({
+        createdByUserId: profile?.id || "",
+        projectId: id!,
+        type: "task_edited",
+        title: "Task Updated",
+        message: `${profile?.full_name || "A user"} updated task "${editTaskTitle.trim()}" in project "${project?.name}"`,
+      });
 
       setEditTaskOpen(false);
       setEditTaskId(null);
@@ -1589,6 +1645,14 @@ const { data: resolvedId } = useQuery({
       setCsvRows([]);
       setCsvFileName("");
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+      
+      await createProjectRelatedNotifications({
+        createdByUserId: profile?.id || "",
+        projectId: id!,
+        type: "task_created",
+        title: "Tasks Created (Bulk)",
+        message: `${profile?.full_name || "A user"} added ${validRows.length} task(s) via CSV upload in project "${project?.name}"`,
+      });
     } catch (err: any) { toast.error(err.message); }
     finally { setUploading(false); }
   };
@@ -1767,7 +1831,10 @@ const { data: resolvedId } = useQuery({
                   {(() => {
                     const scopeTasks = burndownScope === "project"
                       ? (tasks || [])
-                      : (tasks || []).filter((t: any) => t.phase_id === burndownScope);
+                      : (tasks || []).filter((t: any) => {
+                          const taskSprint = (sprints || []).find((s: any) => s.id === t.sprint_id);
+                          return taskSprint?.phase_id === burndownScope;
+                        })
                     const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
                     const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
                     const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
@@ -1890,25 +1957,18 @@ const { data: resolvedId } = useQuery({
                 <h3 className="text-lg font-semibold">Phase Progress</h3>
               </div>
               {(() => {
-                const clientTasks = (tasks || []).filter((t: any) => t.client_visible === true);
-                const doneStatusIds = new Set(
-                  (workflowStatuses || []).filter((s: any) => s.category === "done").map((s: any) => s.id)
-                );
-
-                const clientPhaseTaskCount: Record<string, number> = {};
-                clientTasks.forEach((t: any) => {
-                  if (t.phase_id) clientPhaseTaskCount[t.phase_id] = (clientPhaseTaskCount[t.phase_id] || 0) + 1;
-                });
-
                 const clientPhaseProgress: Record<string, number> = {};
+                const visiblePhases: any[] = [];
                 (phases || []).forEach((p: any) => {
-                  const pts = clientTasks.filter((t: any) => t.phase_id === p.id);
-                  if (pts.length === 0) { clientPhaseProgress[p.id] = 0; return; }
-                  const completed = pts.filter((t: any) => doneStatusIds.has(t.status_id)).length;
-                  clientPhaseProgress[p.id] = Math.round((completed / pts.length) * 100);
+                  const phaseSprints = (sprints || []).filter((s: any) => s.phase_id === p.id);
+                  if (phaseSprints.length === 0) {
+                    clientPhaseProgress[p.id] = 0;
+                  } else {
+                    const completed = phaseSprints.filter((s: any) => s.status === "completed").length;
+                    clientPhaseProgress[p.id] = Math.round((completed / phaseSprints.length) * 100);
+                    visiblePhases.push(p);
+                  }
                 });
-
-                const visiblePhases = (phases || []).filter((p: any) => (clientPhaseTaskCount[p.id] || 0) > 0);
 
                 if (visiblePhases.length === 0) {
                   return <Card className="p-6"><p className="text-muted-foreground">No phase progress to display.</p></Card>;
@@ -1916,21 +1976,17 @@ const { data: resolvedId } = useQuery({
 
                 return (
                   <div>
-                    <TableHeader gridCols="1fr 96px 112px 192px">
+                    <TableHeader gridCols="1fr 112px 192px">
                       <span>PHASE</span>
-                      <span>TASKS</span>
                       <span>DUE DATE</span>
                       <span>PROGRESS</span>
                     </TableHeader>
                     {visiblePhases.map((p: any) => (
-                      <DataRow key={p.id} gridCols="1fr 96px 112px 192px">
+                      <DataRow key={p.id} gridCols="1fr 112px 192px">
                         <div>
                           <RowPrimary>{p.title}</RowPrimary>
-                          <RowSecondary>
-                            {clientPhaseTaskCount[p.id] || 0} tasks · {(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints
-                          </RowSecondary>
+                          <RowSecondary>{(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints</RowSecondary>
                         </div>
-                        <RowDataItem label="TASKS">{clientPhaseTaskCount[p.id] || 0}</RowDataItem>
                         <RowDataItem label="DUE DATE">{p.due_date ? format(new Date(p.due_date), "MMM d, yyyy") : "—"}</RowDataItem>
                         <RowDataItem label="PROGRESS">
                           <div className="flex items-center gap-2">
@@ -1950,7 +2006,10 @@ const { data: resolvedId } = useQuery({
               {(() => {
                 const scopeTasks = burndownScope === "project"
                   ? (tasks || []).filter((t: any) => t.client_visible === true)
-                  : (tasks || []).filter((t: any) => t.client_visible === true && t.phase_id === burndownScope);
+                  : (tasks || []).filter((t: any) => {
+                      const taskSprint = (sprints || []).find((s: any) => s.id === t.sprint_id);
+                      return t.client_visible === true && taskSprint?.phase_id === burndownScope;
+                    })
 
                 const doneStatusIds = new Set(
                   (workflowStatuses || []).filter((s: any) => s.category === "done").map((s: any) => s.id)
@@ -2385,7 +2444,10 @@ const { data: resolvedId } = useQuery({
             {(() => {
               const scopeTasks = burndownScope === "project"
                 ? (tasks || [])
-                : (tasks || []).filter((t: any) => t.phase_id === burndownScope);
+                : (tasks || []).filter((t: any) => {
+                    const taskSprint = (sprints || []).find((s: any) => s.id === t.sprint_id);
+                    return taskSprint?.phase_id === burndownScope;
+                  })
               const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
               const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
               const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
@@ -2948,20 +3010,18 @@ const { data: resolvedId } = useQuery({
               <p className="text-sm text-muted-foreground">No phases yet.</p>
             ) : (
               <div>
-                <TableHeader gridCols="1fr 96px 112px 192px 80px">
+                <TableHeader gridCols="1fr 112px 192px 80px">
                   <span>PHASE</span>
-                  <span>TASKS</span>
                   <span>DUE DATE</span>
                   <span>PROGRESS</span>
                   <span className="text-right">ACTIONS</span>
                 </TableHeader>
                 {phases.map((p: any) => (
-                  <DataRow key={p.id} onClick={() => openPhaseTasks(p)} gridCols="1fr 96px 112px 192px 80px">
+                  <DataRow key={p.id} onClick={() => openPhaseTasks(p)} gridCols="1fr 112px 192px 80px">
                     <div>
                       <RowPrimary>{p.title}</RowPrimary>
-                      <RowSecondary>{phaseTaskCount[p.id] || 0} tasks · {(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints</RowSecondary>
+                      <RowSecondary>{(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints</RowSecondary>
                     </div>
-                    <RowDataItem label="TASKS">{phaseTaskCount[p.id] || 0}</RowDataItem>
                     <RowDataItem label="DUE DATE">{p.due_date ? format(new Date(p.due_date), "MMM d, yyyy") : "—"}</RowDataItem>
                     <RowDataItem label="PROGRESS">
                       <div className="flex items-center gap-2">
@@ -3011,15 +3071,16 @@ const { data: resolvedId } = useQuery({
                         <Badge variant="outline" className="text-[10px]">{phaseSprints.length} sprint{phaseSprints.length !== 1 ? "s" : ""}</Badge>
                       </div>
                       <div>
-                        <TableHeader gridCols="1fr 112px 96px 96px 80px">
+                        <TableHeader gridCols="1fr 112px 96px 96px 80px 80px">
                           <span>SPRINT</span>
                           <span>DATES</span>
                           <span>STATUS</span>
                           <span>TASKS</span>
+                          <span>PROGRESS</span>
                           <span className="text-right">ACTIONS</span>
                         </TableHeader>
                         {phaseSprints.map((s: any) => (
-                          <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px">
+                          <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
                             <div>
                               <RowPrimary>{s.name}</RowPrimary>
                               <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
@@ -3035,6 +3096,14 @@ const { data: resolvedId } = useQuery({
                               }>{s.status}</Badge>
                             </RowBadgeItem>
                             <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                            <RowDataItem label="PROGRESS">
+                              <div className="flex items-center gap-2">
+                                <div className="w-16 bg-muted rounded-full h-2">
+                                  <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${sprintProgress[s.id]}%` }} />
+                                </div>
+                                <span className="text-[11px] text-[#6b7280]">{sprintProgress[s.id]}%</span>
+                              </div>
+                            </RowDataItem>
                             <RowActions className="justify-self-end">
                               {isAdmin && (
                                 <button onClick={(e) => { e.stopPropagation(); openEditSprint(s); }} className={editButtonClass} title="Edit Sprint">
@@ -3057,15 +3126,16 @@ const { data: resolvedId } = useQuery({
                 <div>
                   <h4 className="font-semibold text-sm mb-2">Unassigned</h4>
                   <div>
-                    <TableHeader gridCols="1fr 112px 96px 96px 80px">
+                    <TableHeader gridCols="1fr 112px 96px 96px 80px 80px">
                       <span>SPRINT</span>
                       <span>DATES</span>
                       <span>STATUS</span>
                       <span>TASKS</span>
+                      <span>PROGRESS</span>
                       <span className="text-right">ACTIONS</span>
                     </TableHeader>
                     {sprints.filter((s: any) => !s.phase_id).map((s: any) => (
-                      <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px">
+                      <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
                         <div>
                           <RowPrimary>{s.name}</RowPrimary>
                           <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
@@ -3081,6 +3151,14 @@ const { data: resolvedId } = useQuery({
                           }>{s.status}</Badge>
                         </RowBadgeItem>
                         <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                        <RowDataItem label="PROGRESS">
+                          <div className="flex items-center gap-2">
+                            <div className="w-16 bg-muted rounded-full h-2">
+                              <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${sprintProgress[s.id]}%` }} />
+                            </div>
+                            <span className="text-[11px] text-[#6b7280]">{sprintProgress[s.id]}%</span>
+                          </div>
+                        </RowDataItem>
                         <RowActions className="justify-self-end">
                           {isAdmin && (
                             <button onClick={(e) => { e.stopPropagation(); openEditSprint(s); }} className={editButtonClass} title="Edit Sprint">
@@ -4188,9 +4266,8 @@ const { data: resolvedId } = useQuery({
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{selectedPhase?.title}</DialogTitle></DialogHeader>
           <Tabs defaultValue="sprints">
-            <TabsList className="grid w-full grid-cols-2">
+            <TabsList className="grid w-full grid-cols-1">
               <TabsTrigger value="sprints">Sprints</TabsTrigger>
-              <TabsTrigger value="tasks">Tasks</TabsTrigger>
             </TabsList>
             <TabsContent value="sprints" className="space-y-2 max-h-80 overflow-y-auto">
               {(() => {
@@ -4202,6 +4279,12 @@ const { data: resolvedId } = useQuery({
                       <span className="text-sm font-medium">{s.name}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-12 bg-muted rounded-full h-1.5">
+                          <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${sprintProgress[s.id] || 0}%` }} />
+                        </div>
+                        <span className="text-[10px] text-[#6b7280]">{sprintProgress[s.id] || 0}%</span>
+                      </div>
                       <Badge variant="secondary" className="text-xs">{format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}</Badge>
                       <Badge className={
                         s.status === "active" ? "bg-green-100 text-green-800" :
@@ -4209,25 +4292,6 @@ const { data: resolvedId } = useQuery({
                         "bg-gray-100 text-gray-800"
                       }>{s.status}</Badge>
                       <Badge variant="secondary" className="text-xs">{sprintTaskCount[s.id] || 0} tasks</Badge>
-                    </div>
-                  </div>
-                ));
-              })()}
-            </TabsContent>
-            <TabsContent value="tasks" className="space-y-2 max-h-80 overflow-y-auto">
-              {(() => {
-                const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === selectedPhase?.id);
-                if (phaseTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this phase.</p>;
-                return phaseTasks.map((t: any) => (
-                  <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-sm font-medium">{t.title}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
-                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
-                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
-                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                     </div>
                   </div>
                 ));
@@ -4392,7 +4456,7 @@ const { data: resolvedId } = useQuery({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete phase?</AlertDialogTitle>
-            <AlertDialogDescription>This will unlink all tasks from this phase and cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>This will also delete all sprints in this phase and cannot be undone.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>

@@ -6,6 +6,7 @@ import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, isA
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { useNavigate } from "react-router-dom";
 import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -20,6 +21,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [requestBannerDismissTick, setRequestBannerDismissTick] = useState(0);
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isClient = profile?.role === "client" || profile?.role === "client member";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
   const { annualLeaveEntitlement, shiftStart, shiftEnd, workingDays, graceMinutes } = useWorkSettings();
@@ -37,6 +39,15 @@ export default function DashboardPage() {
     },
     enabled: hasProfile && !!user?.id,
   });
+
+  const statusBadge = (status: string) => {
+    switch (status) {
+      case "approved": return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
+      case "rejected": return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
+      case "cancelled": return <Badge className="bg-gray-100 text-gray-800">Cancelled</Badge>;
+      default: return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
+    }
+  };
 
   // ——— Admin queries ———
   const { data: stats } = useQuery({
@@ -423,12 +434,20 @@ export default function DashboardPage() {
             {(!lateLogs || lateLogs.length === 0) ? (
               <p className="text-sm text-muted-foreground">No late submissions today ✓</p>
             ) : (
-              <div className="divide-y divide-black/30">
+              <div>
+                <TableHeader gridCols="1fr 80px">
+                  <span>EMPLOYEE</span>
+                  <span className="text-right">ACTIONS</span>
+                </TableHeader>
                 {lateLogs.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between text-sm py-2 first:pt-0 last:pb-0">
-                    <span className="font-medium">{(l.users as any)?.full_name}</span>
-                    <Button variant="link" size="sm" className="h-auto p-0 text-xs text-red-600" onClick={() => navigate("/logs/all?filter=late")}>View</Button>
-                  </div>
+                  <DataRow key={l.id} gridCols="1fr 80px">
+                    <div>
+                      <RowPrimary>{(l.users as any)?.full_name}</RowPrimary>
+                    </div>
+                    <RowActions className="justify-self-end">
+                      <button onClick={() => navigate("/logs/all?filter=late")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-red-600 text-xs font-medium" title="View">View</button>
+                    </RowActions>
+                  </DataRow>
                 ))}
               </div>
             )}
@@ -442,22 +461,34 @@ export default function DashboardPage() {
             {(!pendingLeaveList || pendingLeaveList.length === 0) ? (
               <p className="text-sm text-muted-foreground">No pending requests ✓</p>
             ) : (
-              <div className="divide-y divide-border/100">
+              <div>
+                <TableHeader gridCols="1fr 112px 112px 112px 96px 80px">
+                  <span>EMPLOYEE</span>
+                  <span>TYPE</span>
+                  <span>FROM</span>
+                  <span>TO</span>
+                  <span>STATUS</span>
+                  <span className="text-right">ACTIONS</span>
+                </TableHeader>
                 {pendingLeaveList.map((r) => (
-                  <div key={r.id} className="flex items-center justify-between py-3 first:pt-0 last:pb-0">
-                    <div className="text-sm">
-                      <p className="font-medium">{(r.users as any)?.full_name}</p>
-                      <p className="text-muted-foreground text-xs">{getLeaveTypeName(r)} ({r.hours ? "0.5" : r.days_count}d)</p>
+                  <DataRow key={r.id} gridCols="1fr 112px 112px 112px 96px 80px">
+                    <div>
+                      <RowPrimary>{(r.users as any)?.full_name}</RowPrimary>
+                      <RowSecondary>{getLeaveTypeName(r)} ({r.hours ? "0.5" : r.days_count}d)</RowSecondary>
                     </div>
-                    <div className="flex gap-1">
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => handleLeaveAction(r.id, "approved")}>
-                        <CheckCircle className="h-3 w-3 mr-1" />Approve
-                      </Button>
-                      <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => handleLeaveAction(r.id, "rejected")}>
-                        <XCircle className="h-3 w-3 mr-1" />Reject
-                      </Button>
-                    </div>
-                  </div>
+                    <RowDataItem label="TYPE">{getLeaveTypeName(r)}</RowDataItem>
+                    <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                    <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                    <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
+                    <RowActions className="justify-self-end">
+                      <button onClick={() => handleLeaveAction(r.id, "approved")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
+                        <CheckCircle className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleLeaveAction(r.id, "rejected")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject">
+                        <XCircle className="h-4 w-4" />
+                      </button>
+                    </RowActions>
+                  </DataRow>
                 ))}
               </div>
             )}
@@ -465,7 +496,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex gap-3 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Employee</Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Users</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/projects/new")}><Plus className="h-4 w-4 mr-1" />Add Project</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/clients")}><Building2 className="h-4 w-4 mr-1" />Add Client</Button>
           <Button variant="outline" size="sm" onClick={() => navigate("/reports")}><BarChart3 className="h-4 w-4 mr-1" />View Reports</Button>
@@ -489,6 +520,38 @@ export default function DashboardPage() {
             </div>
           )}
         </Card>
+      </div>
+    );
+  }
+
+  // ——— CLIENT DASHBOARD ———
+  if (isClient) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/projects")}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-blue-50"><FolderKanban className="h-5 w-5 text-blue-600" /></div>
+              <div><p className="text-sm text-muted-foreground">Projects</p><p className="text-2xl font-bold">—</p></div>
+            </div>
+          </Card>
+          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/announcements")}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-green-50"><FileText className="h-5 w-5 text-green-600" /></div>
+              <div><p className="text-sm text-muted-foreground">Announcements</p><p className="text-2xl font-bold">—</p></div>
+            </div>
+          </Card>
+          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/profile")}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-md bg-purple-50"><Users className="h-5 w-5 text-purple-600" /></div>
+              <div><p className="text-sm text-muted-foreground">Profile</p><p className="text-2xl font-bold">—</p></div>
+            </div>
+          </Card>
+        </div>
       </div>
     );
   }
@@ -668,7 +731,7 @@ export default function DashboardPage() {
               </div>
             </Card>
           </DialogTrigger>
-          <DialogContent className="max-w-md p-0 overflow-hidden">
+          <DialogContent className="max-w-md p-0 overflow-y-auto">
             <DialogHeader className="p-4 pb-2 border-b">
               <DialogTitle className="flex items-center gap-2 text-lg">
                 <Users className="h-5 w-5 text-purple-600" />
@@ -748,19 +811,27 @@ export default function DashboardPage() {
       {recentLogs && recentLogs.length > 0 && (
         <div>
           <h2 className="text-lg font-semibold mb-3">Recent Logs</h2>
-          <Card>
-            <div className="divide-y">
-              {recentLogs.map((log: any) => (
-                <div key={log.id} className="p-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</p>
-                    <p className="text-xs text-muted-foreground">{log.projects?.name || "No project"} · {log.hours}h · {log.category}</p>
-                  </div>
-                  <Button variant="link" size="sm" className="text-xs text-black" onClick={() => navigate("/logs/my")}>View</Button>
+          <div>
+            <TableHeader gridCols="1fr 112px 80px 80px">
+              <span>PROJECT</span>
+              <span>DATE</span>
+              <span>HOURS</span>
+              <span className="text-right">ACTIONS</span>
+            </TableHeader>
+            {recentLogs.map((log: any) => (
+              <DataRow key={log.id} gridCols="1fr 112px 80px 80px">
+                <div>
+                  <RowPrimary>{log.projects?.name || "No project"}</RowPrimary>
+                  <RowSecondary>{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")} · {log.category.replace(/_/g, " ")}</RowSecondary>
                 </div>
-              ))}
-            </div>
-          </Card>
+                <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                <RowDataItem label="HOURS">{log.hours}h</RowDataItem>
+                <RowActions className="justify-self-end">
+                  <button onClick={() => navigate("/logs/my")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-xs font-medium text-[#6b7280]" title="View">View</button>
+                </RowActions>
+              </DataRow>
+            ))}
+          </div>
         </div>
       )}
     </div>

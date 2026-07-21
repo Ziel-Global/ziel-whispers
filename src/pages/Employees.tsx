@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { Plus, Search, Upload, Eye, Save, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
@@ -133,8 +133,8 @@ export default function EmployeesPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Employees</h1>
-          <p className="text-muted-foreground mt-1">{employees.length} total employees</p>
+          <h1 className="text-2xl font-bold tracking-tight">Users</h1>
+          <p className="text-muted-foreground mt-1">{employees.length} total users</p>
         </div>
         {isAdmin && (
           <div className="flex gap-2">
@@ -144,7 +144,7 @@ export default function EmployeesPage() {
             </Button>
             <Button onClick={() => navigate("/employees/new")} className="rounded-button">
               <Plus className="h-4 w-4 mr-2" />
-              Add Employee
+              Add New User
             </Button>
           </div>
         )}
@@ -152,7 +152,7 @@ export default function EmployeesPage() {
 
       <Tabs defaultValue="list">
         <TabsList>
-          <TabsTrigger value="list">All Employees</TabsTrigger>
+          <TabsTrigger value="list">All Users </TabsTrigger>
           {isAdmin && <TabsTrigger value="shift">Global Shift Settings</TabsTrigger>}
         </TabsList>
 
@@ -187,64 +187,68 @@ export default function EmployeesPage() {
               <SelectTrigger className="w-[140px]"><SelectValue placeholder="Role" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
+                <SelectItem value="admin">admin</SelectItem>
                 <SelectItem value="manager">Manager</SelectItem>
                 <SelectItem value="employee">Employee</SelectItem>
+                <SelectItem value="client member">Client Member</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <div className="border border-border rounded-card bg-card">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[50px]"></TableHead>
-                  <TableHead>Full Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Designation</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {isLoading ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
-                ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No employees found</TableCell></TableRow>
-                ) : (
-                    filtered.map((emp) => {
-                    const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
-                    const isOversight = emp.is_oversight;
-                    return (
-                      <TableRow key={emp.id} className={`cursor-pointer${isOversight ? " bg-[#fef3c7]" : ""}`} onClick={() => navigate(`/employees/${emp.id}`)}>
-                        <TableCell>
-                          <Avatar className="h-8 w-8">
-                            <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
-                            <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
-                          </Avatar>
-                        </TableCell>
-                        <TableCell className="font-medium">{emp.full_name}</TableCell>
-                        <TableCell className="text-muted-foreground">{emp.email}</TableCell>
-                        <TableCell>{emp.designation}</TableCell>
-                        <TableCell>{emp.employment_type}</TableCell>
-                        <TableCell>{statusBadge(emp.status)}</TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}>
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {isAdmin && (
-                            <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeletingUser(emp); }} className="text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
+          <div className="border border-border rounded-card bg-card overflow-hidden">
+            {isLoading ? (
+              <div className="px-4 py-8 text-center text-muted-foreground">Loading…</div>
+            ) : filtered.length === 0 ? (
+              <div className="px-4 py-8 text-center text-muted-foreground">No employees found</div>
+            ) : (
+              <div>
+                <TableHeader gridCols="1fr 192px 144px 96px 112px 80px">
+                  <span>EMPLOYEE</span>
+                  <span>EMAIL</span>
+                  <span>PHONE</span>
+                  <span>STATUS</span>
+                  <span>JOIN DATE</span>
+                  <span className="text-right">ACTIONS</span>
+                </TableHeader>
+                {filtered.map((emp) => {
+                const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                const isOversight = emp.is_oversight;
+                return (
+                  <DataRow
+                    key={emp.id}
+                    onClick={() => navigate(`/employees/${emp.id}`)}
+                    className={isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : ""}
+                    gridCols="1fr 192px 144px 96px 112px 80px"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Avatar className="h-9 w-9 shrink-0">
+                        <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
+                        <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
+                      </Avatar>
+                      <div className="min-w-0">
+                        <RowPrimary>{emp.full_name}</RowPrimary>
+                        <RowSecondary>{emp.designation}{emp.department ? ` · ${emp.department}` : ''}</RowSecondary>
+                      </div>
+                    </div>
+                    <RowDataItem label="EMAIL">{emp.email}</RowDataItem>
+                    <RowDataItem label="PHONE">{emp.phone || '—'}</RowDataItem>
+                    <RowBadgeItem label="STATUS">{statusBadge(emp.status)}</RowBadgeItem>
+                    <RowDataItem label="JOIN DATE">{emp.join_date ? format(new Date(emp.join_date), "MMM d, yyyy") : '—'}</RowDataItem>
+                    <RowActions className="justify-self-end">
+                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}>
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {isAdmin && (
+                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeletingUser(emp); }} className="text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
+                    </RowActions>
+                  </DataRow>
+                );
+              })}
+              </div>
+            )}
           </div>
           <Dialog open={!!deletingUser} onOpenChange={(open) => { if (!open) setDeletingUser(null); }}>
             <DialogContent>

@@ -18,4 +18,4 @@ CHECK (category = ANY (ARRAY[
   'posting'::text, 
   'designing'::text, 
   'other'::text
-]));
+])) NOT VALID;

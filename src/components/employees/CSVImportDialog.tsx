@@ -117,7 +117,7 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
     for (const row of valid) {
       const passwordToUse = useDefault ? defaultPassword : generateId().slice(0, 12) + "A1!";
       try {
-        const res = await supabase.functions.invoke("invite-user", { body: { ...row, password: passwordToUse } });
+        const res = await supabase.functions.invoke("invite-user", { body: { ...row, password: passwordToUse, app_url: window.location.origin } });
         const { data, error } = res as any;
         if (error) {
           failed++;
@@ -210,13 +210,13 @@ export function CSVImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
               <p className="text-xs text-muted-foreground mb-2">These rows failed during server processing. You can export them to retry after fixing issues.</p>
               <div className="border rounded-md max-h-[200px] overflow-auto">
                 <Table>
-                  <TableHead>
+                  <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Reason</TableHead>
                     </TableRow>
-                  </TableHead>
+                  </TableHeader>
                   <TableBody>
                     {failedImports.map((f, i) => (
                       <TableRow key={i} className="bg-destructive/5">

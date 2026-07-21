@@ -9,18 +9,13 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Search, FolderKanban, Archive, Trash2 } from "lucide-react";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
+import { Plus, Search, FolderKanban } from "lucide-react";
+import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-
-const STATUS_COLORS: Record<string, string> = {
-  active: "bg-green-100 text-green-800",
-  on_hold: "bg-yellow-100 text-yellow-800",
-  completed: "bg-blue-100 text-blue-800",
-  archived: "bg-muted text-muted-foreground",
-};
+import { PROJECT_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
 
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
@@ -209,43 +204,37 @@ export default function ProjectsPage() {
         </Select>
       </div>
 
-      <Card>
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Client</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Team</TableHead>
-              <TableHead>Hours</TableHead>
-              <TableHead className="text-right">Actions</TableHead>
-            </TableRow>
+      {isLoading && <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>}
+      {!isLoading && filtered.length === 0 && <Card><div className="py-12 text-center text-muted-foreground">No projects found</div></Card>}
+      {!isLoading && filtered.length > 0 && (
+        <div>
+          <TableHeader gridCols="1fr 96px 96px 112px 112px">
+            <span>PROJECT</span>
+            <span>STATUS</span>
+            <span>MEMBERS</span>
+            <span>DEADLINE</span>
+            <span>CREATED</span>
           </TableHeader>
-          <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">Loading…</TableCell></TableRow>}
-            {!isLoading && filtered.length === 0 && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground py-8">No projects found</TableCell></TableRow>}
-            {filtered.map((p) => (
-              <TableRow key={p.id} className="cursor-pointer" onClick={() => navigate(`/projects/${toSlug(p.name)}`)}>
-                <TableCell className="font-medium">{p.name}</TableCell>
-                <TableCell className="text-muted-foreground">{(p.clients as any)?.name || "—"}</TableCell>
-                <TableCell><Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge></TableCell>
-                <TableCell>{projectStats?.teamSize[p.id] || 0}</TableCell>
-                <TableCell>{(projectStats?.totalHours[p.id] || 0).toFixed(1)}h</TableCell>
-                <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                  <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => toggleArchive(p.id, p.status)} title={p.status === "archived" ? "Restore" : "Archive"}>
-                      <Archive className={`h-4 w-4 ${p.status === "archived" ? "text-blue-600" : ""}`} />
-                    </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(p.id)} className="text-destructive hover:text-destructive hover:bg-destructive/10" title="Delete">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+          {filtered.map((p) => (
+            <DataRow
+              key={p.id}
+              onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
+              gridCols="1fr 96px 96px 112px 112px"
+            >
+              <div>
+                <RowPrimary>{p.name}</RowPrimary>
+                <RowSecondary>{(p.clients as any)?.name || "—"}</RowSecondary>
+              </div>
+              <RowDataItem label="STATUS">
+                <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
+              </RowDataItem>
+              <RowDataItem label="MEMBERS">{projectStats?.teamSize[p.id] || 0}</RowDataItem>
+              <RowDataItem label="DEADLINE">{p.deadline ? format(new Date(p.deadline + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
+              <RowDataItem label="CREATED">{format(new Date(p.created_at), "MMM d, yyyy")}</RowDataItem>
+            </DataRow>
+          ))}
+        </div>
+      )}
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

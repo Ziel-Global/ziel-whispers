@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { ArrowLeft, Shield, ShieldOff, Download, Trash2, Save } from "lucide-react";
 import { AvatarUpload } from "@/components/employees/AvatarUpload";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -48,6 +48,12 @@ const adminSchema = z.object({
   is_night_shift: z.boolean(),
   working_days: z.number().min(5).max(6),
   overtime_enabled: z.boolean(),
+});
+
+const clientEditSchema = z.object({
+  full_name: z.string().min(3, "Name must be between 3 and 60 characters").max(60).regex(/^[a-zA-Z\s.'-]+$/, "Name must contain only letters"),
+  email: z.string().email("Please enter a valid email address").refine((v) => !/\s/.test(v), "No spaces allowed"),
+  project_id: z.string().optional(),
 });
 
 export default function EmployeeProfilePage() {
@@ -154,6 +160,122 @@ export default function EmployeeProfilePage() {
       return map;
     },
   });
+
+  // Client Member edit: available projects
+  const { data: clientProjects = [] } = useQuery({
+    queryKey: ["projects-list-for-client-member"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("projects")
+        .select("id, name")
+        .in("status", ["active", "on_hold"])
+        .order("name");
+      return data || [];
+    },
+    enabled: !!employee && employee.role === "client member",
+  });
+
+  // Client Member edit: current project membership
+  const { data: clientProjectId } = useQuery({
+    queryKey: ["client-member-project", id],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("project_members")
+        .select("project_id")
+        .eq("user_id", id!)
+        .is("removed_at", null)
+        .maybeSingle();
+      return data?.project_id || "";
+    },
+    enabled: !!id && !!employee && employee.role === "client member",
+  });
+
+  const isClientMember = employee?.role === "client member";
+
+  const clientEditForm = useForm<z.infer<typeof clientEditSchema>>({
+    resolver: zodResolver(clientEditSchema),
+    defaultValues: { full_name: "", email: "", project_id: "" },
+  });
+
+  useEffect(() => {
+    if (employee && isClientMember) {
+      clientEditForm.reset({
+        full_name: employee.full_name || "",
+        email: employee.email || "",
+        project_id: clientProjectId || "",
+      });
+    }
+  }, [employee, clientProjectId, isClientMember, clientEditForm]);
+
+  const clientEditOnSubmit = async (data: z.infer<typeof clientEditSchema>) => {
+    if (!employee) return;
+    setSaving(true);
+    try {
+      if (data.email !== employee.email) {
+        setPendingEmail(data.email);
+        setEmailWarningOpen(true);
+        setSaving(false);
+        return;
+      }
+      const { error } = await supabase.from("users").update({
+        full_name: data.full_name,
+        email: data.email,
+      } as any).eq("id", employee.id);
+      if (error) throw error;
+
+      if (avatarFile && isOwnProfile) {
+        const ext = avatarFile.name.split(".").pop();
+        const path = `${employee.id}/avatar.${ext}`;
+        await supabase.storage.from("avatars").upload(path, avatarFile, { upsert: true });
+        await supabase.from("users").update({ avatar_url: path }).eq("id", employee.id);
+      }
+
+      // Handle project assignment
+      const currentProjectId = clientProjectId || "";
+      const newProjectId = data.project_id || "";
+
+      if (newProjectId && newProjectId !== currentProjectId) {
+        // Remove from current project if assigned
+        if (currentProjectId) {
+          await supabase.from("project_members").update({ removed_at: new Date().toISOString() } as any)
+            .eq("user_id", employee.id).eq("project_id", currentProjectId).is("removed_at", null);
+        }
+        // Add to new project
+        let roleId: string | null = null;
+        const { data: existingRole } = await supabase
+          .from("project_roles").select("id").eq("project_id", newProjectId).eq("name", "Client").maybeSingle();
+        if (existingRole) {
+          roleId = existingRole.id;
+        } else {
+          const { data: newRole } = await supabase
+            .from("project_roles").insert({ project_id: newProjectId, name: "Client" }).select("id").single();
+          roleId = newRole?.id || null;
+        }
+        if (roleId) {
+          await supabase.from("project_members").insert({
+            project_id: newProjectId, user_id: employee.id, project_role_id: roleId,
+          });
+        }
+      } else if (!newProjectId && currentProjectId) {
+        // Remove from current project
+        await supabase.from("project_members").update({ removed_at: new Date().toISOString() } as any)
+          .eq("user_id", employee.id).eq("project_id", currentProjectId).is("removed_at", null);
+      }
+
+      await supabase.from("audit_logs").insert({
+        actor_id: myProfile?.id, action: "user.updated", target_entity: "users", target_id: employee.id,
+      });
+
+      toast.success("Client Member profile updated");
+      queryClient.invalidateQueries({ queryKey: ["employee", id] });
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["client-member-project", id] });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // Logged Hours tab — month boundaries
   const [lhYear, lhMonth] = loggedHoursMonth.split("-").map(Number);
@@ -648,6 +770,69 @@ export default function EmployeeProfilePage() {
         )}
       </div>
 
+      {isClientMember ? (
+        <Card className="p-6">
+          <div className="mb-6 p-4 rounded-lg bg-muted border border-border text-sm text-foreground">
+            <p className="font-semibold mb-1">Client Member Profile</p>
+            <p className="text-muted-foreground">Edit the client member's details below. Changes will be saved immediately.</p>
+          </div>
+          <Form {...clientEditForm}>
+            <form onSubmit={clientEditForm.handleSubmit(clientEditOnSubmit)} className="space-y-5">
+              <div className="flex items-center gap-4 mb-4">
+                <Avatar className="h-16 w-16">
+                  <AvatarImage src={avatarUrl} />
+                  <AvatarFallback className="bg-muted text-muted-foreground">{employee.full_name?.charAt(0)}</AvatarFallback>
+                </Avatar>
+              </div>
+
+              <FormField control={clientEditForm.control} name="full_name" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name <span className="text-destructive">*</span></FormLabel>
+                  <FormControl><Input {...field} placeholder="e.g. Sara Ahmed" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={clientEditForm.control} name="email" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Email Address <span className="text-destructive">*</span></FormLabel>
+                  <FormControl><Input {...field} type="email" placeholder="member@client-company.com" /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <FormField control={clientEditForm.control} name="project_id" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Assign to Project <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a project..." />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {clientProjects.map((p: any) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                      {clientProjects.length === 0 && (
+                        <div className="px-3 py-2 text-sm text-muted-foreground">No active projects found</div>
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">The client member will be added as a member to this project.</p>
+                  <FormMessage />
+                </FormItem>
+              )} />
+
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="submit" disabled={saving} className="rounded-button">
+                  {saving ? "Saving..." : "Save Changes"}
+                </Button>
+              </div>
+            </form>
+          </Form>
+        </Card>
+      ) : (
       <Tabs defaultValue="profile">
         <TabsList>
           <TabsTrigger value="profile">Profile</TabsTrigger>
@@ -659,234 +844,180 @@ export default function EmployeeProfilePage() {
         </TabsList>
 
         <TabsContent value="profile">
-          <Card className="p-6">
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-                {isOwnProfile ? (
-                  <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
-                ) : (
-                  <div className="flex items-center gap-4">
-                    <Avatar className="h-16 w-16">
-                      <AvatarImage src={avatarUrl} />
-                      <AvatarFallback className="bg-muted text-muted-foreground">{employee.full_name?.charAt(0)}</AvatarFallback>
-                    </Avatar>
+            <Card className="p-6">
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                  {isOwnProfile ? (
+                    <AvatarUpload currentUrl={avatarUrl} onFileChange={setAvatarFile} />
+                  ) : (
+                    <div className="flex items-center gap-4">
+                      <Avatar className="h-16 w-16">
+                        <AvatarImage src={avatarUrl} />
+                        <AvatarFallback className="bg-muted text-muted-foreground">{employee.full_name?.charAt(0)}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <FormField control={form.control} name="full_name" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Full Name</FormLabel>
+                        <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="email" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Email</FormLabel>
+                        <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="phone" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Phone</FormLabel>
+                        <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="designation" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Designation</FormLabel>
+                        <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="department" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Department</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="join_date" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Join Date</FormLabel>
+                        <FormControl><Input {...field} type="date" disabled={!canEdit} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="employment_type" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Employment Type</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
+                          <FormControl><SelectTrigger><SelectValue>
+                            <span className="capitalize">{field.value}</span>
+                          </SelectValue></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="role" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Role</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {ROLES.map((r) => <SelectItem key={r} value={r} className="capitalize">{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="shift_start" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Shift Start (Override)</FormLabel>
+                        <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
+                        <p className="text-xs text-muted-foreground">Currently: {formatTime12h(field.value)}. Leave as default to use global shift setting.</p>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="shift_end" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Shift End (Override)</FormLabel>
+                        <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
+                        <p className="text-xs text-muted-foreground">Currently: {formatTime12h(field.value)}. Leave as default to use global shift setting.</p>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Reminder Offset</FormLabel>
+                        <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
+                    <FormField control={form.control} name="working_days" render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Working Days</FormLabel>
+                        <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
+                          <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                          <SelectContent>
+                            <SelectItem value="5">5 Days (Mon-Fri)</SelectItem>
+                            <SelectItem value="6">6 Days (Mon-Sat)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">Sets if employee is expected to work on Saturdays.</p>
+                        <FormMessage />
+                      </FormItem>
+                    )} />
                   </div>
-                )}
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField control={form.control} name="full_name" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Full Name</FormLabel>
-                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="email" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="phone" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone</FormLabel>
-                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="designation" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Designation</FormLabel>
-                      <FormControl><Input {...field} disabled={!canEdit} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="department" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Department</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="join_date" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Join Date</FormLabel>
-                      <FormControl><Input {...field} type="date" disabled={!canEdit} /></FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="employment_type" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Employment Type</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
-                        <FormControl><SelectTrigger><SelectValue>
-                          <span className="capitalize">{field.value}</span>
-                        </SelectValue></SelectTrigger></FormControl>
-                        <SelectContent>
-                          {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="role" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Role</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value} disabled={!canEdit}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          {ROLES.map((r) => <SelectItem key={r} value={r} className="capitalize">{r.charAt(0).toUpperCase() + r.slice(1)}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="shift_start" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Shift Start (Override)</FormLabel>
-                      <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
-                      <p className="text-xs text-muted-foreground">Currently: {formatTime12h(field.value)}. Leave as default to use global shift setting.</p>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="shift_end" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Shift End (Override)</FormLabel>
-                      <FormControl><Input {...field} type="time" disabled={!canEdit} /></FormControl>
-                      <p className="text-xs text-muted-foreground">Currently: {formatTime12h(field.value)}. Leave as default to use global shift setting.</p>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="reminder_offset_minutes" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Reminder Offset</FormLabel>
-                      <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          {REMINDER_OPTIONS.map((m) => <SelectItem key={m} value={String(m)}>{m} minutes</SelectItem>)}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                  <FormField control={form.control} name="working_days" render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Working Days</FormLabel>
-                      <Select onValueChange={(v) => field.onChange(Number(v))} value={String(field.value)} disabled={!canEdit}>
-                        <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
-                        <SelectContent>
-                          <SelectItem value="5">5 Days (Mon-Fri)</SelectItem>
-                          <SelectItem value="6">6 Days (Mon-Sat)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <p className="text-xs text-muted-foreground">Sets if employee is expected to work on Saturdays.</p>
-                      <FormMessage />
-                    </FormItem>
-                  )} />
-                </div>
+                  {canEdit && (
+                    <FormField control={form.control} name="is_night_shift" render={({ field }) => (
+                      <FormItem className="flex items-center gap-3 space-y-0">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
+                        </FormControl>
+                        <div>
+                          <FormLabel className="text-sm font-medium">Night Shift Employee</FormLabel>
+                          <p className="text-xs text-muted-foreground">Skip automatic midnight clock-out for this employee</p>
+                        </div>
+                      </FormItem>
+                    )} />
+                  )}
 
-                {canEdit && (
-                  <FormField control={form.control} name="is_night_shift" render={({ field }) => (
-                    <FormItem className="flex items-center gap-3 space-y-0">
-                      <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
-                      </FormControl>
-                      <div>
-                        <FormLabel className="text-sm font-medium">Night Shift Employee</FormLabel>
-                        <p className="text-xs text-muted-foreground">Skip automatic midnight clock-out for this employee</p>
-                      </div>
-                    </FormItem>
-                  )} />
-                )}
+                  {canEdit && (
+                    <FormField control={form.control} name="overtime_enabled" render={({ field }) => (
+                      <FormItem className="flex items-center gap-3 space-y-0">
+                        <FormControl>
+                          <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
+                        </FormControl>
+                        <div>
+                          <FormLabel className="text-sm font-medium">Overtime Enabled</FormLabel>
+                          <p className="text-xs text-muted-foreground">Allow this employee to log overtime hours (beyond 8h) and submit logs on weekends</p>
+                        </div>
+                      </FormItem>
+                    )} />
+                  )}
 
-                {canEdit && (
-                  <FormField control={form.control} name="overtime_enabled" render={({ field }) => (
-                    <FormItem className="flex items-center gap-3 space-y-0">
-                      <FormControl>
-                        <Checkbox checked={field.value} onCheckedChange={field.onChange} disabled={!canEdit} />
-                      </FormControl>
-                      <div>
-                        <FormLabel className="text-sm font-medium">Overtime Enabled</FormLabel>
-                        <p className="text-xs text-muted-foreground">Allow this employee to log overtime hours (beyond 8h) and submit logs on weekends</p>
-                      </div>
-                    </FormItem>
-                  )} />
-                )}
+                  {!canEdit && !isOwnProfile && (
+                    <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change profile details.</p>
+                  )}
 
-                {!canEdit && !isOwnProfile && (
-                  <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change profile details.</p>
-                )}
-
-                {canEdit && (
-                  <div className="flex justify-end">
-                    <Button type="submit" disabled={saving} className="rounded-button">
-                      {saving ? "Saving…" : "Save Changes"}
-                    </Button>
-                  </div>
-                )}
-              </form>
-            </Form>
-          </Card>
-
-          {isAdmin && !isOwnProfile && (
-            <Card className="p-6 space-y-4">
-              <div>
-                <h3 className="font-semibold">Change Password</h3>
-                <p className="text-sm text-muted-foreground mt-1">Set a new password for this employee. They will use it on their next login.</p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>New Password <span className="text-destructive">*</span></Label>
-                  <PasswordInput value={adminNewPassword} onChange={(e) => setAdminNewPassword(e.target.value)} showStrength />
-                </div>
-                <div className="space-y-2">
-                  <Label>Confirm New Password <span className="text-destructive">*</span></Label>
-                  <PasswordInput value={adminConfirmPassword} onChange={(e) => setAdminConfirmPassword(e.target.value)} />
-                </div>
-              </div>
-              {adminPwError && <p className="text-sm text-destructive">{adminPwError}</p>}
-              <div className="flex justify-end">
-                <Button
-                  variant="outline"
-                  disabled={settingPassword}
-                  onClick={async () => {
-                    setAdminPwError("");
-                    if (adminNewPassword.length < 8) { setAdminPwError("Password must be at least 8 characters"); return; }
-                    if (!/[0-9]/.test(adminNewPassword)) { setAdminPwError("Password must contain a number"); return; }
-                    if (!/[^a-zA-Z0-9]/.test(adminNewPassword)) { setAdminPwError("Password must contain a special character"); return; }
-                    if (adminNewPassword !== adminConfirmPassword) { setAdminPwError("Passwords do not match"); return; }
-                    setSettingPassword(true);
-                    try {
-                      const { data, error } = await supabase.functions.invoke("manage-user", {
-                        body: { action: "set_password", user_id: id, new_password: adminNewPassword },
-                      });
-                      if (error) {
-                        toast.error(error.message || "Failed to set password");
-                      } else if (!(data as any)?.ok) {
-                        toast.error((data as any)?.error || "Failed to set password");
-                      } else {
-                        toast.success("Password updated successfully");
-                        setAdminNewPassword("");
-                        setAdminConfirmPassword("");
-                      }
-                    } catch (err: any) {
-                      toast.error(err.message);
-                    } finally {
-                      setSettingPassword(false);
-                    }
-                  }}
-                >
-                  {settingPassword ? "Updating…" : "Update Password"}
-                </Button>
-              </div>
+                  {canEdit && (
+                    <div className="flex justify-end">
+                      <Button type="submit" disabled={saving} className="rounded-button">
+                        {saving ? "Saving..." : "Save Changes"}
+                      </Button>
+                    </div>
+                  )}
+                </form>
+              </Form>
             </Card>
-          )}
         </TabsContent>
 
         {isAdmin && (
@@ -922,40 +1053,35 @@ export default function EmployeeProfilePage() {
             </div>
 
             {/* Table */}
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Project</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Hours</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead className="w-10"></TableHead>
-                  </TableRow>
+            {workLogs.length === 0 ? (
+              <Card><div className="py-12 text-center text-muted-foreground">No logs found</div></Card>
+            ) : (
+              <div>
+                <TableHeader gridCols="1fr 112px 80px 112px 80px">
+                  <span>PROJECT</span>
+                  <span>DATE</span>
+                  <span>HOURS</span>
+                  <span>SUBMITTED AT</span>
+                  <span className="text-right">ACTIONS</span>
                 </TableHeader>
-                <TableBody>
-                  {workLogs.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No logs found</TableCell></TableRow>
-                  ) : (
-                    workLogs.map((log: any) => (
-                      <TableRow key={log.id}>
-                        <TableCell>{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                        <TableCell>{getProjectName(log)}</TableCell>
-                        <TableCell className="max-w-[250px] truncate">{log.description}</TableCell>
-                        <TableCell className="font-medium">{formatHours(log.hours)}</TableCell>
-                        <TableCell className="text-muted-foreground text-sm">{format(new Date(log.submitted_at), "h:mm a")}</TableCell>
-                        <TableCell>
-                          <Button variant="ghost" size="icon" onClick={() => setDeleteLogId(log.id)}>
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </Card>
+                {workLogs.map((log: any) => (
+                  <DataRow key={log.id} gridCols="1fr 112px 80px 112px 80px">
+                    <div>
+                      <RowPrimary>{getProjectName(log)}</RowPrimary>
+                      <RowSecondary>{log.description}</RowSecondary>
+                    </div>
+                    <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                    <RowDataItem label="HOURS"><span className="font-medium">{formatHours(log.hours)}</span></RowDataItem>
+                    <RowDataItem label="SUBMITTED AT">{format(new Date(log.submitted_at), "h:mm a")}</RowDataItem>
+                    <RowActions className="justify-self-end">
+                      <button onClick={() => setDeleteLogId(log.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Delete">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </RowActions>
+                  </DataRow>
+                ))}
+              </div>
+            )}
 
             {/* Delete Confirmation */}
             <AlertDialog open={!!deleteLogId} onOpenChange={(open) => !open && setDeleteLogId(null)}>
@@ -1191,6 +1317,61 @@ export default function EmployeeProfilePage() {
           </TabsContent>
         )}
       </Tabs>
+      )}
+
+      {isAdmin && !isOwnProfile && (
+        <Card className="p-6 space-y-4">
+          <div>
+            <h3 className="font-semibold">Change Password</h3>
+            <p className="text-sm text-muted-foreground mt-1">Set a new password for this employee. They will use it on their next login.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>New Password <span className="text-destructive">*</span></Label>
+              <PasswordInput value={adminNewPassword} onChange={(e) => setAdminNewPassword(e.target.value)} showStrength />
+            </div>
+            <div className="space-y-2">
+              <Label>Confirm New Password <span className="text-destructive">*</span></Label>
+              <PasswordInput value={adminConfirmPassword} onChange={(e) => setAdminConfirmPassword(e.target.value)} />
+            </div>
+          </div>
+          {adminPwError && <p className="text-sm text-destructive">{adminPwError}</p>}
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              disabled={settingPassword}
+              onClick={async () => {
+                setAdminPwError("");
+                if (adminNewPassword.length < 8) { setAdminPwError("Password must be at least 8 characters"); return; }
+                if (!/[0-9]/.test(adminNewPassword)) { setAdminPwError("Password must contain a number"); return; }
+                if (!/[^a-zA-Z0-9]/.test(adminNewPassword)) { setAdminPwError("Password must contain a special character"); return; }
+                if (adminNewPassword !== adminConfirmPassword) { setAdminPwError("Passwords do not match"); return; }
+                setSettingPassword(true);
+                try {
+                  const { data, error } = await supabase.functions.invoke("manage-user", {
+                    body: { action: "set_password", user_id: id, new_password: adminNewPassword },
+                  });
+                  if (error) {
+                    toast.error(error.message || "Failed to set password");
+                  } else if (!(data as any)?.ok) {
+                    toast.error((data as any)?.error || "Failed to set password");
+                  } else {
+                    toast.success("Password updated successfully");
+                    setAdminNewPassword("");
+                    setAdminConfirmPassword("");
+                  }
+                } catch (err: any) {
+                  toast.error(err.message);
+                } finally {
+                  setSettingPassword(false);
+                }
+              }}
+            >
+              {settingPassword ? "Updating…" : "Update Password"}
+            </Button>
+          </div>
+        </Card>
+      )}
 
       <Dialog open={emailWarningOpen} onOpenChange={setEmailWarningOpen}>
         <DialogContent>

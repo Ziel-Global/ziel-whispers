@@ -18,13 +18,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Trash2, Pencil, CheckCircle2, History, Send, ListPlus, AlertCircle, CalendarClock, Lock, Calendar as CalendarIcon } from "lucide-react";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { format, parseISO, startOfDay, subDays, isSameDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn, formatHours, MISC_PROJECT_ID } from "@/lib/utils";
+import { getAdminManagerIds } from "@/lib/notification-helpers";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
-const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
+import { PRIORITY_COLORS } from "@/lib/workflow";
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -170,16 +172,44 @@ export default function LogSubmitPage() {
   const selectedDate = form.watch("log_date");
   const selectedProjectId = form.watch("project_id");
 
+  const { data: workflowStatuses } = useQuery({
+    queryKey: ["logsubmit-workflow", selectedProjectId],
+    queryFn: async () => {
+      const { data: proj } = await supabase
+        .from("projects")
+        .select("workflow_template_id")
+        .eq("id", selectedProjectId!)
+        .single();
+      if (!proj?.workflow_template_id) return null;
+      const { data } = await supabase
+        .from("workflow_statuses")
+        .select("*")
+        .eq("workflow_template_id", proj.workflow_template_id);
+      return data || [];
+    },
+    enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
+  });
+
   const { data: availableTasks = [] } = useQuery({
     queryKey: ["my-project-tasks", selectedProjectId, user?.id],
     queryFn: async () => {
-      const { data: tasks } = await supabase
+      const doneStatusIds = (workflowStatuses || [])
+        .filter((s: any) => s.category === "done")
+        .map((s: any) => s.id);
+
+      let query = supabase
         .from("tasks")
-        .select("id, title, priority, estimated_hours")
+        .select("id, title, priority, estimated_hours, status, status_id")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
         .neq("status", "complete")
         .order("title");
+
+      if (doneStatusIds.length > 0) {
+        query = query.not.in("status_id", doneStatusIds);
+      }
+
+      const { data: tasks } = await query;
       if (!tasks) return [];
       const taskIds = tasks.map((t: any) => t.id);
       const { data: logs } = await supabase
@@ -333,50 +363,58 @@ export default function LogSubmitPage() {
 
     const { data: task } = await supabase
       .from("tasks")
-      .select("estimated_hours, status, goal_id, phase_id, project_id")
+      .select("estimated_hours, status, status_id, project_id, assigned_to, title")
       .eq("id", taskId)
       .single();
 
     if (!task || task.estimated_hours === null) return;
 
+    const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+    const completeStatus = workflowStatuses?.find((s: any) => s.name === "complete");
+    const inProgressStatus = workflowStatuses?.find((s: any) => s.name === "in_progress");
+
+    const isLinked = linkedStatus ? task.status_id === linkedStatus.id : task.status === "linked";
+
     const needsUpdate =
       (totalHours >= task.estimated_hours) ||
-      (totalHours < task.estimated_hours && task.status === "linked");
+      (totalHours < task.estimated_hours && isLinked);
 
     if (needsUpdate) {
       if (totalHours >= task.estimated_hours) {
-        const update: any = { status: "complete", completed_at: getPKTISOString() };
+        const update: any = { completed_at: getPKTISOString() };
+        if (completeStatus) {
+          update.status_id = completeStatus.id;
+        } else {
+          update.status = "complete";
+        }
         if (totalHours > task.estimated_hours) {
           update.is_flagged = true;
         }
         await supabase.from("tasks").update(update).eq("id", taskId);
-      } else if (totalHours < task.estimated_hours && task.status === "linked") {
-        await supabase.from("tasks").update({ status: "in_progress" }).eq("id", taskId);
+        const adminIds = await getAdminManagerIds(profile?.id);
+        const notifyIds = new Set(adminIds);
+        if (task.assigned_to) notifyIds.add(task.assigned_to);
+        const taskNotifications = Array.from(notifyIds).map((userId) => ({
+          user_id: userId,
+          type: "task_completed",
+          channel: "in_app",
+          metadata: { title: "Task Completed", message: `${profile?.full_name} completed task "${task.title}"`, project_id: task.project_id },
+          read: false,
+        }));
+        if (taskNotifications.length > 0) await supabase.from("notifications").insert(taskNotifications);
+      } else if (totalHours < task.estimated_hours && isLinked) {
+        const update: any = {};
+        if (inProgressStatus) {
+          update.status_id = inProgressStatus.id;
+        } else {
+          update.status = "in_progress";
+        }
+        await supabase.from("tasks").update(update).eq("id", taskId);
       }
     }
 
-    if (task.goal_id) {
-      const { count: incompleteCount, error: countError } = await supabase
-        .from("tasks")
-        .select("id", { count: "exact", head: true })
-        .eq("goal_id", task.goal_id)
-        .neq("status", "complete");
-      if (!countError && incompleteCount !== null && incompleteCount === 0) {
-        await supabase
-          .from("goals")
-          .update({ status: "achieved", achieved_at: getPKTISOString() })
-          .eq("id", task.goal_id);
-        queryClient.invalidateQueries({ queryKey: ["goal", task.goal_id] });
-        queryClient.invalidateQueries({ queryKey: ["goal-tasks", task.goal_id] });
-      }
-      queryClient.invalidateQueries({ queryKey: ["goals"] });
-      queryClient.invalidateQueries({ queryKey: ["goals-progress"] });
-    }
-
-    if (task.phase_id) {
-      queryClient.invalidateQueries({ queryKey: ["project-phases", task.project_id] });
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", task.project_id] });
-    }
+    queryClient.invalidateQueries({ queryKey: ["project-phases", task.project_id] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", task.project_id] });
   };
 
   const handleSubmitAll = async () => {
@@ -737,30 +775,32 @@ export default function LogSubmitPage() {
               {submitting ? "Submitting..." : "Submit All Logs"}
             </Button>
           </div>
-          <div className="grid gap-4">
+          <div>
+            <TableHeader gridCols="1fr 112px 80px 200px 80px">
+              <span>PROJECT</span>
+              <span>DATE</span>
+              <span>HOURS</span>
+              <span>DESCRIPTION</span>
+              <span className="text-right">ACTIONS</span>
+            </TableHeader>
             {pendingLogs.map((log: any) => (
-              <Card key={log.id} className="p-4 bg-muted border-primary/10 transition-all hover:shadow-md">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-2 flex-1">
-                    <div className="flex flex-wrap gap-2 items-center">
-                      <Badge variant="secondary" className="bg-primary border-primary/20">
-                        {log.projects?.name || projects.find((p: any) => p.id === log.project_id)?.name || "Project"}
-                      </Badge>
-                      {log.tasks?.title && <Badge variant="outline" className="text-xs border-blue-300 text-blue-700">{log.tasks.title}</Badge>}
-                      <Badge variant="secondary" className="capitalize text-[10px] bg-primary">{log.category.replace("_", " ")}</Badge>
-                      <span className="text-sm font-bold text-black">
-                        {formatHours(log.hours)}
-                      </span>
-                      <span className="text-sm text-muted-foreground font-mono">{format(parseISO(log.log_date), "MMM d, yyyy")}</span>
-                    </div>
-                    <p className="text-sm text-muted-foreground leading-snug">{log.description}</p>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button variant="ghost" size="icon" onClick={() => startEdit(log)} className="h-8 w-8 hover:text-primary"><Pencil className="h-4 w-4" /></Button>
-                    <Button variant="ghost" size="icon" onClick={() => removePendingLog(log.id)} className="h-8 w-8 text-destructive hover:bg-destructive/10"><Trash2 className="h-4 w-4" /></Button>
-                  </div>
+              <DataRow key={log.id} gridCols="1fr 112px 80px 200px 80px">
+                <div>
+                  <RowPrimary>{log.projects?.name || "Project"}</RowPrimary>
+                  <RowSecondary>{log.category.replace(/_/g, " ")} · {log.tasks?.title || "No task"}</RowSecondary>
                 </div>
-              </Card>
+                <RowDataItem label="DATE">{format(parseISO(log.log_date), "MMM d, yyyy")}</RowDataItem>
+                <RowDataItem label="HOURS">{formatHours(log.hours)}</RowDataItem>
+                <RowDataItem label="DESCRIPTION" className="truncate">{log.description}</RowDataItem>
+                <RowActions className="justify-self-end">
+                  <button onClick={() => startEdit(log)} className={editButtonClass} title="Edit">
+                    <Pencil className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => setDeleteConfirmId(log.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </RowActions>
+              </DataRow>
             ))}
           </div>
         </div>

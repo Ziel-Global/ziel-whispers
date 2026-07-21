@@ -1,8 +1,9 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import AppLayout from "@/layouts/AppLayout";
 import LoginPage from "@/pages/Login";
@@ -24,13 +25,12 @@ import ProjectsPage from "@/pages/Projects";
 import ProjectNewPage from "@/pages/ProjectNew";
 import ProjectDetailPage from "@/pages/ProjectDetail";
 import PhaseEditPage from "@/pages/PhaseEditPage";
-import GoalsPage from "@/pages/Goals";
-import GoalNewPage from "@/pages/GoalNew";
-import GoalDetailPage from "@/pages/GoalDetail";
 import AnnouncementsPage from "@/pages/Announcements";
 import ReportsPage from "@/pages/Reports";
 import SettingsPage from "@/pages/Settings";
 import AuditLogPage from "@/pages/AuditLog";
+import WorkflowTemplatesPage from "@/pages/WorkflowTemplates";
+import NotificationsPage from "@/pages/Notifications";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -40,6 +40,14 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function HomeRouter() {
+  const { profile } = useAuth();
+  if (profile?.role === "client" || profile?.role === "client member") {
+    return <Navigate to="/projects" replace />;
+  }
+  return <Navigate to="/dashboard" replace />;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -52,7 +60,8 @@ const App = () => (
             <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
 
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-              <Route path="/" element={<DashboardPage />} />
+            <Route path="/" element={<HomeRouter />} />
+            <Route path="/dashboard" element={<DashboardPage />} />
 
               {/* Employee Management — admin only */}
               <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeesPage /></ProtectedRoute>} />
@@ -80,16 +89,13 @@ const App = () => (
               <Route path="/projects/:slug" element={<ProjectDetailPage />} />
               <Route path="/projects/:slug/phases/:phaseId" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PhaseEditPage /></ProtectedRoute>} />
 
-              {/* Project Goals — admin only */}
-              <Route path="/goals" element={<ProtectedRoute allowedRoles={["admin"]}><GoalsPage /></ProtectedRoute>} />
-              <Route path="/goals/new" element={<ProtectedRoute allowedRoles={["admin"]}><GoalNewPage /></ProtectedRoute>} />
-              <Route path="/goals/:id" element={<ProtectedRoute allowedRoles={["admin"]}><GoalDetailPage /></ProtectedRoute>} />
-
               {/* Other */}
               <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ReportsPage /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
               <Route path="/audit" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogPage /></ProtectedRoute>} />
+              <Route path="/workflow-templates" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowTemplatesPage /></ProtectedRoute>} />
+              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/my-projects" element={<ProjectsPage />} />
             </Route>
 

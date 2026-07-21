@@ -3451,6 +3451,45 @@ CREATE TABLE public.clients (
 ALTER TABLE public.clients OWNER TO postgres;
 
 --
+-- Name: client_action_items; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.client_action_items (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    title text NOT NULL,
+    description text,
+    status text DEFAULT 'pending'::text NOT NULL,
+    requested_by uuid,
+    due_date date,
+    completed_at timestamp with time zone,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    CONSTRAINT client_action_items_status_check CHECK ((status = ANY (ARRAY['pending'::text, 'completed'::text, 'waived'::text])))
+);
+
+
+ALTER TABLE public.client_action_items OWNER TO postgres;
+
+--
+-- Name: client_portal_messages; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.client_portal_messages (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    project_id uuid NOT NULL,
+    title text NOT NULL,
+    body text,
+    cta_label text,
+    cta_url text,
+    active boolean DEFAULT true NOT NULL,
+    created_by uuid,
+    created_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
+
+ALTER TABLE public.client_portal_messages OWNER TO postgres;
+
+--
 -- Name: daily_logs; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -3669,7 +3708,7 @@ CREATE TABLE public.users (
     is_night_shift boolean DEFAULT false NOT NULL,
     has_custom_shift boolean DEFAULT false NOT NULL,
     CONSTRAINT users_employment_type_check CHECK ((employment_type = ANY (ARRAY['full-time'::text, 'part-time'::text, 'contract'::text]))),
-    CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'manager'::text, 'employee'::text]))),
+    CONSTRAINT users_role_check CHECK ((role = ANY (ARRAY['admin'::text, 'manager'::text, 'employee'::text, 'client'::text, 'client member'::text]))),
     CONSTRAINT users_status_check CHECK ((status = ANY (ARRAY['active'::text, 'inactive'::text, 'pending'::text])))
 );
 
@@ -5252,6 +5291,38 @@ ALTER TABLE ONLY public.audit_logs
 
 
 --
+-- Name: client_action_items client_action_items_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.client_action_items
+    ADD CONSTRAINT client_action_items_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id);
+
+
+--
+-- Name: client_action_items client_action_items_requested_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.client_action_items
+    ADD CONSTRAINT client_action_items_requested_by_fkey FOREIGN KEY (requested_by) REFERENCES public.users(id);
+
+
+--
+-- Name: client_portal_messages client_portal_messages_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.client_portal_messages
+    ADD CONSTRAINT client_portal_messages_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id);
+
+
+--
+-- Name: client_portal_messages client_portal_messages_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.client_portal_messages
+    ADD CONSTRAINT client_portal_messages_project_id_fkey FOREIGN KEY (project_id) REFERENCES public.projects(id);
+
+
+--
 -- Name: clients clients_created_by_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -5260,6 +5331,8 @@ ALTER TABLE ONLY public.clients
 
 
 --
+
+
 -- Name: daily_logs daily_logs_project_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -5649,6 +5722,20 @@ CREATE POLICY "Admin/Manager can insert clients" ON public.clients FOR INSERT WI
 --
 
 CREATE POLICY "Admin/Manager can insert projects" ON public.projects FOR INSERT WITH CHECK ((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])));
+
+
+--
+-- Name: client_action_items Admin/Manager can manage action items; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Admin/Manager can manage action items" ON public.client_action_items TO authenticated USING ((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text]))) WITH CHECK ((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])));
+
+
+--
+-- Name: client_portal_messages Admin/Manager can manage portal messages; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Admin/Manager can manage portal messages" ON public.client_portal_messages TO authenticated USING ((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text]))) WITH CHECK ((public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text])));
 
 
 --

@@ -2,7 +2,7 @@
 ALTER TABLE public.daily_logs DROP COLUMN IF EXISTS standup_done;
 
 -- 2. Create a dedicated standups table to track status independently of work logs
-CREATE TABLE public.daily_standups (
+CREATE TABLE IF NOT EXISTS public.daily_standups (
     user_id uuid REFERENCES public.users(id) ON DELETE CASCADE,
     date date NOT NULL,
     is_done boolean DEFAULT true NOT NULL,
@@ -14,11 +14,13 @@ CREATE TABLE public.daily_standups (
 ALTER TABLE public.daily_standups ENABLE ROW LEVEL SECURITY;
 
 -- 4. Policies
+DROP POLICY IF EXISTS "Admins can manage daily standups" ON public.daily_standups;
 CREATE POLICY "Admins can manage daily standups" ON public.daily_standups
     FOR ALL TO authenticated
     USING (public.get_my_role() = 'admin')
     WITH CHECK (public.get_my_role() = 'admin');
 
+DROP POLICY IF EXISTS "Users can view their own standups" ON public.daily_standups;
 CREATE POLICY "Users can view their own standups" ON public.daily_standups
     FOR SELECT TO authenticated
     USING (user_id = auth.uid());

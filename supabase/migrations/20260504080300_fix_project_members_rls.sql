@@ -3,6 +3,7 @@
 -- member see ALL active members of projects they belong to.
 
 DROP POLICY IF EXISTS "Employees can view own project memberships" ON public.project_members;
+DROP POLICY IF EXISTS "Members can view all members of their projects" ON public.project_members;
 
 CREATE POLICY "Members can view all members of their projects"
 ON public.project_members FOR SELECT TO authenticated

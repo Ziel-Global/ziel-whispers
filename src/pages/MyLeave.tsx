@@ -8,16 +8,17 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Plus, ChevronDown, ChevronUp, Trash2 } from "lucide-react";
+import { Plus, X, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
 import { getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
+import { createNotification, getAdminManagerIds } from "@/lib/notification-helpers";
 
 const LEAVE_CATEGORIES = [
   { value: "sick", label: "Sick Leave" },
@@ -99,6 +100,23 @@ export default function MyLeavePage() {
       if (error) throw error;
 
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "wfh.requested", target_entity: "remote_work_requests" });
+
+      await createNotification({
+        userId: user!.id,
+        type: "remote_work_request",
+        title: "New Remote Work Request",
+        message: `${user!.email} submitted a remote work request from ${wfhStartDate} to ${wfhEndDate}`,
+      });
+
+      const wfhAdminIds = await getAdminManagerIds(user!.id);
+      for (const adminId of wfhAdminIds) {
+        await createNotification({
+          userId: adminId,
+          type: "remote_work_request",
+          title: "New Remote Work Request",
+          message: `${user!.email} submitted a remote work request from ${wfhStartDate} to ${wfhEndDate}`,
+        });
+      }
 
       supabase.functions.invoke("send-request-notification", {
         body: { type: "wfh", action: "new", request_id: newRequest.id, app_url: window.location.origin },
@@ -337,6 +355,23 @@ export default function MyLeavePage() {
       if (error) throw error;
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.requested", target_entity: "leave_requests" });
       
+      await createNotification({
+        userId: user!.id,
+        type: "leave_request",
+        title: "New Leave Request",
+        message: `${user!.email} submitted a leave request from ${startDate} to ${finalEndDate}`,
+      });
+
+      const leaveAdminIds = await getAdminManagerIds(user!.id);
+      for (const adminId of leaveAdminIds) {
+        await createNotification({
+          userId: adminId,
+          type: "leave_request",
+          title: "New Leave Request",
+          message: `${user!.email} submitted a leave request from ${startDate} to ${finalEndDate}`,
+        });
+      }
+      
       supabase.functions.invoke("send-request-notification", {
         body: { type: "leave", action: "new", request_id: newRequest.id, app_url: window.location.origin },
       }).catch(() => {});
@@ -434,62 +469,47 @@ export default function MyLeavePage() {
         </Select>
       </div>
 
-      <Card>
-        <Table>
-          <TableHeader><TableRow>
-            <TableHead className="w-8"></TableHead>
-            <TableHead>Type</TableHead><TableHead>From</TableHead><TableHead>To</TableHead><TableHead>Days</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead>Admin Comment</TableHead><TableHead className="text-right">Actions</TableHead>
-          </TableRow></TableHeader>
-          <TableBody>
-            {filteredRequests.length === 0 ? (
-              <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No leave requests</TableCell></TableRow>
-            ) : filteredRequests.map((r: any) => (
-              <>
-                <TableRow key={r.id} className="cursor-pointer" onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}>
-                  <TableCell>{expandedId === r.id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}</TableCell>
-                  <TableCell className="font-medium">
-                    {r.hours 
-                      ? `Hourly Leave — ${r.hours} hours` 
-                      : (r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual")}
-                  </TableCell>
-                  <TableCell>{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                  <TableCell>{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</TableCell>
-                  <TableCell>{r.hours ? `${r.hours} hrs` : r.days_count}</TableCell>
-                  <TableCell className="max-w-[150px] truncate">{r.reason || "—"}</TableCell>
-                  <TableCell>{statusBadge(r.status)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{r.admin_comment || "—"}</TableCell>
-                  <TableCell className="text-right">
-                    {r.status === "pending" && (
-                      <Button variant="ghost" size="icon" className="text-destructive hover:bg-destructive/10" onClick={(e) => { e.stopPropagation(); setDeleteId(r.id); }}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-                {expandedId === r.id && (
-                  <TableRow key={`${r.id}-detail`}>
-                    <TableCell colSpan={9} className="bg-muted/50 p-0">
-                      <div className="p-4">
-                        <div className="mb-3">
-                          <p className="text-[12px] text-muted-foreground mb-0.5">Reason / Notes</p>
-                          <p className="text-sm">{r.reason || "—"}</p>
-                        </div>
-                        <div>
-                          <p className="text-[12px] text-muted-foreground mb-0.5">Admin Comment</p>
-                          <p className="text-sm">{r.admin_comment || "—"}</p>
-                        </div>
-                        {r.reviewed_at && (
-                          <p className="text-xs text-muted-foreground mt-2">Reviewed by {r.users?.full_name || r.reviewed_by || "—"} on {format(new Date(r.reviewed_at), "MMM d, yyyy 'at' h:mm a")}</p>
-                        )}
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </>
-            ))}
-          </TableBody>
-        </Table>
-      </Card>
+      {filteredRequests.length === 0 ? (
+        <Card><div className="py-12 text-center text-muted-foreground">No leave requests</div></Card>
+      ) : (
+        <div>
+          <TableHeader gridCols="1fr 112px 112px 80px 96px 112px 80px">
+            <span>TYPE</span>
+            <span>FROM</span>
+            <span>TO</span>
+            <span>DAYS</span>
+            <span>STATUS</span>
+            <span>APPLIED ON</span>
+            <span className="text-right">ACTIONS</span>
+          </TableHeader>
+          {filteredRequests.map((r: any) => (
+            <DataRow key={r.id} gridCols="1fr 112px 112px 80px 96px 112px 80px">
+              <div>
+                <RowPrimary>
+                  {r.hours
+                    ? `Hourly Leave — ${r.hours} hours`
+                    : (r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual")}
+                </RowPrimary>
+                <RowSecondary>{r.reason || "—"}</RowSecondary>
+              </div>
+              <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+              <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+              <RowDataItem label="DAYS">{r.hours ? `${r.hours} hrs` : r.days_count}</RowDataItem>
+              <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
+              <RowDataItem label="APPLIED ON">{format(new Date(r.created_at), "MMM d, yyyy")}</RowDataItem>
+              {r.status === "pending" ? (
+                <RowActions className="justify-self-end">
+                  <button onClick={() => setDeleteId(r.id)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Cancel">
+                    <X className="h-4 w-4" />
+                  </button>
+                </RowActions>
+              ) : (
+                <div />
+              )}
+            </DataRow>
+          ))}
+        </div>
+      )}
       </TabsContent>
       
       <TabsContent value="wfh" className="space-y-6 mt-0">
@@ -558,40 +578,37 @@ export default function MyLeavePage() {
           </form>
         </Card>
 
-        <Card>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Date Range</TableHead>
-                <TableHead>Days</TableHead>
-                <TableHead>Reason</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Reviewed Date</TableHead>
-              </TableRow>
+        {wfhRequests.length === 0 ? (
+          <Card><div className="py-12 text-center text-muted-foreground">No Work From Home requests</div></Card>
+        ) : (
+          <div>
+            <TableHeader gridCols="1fr 80px 96px 160px">
+              <span>DATE RANGE</span>
+              <span>DAYS</span>
+              <span>STATUS</span>
+              <span>REVIEWED</span>
             </TableHeader>
-            <TableBody>
-              {wfhRequests.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No Work From Home requests</TableCell></TableRow>
-              ) : wfhRequests.map((r: any) => (
-                <TableRow key={r.id}>
-                  <TableCell>{r.start_date === r.end_date ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy") : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} – ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`}</TableCell>
-                  <TableCell className="text-center">{r.days_count ?? 1}</TableCell>
-                  <TableCell className="max-w-[300px] truncate">{r.reason}</TableCell>
-                  <TableCell>{statusBadge(r.status)}</TableCell>
-                  <TableCell className="text-sm text-muted-foreground">
-                    {r.reviewed_at ? (
-                      <>
-                        {format(new Date(r.reviewed_at), "MMM d, yyyy")}
-                        <br />
-                        <span className="text-xs">by {r.users?.full_name || "Admin"}</span>
-                      </>
-                    ) : "—"}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </Card>
+            {wfhRequests.map((r: any) => (
+              <DataRow key={r.id} gridCols="1fr 80px 96px 160px">
+                <div>
+                  <RowPrimary>
+                    {r.start_date === r.end_date
+                      ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
+                      : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} – ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`}
+                  </RowPrimary>
+                  <RowSecondary>{r.reason}</RowSecondary>
+                </div>
+                <RowDataItem label="DAYS">{r.days_count ?? 1}</RowDataItem>
+                <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
+                <RowDataItem label="REVIEWED">
+                  {r.reviewed_at ? (
+                    <>{format(new Date(r.reviewed_at), "MMM d, yyyy")} <span className="text-[11px] text-[#9ca3af]">by {r.users?.full_name || "Admin"}</span></>
+                  ) : "—"}
+                </RowDataItem>
+              </DataRow>
+            ))}
+          </div>
+        )}
       </TabsContent>
     </Tabs>
 
@@ -705,15 +722,15 @@ export default function MyLeavePage() {
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Leave Request?</AlertDialogTitle>
+            <AlertDialogTitle>Cancel Leave Request?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete this leave request? This action cannot be undone.
+              Are you sure you want to cancel this leave request?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleting}>No, Keep It</AlertDialogCancel>
             <AlertDialogAction onClick={deleteRequest} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
-              {deleting ? "Deleting..." : "Delete"}
+              {deleting ? "Cancelling..." : "Yes, Cancel"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

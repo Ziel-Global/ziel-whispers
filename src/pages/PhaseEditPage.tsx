@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,24 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DataRow, RowPrimary, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
+import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-
-const PRIORITY_COLORS: Record<string, string> = {
-  high: "bg-red-100 text-red-800",
-  medium: "bg-yellow-100 text-yellow-800",
-  low: "bg-green-100 text-green-800",
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  unlinked: "bg-gray-100 text-gray-800",
-  linked: "bg-blue-100 text-blue-800",
-  in_progress: "bg-yellow-100 text-yellow-800",
-  complete: "bg-green-100 text-green-800",
-  returned: "bg-red-100 text-red-800",
-};
 
 export default function PhaseEditPage() {
   const { slug, phaseId } = useParams<{ slug: string; phaseId: string }>();
@@ -38,8 +25,12 @@ export default function PhaseEditPage() {
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDueDate, setEditingDueDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [taskFilter, setTaskFilter] = useState<string>("all");
+
+  const [addSprintOpen, setAddSprintOpen] = useState(false);
+  const [sprintName, setSprintName] = useState("");
+  const [sprintStartDate, setSprintStartDate] = useState("");
+  const [sprintEndDate, setSprintEndDate] = useState("");
+  const [confirmSprintDelId, setConfirmSprintDelId] = useState<string | null>(null);
 
   const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
@@ -66,34 +57,18 @@ export default function PhaseEditPage() {
     enabled: !!phaseId,
   });
 
-  // Fetch all project tasks eligible for this phase:
-  // phase_id IS NULL (unassigned) OR phase_id = this phase
-  // Exclude tasks assigned to a different phase
-  const { data: eligibleTasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ["phase-eligible-tasks", projectId, phaseId],
+  const { data: phaseSprints = [], isLoading: sprintsLoading } = useQuery({
+    queryKey: ["phase-sprints", phaseId],
     queryFn: async () => {
       const { data } = await supabase
-        .from("tasks")
-        .select("*, users:assigned_to(full_name)")
-        .eq("project_id", projectId!)
-        .or(`phase_id.is.null,phase_id.eq.${phaseId}`)
-        .order("created_at", { ascending: false });
+        .from("sprints")
+        .select("*")
+        .eq("phase_id", phaseId!)
+        .order("start_date", { ascending: false });
       return data || [];
     },
-    enabled: !!projectId && !!phaseId,
+    enabled: !!phaseId && !!projectId,
   });
-
-  const assignedTaskIds = useMemo(
-    () => new Set(eligibleTasks.filter((t: any) => t.phase_id === phaseId).map((t: any) => t.id)),
-    [eligibleTasks, phaseId]
-  );
-
-  // Sync selectedTaskIds with currently assigned tasks once loaded
-  useEffect(() => {
-    if (eligibleTasks.length > 0 && selectedTaskIds.size === 0 && assignedTaskIds.size > 0) {
-      setSelectedTaskIds(new Set(assignedTaskIds));
-    }
-  }, [eligibleTasks, assignedTaskIds]);
 
   const handleSaveAll = async () => {
     if (!editingTitle.trim()) { toast.error("Title is required"); return; }
@@ -105,56 +80,39 @@ export default function PhaseEditPage() {
       }).eq("id", phaseId!);
       if (phaseError) throw phaseError;
 
-      const toUnassign = eligibleTasks.filter(
-        (t: any) => t.phase_id === phaseId && !selectedTaskIds.has(t.id)
-      );
-      const toAssign = eligibleTasks.filter(
-        (t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id)
-      );
-
-      const unassignNoGoal = toUnassign.filter((t: any) => !t.goal_id).map((t: any) => t.id);
-      const unassignWithGoal = toUnassign.filter((t: any) => t.goal_id).map((t: any) => t.id);
-
-      if (unassignNoGoal.length > 0) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ phase_id: null, status: "unlinked" })
-          .in("id", unassignNoGoal);
-        if (error) throw error;
-      }
-
-      if (unassignWithGoal.length > 0) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ phase_id: null })
-          .in("id", unassignWithGoal);
-        if (error) throw error;
-      }
-
-      if (toAssign.length > 0) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ phase_id: phaseId!, status: "linked" })
-          .in("id", toAssign.map((t: any) => t.id));
-        if (error) throw error;
-      }
-
       toast.success("All changes saved");
       queryClient.invalidateQueries({ queryKey: ["project-phase", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["project-phases", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["phase-eligible-tasks", projectId, phaseId] });
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSaving(false); }
   };
 
-  const toggleTask = (taskId: string) => {
-    setSelectedTaskIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
-      return next;
+  const handleAddSprint = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!sprintName.trim() || !sprintStartDate || !sprintEndDate) return;
+    const { error } = await supabase.from("sprints").insert({
+      project_id: projectId,
+      phase_id: phaseId,
+      name: sprintName.trim(),
+      start_date: sprintStartDate,
+      end_date: sprintEndDate,
+      status: "planned",
     });
+    if (error) { toast.error(error.message); return; }
+    toast.success("Sprint created");
+    setAddSprintOpen(false);
+    setSprintName("");
+    setSprintStartDate("");
+    setSprintEndDate("");
+    queryClient.invalidateQueries({ queryKey: ["phase-sprints", phaseId] });
+  };
+
+  const deleteSprint = async (sprintId: string) => {
+    const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
+    if (error) { toast.error(error.message); return; }
+    toast.success("Sprint deleted");
+    setConfirmSprintDelId(null);
+    queryClient.invalidateQueries({ queryKey: ["phase-sprints", phaseId] });
   };
 
   if (!isAdmin) {
@@ -197,66 +155,87 @@ export default function PhaseEditPage() {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold">
-            Tasks ({eligibleTasks.length})
+            Sprints ({phaseSprints.length})
           </h2>
-          <Select value={taskFilter} onValueChange={setTaskFilter}>
-            <SelectTrigger className="w-[140px] h-9">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="complete">Complete</SelectItem>
-              <SelectItem value="linked">Linked</SelectItem>
-            </SelectContent>
-          </Select>
+          <Button size="sm" onClick={() => setAddSprintOpen(true)} className="rounded-button bg-primary text-black hover:bg-black hover:text-white">
+            <Plus className="h-4 w-4 mr-1" /> Add Sprint
+          </Button>
         </div>
-        {eligibleTasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tasks available for this project.</p>
+        {sprintsLoading ? (
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        ) : phaseSprints.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No sprints in this phase yet.</p>
         ) : (
-          <div className="space-y-2">
-            {[...eligibleTasks].filter((t: any) => {
-              if (taskFilter === "all") return true;
-              if (taskFilter === "complete") return t.status === "complete";
-              if (taskFilter === "linked") return t.status === "linked";
-              return true;
-            }).sort((a: any, b: any) => {
-              const aChecked = selectedTaskIds.has(a.id) ? 1 : 0;
-              const bChecked = selectedTaskIds.has(b.id) ? 1 : 0;
-              return bChecked - aChecked;
-            }).map((t: any) => {
-              const checked = selectedTaskIds.has(t.id);
-              return (
-                <label
-                  key={t.id}
-                  className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                    checked ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                  }`}
-                >
-                  <Checkbox
-                    checked={checked}
-                    onCheckedChange={() => toggleTask(t.id)}
-                    className="border-black"
-                  />
-                  <div className="flex-1 flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium">{t.title}</span>
-                      {checked && (
-                        <span className="text-xs text-foreground font-medium">(assigned)</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5">
-                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
-                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
-                      <Badge className={STATUS_COLORS[t.status] || ""}>{t.status}</Badge>
-                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                    </div>
-                  </div>
-                </label>
-              );
-            })}
+          <div>
+            <TableHeader gridCols="1fr 112px 96px 80px">
+              <span>SPRINT</span>
+              <span>DATES</span>
+              <span>STATUS</span>
+              <span className="text-right">ACTIONS</span>
+            </TableHeader>
+            {phaseSprints.map((s: any) => (
+              <DataRow key={s.id} gridCols="1fr 112px 96px 80px">
+                <div>
+                  <RowPrimary>{s.name}</RowPrimary>
+                </div>
+                <RowDataItem label="DATES">
+                  {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                </RowDataItem>
+                <RowBadgeItem label="STATUS">
+                  <Badge className={
+                    s.status === "active" ? "bg-green-100 text-green-800" :
+                    s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                    "bg-gray-100 text-gray-800"
+                  }>{s.status}</Badge>
+                </RowBadgeItem>
+                <RowActions className="justify-self-end">
+                  <button onClick={() => setConfirmSprintDelId(s.id)} className={editButtonClass} title="Delete Sprint">
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </button>
+                </RowActions>
+              </DataRow>
+            ))}
           </div>
         )}
       </Card>
+      {/* Add Sprint Dialog */}
+      <Dialog open={addSprintOpen} onOpenChange={setAddSprintOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Add Sprint to {phase?.title}</DialogTitle></DialogHeader>
+          <form onSubmit={handleAddSprint} className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Sprint Name *</label>
+              <Input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="e.g. Sprint 1" required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Start Date *</label>
+              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required max={sprintEndDate || undefined} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">End Date *</label>
+              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required min={sprintStartDate || undefined} />
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setAddSprintOpen(false)}>Cancel</Button>
+              <Button type="submit">Create Sprint</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Sprint Confirmation */}
+      <AlertDialog open={!!confirmSprintDelId} onOpenChange={(open) => !open && setConfirmSprintDelId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete sprint?</AlertDialogTitle>
+            <AlertDialogDescription>This will unlink all tasks from this sprint and cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmSprintDelId) deleteSprint(confirmSprintDelId); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

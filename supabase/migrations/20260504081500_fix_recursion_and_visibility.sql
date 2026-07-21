@@ -27,6 +27,7 @@ USING (
 
 -- 3. Update the projects policy to be cleaner and more robust
 DROP POLICY IF EXISTS "Admin/Manager can view all projects" ON public.projects;
+DROP POLICY IF EXISTS "Admin/Manager/Members can view projects" ON public.projects;
 CREATE POLICY "Admin/Manager/Members can view projects"
 ON public.projects FOR SELECT TO authenticated
 USING (
@@ -37,6 +38,7 @@ USING (
 
 -- 4. Update the clients policy to follow the same logic
 DROP POLICY IF EXISTS "Employees can view clients of their projects" ON public.clients;
+DROP POLICY IF EXISTS "Admin/Manager/Members can view clients" ON public.clients;
 CREATE POLICY "Admin/Manager/Members can view clients"
 ON public.clients FOR SELECT TO authenticated
 USING (

@@ -193,13 +193,23 @@ export default function LogSubmitPage() {
   const { data: availableTasks = [] } = useQuery({
     queryKey: ["my-project-tasks", selectedProjectId, user?.id],
     queryFn: async () => {
-      const { data: tasks } = await supabase
+      const doneStatusIds = (workflowStatuses || [])
+        .filter((s: any) => s.category === "done")
+        .map((s: any) => s.id);
+
+      let query = supabase
         .from("tasks")
         .select("id, title, priority, estimated_hours, status, status_id")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
         .neq("status", "complete")
         .order("title");
+
+      if (doneStatusIds.length > 0) {
+        query = query.not.in("status_id", doneStatusIds);
+      }
+
+      const { data: tasks } = await query;
       if (!tasks) return [];
       const taskIds = tasks.map((t: any) => t.id);
       const { data: logs } = await supabase
@@ -353,7 +363,7 @@ export default function LogSubmitPage() {
 
     const { data: task } = await supabase
       .from("tasks")
-      .select("estimated_hours, status, status_id, phase_id, project_id, assigned_to, title")
+      .select("estimated_hours, status, status_id, project_id, assigned_to, title")
       .eq("id", taskId)
       .single();
 
@@ -403,10 +413,8 @@ export default function LogSubmitPage() {
       }
     }
 
-    if (task.phase_id) {
-      queryClient.invalidateQueries({ queryKey: ["project-phases", task.project_id] });
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", task.project_id] });
-    }
+    queryClient.invalidateQueries({ queryKey: ["project-phases", task.project_id] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", task.project_id] });
   };
 
   const handleSubmitAll = async () => {

@@ -11,6 +11,9 @@ type NotificationType =
   | 'blocker_resolved' 
   | 'leave_request' 
   | 'remote_work_request'
+  | 'task_created'
+  | 'task_edited'
+  | 'task_deleted'
   | 'task_completed'
   | 'task_returned'
   | 'task_assigned';
@@ -52,18 +55,10 @@ export async function getProjectMemberIds(projectId: string) {
 }
 
 export async function getAdminManagerIds(excludeUserId?: string) {
-  let query = supabase
-    .from("users")
-    .select("id")
-    .in("role", ["admin", "manager"]);
+  const { data, error } = await supabase.rpc("get_admin_manager_ids");
   
-  if (excludeUserId) {
-    query = query.ne("id", excludeUserId);
-  }
-  
-  const { data, error } = await query;
   if (error) throw error;
-  return data?.map(user => user.id) || [];
+  return (data || []).map((r: any) => r.id).filter((id: string) => id !== excludeUserId);
 }
 
 export async function createProjectRelatedNotifications({

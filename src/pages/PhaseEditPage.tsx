@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,13 +9,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
-import { ArrowLeft, Save, Check, Plus, Trash2, Pencil } from "lucide-react";
+import { DataRow, RowPrimary, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
+import { ArrowLeft, Save, Plus, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { PRIORITY_COLORS, TASK_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
 
 export default function PhaseEditPage() {
   const { slug, phaseId } = useParams<{ slug: string; phaseId: string }>();
@@ -27,8 +25,6 @@ export default function PhaseEditPage() {
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDueDate, setEditingDueDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
-  const [taskFilter, setTaskFilter] = useState<string>("all");
 
   const [addSprintOpen, setAddSprintOpen] = useState(false);
   const [sprintName, setSprintName] = useState("");
@@ -74,43 +70,6 @@ export default function PhaseEditPage() {
     enabled: !!phaseId && !!projectId,
   });
 
-  // Fetch all project tasks eligible for this phase:
-  // phase_id IS NULL (unassigned) OR phase_id = this phase
-  // Exclude tasks assigned to a different phase
-  const { data: eligibleTasks = [], isLoading: tasksLoading } = useQuery({
-    queryKey: ["phase-eligible-tasks", projectId, phaseId],
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("tasks")
-        .select("*, users:assigned_to(full_name)")
-        .eq("project_id", projectId!)
-        .or(`phase_id.is.null,phase_id.eq.${phaseId}`)
-        .order("created_at", { ascending: false });
-      return data || [];
-    },
-    enabled: !!projectId && !!phaseId,
-  });
-
-  const sprintTaskCount = useMemo(() => {
-    const counts: Record<string, number> = {};
-    (eligibleTasks || []).forEach((t: any) => {
-      if (t.sprint_id) counts[t.sprint_id] = (counts[t.sprint_id] || 0) + 1;
-    });
-    return counts;
-  }, [eligibleTasks]);
-
-  const assignedTaskIds = useMemo(
-    () => new Set(eligibleTasks.filter((t: any) => t.phase_id === phaseId).map((t: any) => t.id)),
-    [eligibleTasks, phaseId]
-  );
-
-  // Sync selectedTaskIds with currently assigned tasks once loaded
-  useEffect(() => {
-    if (eligibleTasks.length > 0 && selectedTaskIds.size === 0 && assignedTaskIds.size > 0) {
-      setSelectedTaskIds(new Set(assignedTaskIds));
-    }
-  }, [eligibleTasks, assignedTaskIds]);
-
   const handleSaveAll = async () => {
     if (!editingTitle.trim()) { toast.error("Title is required"); return; }
     setSaving(true);
@@ -121,47 +80,11 @@ export default function PhaseEditPage() {
       }).eq("id", phaseId!);
       if (phaseError) throw phaseError;
 
-      const toUnassign = eligibleTasks.filter(
-        (t: any) => t.phase_id === phaseId && !selectedTaskIds.has(t.id)
-      );
-      const toAssign = eligibleTasks.filter(
-        (t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id)
-      );
-
-      const unassignIds = toUnassign.map((t: any) => t.id);
-
-      if (unassignIds.length > 0) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ phase_id: null, status: "unlinked" })
-          .in("id", unassignIds);
-        if (error) throw error;
-      }
-
-      if (toAssign.length > 0) {
-        const { error } = await supabase
-          .from("tasks")
-          .update({ phase_id: phaseId!, status: "linked" })
-          .in("id", toAssign.map((t: any) => t.id));
-        if (error) throw error;
-      }
-
       toast.success("All changes saved");
       queryClient.invalidateQueries({ queryKey: ["project-phase", phaseId] });
       queryClient.invalidateQueries({ queryKey: ["project-phases", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["phase-eligible-tasks", projectId, phaseId] });
-      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
     } catch (err: any) { toast.error(err.message); }
     finally { setSaving(false); }
-  };
-
-  const toggleTask = (taskId: string) => {
-    setSelectedTaskIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
-      return next;
-    });
   };
 
   const handleAddSprint = async (e: React.FormEvent) => {
@@ -244,18 +167,16 @@ export default function PhaseEditPage() {
           <p className="text-sm text-muted-foreground">No sprints in this phase yet.</p>
         ) : (
           <div>
-            <TableHeader gridCols="1fr 112px 96px 96px 80px">
+            <TableHeader gridCols="1fr 112px 96px 80px">
               <span>SPRINT</span>
               <span>DATES</span>
               <span>STATUS</span>
-              <span>TASKS</span>
               <span className="text-right">ACTIONS</span>
             </TableHeader>
             {phaseSprints.map((s: any) => (
-              <DataRow key={s.id} gridCols="1fr 112px 96px 96px 80px">
+              <DataRow key={s.id} gridCols="1fr 112px 96px 80px">
                 <div>
                   <RowPrimary>{s.name}</RowPrimary>
-                  <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
                 </div>
                 <RowDataItem label="DATES">
                   {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
@@ -267,7 +188,6 @@ export default function PhaseEditPage() {
                     "bg-gray-100 text-gray-800"
                   }>{s.status}</Badge>
                 </RowBadgeItem>
-                <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
                 <RowActions className="justify-self-end">
                   <button onClick={() => setConfirmSprintDelId(s.id)} className={editButtonClass} title="Delete Sprint">
                     <Trash2 className="h-4 w-4 text-destructive" />
@@ -278,75 +198,6 @@ export default function PhaseEditPage() {
           </div>
         )}
       </Card>
-
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold">
-            Tasks ({eligibleTasks.length})
-          </h2>
-          <Select value={taskFilter} onValueChange={setTaskFilter}>
-            <SelectTrigger className="w-[140px] h-9">
-              <SelectValue placeholder="All" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All</SelectItem>
-              <SelectItem value="complete">Complete</SelectItem>
-              <SelectItem value="linked">Linked</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        {eligibleTasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tasks available for this project.</p>
-        ) : (
-          <div>
-            <TableHeader gridCols="40px 1fr 112px 80px 96px 80px">
-              <span></span>
-              <span>TASK</span>
-              <span>ASSIGNEE</span>
-              <span>EST.</span>
-              <span>STATUS</span>
-              <span>PRIORITY</span>
-            </TableHeader>
-            {[...eligibleTasks].filter((t: any) => {
-              if (taskFilter === "all") return true;
-              if (taskFilter === "complete") return t.status === "complete";
-              if (taskFilter === "linked") return t.status === "linked";
-              return true;
-            }).sort((a: any, b: any) => {
-              const aChecked = selectedTaskIds.has(a.id) ? 1 : 0;
-              const bChecked = selectedTaskIds.has(b.id) ? 1 : 0;
-              return bChecked - aChecked;
-            }).map((t: any) => {
-              const checked = selectedTaskIds.has(t.id);
-              return (
-                <DataRow
-                  key={t.id}
-                  gridCols="40px 1fr 112px 80px 96px 80px"
-                  className={checked ? "bg-primary/5" : ""}
-                >
-                  <button
-                    onClick={() => toggleTask(t.id)}
-                    className={`mt-1 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                      checked ? "bg-primary border-primary text-white" : "border-[#d1d5db]"
-                    }`}
-                  >
-                    {checked && <Check className="h-3 w-3" />}
-                  </button>
-                  <div>
-                    <RowPrimary>{t.title}</RowPrimary>
-                    {checked && <RowSecondary>Assigned</RowSecondary>}
-                  </div>
-                  <RowDataItem label="ASSIGNEE">{(t as any).users?.full_name || "—"}</RowDataItem>
-                  <RowDataItem label="EST.">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</RowDataItem>
-                  <RowBadgeItem label="STATUS"><Badge className={STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge></RowBadgeItem>
-                  <RowBadgeItem label="PRIORITY"><Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge></RowBadgeItem>
-                </DataRow>
-              );
-            })}
-          </div>
-        )}
-      </Card>
-
       {/* Add Sprint Dialog */}
       <Dialog open={addSprintOpen} onOpenChange={setAddSprintOpen}>
         <DialogContent>

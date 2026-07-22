@@ -9,6 +9,7 @@ UPDATE public.project_members SET notified = true;
 -- For employees, we need to allow updating ONLY the notified column on their own record.
 -- However, given the current "Admin/Manager can manage" policy, we should add a specific update policy for employees.
 
+DROP POLICY IF EXISTS "Employees can update their own notification status" ON public.project_members;
 CREATE POLICY "Employees can update their own notification status"
 ON public.project_members
 FOR UPDATE

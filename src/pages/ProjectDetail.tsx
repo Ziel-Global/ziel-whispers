@@ -28,6 +28,7 @@ import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
 import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, ChevronDown, ChevronRight, Send, X, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -68,8 +69,6 @@ export default function ProjectDetailPage() {
   const [addMemberOpen, setAddMemberOpen] = useState(false);
   const [addMemberMode, setAddMemberMode] = useState<"resource" | "client">("resource");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [roleInputs, setRoleInputs] = useState<Record<string, string>>({});
-  const [showOtherRole, setShowOtherRole] = useState<Record<string, boolean>>({});
   const [memberSearch, setMemberSearch] = useState("");
   const [statusNote, setStatusNote] = useState("");
   const [completionWarning, setCompletionWarning] = useState(false);
@@ -125,6 +124,7 @@ export default function ProjectDetailPage() {
   const [sprintStartDate, setSprintStartDate] = useState("");
   const [sprintEndDate, setSprintEndDate] = useState("");
   const [sprintPhaseId, setSprintPhaseId] = useState("");
+  const [sprintTaskIds, setSprintTaskIds] = useState<string[]>([]);
   const [editSprintOpen, setEditSprintOpen] = useState(false);
   const [editSprintId, setEditSprintId] = useState<string | null>(null);
   const [editSprintName, setEditSprintName] = useState("");
@@ -132,6 +132,7 @@ export default function ProjectDetailPage() {
   const [editSprintEndDate, setEditSprintEndDate] = useState("");
   const [editSprintStatus, setEditSprintStatus] = useState("");
   const [editSprintPhaseId, setEditSprintPhaseId] = useState("");
+  const [editSprintTaskIds, setEditSprintTaskIds] = useState<string[]>([]);
 
   const [newActionItemTitle, setNewActionItemTitle] = useState("");
   const [newActionItemDesc, setNewActionItemDesc] = useState("");
@@ -614,6 +615,12 @@ const { data: resolvedId } = useQuery({
     });
     return counts;
   }, [tasks]);
+
+  const sprintMap = useMemo(() => {
+    const m: Record<string, string> = {};
+    (sprints || []).forEach((s: any) => { m[s.id] = s.name; });
+    return m;
+  }, [sprints]);
 
   const sprintProgress = useMemo(() => {
     const progress: Record<string, number> = {};
@@ -1219,21 +1226,27 @@ const { data: resolvedId } = useQuery({
   const createSprint = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!sprintName.trim() || !sprintStartDate || !sprintEndDate || !sprintPhaseId || !id) return;
-    const { error } = await supabase.from("sprints").insert({
+    const { data: newSprint, error } = await supabase.from("sprints").insert({
       project_id: id,
       phase_id: sprintPhaseId,
       name: sprintName.trim(),
       start_date: sprintStartDate,
       end_date: sprintEndDate,
-    });
+    }).select("id").single();
     if (error) { toast.error(error.message); return; }
+    if (sprintTaskIds.length > 0 && newSprint) {
+      const { error: updateErr } = await supabase.from("tasks").update({ sprint_id: newSprint.id }).in("id", sprintTaskIds);
+      if (updateErr) { toast.error(updateErr.message); return; }
+    }
     toast.success("Sprint created");
     setAddSprintOpen(false);
     setSprintName("");
     setSprintStartDate("");
     setSprintEndDate("");
     setSprintPhaseId("");
+    setSprintTaskIds([]);
     queryClient.invalidateQueries({ queryKey: ["project-sprints", id] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
   };
 
   const openEditSprint = (sprint: any) => {
@@ -1243,6 +1256,7 @@ const { data: resolvedId } = useQuery({
     setEditSprintEndDate(sprint.end_date);
     setEditSprintStatus(sprint.status);
     setEditSprintPhaseId(sprint.phase_id);
+    setEditSprintTaskIds((tasks || []).filter((t: any) => t.sprint_id === sprint.id).map((t: any) => t.id));
     setEditSprintOpen(true);
   };
 
@@ -1256,18 +1270,24 @@ const { data: resolvedId } = useQuery({
       phase_id: editSprintPhaseId,
     };
     if (editSprintStatus) {
-      const oldStatus = sprints.find((s: any) => s.id === editSprintId)?.status;
       updates.status = editSprintStatus;
-      const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
-      if (error) { toast.error(error.message); return; }
-    } else {
-      const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
-      if (error) { toast.error(error.message); return; }
+    }
+    const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
+    if (error) { toast.error(error.message); return; }
+    const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId).map((t: any) => t.id);
+    const toUnassign = previouslyAssigned.filter((tid: string) => !editSprintTaskIds.includes(tid));
+    if (toUnassign.length > 0) {
+      await supabase.from("tasks").update({ sprint_id: null }).in("id", toUnassign);
+    }
+    if (editSprintTaskIds.length > 0) {
+      await supabase.from("tasks").update({ sprint_id: editSprintId }).in("id", editSprintTaskIds);
     }
     toast.success("Sprint updated");
     setEditSprintOpen(false);
     setEditSprintId(null);
+    setEditSprintTaskIds([]);
     queryClient.invalidateQueries({ queryKey: ["project-sprints", id] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
   };
 
   const deleteSprint = async (sprintId: string) => {
@@ -1328,7 +1348,7 @@ const { data: resolvedId } = useQuery({
     try {
       for (const uid of selectedUsers) {
         const emp = allEmployees?.find(e => e.id === uid);
-        const roleName = roleInputs[uid]?.trim() || emp?.designation || "Member";
+        const roleName = emp?.designation || "Member";
         let roleId: string | null = null;
         const { data: existingRole } = await supabase.from("project_roles").select("id").eq("project_id", id!).eq("name", roleName).maybeSingle();
         if (existingRole) { roleId = existingRole.id; } else {
@@ -1340,8 +1360,6 @@ const { data: resolvedId } = useQuery({
       }
       toast.success(`${selectedUsers.length} member(s) added`);
       setSelectedUsers([]);
-      setRoleInputs({});
-      setShowOtherRole({});
       setAddMemberOpen(false);
       queryClient.invalidateQueries({ queryKey: ["project-members", id] });
     } catch (err: any) { toast.error(err.message); }
@@ -1586,11 +1604,12 @@ const { data: resolvedId } = useQuery({
       const estIdx = headers.indexOf("estimated_hours");
       const dueDateIdx = headers.indexOf("due_date");
       const clientVisIdx = headers.indexOf("client_visible");
+      const assignedToIdx = headers.indexOf("assigned_to");
       if (titleIdx === -1) {
         toast.error("CSV must have a 'title' column");
         return;
       }
-      const rows: { rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; errors: string[] }[] = [];
+      const rows: { rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; assigned_to: string; errors: string[] }[] = [];
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCSVLine(lines[i]);
         const title = cols[titleIdx]?.trim() || "";
@@ -1599,6 +1618,7 @@ const { data: resolvedId } = useQuery({
         const estimated_hours = estIdx !== -1 ? (cols[estIdx]?.trim() || "") : "";
         const due_date = dueDateIdx !== -1 ? (cols[dueDateIdx]?.trim() || "") : "";
         const client_visible = clientVisIdx !== -1 ? (cols[clientVisIdx]?.trim().toLowerCase() || "") : "";
+        const assigned_to = assignedToIdx !== -1 ? (cols[assignedToIdx]?.trim() || "") : "";
         const errors: string[] = [];
         if (!title) errors.push("Title is required");
         if (priority && !VALID_PRIORITIES.includes(priority)) {
@@ -1609,7 +1629,7 @@ const { data: resolvedId } = useQuery({
         if (estimated_hours && isNaN(Number(estimated_hours))) errors.push("Invalid estimated_hours");
         if (due_date && isNaN(Date.parse(due_date))) errors.push("Invalid due_date");
         if (client_visible && !["true", "false", "yes", "no", "1", "0"].includes(client_visible)) errors.push("Invalid client_visible");
-        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, due_date, client_visible, errors });
+        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, due_date, client_visible, assigned_to, errors });
       }
       setCsvRows(rows);
     };
@@ -1626,6 +1646,11 @@ const { data: resolvedId } = useQuery({
     setUploading(true);
     try {
       const initialStatus = workflowStatuses?.find((s: any) => s.is_initial);
+      const employeeNameToId = (allEmployees || []).reduce((acc: Record<string, string>, e: any) => {
+        const name = (e.full_name || "").trim().toLowerCase();
+        if (name) acc[name] = e.user_id || e.id;
+        return acc;
+      }, {});
       const inserts = validRows.map((r) => ({
         project_id: id!,
         title: r.title,
@@ -1637,6 +1662,7 @@ const { data: resolvedId } = useQuery({
         status_id: initialStatus?.id || null,
         status: initialStatus?.name || "unlinked",
         created_by: profile?.id,
+        assigned_to: r.assigned_to ? (employeeNameToId[r.assigned_to.trim().toLowerCase()] || null) : null,
       }));
       const { error } = await supabase.from("tasks").insert(inserts);
       if (error) throw error;
@@ -1754,15 +1780,16 @@ const { data: resolvedId } = useQuery({
             {(project as any).document_link && (
               <div className="pt-2">
                 <span className="text-sm text-muted-foreground block mb-1">Document / Drive Link</span>
-                <a
-                  href={(project as any).document_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 text-sm text-primary hover:underline font-medium"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  Open Document
-                </a>
+                <Button variant="outline" size="sm" className="rounded-button" asChild>
+                  <a
+                    href={(project as any).document_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <ExternalLink className="h-4 w-4 mr-1" />
+                    Open Document
+                  </a>
+                </Button>
               </div>
             )}
             {isAdmin && (
@@ -3756,9 +3783,17 @@ const { data: resolvedId } = useQuery({
           <DialogHeader><DialogTitle>Bulk Add Tasks</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <Card className="p-4 space-y-2">
-              <p className="text-sm font-medium">CSV Format</p>
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">CSV Format</p>
+                <Button type="button" variant="outline" size="sm" className="rounded-button" onClick={() => {
+                  const sample = "title,description,priority,estimated_hours,due_date,client_visible,assigned_to\nDesign login page,Create mockups for the login screen,high,8,2025-09-01,true,\nAPI integration,Integrate REST API endpoints,medium,,2025-09-15,false,John Doe\nBug fix,Fix sidebar rendering issue,low,2,2025-08-20,true,";
+                  const blob = new Blob([sample], { type: "text/csv" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a"); a.href = url; a.download = "task-import-template.csv"; a.click(); URL.revokeObjectURL(url);
+                }}><Download className="h-4 w-4 mr-1" />Download Template</Button>
+              </div>
               <p className="text-xs text-muted-foreground">Your CSV must have these column headers on the first row:</p>
-              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority,estimated_hours,due_date,client_visible</div>
+              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority,estimated_hours,due_date,client_visible,assigned_to</div>
               <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
                 <li><strong>title</strong> — required</li>
                 <li><strong>description</strong> — optional</li>
@@ -3766,6 +3801,7 @@ const { data: resolvedId } = useQuery({
                 <li><strong>estimated_hours</strong> — optional decimal number (e.g. 1, 1.5, 2.25)</li>
                 <li><strong>due_date</strong> — optional date (YYYY-MM-DD)</li>
                 <li><strong>client_visible</strong> — optional, true/false/yes/no (defaults to true)</li>
+                <li><strong>assigned_to</strong> — optional, employee full name (e.g. "John Doe"); left blank if no match found</li>
               </ul>
               <p className="text-xs text-muted-foreground pt-1">All uploaded tasks will have status <strong>Unlinked</strong> and be assigned to this project.</p>
             </Card>
@@ -3790,6 +3826,7 @@ const { data: resolvedId } = useQuery({
                         <th className="text-left p-2 font-medium">Est. Hours</th>
                         <th className="text-left p-2 font-medium">Due Date</th>
                         <th className="text-left p-2 font-medium">Visible</th>
+                        <th className="text-left p-2 font-medium">Assigned To</th>
                         <th className="text-left p-2 font-medium">Errors</th>
                       </tr>
                     </thead>
@@ -3805,6 +3842,7 @@ const { data: resolvedId } = useQuery({
                           <td className="p-2 text-muted-foreground">{r.estimated_hours || "—"}</td>
                           <td className="p-2 text-muted-foreground">{r.due_date || "—"}</td>
                           <td className="p-2">{r.client_visible && !["false", "no", "0"].includes(r.client_visible) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</td>
+                          <td className="p-2 text-muted-foreground">{r.assigned_to || "—"}</td>
                           <td className="p-2">
                             {r.errors.length > 0 ? (
                               <span className="text-red-500 text-[10px]">{r.errors.join("; ")}</span>
@@ -4209,27 +4247,8 @@ const { data: resolvedId } = useQuery({
                   {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
                 </div>
                 {selectedUsers.includes(e.id) && (
-                  <div className="mt-2 space-y-2" onClick={(e2) => e2.stopPropagation()}>
-                    <Select value={showOtherRole[e.id] ? "__other__" : roleInputs[e.id] || ""} onValueChange={(v) => {
-                      if (v === "__other__") {
-                        setShowOtherRole({ ...showOtherRole, [e.id]: true });
-                        setRoleInputs({ ...roleInputs, [e.id]: "" });
-                      } else {
-                        setShowOtherRole({ ...showOtherRole, [e.id]: false });
-                        setRoleInputs({ ...roleInputs, [e.id]: v });
-                      }
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Select role..." /></SelectTrigger>
-                      <SelectContent>
-                        {projectRoles.map((r: any) => (
-                          <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>
-                        ))}
-                        <SelectItem value="__other__">Other…</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {showOtherRole[e.id] && (
-                      <Input placeholder="Enter role name" value={roleInputs[e.id] || ""} onChange={(e2) => setRoleInputs({ ...roleInputs, [e.id]: e2.target.value })} />
-                    )}
+                  <div className="mt-2" onClick={(e2) => e2.stopPropagation()}>
+                    <p className="text-sm text-muted-foreground">Will be added as <span className="font-medium">{e.designation || "Member"}</span></p>
                   </div>
                 )}
               </div>
@@ -4330,7 +4349,7 @@ const { data: resolvedId } = useQuery({
       </Dialog>
 
       {/* Add Sprint Dialog */}
-      <Dialog open={addSprintOpen} onOpenChange={setAddSprintOpen}>
+      <Dialog open={addSprintOpen} onOpenChange={(open) => { setAddSprintOpen(open); if (!open) setSprintTaskIds([]); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Sprint</DialogTitle></DialogHeader>
           <form onSubmit={createSprint} className="space-y-4">
@@ -4357,13 +4376,78 @@ const { data: resolvedId } = useQuery({
               <label className="text-sm font-medium">End Date *</label>
               <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required min={sprintStartDate || undefined} />
             </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tasks</label>
+              {sprintTaskIds.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {sprintTaskIds.map((tid) => {
+                    const task = (tasks || []).find((t: any) => t.id === tid);
+                    return task ? (
+                      <Badge key={tid} variant="secondary" className="text-xs gap-1">
+                        {task.title}
+                        <button type="button" onClick={() => setSprintTaskIds((prev) => prev.filter((id) => id !== tid))} className="ml-0.5 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="w-full justify-start text-left font-normal rounded-button">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    {sprintTaskIds.length > 0 ? `${sprintTaskIds.length} task(s) selected` : "Select tasks..."}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search tasks..." />
+                    <CommandList>
+                      <CommandEmpty>No tasks found.</CommandEmpty>
+                      {(tasks || []).map((t: any) => {
+                        const isSelected = sprintTaskIds.includes(t.id);
+                        const currentSprintName = t.sprint_id ? sprintMap[t.sprint_id] : null;
+                        return (
+                          <CommandItem
+                            key={t.id}
+                            onSelect={() => {
+                              setSprintTaskIds((prev) =>
+                                prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                              );
+                            }}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <Checkbox checked={isSelected} className="pointer-events-none border-black" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium truncate block">{t.title}</span>
+                              {currentSprintName && (
+                                <span className="text-[11px] text-amber-600 flex items-center gap-1 mt-0.5">
+                                  <AlertCircle className="h-3 w-3" />
+                                  Currently in: {currentSprintName} — will be removed
+                                </span>
+                              )}
+                            </div>
+                            {t.users?.full_name ? (
+                              <Badge variant="secondary" className="text-xs shrink-0">{t.users.full_name}</Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground shrink-0">Unassigned</span>
+                            )}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+            </div>
             <Button type="submit" className="rounded-button w-full">Create Sprint</Button>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Edit Sprint Dialog */}
-      <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); } }}>
+      <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); setEditSprintTaskIds([]); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Sprint</DialogTitle></DialogHeader>
           <form onSubmit={handleEditSprintSave} className="space-y-4">
@@ -4389,6 +4473,71 @@ const { data: resolvedId } = useQuery({
             <div className="space-y-2">
               <label className="text-sm font-medium">End Date *</label>
               <Input type="date" value={editSprintEndDate} onChange={(e) => setEditSprintEndDate(e.target.value)} required min={editSprintStartDate || undefined} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Tasks</label>
+              {editSprintTaskIds.length > 0 && (
+                <div className="flex flex-wrap gap-1 mb-2">
+                  {editSprintTaskIds.map((tid) => {
+                    const task = (tasks || []).find((t: any) => t.id === tid);
+                    return task ? (
+                      <Badge key={tid} variant="secondary" className="text-xs gap-1">
+                        {task.title}
+                        <button type="button" onClick={() => setEditSprintTaskIds((prev) => prev.filter((id) => id !== tid))} className="ml-0.5 hover:text-destructive">
+                          <X className="h-3 w-3" />
+                        </button>
+                      </Badge>
+                    ) : null;
+                  })}
+                </div>
+              )}
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button type="button" variant="outline" className="w-full justify-start text-left font-normal rounded-button">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    {editSprintTaskIds.length > 0 ? `${editSprintTaskIds.length} task(s) selected` : "Select tasks..."}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search tasks..." />
+                    <CommandList>
+                      <CommandEmpty>No tasks found.</CommandEmpty>
+                      {(tasks || []).map((t: any) => {
+                        const isSelected = editSprintTaskIds.includes(t.id);
+                        const currentSprintName = t.sprint_id && t.sprint_id !== editSprintId ? sprintMap[t.sprint_id] : null;
+                        return (
+                          <CommandItem
+                            key={t.id}
+                            onSelect={() => {
+                              setEditSprintTaskIds((prev) =>
+                                prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
+                              );
+                            }}
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <Checkbox checked={isSelected} className="pointer-events-none border-black" />
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-medium truncate block">{t.title}</span>
+                              {currentSprintName && (
+                                <span className="text-[11px] text-amber-600 flex items-center gap-1 mt-0.5">
+                                  <AlertCircle className="h-3 w-3" />
+                                  Currently in: {currentSprintName} — will be removed
+                                </span>
+                              )}
+                            </div>
+                            {t.users?.full_name ? (
+                              <Badge variant="secondary" className="text-xs shrink-0">{t.users.full_name}</Badge>
+                            ) : (
+                              <span className="text-xs text-muted-foreground shrink-0">Unassigned</span>
+                            )}
+                          </CommandItem>
+                        );
+                      })}
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Status</label>

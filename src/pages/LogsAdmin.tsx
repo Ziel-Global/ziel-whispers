@@ -16,7 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock } from "lucide-react";
+import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock, Eye } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
@@ -91,6 +92,7 @@ export default function LogsAdminPage() {
   const [utilLow, setUtilLow] = useState("");
   const [utilHigh, setUtilHigh] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [selectedLogDetail, setSelectedLogDetail] = useState<any>(null);
 
   // Load settings
   const { data: settings } = useQuery({
@@ -594,6 +596,37 @@ export default function LogsAdminPage() {
                       <button onClick={() => toggleLock(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.is_locked ? "Unlock" : "Lock"}>
                         <Lock className={`h-4 w-4 ${log.is_locked ? "text-blue-600" : "text-[#d1d5db]"}`} />
                       </button>
+                      <Popover open={selectedLogDetail?.id === log.id} onOpenChange={(open) => setSelectedLogDetail(open ? log : null)}>
+                        <PopoverTrigger asChild>
+                          <button className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title="View Details">
+                            <Eye className="h-4 w-4 text-[#6b7280]" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80" align="end">
+                          <div className="space-y-3">
+                            <h4 className="text-sm font-semibold">Log Details</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div><span className="text-muted-foreground">Employee</span><p className="font-medium">{emp?.full_name || log.users?.full_name}</p></div>
+                              <div><span className="text-muted-foreground">Date</span><p className="font-medium">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</p></div>
+                              <div><span className="text-muted-foreground">Hours</span><p className="font-medium">{formatHours(log.hours)}</p></div>
+                              <div><span className="text-muted-foreground">Category</span><p className="font-medium">{log.category?.replace(/_/g, " ")}</p></div>
+                              <div><span className="text-muted-foreground">Project</span><p className="font-medium">{log.projects?.name || "Miscellaneous"}</p></div>
+                              <div><span className="text-muted-foreground">Late</span><p className="font-medium">{isLate ? "Yes" : "No"}</p></div>
+                              <div><span className="text-muted-foreground">Flagged</span><p className="font-medium">{log.admin_flagged ? "Yes" : "No"}</p></div>
+                              <div><span className="text-muted-foreground">Locked</span><p className="font-medium">{log.is_locked ? "Yes" : "No"}</p></div>
+                            </div>
+                            {log.submitted_at && (
+                              <div className="text-sm"><span className="text-muted-foreground">Submitted</span><p className="font-medium">{format(new Date(log.submitted_at), "MMM d, yyyy h:mm a")}</p></div>
+                            )}
+                            {log.description && (
+                              <div className="text-sm"><span className="text-muted-foreground">Description</span><p className="mt-1 text-sm whitespace-pre-wrap">{log.description}</p></div>
+                            )}
+                            {log.admin_comment && (
+                              <div className="text-sm"><span className="text-muted-foreground">Admin Comment</span><p className="mt-1 text-sm whitespace-pre-wrap">{log.admin_comment}</p></div>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </RowActions>
                   </DataRow>
                 );

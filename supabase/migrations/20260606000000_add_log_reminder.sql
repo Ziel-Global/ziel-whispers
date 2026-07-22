@@ -1,7 +1,7 @@
 -- Add log reminder columns to attendance table
 ALTER TABLE public.attendance
-  ADD COLUMN log_reminder_time timestamptz,
-  ADD COLUMN log_reminder_sent boolean NOT NULL DEFAULT false;
+  ADD COLUMN IF NOT EXISTS log_reminder_time timestamptz,
+  ADD COLUMN IF NOT EXISTS log_reminder_sent boolean NOT NULL DEFAULT false;
 
 -- Schedule send-log-reminder to run every 5 minutes
 SELECT cron.schedule(

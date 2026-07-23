@@ -37,6 +37,8 @@ export default function AnnouncementsPage() {
   const [form, setForm] = useState<AnnouncementForm>(emptyForm);
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedAnnouncementIds, setSelectedAnnouncementIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteAnnouncementOpen, setBulkDeleteAnnouncementOpen] = useState(false);
   const [page, setPage] = useState(0);
   const PAGE_SIZE = 20;
 
@@ -121,6 +123,20 @@ export default function AnnouncementsPage() {
     queryClient.invalidateQueries({ queryKey: ["announcements"] });
   };
 
+  const handleBulkDeleteAnnouncements = async () => {
+    const ids = Array.from(selectedAnnouncementIds);
+    if (!ids.length) return;
+    const { error } = await supabase.from("announcements").delete().in("id", ids);
+    if (error) { toast.error(error.message); return; }
+    for (const id of ids) {
+      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "announcement.deleted", target_entity: "announcements", target_id: id });
+    }
+    toast.success(`${ids.length} announcement${ids.length > 1 ? "s" : ""} deleted`);
+    setSelectedAnnouncementIds(new Set());
+    setBulkDeleteAnnouncementOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["announcements"] });
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -133,26 +149,55 @@ export default function AnnouncementsPage() {
 
       {isLoading && <p className="text-muted-foreground">Loading…</p>}
 
+      {selectedAnnouncementIds.size > 0 && (
+        <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border border-blue-200 rounded-lg">
+          <span className="text-sm text-blue-700">{selectedAnnouncementIds.size} announcement{selectedAnnouncementIds.size > 1 ? "s" : ""} selected</span>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setSelectedAnnouncementIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
+            <button onClick={() => setBulkDeleteAnnouncementOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete selected
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="space-y-3">
         {visibleAnnouncements.map((a) => (
-          <Card key={a.id} className="p-5">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  {a.priority === "urgent" && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
-                  <h3 className="font-semibold text-foreground">{a.title}</h3>
-                  {a.priority === "urgent" && <Badge variant="destructive" className="text-xs">Urgent</Badge>}
-                  {a.audience !== "all" && <Badge variant="outline" className="text-xs">{a.audience}</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{a.body.replace(/<[^>]*>/g, "")}</p>
-                <p className="text-xs text-muted-foreground mt-2">{formatDistanceToNow(new Date(a.publish_at), { addSuffix: true })}</p>
-              </div>
+          <Card key={a.id} className={`p-5 ${selectedAnnouncementIds.has(a.id) ? "ring-2 ring-blue-500" : ""}`}>
+            <div className="flex items-start gap-3">
               {isAdmin && (
-                <div className="flex gap-1 shrink-0">
-                  <button onClick={() => openEdit(a)} className={editButtonClass}><Pencil className="h-4 w-4" /></button>
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteId(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                </div>
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300 mt-1 shrink-0"
+                  checked={selectedAnnouncementIds.has(a.id)}
+                  onChange={(e) => {
+                    const next = new Set(selectedAnnouncementIds);
+                    if (e.target.checked) next.add(a.id);
+                    else next.delete(a.id);
+                    setSelectedAnnouncementIds(next);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
               )}
+              <div className="flex-1 min-w-0 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    {a.priority === "urgent" && <AlertTriangle className="h-4 w-4 text-red-500 shrink-0" />}
+                    <h3 className="font-semibold text-foreground">{a.title}</h3>
+                    {a.priority === "urgent" && <Badge variant="destructive" className="text-xs">Urgent</Badge>}
+                    {a.audience !== "all" && <Badge variant="outline" className="text-xs">{a.audience}</Badge>}
+                  </div>
+                  <p className="text-sm text-muted-foreground line-clamp-2 whitespace-pre-wrap">{a.body.replace(/<[^>]*>/g, "")}</p>
+                  <p className="text-xs text-muted-foreground mt-2">{formatDistanceToNow(new Date(a.publish_at), { addSuffix: true })}</p>
+                </div>
+                {isAdmin && (
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => openEdit(a)} className={editButtonClass}><Pencil className="h-4 w-4" /></button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteId(a.id)}><Trash2 className="h-4 w-4 text-destructive" /></Button>
+                  </div>
+                )}
+              </div>
             </div>
           </Card>
         ))}
@@ -169,7 +214,7 @@ export default function AnnouncementsPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent>
           <DialogHeader><DialogTitle>{editId ? "Edit Announcement" : "New Announcement"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
@@ -220,6 +265,19 @@ export default function AnnouncementsPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteAnnouncementOpen} onOpenChange={setBulkDeleteAnnouncementOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedAnnouncementIds.size} Announcement{selectedAnnouncementIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete {selectedAnnouncementIds.size} announcement{selectedAnnouncementIds.size > 1 ? "s" : ""}? This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeleteAnnouncements} className="bg-destructive text-destructive-foreground">Delete all</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

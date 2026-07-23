@@ -16,7 +16,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock } from "lucide-react";
+import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock, Eye } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
@@ -50,6 +51,8 @@ export default function LogsAdminPage() {
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteLogOpen, setBulkDeleteLogOpen] = useState(false);
 
   // Fetch all projects for editing
   const { data: allProjects = [] } = useQuery({
@@ -91,6 +94,7 @@ export default function LogsAdminPage() {
   const [utilLow, setUtilLow] = useState("");
   const [utilHigh, setUtilHigh] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
+  const [selectedLogDetail, setSelectedLogDetail] = useState<any>(null);
 
   // Load settings
   const { data: settings } = useQuery({
@@ -413,6 +417,22 @@ export default function LogsAdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
   };
 
+  const handleBulkDeleteLogs = async () => {
+    const ids = Array.from(selectedLogIds);
+    if (!ids.length) return;
+    setDeleting(true);
+    const { error } = await supabase.from("daily_logs").delete().in("id", ids);
+    if (error) { toast.error(error.message); setDeleting(false); return; }
+    for (const id of ids) {
+      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "log.deleted", target_entity: "daily_logs", target_id: id });
+    }
+    toast.success(`${ids.length} log${ids.length > 1 ? "s" : ""} deleted`);
+    setSelectedLogIds(new Set());
+    setBulkDeleteLogOpen(false);
+    setDeleting(false);
+    queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
+  };
+
   const filteredLogs = useMemo(() => {
     let list = [...logs];
     if (employeeFilter !== "all") {
@@ -498,7 +518,7 @@ export default function LogsAdminPage() {
 
           {/* Stat Card Modal */}
           <Dialog open={!!modalType} onOpenChange={() => setModalType(null)}>
-            <DialogContent className="max-w-md">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle>{modalTitle} — {new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", month: "short", day: "numeric", year: "numeric" }).format(new Date(selectedDate + "T00:00:00"))}</DialogTitle>
               </DialogHeader>
@@ -553,7 +573,21 @@ export default function LogsAdminPage() {
             <Card><div className="py-12 text-center text-muted-foreground">No logs found for the selected filters</div></Card>
           ) : (
             <div>
-              <TableHeader gridCols="1fr 112px 80px 96px 80px 96px 80px">
+              <TableHeader gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
+                <div className="flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    checked={selectedLogIds.size === filteredLogs.length && filteredLogs.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedLogIds(new Set(filteredLogs.map((l: any) => l.id)));
+                      } else {
+                        setSelectedLogIds(new Set());
+                      }
+                    }}
+                  />
+                </div>
                 <span>EMPLOYEE</span>
                 <span>DATE</span>
                 <span>HOURS</span>
@@ -562,12 +596,48 @@ export default function LogsAdminPage() {
                 <span>FLAGGED</span>
                 <span className="text-right">ACTIONS</span>
               </TableHeader>
+              {selectedLogIds.size > 0 && (
+                <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                  <span className="text-sm text-blue-700">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedLogIds(new Set())}
+                      className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white"
+                    >
+                      Clear selection
+                    </button>
+                    <button
+                      onClick={() => setBulkDeleteLogOpen(true)}
+                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete selected
+                    </button>
+                  </div>
+                </div>
+              )}
               {filteredLogs.map((log: any) => {
                 const emp = employees.find((e: any) => e.id === log.user_id);
                 const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
                 const isLate = log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date);
                 return (
-                  <DataRow key={log.id} gridCols="1fr 112px 80px 96px 80px 96px 80px">
+                  <DataRow key={log.id} gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300"
+                        checked={selectedLogIds.has(log.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedLogIds);
+                          if (e.target.checked) {
+                            next.add(log.id);
+                          } else {
+                            next.delete(log.id);
+                          }
+                          setSelectedLogIds(next);
+                        }}
+                      />
+                    </div>
                     <div>
                       <RowPrimary>{log.users?.full_name}</RowPrimary>
                       <RowSecondary>{(log.projects?.name || "Miscellaneous")} · {log.category?.replace(/_/g, " ")}</RowSecondary>
@@ -594,6 +664,37 @@ export default function LogsAdminPage() {
                       <button onClick={() => toggleLock(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.is_locked ? "Unlock" : "Lock"}>
                         <Lock className={`h-4 w-4 ${log.is_locked ? "text-blue-600" : "text-[#d1d5db]"}`} />
                       </button>
+                      <Popover open={selectedLogDetail?.id === log.id} onOpenChange={(open) => setSelectedLogDetail(open ? log : null)}>
+                        <PopoverTrigger asChild>
+                          <button className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title="View Details">
+                            <Eye className="h-4 w-4 text-[#6b7280]" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-80" align="end">
+                          <div className="space-y-3">
+                            <h4 className="text-sm font-semibold">Log Details</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm">
+                              <div><span className="text-muted-foreground">Employee</span><p className="font-medium">{emp?.full_name || log.users?.full_name}</p></div>
+                              <div><span className="text-muted-foreground">Date</span><p className="font-medium">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</p></div>
+                              <div><span className="text-muted-foreground">Hours</span><p className="font-medium">{formatHours(log.hours)}</p></div>
+                              <div><span className="text-muted-foreground">Category</span><p className="font-medium">{log.category?.replace(/_/g, " ")}</p></div>
+                              <div><span className="text-muted-foreground">Project</span><p className="font-medium">{log.projects?.name || "Miscellaneous"}</p></div>
+                              <div><span className="text-muted-foreground">Late</span><p className="font-medium">{isLate ? "Yes" : "No"}</p></div>
+                              <div><span className="text-muted-foreground">Flagged</span><p className="font-medium">{log.admin_flagged ? "Yes" : "No"}</p></div>
+                              <div><span className="text-muted-foreground">Locked</span><p className="font-medium">{log.is_locked ? "Yes" : "No"}</p></div>
+                            </div>
+                            {log.submitted_at && (
+                              <div className="text-sm"><span className="text-muted-foreground">Submitted</span><p className="font-medium">{format(new Date(log.submitted_at), "MMM d, yyyy h:mm a")}</p></div>
+                            )}
+                            {log.description && (
+                              <div className="text-sm"><span className="text-muted-foreground">Description</span><p className="mt-1 text-sm whitespace-pre-wrap">{log.description}</p></div>
+                            )}
+                            {log.admin_comment && (
+                              <div className="text-sm"><span className="text-muted-foreground">Admin Comment</span><p className="mt-1 text-sm whitespace-pre-wrap">{log.admin_comment}</p></div>
+                            )}
+                          </div>
+                        </PopoverContent>
+                      </Popover>
                     </RowActions>
                   </DataRow>
                 );
@@ -661,6 +762,23 @@ export default function LogsAdminPage() {
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteLog} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
               {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteLogOpen} onOpenChange={setBulkDeleteLogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedLogIds.size} Log{selectedLogIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeleteLogs} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete all"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

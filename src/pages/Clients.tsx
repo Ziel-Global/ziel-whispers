@@ -47,6 +47,8 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedClientIds, setSelectedClientIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteClientOpen, setBulkDeleteClientOpen] = useState(false);
 
   const { data: clients, isLoading } = useQuery({
     queryKey: ["clients"],
@@ -165,6 +167,35 @@ export default function ClientsPage() {
     }
   };
 
+  const handleBulkDeleteClients = async () => {
+    const ids = Array.from(selectedClientIds);
+    if (!ids.length) return;
+    setDeleting(true);
+    let deleted = 0;
+    let skipped = 0;
+    try {
+      for (const id of ids) {
+        const { data: relatedProjects } = await supabase.from("projects").select("id").eq("client_id", id);
+        if (relatedProjects && relatedProjects.length > 0) {
+          skipped++;
+          continue;
+        }
+        const { error } = await supabase.from("clients").delete().eq("id", id);
+        if (!error) {
+          await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "client.deleted", target_entity: "clients", target_id: id });
+          deleted++;
+        }
+      }
+      if (skipped > 0) toast.warning(`${skipped} client${skipped > 1 ? "s" : ""} skipped (linked to projects)`);
+      if (deleted > 0) toast.success(`${deleted} client${deleted > 1 ? "s" : ""} deleted`);
+      setSelectedClientIds(new Set());
+      setBulkDeleteClientOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["clients"] });
+      queryClient.invalidateQueries({ queryKey: ["client-project-counts"] });
+    } catch (err: any) { toast.error(err.message); }
+    finally { setDeleting(false); }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -194,15 +225,52 @@ export default function ClientsPage() {
       {!isLoading && filtered.length === 0 && <Card><div className="py-12 text-center text-muted-foreground">No clients found</div></Card>}
       {!isLoading && filtered.length > 0 && (
         <div>
-          <TableHeader gridCols="1fr 96px 96px 112px 80px">
+          <TableHeader gridCols="40px 1fr 96px 96px 112px 80px">
+            <div className="flex items-center justify-center">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300"
+                checked={selectedClientIds.size === filtered.length && filtered.length > 0}
+                onChange={(e) => {
+                  if (e.target.checked) setSelectedClientIds(new Set(filtered.map((c) => c.id)));
+                  else setSelectedClientIds(new Set());
+                }}
+              />
+            </div>
             <span>CLIENT</span>
             <span>PROJECTS</span>
             <span>STATUS</span>
             <span>CREATED</span>
             <span className="text-right">ACTIONS</span>
           </TableHeader>
+          {selectedClientIds.size > 0 && (
+            <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+              <span className="text-sm text-blue-700">{selectedClientIds.size} client{selectedClientIds.size > 1 ? "s" : ""} selected</span>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setSelectedClientIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
+                <button onClick={() => setBulkDeleteClientOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete selected
+                </button>
+              </div>
+            </div>
+          )}
           {filtered.map((c) => (
-            <DataRow key={c.id} gridCols="1fr 96px 96px 112px 80px">
+            <DataRow key={c.id} gridCols="40px 1fr 96px 96px 112px 80px">
+              <div className="flex items-center justify-center">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-gray-300"
+                  checked={selectedClientIds.has(c.id)}
+                  onChange={(e) => {
+                    const next = new Set(selectedClientIds);
+                    if (e.target.checked) next.add(c.id);
+                    else next.delete(c.id);
+                    setSelectedClientIds(next);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                />
+              </div>
               <div>
                 <div className="flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-[#6b7280] shrink-0" />
@@ -234,7 +302,7 @@ export default function ClientsPage() {
       )}
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent>
           <DialogHeader><DialogTitle>{editId ? "Edit Client" : "Add Client"}</DialogTitle></DialogHeader>
            <div className="space-y-4">
             <div><Label>Client Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
@@ -272,6 +340,20 @@ export default function ClientsPage() {
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
               {deleting ? "Deleting…" : "Delete Permanently"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+      <AlertDialog open={bulkDeleteClientOpen} onOpenChange={setBulkDeleteClientOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedClientIds.size} Client{selectedClientIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>Are you sure you want to delete {selectedClientIds.size} client{selectedClientIds.size > 1 ? "s" : ""}? Clients linked to projects will be skipped. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeleteClients} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete all"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -4,6 +4,7 @@
 
 DROP POLICY IF EXISTS "Admin/Manager can view all attendance" ON public.attendance;
 
+DROP POLICY IF EXISTS "Authenticated users can view attendance records" ON public.attendance;
 CREATE POLICY "Authenticated users can view attendance records"
 ON public.attendance
 FOR SELECT

@@ -9,8 +9,7 @@ CREATE TABLE IF NOT EXISTS public.project_phases (
 );
 
 -- Add phase_id column to existing tasks table
-ALTER TABLE public.tasks
-  ADD COLUMN IF NOT EXISTS phase_id UUID REFERENCES public.project_phases(id) ON DELETE SET NULL;
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS phase_id UUID REFERENCES public.project_phases(id) ON DELETE SET NULL;
 
 -- RLS
 ALTER TABLE public.project_phases ENABLE ROW LEVEL SECURITY;

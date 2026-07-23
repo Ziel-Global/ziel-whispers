@@ -7,12 +7,10 @@ DROP POLICY IF EXISTS "Admin can update any user; employee can update own" ON pu
 DROP POLICY IF EXISTS "Admin/Manager can view all users" ON public.users;
 
 -- Recreate scoped to authenticated role only (anon cannot read)
-DROP POLICY IF EXISTS "Admin can insert users" ON public.users;
 CREATE POLICY "Admin can insert users"
 ON public.users FOR INSERT TO authenticated
 WITH CHECK (public.get_my_role() = 'admin');
 
-DROP POLICY IF EXISTS "Admin can update any user; employee can update own" ON public.users;
 CREATE POLICY "Admin can update any user; employee can update own"
 ON public.users FOR UPDATE TO authenticated
 USING (public.get_my_role() = 'admin' OR id = auth.uid());

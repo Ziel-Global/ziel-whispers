@@ -51,6 +51,8 @@ export default function LogsAdminPage() {
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteLogOpen, setBulkDeleteLogOpen] = useState(false);
 
   // Fetch all projects for editing
   const { data: allProjects = [] } = useQuery({
@@ -415,6 +417,22 @@ export default function LogsAdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
   };
 
+  const handleBulkDeleteLogs = async () => {
+    const ids = Array.from(selectedLogIds);
+    if (!ids.length) return;
+    setDeleting(true);
+    const { error } = await supabase.from("daily_logs").delete().in("id", ids);
+    if (error) { toast.error(error.message); setDeleting(false); return; }
+    for (const id of ids) {
+      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "log.deleted", target_entity: "daily_logs", target_id: id });
+    }
+    toast.success(`${ids.length} log${ids.length > 1 ? "s" : ""} deleted`);
+    setSelectedLogIds(new Set());
+    setBulkDeleteLogOpen(false);
+    setDeleting(false);
+    queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
+  };
+
   const filteredLogs = useMemo(() => {
     let list = [...logs];
     if (employeeFilter !== "all") {
@@ -500,7 +518,7 @@ export default function LogsAdminPage() {
 
           {/* Stat Card Modal */}
           <Dialog open={!!modalType} onOpenChange={() => setModalType(null)}>
-            <DialogContent className="max-w-md">
+            <DialogContent>
               <DialogHeader>
                 <DialogTitle>{modalTitle} — {new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", month: "short", day: "numeric", year: "numeric" }).format(new Date(selectedDate + "T00:00:00"))}</DialogTitle>
               </DialogHeader>
@@ -555,7 +573,21 @@ export default function LogsAdminPage() {
             <Card><div className="py-12 text-center text-muted-foreground">No logs found for the selected filters</div></Card>
           ) : (
             <div>
-              <TableHeader gridCols="1fr 112px 80px 96px 80px 96px 80px">
+              <TableHeader gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
+                <div className="flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300"
+                    checked={selectedLogIds.size === filteredLogs.length && filteredLogs.length > 0}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedLogIds(new Set(filteredLogs.map((l: any) => l.id)));
+                      } else {
+                        setSelectedLogIds(new Set());
+                      }
+                    }}
+                  />
+                </div>
                 <span>EMPLOYEE</span>
                 <span>DATE</span>
                 <span>HOURS</span>
@@ -564,12 +596,48 @@ export default function LogsAdminPage() {
                 <span>FLAGGED</span>
                 <span className="text-right">ACTIONS</span>
               </TableHeader>
+              {selectedLogIds.size > 0 && (
+                <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                  <span className="text-sm text-blue-700">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setSelectedLogIds(new Set())}
+                      className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white"
+                    >
+                      Clear selection
+                    </button>
+                    <button
+                      onClick={() => setBulkDeleteLogOpen(true)}
+                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete selected
+                    </button>
+                  </div>
+                </div>
+              )}
               {filteredLogs.map((log: any) => {
                 const emp = employees.find((e: any) => e.id === log.user_id);
                 const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
                 const isLate = log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date);
                 return (
-                  <DataRow key={log.id} gridCols="1fr 112px 80px 96px 80px 96px 80px">
+                  <DataRow key={log.id} gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300"
+                        checked={selectedLogIds.has(log.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedLogIds);
+                          if (e.target.checked) {
+                            next.add(log.id);
+                          } else {
+                            next.delete(log.id);
+                          }
+                          setSelectedLogIds(next);
+                        }}
+                      />
+                    </div>
                     <div>
                       <RowPrimary>{log.users?.full_name}</RowPrimary>
                       <RowSecondary>{(log.projects?.name || "Miscellaneous")} · {log.category?.replace(/_/g, " ")}</RowSecondary>
@@ -694,6 +762,23 @@ export default function LogsAdminPage() {
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteLog} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
               {deleting ? "Deleting..." : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteLogOpen} onOpenChange={setBulkDeleteLogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedLogIds.size} Log{selectedLogIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""}? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeleteLogs} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+              {deleting ? "Deleting..." : "Delete all"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

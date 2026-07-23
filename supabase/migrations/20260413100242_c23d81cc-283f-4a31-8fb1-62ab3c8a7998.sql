@@ -10,7 +10,6 @@ CREATE TABLE IF NOT EXISTS public.login_attempts (
 
 ALTER TABLE public.login_attempts ENABLE ROW LEVEL SECURITY;
 
-
 -- Allow anon insert (for tracking before auth)
 DROP POLICY IF EXISTS "Anyone can insert login attempts" ON public.login_attempts;
 CREATE POLICY "Anyone can insert login attempts"

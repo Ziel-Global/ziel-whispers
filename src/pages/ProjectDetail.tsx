@@ -25,7 +25,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "@/com
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
-import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, Info, Settings, ChevronDown, ChevronRight, Send, X, Calendar as CalendarIcon } from "lucide-react";
+import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, XCircle, Info, Settings, ChevronDown, ChevronRight, Send, X, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
@@ -98,9 +98,10 @@ export default function ProjectDetailPage() {
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
   const [kanbanSprintFilter, setKanbanSprintFilter] = useState<string>("all");
   const [kanbanPriorityFilter, setKanbanPriorityFilter] = useState<string>("all");
-  const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; errors: string[] }[]>([]);
+  const [csvRows, setCsvRows] = useState<{ rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; assigned_to: string; resolvedId: string | null; isDuplicate: boolean; existingTaskId: string | null; errors: string[] }[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [replaceDuplicates, setReplaceDuplicates] = useState(false);
   const [addPhaseOpen, setAddPhaseOpen] = useState(false);
   const [phaseTitle, setPhaseTitle] = useState("");
   const [phaseDueDate, setPhaseDueDate] = useState("");
@@ -161,7 +162,9 @@ const [ruleAllowTriggering, setRuleAllowTriggering] = useState(false);
 const [ruleConditions, setRuleConditions] = useState<{field: string; operator: string; value: string}[]>([]);
 const [ruleActions, setRuleActions] = useState<{type: string; params: Record<string, string>}[]>([]);
 const [deleteRuleConfirmId, setDeleteRuleConfirmId] = useState<string | null>(null);
-const [deleteTaskConfirmId, setDeleteTaskConfirmId] = useState<string | null>(null);
+  const [deleteTaskConfirmId, setDeleteTaskConfirmId] = useState<string | null>(null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [bulkTaskDeleteOpen, setBulkTaskDeleteOpen] = useState(false);
 
 const addCondition = () => {
   setRuleConditions([...ruleConditions, { field: "status_id", operator: "eq", value: "" }]);
@@ -1189,6 +1192,17 @@ const { data: resolvedId } = useQuery({
     });
   };
 
+  const bulkDeleteTasks = async () => {
+    const ids = Array.from(selectedTaskIds);
+    if (ids.length === 0) return;
+    const { error } = await supabase.from("tasks").delete().in("id", ids);
+    if (error) { toast.error(error.message); return; }
+    setSelectedTaskIds(new Set());
+    setBulkTaskDeleteOpen(false);
+    toast.success(`${ids.length} task(s) deleted`);
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+  };
+
   const completeActionItem = async (itemId: string) => {
     if (!id || !profile) return;
     const { error } = await supabase
@@ -1225,10 +1239,10 @@ const { data: resolvedId } = useQuery({
 
   const createSprint = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!sprintName.trim() || !sprintStartDate || !sprintEndDate || !sprintPhaseId || !id) return;
+    if (!sprintName.trim() || !sprintStartDate || !sprintEndDate || !id) return;
     const { data: newSprint, error } = await supabase.from("sprints").insert({
       project_id: id,
-      phase_id: sprintPhaseId,
+      phase_id: sprintPhaseId || null,
       name: sprintName.trim(),
       start_date: sprintStartDate,
       end_date: sprintEndDate,
@@ -1589,6 +1603,24 @@ const { data: resolvedId } = useQuery({
     const file = e.target.files?.[0];
     if (!file) return;
     setCsvFileName(file.name);
+
+    const parseDateFlexible = (dateStr: string): string | null => {
+      const trimmed = dateStr.trim();
+      if (!trimmed) return null;
+      const native = Date.parse(trimmed);
+      if (!isNaN(native)) return new Date(native).toISOString().split("T")[0];
+      const normalized = trimmed.replace(/-/g, "/");
+      const normalizedParsed = Date.parse(normalized);
+      if (!isNaN(normalizedParsed)) return new Date(normalizedParsed).toISOString().split("T")[0];
+      const parts = trimmed.split(/[/\-\.]/);
+      if (parts.length === 3 && parseInt(parts[0]) > 12) {
+        const swapped = `${parts[1]}/${parts[0]}/${parts[2]}`;
+        const swappedParsed = Date.parse(swapped);
+        if (!isNaN(swappedParsed)) return new Date(swappedParsed).toISOString().split("T")[0];
+      }
+      return null;
+    };
+
     const reader = new FileReader();
     reader.onload = (evt) => {
       const text = evt.target?.result as string;
@@ -1609,7 +1641,15 @@ const { data: resolvedId } = useQuery({
         toast.error("CSV must have a 'title' column");
         return;
       }
-      const rows: { rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; assigned_to: string; errors: string[] }[] = [];
+      const rows: { rowNum: number; title: string; description: string; priority: string; estimated_hours: string; due_date: string; client_visible: string; assigned_to: string; resolvedId: string | null; isDuplicate: boolean; existingTaskId: string | null; errors: string[] }[] = [];
+      const employeeNameToId: Record<string, string> = {};
+      (allEmployees || []).forEach((e: any) => {
+        const fullName = (e.full_name || "").trim().toLowerCase();
+        if (fullName) employeeNameToId[fullName] = e.user_id || e.id;
+      });
+      const existingTaskTitles = new Map(
+        (tasks || []).map((t: any) => [t.title.trim().toLowerCase(), t])
+      );
       for (let i = 1; i < lines.length; i++) {
         const cols = parseCSVLine(lines[i]);
         const title = cols[titleIdx]?.trim() || "";
@@ -1627,9 +1667,14 @@ const { data: resolvedId } = useQuery({
         }
         if (!priority) priority = "medium";
         if (estimated_hours && isNaN(Number(estimated_hours))) errors.push("Invalid estimated_hours");
-        if (due_date && isNaN(Date.parse(due_date))) errors.push("Invalid due_date");
+        const parsedDueDate = parseDateFlexible(due_date);
+        if (due_date && !parsedDueDate) errors.push("Invalid due_date");
         if (client_visible && !["true", "false", "yes", "no", "1", "0"].includes(client_visible)) errors.push("Invalid client_visible");
-        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, due_date, client_visible, assigned_to, errors });
+        const resolvedId = assigned_to ? (employeeNameToId[assigned_to.trim().toLowerCase()] || null) : null;
+        if (assigned_to && !resolvedId) errors.push(`Employee "${assigned_to}" not found`);
+        const isDuplicate = title ? existingTaskTitles.has(title.trim().toLowerCase()) : false;
+        const existingTask = isDuplicate ? existingTaskTitles.get(title.trim().toLowerCase()) : null;
+        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, due_date: parsedDueDate || due_date, client_visible, assigned_to, resolvedId, isDuplicate, existingTaskId: existingTask?.id || null, errors });
       }
       setCsvRows(rows);
     };
@@ -1638,7 +1683,7 @@ const { data: resolvedId } = useQuery({
   };
 
   const handleBulkUpload = async () => {
-    const validRows = csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority")));
+    const validRows = csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority") || err.startsWith("Duplicate")));
     if (validRows.length === 0) {
       toast.error("No valid rows to upload");
       return;
@@ -1646,12 +1691,9 @@ const { data: resolvedId } = useQuery({
     setUploading(true);
     try {
       const initialStatus = workflowStatuses?.find((s: any) => s.is_initial);
-      const employeeNameToId = (allEmployees || []).reduce((acc: Record<string, string>, e: any) => {
-        const name = (e.full_name || "").trim().toLowerCase();
-        if (name) acc[name] = e.user_id || e.id;
-        return acc;
-      }, {});
-      const inserts = validRows.map((r) => ({
+      const newRows = validRows.filter(r => !r.isDuplicate);
+      const dupRows = validRows.filter(r => r.isDuplicate);
+      const inserts = newRows.map((r) => ({
         project_id: id!,
         title: r.title,
         description: r.description || null,
@@ -1662,14 +1704,37 @@ const { data: resolvedId } = useQuery({
         status_id: initialStatus?.id || null,
         status: initialStatus?.name || "unlinked",
         created_by: profile?.id,
-        assigned_to: r.assigned_to ? (employeeNameToId[r.assigned_to.trim().toLowerCase()] || null) : null,
+        assigned_to: r.resolvedId || null,
       }));
-      const { error } = await supabase.from("tasks").insert(inserts);
-      if (error) throw error;
-      toast.success(`${validRows.length} task(s) added`);
+      if (inserts.length > 0) {
+        const { error } = await supabase.from("tasks").insert(inserts);
+        if (error) throw error;
+      }
+      let replacedCount = 0;
+      if (replaceDuplicates && dupRows.length > 0) {
+        for (const r of dupRows) {
+          const { error } = await supabase.from("tasks").update({
+            description: r.description || null,
+            priority: r.priority,
+            estimated_hours: r.estimated_hours ? parseFloat(r.estimated_hours) : null,
+            due_date: r.due_date || null,
+            client_visible: !["false", "no", "0"].includes(r.client_visible),
+            assigned_to: r.resolvedId || null,
+          }).eq("id", r.existingTaskId!);
+          if (error) throw error;
+          replacedCount++;
+        }
+      }
+      const skippedCount = replaceDuplicates ? 0 : dupRows.length;
+      const parts = [];
+      if (inserts.length > 0) parts.push(`${inserts.length} added`);
+      if (replacedCount > 0) parts.push(`${replacedCount} replaced`);
+      if (skippedCount > 0) parts.push(`${skippedCount} duplicate(s) skipped`);
+      toast.success(parts.length > 0 ? parts.join(", ") : "No changes made");
       setBulkTaskOpen(false);
       setCsvRows([]);
       setCsvFileName("");
+      setReplaceDuplicates(false);
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
       
       await createProjectRelatedNotifications({
@@ -2950,9 +3015,20 @@ const { data: resolvedId } = useQuery({
               return filteredTasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tasks yet.</p>
               ) : (
+                <>
+                {selectedTaskIds.size > 0 && (
+                  <div className="flex items-center gap-3 bg-muted rounded-md px-4 py-2 mb-2">
+                    <span className="text-sm font-medium">{selectedTaskIds.size} selected</span>
+                    <Button variant="destructive" size="sm" onClick={() => setBulkTaskDeleteOpen(true)} className="rounded-button"><Trash2 className="h-4 w-4 mr-1" />Delete Selected</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedTaskIds(new Set())}>Clear</Button>
+                  </div>
+                )}
                 <table className="w-full">
                   <thead>
                     <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                      <th className="px-4 py-2 text-left w-10">
+                        <input type="checkbox" className="rounded" checked={selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0} onChange={(e) => { if (e.target.checked) setSelectedTaskIds(new Set(filteredTasks.map((t: any) => t.id))); else setSelectedTaskIds(new Set()); }} />
+                      </th>
                       <th className="px-4 py-2 text-left">TASK</th>
                       <th className="px-4 py-2 text-left">ASSIGNED TO</th>
                       <th className="px-4 py-2 text-left">PRIORITY</th>
@@ -2967,6 +3043,9 @@ const { data: resolvedId } = useQuery({
                   <tbody>
                   {filteredTasks.map((t: any) => (
                     <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                      <td className="px-4 py-3">
+                        <input type="checkbox" className="rounded" checked={selectedTaskIds.has(t.id)} onChange={(e) => { const next = new Set(selectedTaskIds); if (e.target.checked) next.add(t.id); else next.delete(t.id); setSelectedTaskIds(next); }} />
+                      </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-[15px] text-[#111827] truncate">
                           {t.title}
@@ -3021,6 +3100,7 @@ const { data: resolvedId } = useQuery({
                   ))}
                   </tbody>
                 </table>
+                </>
             );
           })()}
           </TabsContent>
@@ -3466,7 +3546,7 @@ const { data: resolvedId } = useQuery({
 
       {/* Automation Rule Dialog */}
       <Dialog open={automationRulesOpen} onOpenChange={(o) => { if (!o) { resetRuleForm(); } setAutomationRulesOpen(o); }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader><DialogTitle>{editRuleId ? "Edit Automation Rule" : "Add Automation Rule"}</DialogTitle></DialogHeader>
           <form onSubmit={saveAutomationRule} className="space-y-4">
             <div className="space-y-2">
@@ -3696,6 +3776,19 @@ const { data: resolvedId } = useQuery({
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={bulkTaskDeleteOpen} onOpenChange={setBulkTaskDeleteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedTaskIds.size} task(s)?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete the selected tasks and their blockers. This action cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={bulkDeleteTasks} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Add Task Dialog */}
       <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
         <DialogContent>
@@ -3779,7 +3872,7 @@ const { data: resolvedId } = useQuery({
 
       {/* Bulk Add Tasks Dialog */}
       <Dialog open={bulkTaskOpen} onOpenChange={(open) => { if (!uploading) setBulkTaskOpen(open); }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent>
           <DialogHeader><DialogTitle>Bulk Add Tasks</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <Card className="p-4 space-y-2">
@@ -3814,7 +3907,23 @@ const { data: resolvedId } = useQuery({
 
             {csvRows.length > 0 && (
               <div className="space-y-2">
-                <p className="text-sm font-medium">Preview ({csvRows.length} row{csvRows.length !== 1 ? "s" : ""})</p>
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-medium">Preview ({csvRows.length} row{csvRows.length !== 1 ? "s" : ""})</p>
+                  <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+                    <input type="checkbox" checked={replaceDuplicates} onChange={(e) => setReplaceDuplicates(e.target.checked)} className="rounded" />
+                    Replace existing tasks (matched by title)
+                  </label>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {(() => {
+                    const newCount = csvRows.filter(r => !r.isDuplicate).length;
+                    const dupCount = csvRows.filter(r => r.isDuplicate).length;
+                    const validNew = csvRows.filter(r => !r.isDuplicate && r.errors.length === 0).length;
+                    const parts = [`${validNew} new`];
+                    if (dupCount > 0) parts.push(`${dupCount} duplicate${dupCount !== 1 ? "s" : ""} (${replaceDuplicates ? "will replace" : "skipped"})`);
+                    return parts.join(", ");
+                  })()}
+                </p>
                 <div className="max-h-60 overflow-y-auto border rounded-md">
                   <table className="w-full text-xs">
                     <thead>
@@ -3827,12 +3936,13 @@ const { data: resolvedId } = useQuery({
                         <th className="text-left p-2 font-medium">Due Date</th>
                         <th className="text-left p-2 font-medium">Visible</th>
                         <th className="text-left p-2 font-medium">Assigned To</th>
+                        <th className="text-left p-2 font-medium">Status</th>
                         <th className="text-left p-2 font-medium">Errors</th>
                       </tr>
                     </thead>
                     <tbody>
                       {csvRows.map((r) => (
-                        <tr key={r.rowNum} className={r.errors.length > 0 ? "bg-red-50" : "border-t"}>
+                        <tr key={r.rowNum} className={r.isDuplicate ? "bg-orange-50" : r.errors.length > 0 ? "bg-red-50" : "border-t"}>
                           <td className="p-2 text-muted-foreground">{r.rowNum}</td>
                           <td className={`p-2 font-medium ${!r.title ? "text-red-500" : ""}`}>{r.title || <span className="italic text-red-400">empty</span>}</td>
                           <td className="p-2 text-muted-foreground">{truncateWords(r.description, 4) || "—"}</td>
@@ -3842,7 +3952,18 @@ const { data: resolvedId } = useQuery({
                           <td className="p-2 text-muted-foreground">{r.estimated_hours || "—"}</td>
                           <td className="p-2 text-muted-foreground">{r.due_date || "—"}</td>
                           <td className="p-2">{r.client_visible && !["false", "no", "0"].includes(r.client_visible) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</td>
-                          <td className="p-2 text-muted-foreground">{r.assigned_to || "—"}</td>
+                          <td className="p-2">
+                            {r.assigned_to ? (
+                              r.resolvedId ? (
+                                <span className="text-green-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{r.assigned_to}</span>
+                              ) : (
+                                <span className="text-red-500 flex items-center gap-1"><XCircle className="h-3 w-3" />{r.assigned_to}</span>
+                              )
+                            ) : "—"}
+                          </td>
+                          <td className="p-2">
+                            {r.isDuplicate && <Badge className="bg-orange-100 text-orange-800 text-[10px]">Duplicate</Badge>}
+                          </td>
                           <td className="p-2">
                             {r.errors.length > 0 ? (
                               <span className="text-red-500 text-[10px]">{r.errors.join("; ")}</span>
@@ -3859,9 +3980,9 @@ const { data: resolvedId } = useQuery({
             )}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setBulkTaskOpen(false); setCsvRows([]); setCsvFileName(""); }} disabled={uploading}>Cancel</Button>
+            <Button type="button" variant="outline" onClick={() => { setBulkTaskOpen(false); setCsvRows([]); setCsvFileName(""); setReplaceDuplicates(false); }} disabled={uploading}>Cancel</Button>
             <Button type="button" onClick={handleBulkUpload} disabled={csvRows.length === 0 || uploading}>
-              {uploading ? "Uploading..." : `Confirm Upload${csvRows.length > 0 ? ` (${csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority"))).length} valid)` : ""}`}
+              {uploading ? "Uploading..." : `Confirm Upload${csvRows.length > 0 ? ` (${csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority") || err.startsWith("Duplicate"))).length} rows)` : ""}`}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3872,7 +3993,7 @@ const { data: resolvedId } = useQuery({
         if (!open) setDependencyWarning("");
         setEditTaskOpen(open);
       }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader><DialogTitle>Edit Task</DialogTitle></DialogHeader>
           <form onSubmit={handleEditTaskSave} className="space-y-4">
             <div className="space-y-2">
@@ -3972,7 +4093,7 @@ const { data: resolvedId } = useQuery({
           setViewAddDepType("finish_to_start");
         }
       }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {viewTaskData?.title || "Task Details"}
@@ -4282,7 +4403,7 @@ const { data: resolvedId } = useQuery({
 
       {/* Phase Tasks Dialog */}
       <Dialog open={phaseTasksOpen} onOpenChange={setPhaseTasksOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent>
           <DialogHeader><DialogTitle>{selectedPhase?.title}</DialogTitle></DialogHeader>
           <Tabs defaultValue="sprints">
             <TabsList className="grid w-full grid-cols-1">
@@ -4322,7 +4443,7 @@ const { data: resolvedId } = useQuery({
 
       {/* Sprint Tasks Dialog */}
       <Dialog open={sprintTasksOpen} onOpenChange={setSprintTasksOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent>
           <DialogHeader><DialogTitle>{selectedSprint?.name} — Tasks</DialogTitle></DialogHeader>
           {(() => {
             const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === selectedSprint?.id);
@@ -4358,7 +4479,7 @@ const { data: resolvedId } = useQuery({
               <Input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="e.g. Sprint 1" required />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Phase *</label>
+              <label className="text-sm font-medium">Phase</label>
               <Select value={sprintPhaseId} onValueChange={setSprintPhaseId}>
                 <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
                 <SelectContent>
@@ -4616,7 +4737,7 @@ const { data: resolvedId } = useQuery({
 
       {/* Project Settings */}
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Project Settings</DialogTitle>
           </DialogHeader>

@@ -31,6 +31,8 @@ export default function PhaseEditPage() {
   const [sprintStartDate, setSprintStartDate] = useState("");
   const [sprintEndDate, setSprintEndDate] = useState("");
   const [confirmSprintDelId, setConfirmSprintDelId] = useState<string | null>(null);
+  const [selectedSprintIds, setSelectedSprintIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteSprintOpen, setBulkDeleteSprintOpen] = useState(false);
 
   const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
@@ -115,6 +117,17 @@ export default function PhaseEditPage() {
     queryClient.invalidateQueries({ queryKey: ["phase-sprints", phaseId] });
   };
 
+  const handleBulkDeleteSprints = async () => {
+    const ids = Array.from(selectedSprintIds);
+    if (!ids.length) return;
+    const { error } = await supabase.from("sprints").delete().in("id", ids);
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${ids.length} sprint${ids.length > 1 ? "s" : ""} deleted`);
+    setSelectedSprintIds(new Set());
+    setBulkDeleteSprintOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["phase-sprints", phaseId] });
+  };
+
   if (!isAdmin) {
     return <div className="text-center py-12 text-muted-foreground">Access denied</div>;
   }
@@ -167,14 +180,42 @@ export default function PhaseEditPage() {
           <p className="text-sm text-muted-foreground">No sprints in this phase yet.</p>
         ) : (
           <div>
-            <TableHeader gridCols="1fr 112px 96px 80px">
+            <TableHeader gridCols="40px 1fr 112px 96px 80px">
+              <div className="flex items-center justify-center">
+                <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                  checked={selectedSprintIds.size === phaseSprints.length && phaseSprints.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedSprintIds(new Set(phaseSprints.map((s: any) => s.id)));
+                    else setSelectedSprintIds(new Set());
+                  }} />
+              </div>
               <span>SPRINT</span>
               <span>DATES</span>
               <span>STATUS</span>
               <span className="text-right">ACTIONS</span>
             </TableHeader>
+            {selectedSprintIds.size > 0 && (
+              <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                <span className="text-sm text-blue-700">{selectedSprintIds.size} sprint{selectedSprintIds.size > 1 ? "s" : ""} selected</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedSprintIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
+                  <button onClick={() => setBulkDeleteSprintOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                    <Trash2 className="h-3.5 w-3.5" /> Delete selected
+                  </button>
+                </div>
+              </div>
+            )}
             {phaseSprints.map((s: any) => (
-              <DataRow key={s.id} gridCols="1fr 112px 96px 80px">
+              <DataRow key={s.id} gridCols="40px 1fr 112px 96px 80px">
+                <div className="flex items-center justify-center">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={selectedSprintIds.has(s.id)}
+                    onChange={(e) => {
+                      const next = new Set(selectedSprintIds);
+                      if (e.target.checked) next.add(s.id); else next.delete(s.id);
+                      setSelectedSprintIds(next);
+                    }} />
+                </div>
                 <div>
                   <RowPrimary>{s.name}</RowPrimary>
                 </div>
@@ -233,6 +274,19 @@ export default function PhaseEditPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => { if (confirmSprintDelId) deleteSprint(confirmSprintDelId); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteSprintOpen} onOpenChange={setBulkDeleteSprintOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedSprintIds.size} Sprint{selectedSprintIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>This will unlink all tasks from these sprints and cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeleteSprints} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete all</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

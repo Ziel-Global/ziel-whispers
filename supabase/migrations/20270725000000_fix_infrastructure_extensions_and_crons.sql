@@ -1,6 +1,6 @@
 -- Safety-net migration: ensure pg_cron + pg_net extensions are enabled,
 -- then reschedule all 7 cron jobs with correct frequencies.
--- Each job is wrapped in its own DO block so one failure never blocks the rest.
+-- Each job is wrapped in its own DO block so one failure never blocks the rest.-for testing
 
 -- ============================================================
 -- 1. Ensure extensions are enabled

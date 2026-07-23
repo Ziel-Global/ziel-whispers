@@ -1,5 +1,5 @@
 -- Split trg_validate_task_status_transition: BEFORE handles validation + dual-write,
--- AFTER handles history insert (avoids FK violation when task row isn't committed yet)
+-- AFTER handles history insert (avoids FK violation when task row isn't committed yet)-for testing
 
 DROP TRIGGER IF EXISTS trg_validate_task_status_transition ON public.tasks;
 

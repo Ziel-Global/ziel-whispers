@@ -1,5 +1,4 @@
-
--- Fix existing tables to match spec schema
+﻿-- Fix existing tables to match spec schema
 -- Drops old policies first, then recreates tables
 
 DROP POLICY IF EXISTS "admin_manager_all_task_comments" ON public.task_comments;

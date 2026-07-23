@@ -1,1 +1,1 @@
-ALTER TABLE public.goals ADD COLUMN due_date DATE;
+ALTER TABLE public.goals ADD COLUMN IF NOT EXISTS due_date DATE;

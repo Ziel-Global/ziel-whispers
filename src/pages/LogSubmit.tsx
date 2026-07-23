@@ -69,6 +69,8 @@ export default function LogSubmitPage() {
   const overtimeEnabled = profile?.overtime_enabled ?? false;
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteDraftOpen, setBulkDeleteDraftOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -351,6 +353,17 @@ export default function LogSubmitPage() {
     } catch (err: any) {
       toast.error(err.message);
     }
+  };
+
+  const handleBulkDeleteDrafts = async () => {
+    const ids = Array.from(selectedDraftIds);
+    if (!ids.length) return;
+    const { error } = await supabase.from("daily_logs").delete().in("id", ids).eq("status", "draft");
+    if (error) { toast.error(error.message); return; }
+    toast.success(`${ids.length} draft log${ids.length > 1 ? "s" : ""} deleted`);
+    setSelectedDraftIds(new Set());
+    setBulkDeleteDraftOpen(false);
+    queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
   };
 
   const updateTaskProgress = async (taskId: string) => {
@@ -776,15 +789,43 @@ export default function LogSubmitPage() {
             </Button>
           </div>
           <div>
-            <TableHeader gridCols="1fr 112px 80px 200px 80px">
+            <TableHeader gridCols="40px 1fr 112px 80px 200px 80px">
+              <div className="flex items-center justify-center">
+                <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                  checked={selectedDraftIds.size === pendingLogs.length && pendingLogs.length > 0}
+                  onChange={(e) => {
+                    if (e.target.checked) setSelectedDraftIds(new Set(pendingLogs.map((log: any) => log.id)));
+                    else setSelectedDraftIds(new Set());
+                  }} />
+              </div>
               <span>PROJECT</span>
               <span>DATE</span>
               <span>HOURS</span>
               <span>DESCRIPTION</span>
               <span className="text-right">ACTIONS</span>
             </TableHeader>
+            {selectedDraftIds.size > 0 && (
+              <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                <span className="text-sm text-blue-700">{selectedDraftIds.size} draft{selectedDraftIds.size > 1 ? "s" : ""} selected</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedDraftIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
+                  <button onClick={() => setBulkDeleteDraftOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                    <Trash2 className="h-3.5 w-3.5" /> Delete selected
+                  </button>
+                </div>
+              </div>
+            )}
             {pendingLogs.map((log: any) => (
-              <DataRow key={log.id} gridCols="1fr 112px 80px 200px 80px">
+              <DataRow key={log.id} gridCols="40px 1fr 112px 80px 200px 80px">
+                <div className="flex items-center justify-center">
+                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                    checked={selectedDraftIds.has(log.id)}
+                    onChange={(e) => {
+                      const next = new Set(selectedDraftIds);
+                      if (e.target.checked) next.add(log.id); else next.delete(log.id);
+                      setSelectedDraftIds(next);
+                    }} />
+                </div>
                 <div>
                   <RowPrimary>{log.projects?.name || "Project"}</RowPrimary>
                   <RowSecondary>{log.category.replace(/_/g, " ")} · {log.tasks?.title || "No task"}</RowSecondary>
@@ -878,6 +919,19 @@ export default function LogSubmitPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteConfirmId && removePendingLog(deleteConfirmId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteDraftOpen} onOpenChange={setBulkDeleteDraftOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedDraftIds.size} Draft Log{selectedDraftIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>This unsubmitted log will be removed from your list.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeleteDrafts} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete all</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

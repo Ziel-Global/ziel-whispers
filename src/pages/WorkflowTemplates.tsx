@@ -86,6 +86,8 @@ export default function WorkflowTemplatesPage() {
   const [deletingStatusId, setDeletingStatusId] = useState<string | null>(null);
   const [confirmDelTemplateId, setConfirmDelTemplateId] = useState<string | null>(null);
   const [confirmDelStatusId, setConfirmDelStatusId] = useState<string | null>(null);
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteTemplateOpen, setBulkDeleteTemplateOpen] = useState(false);
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["workflow-templates"],
@@ -158,6 +160,18 @@ export default function WorkflowTemplatesPage() {
     toast.success("Template deleted");
   }
 
+  async function handleBulkDeleteTemplates() {
+    const ids = Array.from(selectedTemplateIds);
+    if (!ids.length) return;
+    for (const id of ids) {
+      await supabase.from("workflow_templates").delete().eq("id", id);
+    }
+    queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
+    toast.success(`${ids.length} template${ids.length > 1 ? "s" : ""} deleted`);
+    setSelectedTemplateIds(new Set());
+    setBulkDeleteTemplateOpen(false);
+  }
+
   function openNewStatus() {
     setEditStatusId(null);
     setStatusName("");
@@ -212,7 +226,7 @@ export default function WorkflowTemplatesPage() {
     queryClient.invalidateQueries({ queryKey: ["workflow-transitions"] });
   }
 
-  const gridCols = "1fr 192px 80px";
+  const gridCols = "40px 1fr 192px 80px";
   const gridColsStatus = "1fr 112px 96px 80px 80px";
 
   return (
@@ -227,11 +241,30 @@ export default function WorkflowTemplatesPage() {
       ) : (
         <Card>
           <TableHeader gridCols={gridCols}>
+            <div className="flex items-center justify-center">
+              <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                checked={selectedTemplateIds.size === (templates || []).length && (templates || []).length > 0}
+                onChange={(e) => {
+                  if (e.target.checked) setSelectedTemplateIds(new Set((templates || []).map((t) => t.id)));
+                  else setSelectedTemplateIds(new Set());
+                }} />
+            </div>
             <RowDataItem label="Name" />
             <RowDataItem label="Created" />
             <RowDataItem label="" />
           </TableHeader>
           <div>
+            {selectedTemplateIds.size > 0 && (
+              <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                <span className="text-sm text-blue-700">{selectedTemplateIds.size} template{selectedTemplateIds.size > 1 ? "s" : ""} selected</span>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setSelectedTemplateIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
+                  <button onClick={() => setBulkDeleteTemplateOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                    <Trash2 className="h-3.5 w-3.5" /> Delete selected
+                  </button>
+                </div>
+              </div>
+            )}
             {(templates || []).map((t) => (
               <div key={t.id}>
                 <DataRow
@@ -239,6 +272,16 @@ export default function WorkflowTemplatesPage() {
                   className="cursor-pointer"
                   onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
                 >
+                  <div className="flex items-center justify-center">
+                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
+                      checked={selectedTemplateIds.has(t.id)}
+                      onChange={(e) => {
+                        const next = new Set(selectedTemplateIds);
+                        if (e.target.checked) next.add(t.id); else next.delete(t.id);
+                        setSelectedTemplateIds(next);
+                      }}
+                      onClick={(e) => e.stopPropagation()} />
+                  </div>
                   <div>
                     <RowPrimary>{t.name}</RowPrimary>
                     {t.description && <RowSecondary>{t.description}</RowSecondary>}
@@ -443,6 +486,20 @@ export default function WorkflowTemplatesPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => { if (confirmDelStatusId) deleteStatus(confirmDelStatusId); setConfirmDelStatusId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Delete Templates Confirmation */}
+      <AlertDialog open={bulkDeleteTemplateOpen} onOpenChange={setBulkDeleteTemplateOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedTemplateIds.size} Template{selectedTemplateIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete these templates and all their statuses and transitions. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkDeleteTemplates} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete all</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

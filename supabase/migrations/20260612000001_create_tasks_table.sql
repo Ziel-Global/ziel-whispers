@@ -1,5 +1,5 @@
 -- Create tasks table for project task management
-CREATE TABLE public.tasks (
+CREATE TABLE IF NOT EXISTS public.tasks (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   goal_id UUID,
@@ -17,6 +17,7 @@ CREATE TABLE public.tasks (
 ALTER TABLE public.tasks ENABLE ROW LEVEL SECURITY;
 
 -- Admin/Manager can do all operations on tasks
+DROP POLICY IF EXISTS "admin_manager_all_tasks" ON public.tasks;
 CREATE POLICY "admin_manager_all_tasks"
   ON public.tasks
   FOR ALL
@@ -25,6 +26,7 @@ CREATE POLICY "admin_manager_all_tasks"
   WITH CHECK (public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text]));
 
 -- Assigned users can view their own tasks
+DROP POLICY IF EXISTS "assigned_user_select_tasks" ON public.tasks;
 CREATE POLICY "assigned_user_select_tasks"
   ON public.tasks
   FOR SELECT

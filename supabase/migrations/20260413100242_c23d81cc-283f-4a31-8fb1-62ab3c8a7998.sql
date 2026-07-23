@@ -1,6 +1,6 @@
 
 -- Login attempts tracking table
-CREATE TABLE public.login_attempts (
+CREATE TABLE IF NOT EXISTS public.login_attempts (
   id uuid NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   email text NOT NULL,
   attempted_at timestamp with time zone NOT NULL DEFAULT now(),
@@ -11,19 +11,21 @@ CREATE TABLE public.login_attempts (
 ALTER TABLE public.login_attempts ENABLE ROW LEVEL SECURITY;
 
 -- Allow anon insert (for tracking before auth)
+DROP POLICY IF EXISTS "Anyone can insert login attempts" ON public.login_attempts;
 CREATE POLICY "Anyone can insert login attempts"
 ON public.login_attempts FOR INSERT
 TO public
 WITH CHECK (true);
 
 -- Only admin can read
+DROP POLICY IF EXISTS "Admin can view login attempts" ON public.login_attempts;
 CREATE POLICY "Admin can view login attempts"
 ON public.login_attempts FOR SELECT
 TO authenticated
 USING (public.get_my_role() = 'admin');
 
 -- Index for fast lookups
-CREATE INDEX idx_login_attempts_email_time ON public.login_attempts (email, attempted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_email_time ON public.login_attempts (email, attempted_at DESC);
 
 -- Function to auto-create leave balances when a user is created
 CREATE OR REPLACE FUNCTION public.handle_new_user_leave_balances()
@@ -42,6 +44,7 @@ END;
 $$;
 
 -- Trigger to auto-create leave balances after user insert
+DROP TRIGGER IF EXISTS on_user_created_leave_balances ON public.users;
 CREATE TRIGGER on_user_created_leave_balances
 AFTER INSERT ON public.users
 FOR EACH ROW

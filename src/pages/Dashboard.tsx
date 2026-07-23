@@ -731,7 +731,7 @@ export default function DashboardPage() {
               </div>
             </Card>
           </DialogTrigger>
-          <DialogContent className="max-w-md p-0 overflow-y-auto">
+          <DialogContent className="p-0">
             <DialogHeader className="p-4 pb-2 border-b">
               <DialogTitle className="flex items-center gap-2 text-lg">
                 <Users className="h-5 w-5 text-purple-600" />

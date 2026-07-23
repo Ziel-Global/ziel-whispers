@@ -141,7 +141,7 @@ export function ProjectCSVImportDialog({ open, onOpenChange }: { open: boolean; 
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto">
+      <DialogContent>
         <DialogHeader>
           <DialogTitle>Import Projects from CSV</DialogTitle>
         </DialogHeader>

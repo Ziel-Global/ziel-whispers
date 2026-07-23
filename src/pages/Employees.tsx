@@ -39,6 +39,8 @@ export default function EmployeesPage() {
   const queryClient = useQueryClient();
   const [deletingUser, setDeletingUser] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteEmployeeOpen, setBulkDeleteEmployeeOpen] = useState(false);
 
   // Shift Settings State
   const [shiftStart, setShiftStart] = useState("");
@@ -94,6 +96,29 @@ export default function EmployeesPage() {
       toast.success("Global shift settings saved");
     } catch (err: any) { toast.error(err.message); }
     finally { setSavingSettings(false); }
+  };
+
+  const handleBulkDeleteEmployees = async () => {
+    const ids = Array.from(selectedEmployeeIds);
+    if (!ids.length) return;
+    setDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      let deleted = 0;
+      for (const id of ids) {
+        if (id === profile?.id) continue;
+        const res = await supabase.functions.invoke("manage-user", {
+          body: { action: "delete", user_id: id },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        }) as any;
+        if (res?.data?.ok) deleted++;
+      }
+      if (deleted > 0) toast.success(`${deleted} user${deleted > 1 ? "s" : ""} deleted`);
+      setSelectedEmployeeIds(new Set());
+      setBulkDeleteEmployeeOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+    } catch (err: any) { toast.error(err?.message || String(err)); }
+    finally { setDeleting(false); }
   };
 
   const { data: employees = [], isLoading } = useQuery({
@@ -202,7 +227,18 @@ export default function EmployeesPage() {
               <div className="px-4 py-8 text-center text-muted-foreground">No employees found</div>
             ) : (
               <div>
-                <TableHeader gridCols="1fr 192px 144px 96px 112px 80px">
+                <TableHeader gridCols="40px 1fr 192px 144px 96px 112px 80px">
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300"
+                      checked={selectedEmployeeIds.size === filtered.length && filtered.length > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedEmployeeIds(new Set(filtered.map((emp) => emp.id)));
+                        else setSelectedEmployeeIds(new Set());
+                      }}
+                    />
+                  </div>
                   <span>EMPLOYEE</span>
                   <span>EMAIL</span>
                   <span>PHONE</span>
@@ -210,6 +246,18 @@ export default function EmployeesPage() {
                   <span>JOIN DATE</span>
                   <span className="text-right">ACTIONS</span>
                 </TableHeader>
+                {selectedEmployeeIds.size > 0 && (
+                  <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
+                    <span className="text-sm text-blue-700">{selectedEmployeeIds.size} user{selectedEmployeeIds.size > 1 ? "s" : ""} selected</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => setSelectedEmployeeIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
+                      <button onClick={() => setBulkDeleteEmployeeOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete selected
+                      </button>
+                    </div>
+                  </div>
+                )}
                 {filtered.map((emp) => {
                 const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
                 const isOversight = emp.is_oversight;
@@ -218,8 +266,22 @@ export default function EmployeesPage() {
                     key={emp.id}
                     onClick={() => navigate(`/employees/${emp.id}`)}
                     className={isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : ""}
-                    gridCols="1fr 192px 144px 96px 112px 80px"
+                    gridCols="40px 1fr 192px 144px 96px 112px 80px"
                   >
+                    <div className="flex items-center justify-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300"
+                        checked={selectedEmployeeIds.has(emp.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedEmployeeIds);
+                          if (e.target.checked) next.add(emp.id);
+                          else next.delete(emp.id);
+                          setSelectedEmployeeIds(next);
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    </div>
                     <div className="flex items-center gap-3">
                       <Avatar className="h-9 w-9 shrink-0">
                         <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
@@ -282,6 +344,21 @@ export default function EmployeesPage() {
                     toast.error(err?.message || String(err));
                   } finally { setDeleting(false); }
                 }} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={bulkDeleteEmployeeOpen} onOpenChange={setBulkDeleteEmployeeOpen}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete {selectedEmployeeIds.size} User{selectedEmployeeIds.size > 1 ? "s" : ""}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <p className="text-sm text-destructive font-medium">Warning: This will permanently delete the selected user accounts and all related data. This action cannot be undone.</p>
+                <p className="text-sm">Are you sure you want to delete {selectedEmployeeIds.size} user{selectedEmployeeIds.size > 1 ? "s" : ""}?</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setBulkDeleteEmployeeOpen(false)}>Cancel</Button>
+                <Button className="bg-destructive text-destructive-foreground" onClick={handleBulkDeleteEmployees} disabled={deleting}>{deleting ? "Deleting..." : "Delete all"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

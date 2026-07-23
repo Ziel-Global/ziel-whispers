@@ -34,8 +34,8 @@ SELECT cron.schedule(
   $$
   SELECT
     net.http_post(
-      url := 'https://goutpygixoxkgbrfmkey.supabase.co/functions/v1/auto-clockout',
-      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvdXRweWdpeG94a2dicmZta2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzAyNTAsImV4cCI6MjA5MTMwNjI1MH0.QS-CXAblzMQdpk33rpn1ybbgF_dXfZfgIJu5Z9ZcSGs"}'::jsonb,
+      url := 'https://jjgdpnociwltzcukbrft.supabase.co/functions/v1/auto-clockout',
+      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqZ2Rwbm9jaXdsdHpjdWticmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MTkyMDAsImV4cCI6MjA5MTk5NTIwMH0.OxQXFWsybKLYoEaGde39VN6eOp84E0ruziKhlEmRSow"}'::jsonb,
       body := '{"trigger": "cron"}'::jsonb
     ) AS request_id;
   $$
@@ -53,8 +53,8 @@ SELECT cron.schedule(
   $$
   SELECT
     net.http_post(
-      url := 'https://goutpygixoxkgbrfmkey.supabase.co/functions/v1/detect-missed-logs',
-      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvdXRweWdpeG94a2dicmZta2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzAyNTAsImV4cCI6MjA5MTMwNjI1MH0.QS-CXAblzMQdpk33rpn1ybbgF_dXfZfgIJu5Z9ZcSGs"}'::jsonb,
+      url := 'https://jjgdpnociwltzcukbrft.supabase.co/functions/v1/detect-missed-logs',
+      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqZ2Rwbm9jaXdsdHpjdWticmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MTkyMDAsImV4cCI6MjA5MTk5NTIwMH0.OxQXFWsybKLYoEaGde39VN6eOp84E0ruziKhlEmRSow"}'::jsonb,
       body := '{"trigger": "cron"}'::jsonb
     ) AS request_id;
   $$
@@ -72,8 +72,8 @@ SELECT cron.schedule(
   $$
   SELECT
     net.http_post(
-      url := 'https://goutpygixoxkgbrfmkey.supabase.co/functions/v1/send-log-reminder',
-      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdvdXRweWdpeG94a2dicmZta2V5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3MzAyNTAsImV4cCI6MjA5MTMwNjI1MH0.QS-CXAblzMQdpk33rpn1ybbgF_dXfZfgIJu5Z9ZcSGs"}'::jsonb,
+      url := 'https://jjgdpnociwltzcukbrft.supabase.co/functions/v1/send-log-reminder',
+      headers := '{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpqZ2Rwbm9jaXdsdHpjdWticmZ0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MTkyMDAsImV4cCI6MjA5MTk5NTIwMH0.OxQXFWsybKLYoEaGde39VN6eOp84E0ruziKhlEmRSow"}'::jsonb,
       body := '{"trigger": "cron"}'::jsonb
     ) AS request_id;
   $$

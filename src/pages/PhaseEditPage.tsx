@@ -217,7 +217,7 @@ export default function PhaseEditPage() {
                     }} />
                 </div>
                 <div>
-                  <RowPrimary>{s.name}</RowPrimary>
+                  <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
                 </div>
                 <RowDataItem label="DATES">
                   {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}

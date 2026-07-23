@@ -2076,7 +2076,7 @@ const { data: resolvedId } = useQuery({
                     {visiblePhases.map((p: any) => (
                       <DataRow key={p.id} gridCols="1fr 112px 192px">
                         <div>
-                          <RowPrimary>{p.title}</RowPrimary>
+                          <RowPrimary className="whitespace-normal break-words">{p.title}</RowPrimary>
                           <RowSecondary>{(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints</RowSecondary>
                         </div>
                         <RowDataItem label="DUE DATE">{p.due_date ? format(new Date(p.due_date), "MMM d, yyyy") : "—"}</RowDataItem>
@@ -2212,7 +2212,7 @@ const { data: resolvedId } = useQuery({
                               {clientTasks.map((t: any) => (
                                 <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
                                   <td className="px-4 py-3">
-                                    <div className="font-semibold text-[15px] text-[#111827] truncate">{t.title}</div>
+                                    <div className="font-semibold text-[15px] text-[#111827] break-words">{t.title}</div>
                                     <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
                                   </td>
                                   <td className="px-4 py-3">
@@ -2833,7 +2833,7 @@ const { data: resolvedId } = useQuery({
                         <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
                           <td className="px-4 py-3">
                             <div className="flex items-center gap-2">
-                              <div className={"font-semibold text-[15px] text-[#111827] truncate" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
+                              <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
                                 {t.title}
                                 {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
                                 {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
@@ -3047,7 +3047,7 @@ const { data: resolvedId } = useQuery({
                         <input type="checkbox" className="rounded" checked={selectedTaskIds.has(t.id)} onChange={(e) => { const next = new Set(selectedTaskIds); if (e.target.checked) next.add(t.id); else next.delete(t.id); setSelectedTaskIds(next); }} />
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-[15px] text-[#111827] truncate">
+                        <div className="font-semibold text-[15px] text-[#111827] break-words">
                           {t.title}
                           {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
                           {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
@@ -3126,7 +3126,7 @@ const { data: resolvedId } = useQuery({
                 {phases.map((p: any) => (
                   <DataRow key={p.id} onClick={() => openPhaseTasks(p)} gridCols="1fr 112px 192px 80px">
                     <div>
-                      <RowPrimary>{p.title}</RowPrimary>
+                      <RowPrimary className="whitespace-normal break-words">{p.title}</RowPrimary>
                       <RowSecondary>{(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints</RowSecondary>
                     </div>
                     <RowDataItem label="DUE DATE">{p.due_date ? format(new Date(p.due_date), "MMM d, yyyy") : "—"}</RowDataItem>
@@ -3189,7 +3189,7 @@ const { data: resolvedId } = useQuery({
                         {phaseSprints.map((s: any) => (
                           <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
                             <div>
-                              <RowPrimary>{s.name}</RowPrimary>
+                              <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
                               <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
                             </div>
                             <RowDataItem label="DATES">
@@ -3244,7 +3244,7 @@ const { data: resolvedId } = useQuery({
                     {sprints.filter((s: any) => !s.phase_id).map((s: any) => (
                       <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
                         <div>
-                          <RowPrimary>{s.name}</RowPrimary>
+                          <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
                           <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
                         </div>
                         <RowDataItem label="DATES">

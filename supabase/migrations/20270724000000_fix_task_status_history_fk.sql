@@ -83,6 +83,8 @@ BEGIN
 END;
 $$;
 
+DROP TRIGGER IF EXISTS trg_record_task_status_history ON public.tasks;
+
 CREATE TRIGGER trg_record_task_status_history
   AFTER INSERT OR UPDATE OF status_id ON public.tasks
   FOR EACH ROW

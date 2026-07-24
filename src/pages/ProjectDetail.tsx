@@ -1249,7 +1249,12 @@ const { data: resolvedId } = useQuery({
     }).select("id").single();
     if (error) { toast.error(error.message); return; }
     if (sprintTaskIds.length > 0 && newSprint) {
-      const { error: updateErr } = await supabase.from("tasks").update({ sprint_id: newSprint.id }).in("id", sprintTaskIds);
+      const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+      const { error: updateErr } = await supabase.from("tasks").update({
+        sprint_id: newSprint.id,
+        status_id: linkedStatus?.id || null,
+        status: "linked",
+      }).in("id", sprintTaskIds);
       if (updateErr) { toast.error(updateErr.message); return; }
     }
     toast.success("Sprint created");
@@ -1290,11 +1295,21 @@ const { data: resolvedId } = useQuery({
     if (error) { toast.error(error.message); return; }
     const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId).map((t: any) => t.id);
     const toUnassign = previouslyAssigned.filter((tid: string) => !editSprintTaskIds.includes(tid));
+    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
+    const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
     if (toUnassign.length > 0) {
-      await supabase.from("tasks").update({ sprint_id: null }).in("id", toUnassign);
+      await supabase.from("tasks").update({
+        sprint_id: null,
+        status_id: unlinkedStatus?.id || null,
+        status: "unlinked",
+      }).in("id", toUnassign);
     }
     if (editSprintTaskIds.length > 0) {
-      await supabase.from("tasks").update({ sprint_id: editSprintId }).in("id", editSprintTaskIds);
+      await supabase.from("tasks").update({
+        sprint_id: editSprintId,
+        status_id: linkedStatus?.id || null,
+        status: "linked",
+      }).in("id", editSprintTaskIds);
     }
     toast.success("Sprint updated");
     setEditSprintOpen(false);
@@ -1306,10 +1321,17 @@ const { data: resolvedId } = useQuery({
 
   const deleteSprint = async (sprintId: string) => {
     if (!confirm("Delete this sprint? Tasks will be unassigned from it.")) return;
+    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
+    await supabase.from("tasks").update({
+      sprint_id: null,
+      status_id: unlinkedStatus?.id || null,
+      status: "unlinked",
+    }).eq("sprint_id", sprintId);
     const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
     if (error) { toast.error(error.message); return; }
     toast.success("Sprint deleted");
     queryClient.invalidateQueries({ queryKey: ["project-sprints", id] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
   };
 
   const openSprintTasks = (sprint: any) => {
@@ -1801,7 +1823,7 @@ const { data: resolvedId } = useQuery({
 
       <Tabs value={activeTab} onValueChange={(tab) => setSearchParams({ tab })}>
         {!isClient && (
-        <TabsList>
+        <TabsList className="overflow-x-auto">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="resources">Resources ({resourceMembers.length})</TabsTrigger>
           <TabsTrigger value="clients">Client's Member ({clientMembers.length})</TabsTrigger>

@@ -87,9 +87,13 @@ const clientNav = [
 
 export function AppSidebar() {
   const { profile, user } = useAuth();
-  const { state } = useSidebar();
+  const { state, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
+
+  useEffect(() => {
+    setOpenMobile(false);
+  }, [location.pathname]);
 
   const role = profile?.role;
   const isClient = profile?.designation === "Client" || profile?.designation === "Client Member";
@@ -224,7 +228,7 @@ export function AppSidebar() {
                     {isProjectsItem ? (
                       <>
                         <SidebarMenuButton
-                          onClick={() => setProjectsSubOpen(!projectsSubOpen)}
+                          onClick={() => { setProjectsSubOpen(!projectsSubOpen); setOpenMobile(false); }}
                           isActive={isActive}
                         >
                           <item.icon className="h-4 w-4 shrink-0" />
@@ -240,6 +244,7 @@ export function AppSidebar() {
                               <SidebarMenuSubItem key={sub.value}>
                                   <SidebarMenuSubButton
                                   asChild
+                                  onClick={() => setOpenMobile(false)}
                                 >
                                   <NavLink
                                     to={`/projects/${currentProjectSlug}?tab=${sub.value}`}
@@ -260,7 +265,7 @@ export function AppSidebar() {
                         )}
                       </>
                     ) : (
-                      <SidebarMenuButton asChild isActive={isActive}>
+                      <SidebarMenuButton asChild isActive={isActive} onClick={() => setOpenMobile(false)}>
                         <NavLink
                           to={item.url}
                           end={item.url === "/"}

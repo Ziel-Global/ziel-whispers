@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock, Eye } from "lucide-react";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
@@ -65,6 +65,7 @@ export default function LogsAdminPage() {
   });
 
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
+  const [editLogOpen, setEditLogOpen] = useState(false);
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
   const [editCategory, setEditCategory] = useState("");
 
@@ -76,6 +77,7 @@ export default function LogsAdminPage() {
       .update({
         project_id: editProjectId,
         category: editCategory,
+        admin_comment: comment || null,
       })
       .eq("id", logId);
 
@@ -84,6 +86,7 @@ export default function LogsAdminPage() {
     } else {
       toast.success("Log updated");
       setEditingLogId(null);
+      setEditLogOpen(false);
       queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
     }
   };
@@ -94,7 +97,6 @@ export default function LogsAdminPage() {
   const [utilLow, setUtilLow] = useState("");
   const [utilHigh, setUtilHigh] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
-  const [selectedLogDetail, setSelectedLogDetail] = useState<any>(null);
 
   // Load settings
   const { data: settings } = useQuery({
@@ -621,7 +623,8 @@ export default function LogsAdminPage() {
                 const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
                 const isLate = log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date);
                 return (
-                  <DataRow key={log.id} gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
+                  <div key={log.id}>
+                    <DataRow gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
                     <div className="flex items-center justify-center">
                       <input
                         type="checkbox"
@@ -664,41 +667,87 @@ export default function LogsAdminPage() {
                       <button onClick={() => toggleLock(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.is_locked ? "Unlock" : "Lock"}>
                         <Lock className={`h-4 w-4 ${log.is_locked ? "text-blue-600" : "text-[#d1d5db]"}`} />
                       </button>
-                      <Popover open={selectedLogDetail?.id === log.id} onOpenChange={(open) => setSelectedLogDetail(open ? log : null)}>
-                        <PopoverTrigger asChild>
-                          <button className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title="View Details">
-                            <Eye className="h-4 w-4 text-[#6b7280]" />
-                          </button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-80" align="end">
-                          <div className="space-y-3">
-                            <h4 className="text-sm font-semibold">Log Details</h4>
-                            <div className="grid grid-cols-2 gap-2 text-sm">
-                              <div><span className="text-muted-foreground">Employee</span><p className="font-medium">{emp?.full_name || log.users?.full_name}</p></div>
-                              <div><span className="text-muted-foreground">Date</span><p className="font-medium">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</p></div>
-                              <div><span className="text-muted-foreground">Hours</span><p className="font-medium">{formatHours(log.hours)}</p></div>
-                              <div><span className="text-muted-foreground">Category</span><p className="font-medium">{log.category?.replace(/_/g, " ")}</p></div>
-                              <div><span className="text-muted-foreground">Project</span><p className="font-medium">{log.projects?.name || "Miscellaneous"}</p></div>
-                              <div><span className="text-muted-foreground">Late</span><p className="font-medium">{isLate ? "Yes" : "No"}</p></div>
-                              <div><span className="text-muted-foreground">Flagged</span><p className="font-medium">{log.admin_flagged ? "Yes" : "No"}</p></div>
-                              <div><span className="text-muted-foreground">Locked</span><p className="font-medium">{log.is_locked ? "Yes" : "No"}</p></div>
-                            </div>
-                            {log.submitted_at && (
-                              <div className="text-sm"><span className="text-muted-foreground">Submitted</span><p className="font-medium">{format(new Date(log.submitted_at), "MMM d, yyyy h:mm a")}</p></div>
-                            )}
-                            {log.description && (
-                              <div className="text-sm"><span className="text-muted-foreground">Description</span><p className="mt-1 text-sm whitespace-pre-wrap">{log.description}</p></div>
-                            )}
-                            {log.admin_comment && (
-                              <div className="text-sm"><span className="text-muted-foreground">Admin Comment</span><p className="mt-1 text-sm whitespace-pre-wrap">{log.admin_comment}</p></div>
-                            )}
-                          </div>
-                        </PopoverContent>
-                      </Popover>
+                      <button
+                        onClick={() => {
+                          setEditingLogId(log.id);
+                          setEditProjectId(log.project_id);
+                          setEditCategory(log.category);
+                          setComment(log.admin_comment || "");
+                          setEditLogOpen(true);
+                        }}
+                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
+                        title="Edit Log"
+                      >
+                        <Pencil className="h-4 w-4 text-[#6b7280]" />
+                      </button>
+                      <button
+                        onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
+                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
+                        title={expandedLogId === log.id ? "Hide Details" : "View Details"}
+                      >
+                        <Eye className={`h-4 w-4 ${expandedLogId === log.id ? "text-blue-600" : "text-[#6b7280]"}`} />
+                      </button>
                     </RowActions>
                   </DataRow>
-                );
-              })}
+                  {expandedLogId === log.id && (
+                    <div className="bg-muted/30 border-b px-6 py-4">
+                      <div className="max-w-3xl space-y-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-semibold">{emp?.full_name || log.users?.full_name}</p>
+                            <p className="text-xs text-muted-foreground">{format(new Date(log.log_date + "T00:00:00"), "EEEE, MMM d, yyyy")}</p>
+                          </div>
+                          <div className="flex gap-1.5">
+                            {log.admin_flagged && <Badge className="bg-red-100 text-red-700 text-[10px]">Flagged</Badge>}
+                            {log.is_locked && <Badge className="bg-blue-100 text-blue-700 text-[10px]">Locked</Badge>}
+                            {isLate && <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">Late</Badge>}
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                          <div className="space-y-0.5">
+                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Hours</span>
+                            <p className="font-medium">{formatHours(log.hours)}</p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Category</span>
+                            <p className="font-medium capitalize">{log.category?.replace(/_/g, " ")}</p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Project</span>
+                            <p className="font-medium">{log.projects?.name || "Miscellaneous"}</p>
+                          </div>
+                          {log.submitted_at && (
+                            <div className="space-y-0.5">
+                              <span className="text-xs text-muted-foreground uppercase tracking-wide">Submitted</span>
+                              <p className="font-medium">{format(new Date(log.submitted_at), "h:mm a")}</p>
+                            </div>
+                          )}
+                        </div>
+                        {log.description && (
+                          <div className="space-y-1">
+                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Description</span>
+                            <p className="text-sm bg-white rounded-md p-3 whitespace-pre-wrap border">{log.description}</p>
+                          </div>
+                        )}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Admin Comment</Label>
+                          <Textarea
+                            className="text-sm bg-white"
+                            rows={2}
+                            placeholder="Add a comment..."
+                            value={comment}
+                            onChange={(e) => setComment(e.target.value)}
+                          />
+                          <Button size="sm" variant="outline" onClick={() => saveComment(log.id)}>
+                            <Save className="h-3 w-3 mr-1" />Save Comment
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
             </div>
           )}
         </TabsContent>
@@ -749,6 +798,79 @@ export default function LogsAdminPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      {/* Edit Log Dialog */}
+      <Dialog open={editLogOpen} onOpenChange={(open) => { setEditLogOpen(open); if (!open) setEditingLogId(null); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Log</DialogTitle>
+          </DialogHeader>
+          {editingLogId && (() => {
+            const editLog = (logs || []).find((l: any) => l.id === editingLogId);
+            if (!editLog) return null;
+            const editEmp = employees.find((e: any) => e.id === editLog.user_id);
+            return (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div className="space-y-0.5">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Employee</span>
+                    <p className="font-medium">{editEmp?.full_name || editLog.users?.full_name}</p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Date</span>
+                    <p className="font-medium">{format(new Date(editLog.log_date + "T00:00:00"), "MMM d, yyyy")}</p>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Hours</span>
+                    <p className="font-medium">{formatHours(editLog.hours)}</p>
+                  </div>
+                  {editLog.description && (
+                    <div className="col-span-2 space-y-0.5">
+                      <span className="text-xs text-muted-foreground uppercase tracking-wide">Description</span>
+                      <p className="text-sm bg-muted/50 rounded-md p-2.5 whitespace-pre-wrap">{editLog.description}</p>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Project</Label>
+                  <Select value={editProjectId || MISC_PROJECT_ID} onValueChange={setEditProjectId}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {(allProjects as any[]).map((p) => (
+                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Category</Label>
+                  <Select value={editCategory} onValueChange={setEditCategory}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {CATEGORIES.map((c) => (
+                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Admin Comment</Label>
+                  <Textarea
+                    rows={2}
+                    placeholder="Add a comment..."
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end gap-2 pt-2">
+                  <Button variant="outline" onClick={() => { setEditLogOpen(false); setEditingLogId(null); }}>Cancel</Button>
+                  <Button onClick={() => handleEditLog(editingLogId)}>Save Changes</Button>
+                </div>
+              </div>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
         <AlertDialogContent>

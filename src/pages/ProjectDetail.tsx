@@ -1696,7 +1696,7 @@ const { data: resolvedId } = useQuery({
         if (assigned_to && !resolvedId) errors.push(`Employee "${assigned_to}" not found`);
         const isDuplicate = title ? existingTaskTitles.has(title.trim().toLowerCase()) : false;
         const existingTask = isDuplicate ? existingTaskTitles.get(title.trim().toLowerCase()) : null;
-        rows.push({ rowNum: i + 1, title, description, priority, estimated_hours, due_date: parsedDueDate || due_date, client_visible, assigned_to, resolvedId, isDuplicate, existingTaskId: existingTask?.id || null, errors });
+        rows.push({ rowNum: i, title, description, priority, estimated_hours, due_date: parsedDueDate || due_date, client_visible, assigned_to, resolvedId, isDuplicate, existingTaskId: existingTask?.id || null, errors });
       }
       setCsvRows(rows);
     };

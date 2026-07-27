@@ -10,9 +10,11 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
-import { Plus, Search, FolderKanban } from "lucide-react";
+import { Plus, Search, FolderKanban, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { PROJECT_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
@@ -27,6 +29,8 @@ export default function ProjectsPage() {
   const [clientFilter, setClientFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editProjectId, setEditProjectId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", description: "", client_id: "", start_date: "", end_date: "", document_link: "", workflow_template_id: "", status: "" });
 
   const { data: projects, isLoading } = useQuery({
     queryKey: ["projects"],
@@ -46,7 +50,14 @@ export default function ProjectsPage() {
     enabled: isAdmin,
   });
 
-  // For employees, get their memberships
+  const { data: templates } = useQuery({
+    queryKey: ["workflow-templates-list"],
+    queryFn: async () => {
+      const { data } = await supabase.from("workflow_templates").select("id, name").order("name");
+      return data || [];
+    },
+    enabled: isAdmin,
+  });
   const { data: myMemberships } = useQuery({
     queryKey: ["my-project-memberships", user?.id],
     queryFn: async () => {
@@ -105,6 +116,42 @@ export default function ProjectsPage() {
       target_id: id,
     });
     toast.success(newStatus === "archived" ? "Project archived" : "Project restored");
+    queryClient.invalidateQueries({ queryKey: ["projects"] });
+  };
+
+  const openEdit = (p: any) => {
+    setEditProjectId(p.id);
+    setEditForm({
+      name: p.name || "",
+      description: p.description || "",
+      client_id: p.client_id || "",
+      start_date: p.start_date || "",
+      end_date: p.end_date || "",
+      document_link: p.document_link || "",
+      workflow_template_id: p.workflow_template_id || "",
+      status: p.status || "active",
+    });
+  };
+
+  const handleEditSave = async () => {
+    if (!editProjectId || !editForm.name.trim() || !editForm.client_id || !editForm.start_date || !editForm.workflow_template_id) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    const { error } = await supabase.from("projects").update({
+      name: editForm.name.trim(),
+      description: editForm.description || null,
+      client_id: editForm.client_id,
+      start_date: editForm.start_date,
+      end_date: editForm.end_date || null,
+      document_link: editForm.document_link || null,
+      workflow_template_id: editForm.workflow_template_id,
+      status: editForm.status,
+    }).eq("id", editProjectId);
+    if (error) { toast.error(error.message); return; }
+    await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "project.updated", target_entity: "projects", target_id: editProjectId });
+    toast.success("Project updated");
+    setEditProjectId(null);
     queryClient.invalidateQueries({ queryKey: ["projects"] });
   };
 
@@ -208,18 +255,19 @@ export default function ProjectsPage() {
       {!isLoading && filtered.length === 0 && <Card><div className="py-12 text-center text-muted-foreground">No projects found</div></Card>}
       {!isLoading && filtered.length > 0 && (
         <div>
-          <TableHeader gridCols="1fr 96px 96px 112px 112px">
+          <TableHeader gridCols="1fr 96px 96px 112px 112px 80px">
             <span>PROJECT</span>
             <span>STATUS</span>
             <span>MEMBERS</span>
             <span>DEADLINE</span>
             <span>CREATED</span>
+            <span className="text-right">ACTIONS</span>
           </TableHeader>
           {filtered.map((p) => (
             <DataRow
               key={p.id}
               onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
-              gridCols="1fr 96px 96px 112px 112px"
+              gridCols="1fr 96px 96px 112px 112px 80px"
             >
               <div>
                 <RowPrimary>{p.name}</RowPrimary>
@@ -231,6 +279,14 @@ export default function ProjectsPage() {
               <RowDataItem label="MEMBERS">{projectStats?.teamSize[p.id] || 0}</RowDataItem>
               <RowDataItem label="DEADLINE">{p.deadline ? format(new Date(p.deadline + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
               <RowDataItem label="CREATED">{format(new Date(p.created_at), "MMM d, yyyy")}</RowDataItem>
+              <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}>
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(p.id)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
             </DataRow>
           ))}
         </div>
@@ -252,6 +308,68 @@ export default function ProjectsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <Dialog open={!!editProjectId} onOpenChange={(open) => { if (!open) setEditProjectId(null); }}>
+        <DialogContent className="w-[92vw] sm:w-[60vw] max-h-[80vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>Edit Project</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Project Name *</label>
+              <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Description</label>
+              <Textarea value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} rows={3} />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Client *</label>
+                <Select value={editForm.client_id} onValueChange={(v) => setEditForm((f) => ({ ...f, client_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
+                  <SelectContent>{clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Workflow Template *</label>
+                <Select value={editForm.workflow_template_id} onValueChange={(v) => setEditForm((f) => ({ ...f, workflow_template_id: v }))}>
+                  <SelectTrigger><SelectValue placeholder="Select workflow" /></SelectTrigger>
+                  <SelectContent>{templates?.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Start Date *</label>
+                <Input type="date" value={editForm.start_date} onChange={(e) => setEditForm((f) => ({ ...f, start_date: e.target.value }))} required />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">End Date</label>
+                <Input type="date" value={editForm.end_date} onChange={(e) => setEditForm((f) => ({ ...f, end_date: e.target.value }))} />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Document Link</label>
+              <Input value={editForm.document_link} onChange={(e) => setEditForm((f) => ({ ...f, document_link: e.target.value }))} placeholder="https://drive.google.com/..." />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="on_hold">On Hold</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="archived">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setEditProjectId(null)}>Cancel</Button>
+              <Button onClick={handleEditSave}>Save Changes</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

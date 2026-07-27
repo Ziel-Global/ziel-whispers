@@ -28,7 +28,8 @@ import { getAvatarUrl, parseCSVLine, toSlug } from "@/lib/utils";
 import { ArrowLeft, Plus, Trash2, Download, Search, ExternalLink, Upload, Pencil, Flag, Eye, EyeOff, MessageSquare, AlertCircle, CheckCircle2, XCircle, Info, Settings, ChevronDown, ChevronRight, Send, X, Calendar as CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandInput, CommandList, CommandItem, CommandEmpty } from "@/components/ui/command";
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+
 import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
@@ -126,6 +127,7 @@ export default function ProjectDetailPage() {
   const [sprintEndDate, setSprintEndDate] = useState("");
   const [sprintPhaseId, setSprintPhaseId] = useState("");
   const [sprintTaskIds, setSprintTaskIds] = useState<string[]>([]);
+  const [sprintTaskSearch, setSprintTaskSearch] = useState("");
   const [editSprintOpen, setEditSprintOpen] = useState(false);
   const [editSprintId, setEditSprintId] = useState<string | null>(null);
   const [editSprintName, setEditSprintName] = useState("");
@@ -1249,7 +1251,7 @@ const { data: resolvedId } = useQuery({
     }).select("id").single();
     if (error) { toast.error(error.message); return; }
     if (sprintTaskIds.length > 0 && newSprint) {
-      const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+      const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
       const { error: updateErr } = await supabase.from("tasks").update({
         sprint_id: newSprint.id,
         status_id: linkedStatus?.id || null,
@@ -1295,8 +1297,8 @@ const { data: resolvedId } = useQuery({
     if (error) { toast.error(error.message); return; }
     const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId).map((t: any) => t.id);
     const toUnassign = previouslyAssigned.filter((tid: string) => !editSprintTaskIds.includes(tid));
-    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
-    const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
+    const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
     if (toUnassign.length > 0) {
       await supabase.from("tasks").update({
         sprint_id: null,
@@ -1321,7 +1323,7 @@ const { data: resolvedId } = useQuery({
 
   const deleteSprint = async (sprintId: string) => {
     if (!confirm("Delete this sprint? Tasks will be unassigned from it.")) return;
-    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
+    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
     await supabase.from("tasks").update({
       sprint_id: null,
       status_id: unlinkedStatus?.id || null,
@@ -1459,8 +1461,8 @@ const { data: resolvedId } = useQuery({
     e.preventDefault();
     if (!taskTitle.trim()) return;
     try {
-      const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
-      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
+      const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
+      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
       const hasSprint = !!taskSprintId;
       const { error } = await supabase.from("tasks").insert({
         project_id: id!,
@@ -1525,8 +1527,8 @@ const { data: resolvedId } = useQuery({
         .eq("id", editTaskId)
         .single();
 
-      const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
-      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name === "unlinked");
+      const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
+      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
       const hasSprint = !!editTaskSprintId;
       const updates: any = {
         title: editTaskTitle.trim(),
@@ -4255,10 +4257,14 @@ const { data: resolvedId } = useQuery({
                     <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
                     <SelectContent>
                       {(tasks || [])
-                        .filter((t: any) => t.id !== viewTaskData?.id && t.status !== "complete")
+                        .filter((t: any) => t.id !== viewTaskData?.id && t.status !== "complete" && t.assigned_to !== profile?.id)
                         .map((t: any) => (
                           <SelectItem key={t.id} value={t.id}>
-                            {t.title}
+                            <div className="flex items-center gap-2">
+                              <span>{t.title}</span>
+                              <span className="text-xs text-muted-foreground">— {t.users?.full_name || "Unassigned"}</span>
+                              <Badge className={`text-[10px] ${TASK_STATUS_COLORS[t.status] || ""}`}>{t.status?.replace(/_/g, " ")}</Badge>
+                            </div>
                           </SelectItem>
                         ))}
                     </SelectContent>
@@ -4529,7 +4535,7 @@ const { data: resolvedId } = useQuery({
       </Dialog>
 
       {/* Add Sprint Dialog */}
-      <Dialog open={addSprintOpen} onOpenChange={(open) => { setAddSprintOpen(open); if (!open) setSprintTaskIds([]); }}>
+      <Dialog open={addSprintOpen} onOpenChange={(open) => { setAddSprintOpen(open); if (!open) { setSprintTaskIds([]); setSprintTaskSearch(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Sprint</DialogTitle></DialogHeader>
           <form onSubmit={createSprint} className="space-y-4">
@@ -4557,7 +4563,7 @@ const { data: resolvedId } = useQuery({
               <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required min={sprintStartDate || undefined} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Tasks</label>
+              <label className="text-sm font-medium">Tasks {sprintTaskIds.length > 0 && `(${sprintTaskIds.length} selected)`}</label>
               {sprintTaskIds.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-2">
                   {sprintTaskIds.map((tid) => {
@@ -4575,47 +4581,38 @@ const { data: resolvedId } = useQuery({
               )}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="w-full justify-start text-left font-normal rounded-button">
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    {sprintTaskIds.length > 0 ? `${sprintTaskIds.length} task(s) selected` : "Select tasks..."}
+                  <Button type="button" variant="outline" className="w-full justify-start text-sm font-normal text-muted-foreground">
+                    <Search className="mr-2 h-4 w-4 shrink-0" />
+                    Select tasks...
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
                   <Command>
-                    <CommandInput placeholder="Search tasks..." />
+                    <CommandInput placeholder="Search tasks..." className="h-9" />
                     <CommandList>
                       <CommandEmpty>No tasks found.</CommandEmpty>
-                      {(tasks || []).map((t: any) => {
-                        const isSelected = sprintTaskIds.includes(t.id);
-                        const currentSprintName = t.sprint_id ? sprintMap[t.sprint_id] : null;
-                        return (
-                          <CommandItem
-                            key={t.id}
-                            onSelect={() => {
-                              setSprintTaskIds((prev) =>
-                                prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
-                              );
-                            }}
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <Checkbox checked={isSelected} className="pointer-events-none border-black" />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium truncate block">{t.title}</span>
-                              {currentSprintName && (
-                                <span className="text-[11px] text-amber-600 flex items-center gap-1 mt-0.5">
-                                  <AlertCircle className="h-3 w-3" />
-                                  Currently in: {currentSprintName} — will be removed
-                                </span>
-                              )}
-                            </div>
-                            {t.users?.full_name ? (
-                              <Badge variant="secondary" className="text-xs shrink-0">{t.users.full_name}</Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground shrink-0">Unassigned</span>
-                            )}
-                          </CommandItem>
-                        );
-                      })}
+                      <CommandGroup>
+                        {(tasks || []).map((t: any) => {
+                          const isSelected = sprintTaskIds.includes(t.id);
+                          const isAssignedToSprint = !!t.sprint_id;
+                          const isComplete = t.status === "complete";
+                          const disabled = isAssignedToSprint || isComplete;
+                          return (
+                            <CommandItem
+                              key={t.id}
+                              disabled={disabled}
+                              onSelect={() => { if (!disabled) setSprintTaskIds((prev) => prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]); }}
+                              className="flex items-center gap-2"
+                            >
+                              <Checkbox checked={isSelected} disabled={disabled} className="pointer-events-none" />
+                              <span className="flex-1 truncate font-medium">{t.title}</span>
+                              <Badge variant="secondary" className="text-[10px] shrink-0">{t.users?.full_name || "Unassigned"}</Badge>
+                              <Badge className={`text-[10px] shrink-0 ${TASK_STATUS_COLORS[t.status] || ""}`}>{t.status?.replace(/_/g, " ")}</Badge>
+                              {isAssignedToSprint && <span className="text-[10px] text-amber-600 shrink-0 whitespace-nowrap">In: {sprintMap[t.sprint_id] || "Sprint"}</span>}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
                     </CommandList>
                   </Command>
                 </PopoverContent>
@@ -4627,7 +4624,7 @@ const { data: resolvedId } = useQuery({
       </Dialog>
 
       {/* Edit Sprint Dialog */}
-      <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); setEditSprintTaskIds([]); } }}>
+      <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); setEditSprintTaskIds([]); setSprintTaskSearch(""); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Sprint</DialogTitle></DialogHeader>
           <form onSubmit={handleEditSprintSave} className="space-y-4">
@@ -4655,7 +4652,7 @@ const { data: resolvedId } = useQuery({
               <Input type="date" value={editSprintEndDate} onChange={(e) => setEditSprintEndDate(e.target.value)} required min={editSprintStartDate || undefined} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">Tasks</label>
+              <label className="text-sm font-medium">Tasks {editSprintTaskIds.length > 0 && `(${editSprintTaskIds.length} selected)`}</label>
               {editSprintTaskIds.length > 0 && (
                 <div className="flex flex-wrap gap-1 mb-2">
                   {editSprintTaskIds.map((tid) => {
@@ -4673,47 +4670,38 @@ const { data: resolvedId } = useQuery({
               )}
               <Popover>
                 <PopoverTrigger asChild>
-                  <Button type="button" variant="outline" className="w-full justify-start text-left font-normal rounded-button">
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    {editSprintTaskIds.length > 0 ? `${editSprintTaskIds.length} task(s) selected` : "Select tasks..."}
+                  <Button type="button" variant="outline" className="w-full justify-start text-sm font-normal text-muted-foreground">
+                    <Search className="mr-2 h-4 w-4 shrink-0" />
+                    Select tasks...
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
                   <Command>
-                    <CommandInput placeholder="Search tasks..." />
+                    <CommandInput placeholder="Search tasks..." className="h-9" />
                     <CommandList>
                       <CommandEmpty>No tasks found.</CommandEmpty>
-                      {(tasks || []).map((t: any) => {
-                        const isSelected = editSprintTaskIds.includes(t.id);
-                        const currentSprintName = t.sprint_id && t.sprint_id !== editSprintId ? sprintMap[t.sprint_id] : null;
-                        return (
-                          <CommandItem
-                            key={t.id}
-                            onSelect={() => {
-                              setEditSprintTaskIds((prev) =>
-                                prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]
-                              );
-                            }}
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <Checkbox checked={isSelected} className="pointer-events-none border-black" />
-                            <div className="flex-1 min-w-0">
-                              <span className="text-sm font-medium truncate block">{t.title}</span>
-                              {currentSprintName && (
-                                <span className="text-[11px] text-amber-600 flex items-center gap-1 mt-0.5">
-                                  <AlertCircle className="h-3 w-3" />
-                                  Currently in: {currentSprintName} — will be removed
-                                </span>
-                              )}
-                            </div>
-                            {t.users?.full_name ? (
-                              <Badge variant="secondary" className="text-xs shrink-0">{t.users.full_name}</Badge>
-                            ) : (
-                              <span className="text-xs text-muted-foreground shrink-0">Unassigned</span>
-                            )}
-                          </CommandItem>
-                        );
-                      })}
+                      <CommandGroup>
+                        {(tasks || []).map((t: any) => {
+                          const isSelected = editSprintTaskIds.includes(t.id);
+                          const isAssignedToOtherSprint = !!t.sprint_id && t.sprint_id !== editSprintId;
+                          const isComplete = t.status === "complete";
+                          const disabled = isAssignedToOtherSprint || isComplete;
+                          return (
+                            <CommandItem
+                              key={t.id}
+                              disabled={disabled}
+                              onSelect={() => { if (!disabled) setEditSprintTaskIds((prev) => prev.includes(t.id) ? prev.filter((id) => id !== t.id) : [...prev, t.id]); }}
+                              className="flex items-center gap-2"
+                            >
+                              <Checkbox checked={isSelected} disabled={disabled} className="pointer-events-none" />
+                              <span className="flex-1 truncate font-medium">{t.title}</span>
+                              <Badge variant="secondary" className="text-[10px] shrink-0">{t.users?.full_name || "Unassigned"}</Badge>
+                              <Badge className={`text-[10px] shrink-0 ${TASK_STATUS_COLORS[t.status] || ""}`}>{t.status?.replace(/_/g, " ")}</Badge>
+                              {isAssignedToOtherSprint && <span className="text-[10px] text-amber-600 shrink-0 whitespace-nowrap">In: {sprintMap[t.sprint_id] || "Sprint"}</span>}
+                            </CommandItem>
+                          );
+                        })}
+                      </CommandGroup>
                     </CommandList>
                   </Command>
                 </PopoverContent>

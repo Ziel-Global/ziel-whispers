@@ -3187,7 +3187,7 @@ const { data: resolvedId } = useQuery({
           </div>
           {sprints.length === 0 ? (
             <p className="text-sm text-muted-foreground">No sprints yet.</p>
-          ) : (
+          ) : isAdmin ? (
             <div className="space-y-6">
               {(phases || [])
                 .filter((p: any) => sprints.some((s: any) => s.phase_id === p.id))
@@ -3305,6 +3305,43 @@ const { data: resolvedId } = useQuery({
                   </div>
                 </div>
               )}
+            </div>
+          ) : (
+            <div>
+              <TableHeader gridCols="1fr 112px 96px 96px 80px 80px">
+                <span>SPRINT</span>
+                <span>DATES</span>
+                <span>STATUS</span>
+                <span>TASKS</span>
+                <span>PROGRESS</span>
+              </TableHeader>
+              {sprints.map((s: any) => (
+                <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
+                  <div>
+                    <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
+                    <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                  </div>
+                  <RowDataItem label="DATES">
+                    {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                  </RowDataItem>
+                  <RowBadgeItem label="STATUS">
+                    <Badge className={
+                      s.status === "active" ? "bg-green-100 text-green-800" :
+                      s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                      "bg-gray-100 text-gray-800"
+                    }>{s.status}</Badge>
+                  </RowBadgeItem>
+                  <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                  <RowDataItem label="PROGRESS">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 bg-muted rounded-full h-2">
+                        <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${sprintProgress[s.id]}%` }} />
+                      </div>
+                      <span className="text-[11px] text-[#6b7280]">{sprintProgress[s.id]}%</span>
+                    </div>
+                  </RowDataItem>
+                </DataRow>
+              ))}
             </div>
           )}
         </TabsContent>

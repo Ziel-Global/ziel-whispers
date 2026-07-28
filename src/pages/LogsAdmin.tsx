@@ -9,20 +9,17 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
-import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock, Eye } from "lucide-react";
+import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock, ChevronDown, ChevronRight } from "lucide-react";
 
 import { format } from "date-fns";
-import { formatTime12h, getPKTDateString, formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
+import { formatTime12h, getPKTDateString, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
-
-import { formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
+import { formatHours, MISC_PROJECT_ID } from "@/lib/utils";
 
 function getShiftHours(shiftStart: string, shiftEnd: string): number {
   if (!shiftStart || !shiftEnd) return 0;
@@ -45,8 +42,7 @@ export default function LogsAdminPage() {
   const [employeeFilter, setEmployeeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQ, setSearchQ] = useState("");
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
   const [comment, setComment] = useState("");
   const [modalType, setModalType] = useState<"missed" | "added" | "late" | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -54,7 +50,6 @@ export default function LogsAdminPage() {
   const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
   const [bulkDeleteLogOpen, setBulkDeleteLogOpen] = useState(false);
 
-  // Fetch all projects for editing
   const { data: allProjects = [] } = useQuery({
     queryKey: ["all-projects-for-edit"],
     queryFn: async () => {
@@ -68,6 +63,7 @@ export default function LogsAdminPage() {
   const [editLogOpen, setEditLogOpen] = useState(false);
   const [editProjectId, setEditProjectId] = useState<string | null>(null);
   const [editCategory, setEditCategory] = useState("");
+  const [editDescription, setEditDescription] = useState("");
 
   const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
 
@@ -77,6 +73,7 @@ export default function LogsAdminPage() {
       .update({
         project_id: editProjectId,
         category: editCategory,
+        description: editDescription,
         admin_comment: comment || null,
       })
       .eq("id", logId);
@@ -98,7 +95,6 @@ export default function LogsAdminPage() {
   const [utilHigh, setUtilHigh] = useState("");
   const [savingSettings, setSavingSettings] = useState(false);
 
-  // Load settings
   const { data: settings } = useQuery({
     queryKey: ["system-settings"],
     queryFn: async () => {
@@ -154,7 +150,6 @@ export default function LogsAdminPage() {
     finally { setSavingSettings(false); }
   };
 
-  // Fetch logs for selected date
   const { data: logs = [], isLoading } = useQuery({
     queryKey: ["admin-logs", selectedDate],
     queryFn: async () => {
@@ -168,7 +163,6 @@ export default function LogsAdminPage() {
     },
   });
 
-  // Fetch all active employees
   const { data: employees = [] } = useQuery({
     queryKey: ["all-employees"],
     queryFn: async () => {
@@ -177,7 +171,6 @@ export default function LogsAdminPage() {
     },
   });
 
-  // Fetch attendance for the selected date
   const { data: attendanceRecords = [] } = useQuery({
     queryKey: ["admin-attendance-for-logs", selectedDate],
     queryFn: async () => {
@@ -186,7 +179,6 @@ export default function LogsAdminPage() {
     },
   });
 
-  // Fetch standups for the selected date
   const { data: standupRecords = [] } = useQuery({
     queryKey: ["admin-standups", selectedDate],
     queryFn: async () => {
@@ -195,7 +187,6 @@ export default function LogsAdminPage() {
     },
   });
 
-  // Fetch approved leaves for the selected date
   const { data: dayLeaves = [] } = useQuery({
     queryKey: ["admin-leaves", selectedDate],
     queryFn: async () => {
@@ -233,8 +224,6 @@ export default function LogsAdminPage() {
     });
 
     const allRows = employees.filter((emp: any) => {
-      // Only show employees whose account existed on the selected date.
-      // created_at is used, NOT join_date, because join_date can be backdated by admins.
       const createdAtDate = emp.created_at ? emp.created_at.split("T")[0] : null;
       if (createdAtDate && selectedDate < createdAtDate) return false;
       return true;
@@ -244,7 +233,7 @@ export default function LogsAdminPage() {
       const overtimeLogs = empLogs.filter((l: any) => l.is_overtime);
       const regularHours = regularLogs.reduce((s: number, l: any) => s + Number(l.hours), 0);
       const overtimeHours = overtimeLogs.reduce((s: number, l: any) => s + Number(l.hours), 0);
-      const totalHours = regularHours; // Only regular hours count for logged/unlogged
+      const totalHours = regularHours;
       const empShiftStart = emp.has_custom_shift ? emp.shift_start : globalShiftStart;
       const empShiftEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
       const shiftHours = getShiftHours(empShiftStart, empShiftEnd);
@@ -257,11 +246,10 @@ export default function LogsAdminPage() {
 
       const unloggedHours = isFullLeave ? 0 : Math.max(0, shiftHours - totalHours - leaveHours);
 
-      // Log status: missed / added / late / on_leave / half_day_leave / partial_day
       const hasLogs = empLogs.length > 0;
       const hasLateLog = empLogs.some((l: any) => l.submitted_at && isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date));
       const isWeekend = new Date(selectedDate + "T00:00:00").getDay() === 0 || (new Date(selectedDate + "T00:00:00").getDay() === 6 && (emp.working_days ?? 5) === 5);
-      
+
       let logStatus: "missed" | "added" | "late" | "none" | "on_leave" | "half_day_leave" | "partial_day" = "missed";
       if (isFullLeave) {
         logStatus = "on_leave";
@@ -279,7 +267,6 @@ export default function LogsAdminPage() {
         logStatus = "none";
       }
 
-      // Has any flagged log
       const hasFlaggedLog = empLogs.some((l: any) => l.admin_flagged);
 
       return {
@@ -303,7 +290,6 @@ export default function LogsAdminPage() {
       };
     });
 
-    // Filter
     return allRows.filter((r) => {
       const matchEmp = employeeFilter === "all" || r.userId === employeeFilter;
       const matchStatus = statusFilter === "all" ||
@@ -316,7 +302,6 @@ export default function LogsAdminPage() {
     }).sort((a, b) => a.name.localeCompare(b.name));
   }, [logs, employees, attendanceRecords, standupRecords, dayLeaves, employeeFilter, statusFilter, searchQ, globalShiftStart, globalShiftEnd]);
 
-  // Stat card counts (unfiltered)
   const allUnfilteredRows = useMemo(() => {
     const logsByUser: Record<string, any[]> = {};
     logs.forEach((l: any) => {
@@ -380,22 +365,6 @@ export default function LogsAdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
   };
 
-  const toggleStandup = async (userId: string, date: string, currentStatus: boolean) => {
-    const { error } = await supabase
-      .from("daily_standups")
-      .upsert({ 
-        user_id: userId, 
-        date: date, 
-        is_done: !currentStatus 
-      }, { onConflict: "user_id, date" });
-    
-    if (error) {
-      toast.error(error.message);
-    } else {
-      queryClient.invalidateQueries({ queryKey: ["admin-standups"] });
-    }
-  };
-
   const toggleLock = async (log: any) => {
     await supabase.from("daily_logs").update({ is_locked: !log.is_locked }).eq("id", log.id);
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
@@ -435,28 +404,17 @@ export default function LogsAdminPage() {
     queryClient.invalidateQueries({ queryKey: ["admin-logs"] });
   };
 
-  const filteredLogs = useMemo(() => {
-    let list = [...logs];
-    if (employeeFilter !== "all") {
-      list = list.filter((l: any) => l.user_id === employeeFilter);
+  const toggleAllLogsForEmployee = (empLogs: any[]) => {
+    const ids = empLogs.map((l: any) => l.id);
+    const allSelected = ids.every((id: string) => selectedLogIds.has(id));
+    const next = new Set(selectedLogIds);
+    if (allSelected) {
+      ids.forEach((id: string) => next.delete(id));
+    } else {
+      ids.forEach((id: string) => next.add(id));
     }
-    if (statusFilter === "late") {
-      list = list.filter((l: any) => {
-        const emp = employees.find((e: any) => e.id === l.user_id);
-        if (!emp) return false;
-        const esEnd = emp.has_custom_shift ? emp.shift_end : globalShiftEnd;
-        return l.submitted_at && esEnd && isLogSubmissionLate(l.submitted_at, esEnd, l.log_date);
-      });
-    }
-    if (searchQ) {
-      const q = searchQ.toLowerCase();
-      list = list.filter((l: any) =>
-        l.users?.full_name?.toLowerCase().includes(q) ||
-        l.description?.toLowerCase().includes(q)
-      );
-    }
-    return list.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
-  }, [logs, employeeFilter, statusFilter, searchQ, employees, globalShiftEnd]);
+    setSelectedLogIds(next);
+  };
 
   const exportCSV = () => {
     const header = "Employee,Logged Hours,Unlogged Hours,Log Status,Standup Status\n";
@@ -473,6 +431,18 @@ export default function LogsAdminPage() {
   const modalData = modalType === "missed" ? missedList : modalType === "added" ? addedList : modalType === "late" ? lateList : [];
   const modalTitle = modalType === "missed" ? "Logs Missed" : modalType === "added" ? "Logs Added" : "Logs Late";
 
+  const statusBadge = (logStatus: string) => {
+    switch (logStatus) {
+      case "added": return <Badge className="bg-green-100 text-green-800">Logs Added</Badge>;
+      case "partial_day": return <Badge className="bg-green-100 text-green-800">Partial Day</Badge>;
+      case "late": return <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>;
+      case "missed": return <Badge className="bg-red-100 text-red-800">Missed</Badge>;
+      case "on_leave": return <Badge className="bg-blue-100 text-blue-800">On Leave</Badge>;
+      case "half_day_leave": return <Badge className="bg-blue-50 text-blue-700">Half Day Leave</Badge>;
+      default: return <Badge variant="secondary">—</Badge>;
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -487,7 +457,6 @@ export default function LogsAdminPage() {
         </TabsList>
 
         <TabsContent value="logs" className="space-y-6">
-          {/* Stat Cards */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setModalType("missed")}>
               <div className="flex items-center gap-3">
@@ -518,7 +487,6 @@ export default function LogsAdminPage() {
             </Card>
           </div>
 
-          {/* Stat Card Modal */}
           <Dialog open={!!modalType} onOpenChange={() => setModalType(null)}>
             <DialogContent>
               <DialogHeader>
@@ -571,33 +539,19 @@ export default function LogsAdminPage() {
 
           {isLoading ? (
             <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>
-          ) : filteredLogs.length === 0 ? (
+          ) : groupedRows.length === 0 ? (
             <Card><div className="py-12 text-center text-muted-foreground">No logs found for the selected filters</div></Card>
           ) : (
-            <div>
-              <TableHeader gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
-                <div className="flex items-center justify-center">
-                  <input
-                    type="checkbox"
-                    className="h-4 w-4 rounded border-gray-300"
-                    checked={selectedLogIds.size === filteredLogs.length && filteredLogs.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedLogIds(new Set(filteredLogs.map((l: any) => l.id)));
-                      } else {
-                        setSelectedLogIds(new Set());
-                      }
-                    }}
-                  />
-                </div>
-                <span>EMPLOYEE</span>
-                <span>DATE</span>
-                <span>HOURS</span>
-                <span>STATUS</span>
-                <span>LATE</span>
-                <span>FLAGGED</span>
-                <span className="text-right">ACTIONS</span>
-              </TableHeader>
+            <div className="border rounded-lg overflow-hidden">
+              <div className="grid grid-cols-[40px_1fr_90px_90px_140px_40px] gap-2 px-4 py-2.5 bg-muted/50 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                <div />
+                <span>Employee</span>
+                <span>Logs</span>
+                <span>Hours</span>
+                <span>Status</span>
+                <div />
+              </div>
+
               {selectedLogIds.size > 0 && (
                 <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
                   <span className="text-sm text-blue-700">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
@@ -618,136 +572,131 @@ export default function LogsAdminPage() {
                   </div>
                 </div>
               )}
-              {filteredLogs.map((log: any) => {
-                const emp = employees.find((e: any) => e.id === log.user_id);
-                const esEnd = emp?.has_custom_shift ? emp.shift_end : globalShiftEnd;
-                const isLate = log.submitted_at && esEnd && isLogSubmissionLate(log.submitted_at, esEnd, log.log_date);
+
+              {groupedRows.map((row) => {
+                const isExpanded = expandedEmployeeId === row.userId;
+                const allSelected = row.logs.length > 0 && row.logs.every((l: any) => selectedLogIds.has(l.id));
+                const someSelected = row.logs.some((l: any) => selectedLogIds.has(l.id));
+                const hasFlagged = row.hasFlaggedLog;
+                const hasLate = row.logs.some((l: any) => {
+                  const empShiftEnd = row.logs[0] ? undefined : undefined;
+                  return l.submitted_at && isLogSubmissionLate(l.submitted_at, globalShiftEnd, l.log_date);
+                });
+
                 return (
-                  <div key={log.id}>
-                    <DataRow gridCols="40px 1fr 112px 80px 96px 80px 96px 80px">
-                    <div className="flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300"
-                        checked={selectedLogIds.has(log.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedLogIds);
-                          if (e.target.checked) {
-                            next.add(log.id);
-                          } else {
-                            next.delete(log.id);
-                          }
-                          setSelectedLogIds(next);
-                        }}
-                      />
-                    </div>
-                    <div>
-                      <RowPrimary>{log.users?.full_name}</RowPrimary>
-                      <RowSecondary>{(log.projects?.name || "Miscellaneous")} · {log.category?.replace(/_/g, " ")}</RowSecondary>
-                    </div>
-                    <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                    <RowDataItem label="HOURS">{formatHours(log.hours)}</RowDataItem>
-                    <RowBadgeItem label="STATUS">
-                      <Badge className="bg-green-100 text-green-800">Submitted</Badge>
-                    </RowBadgeItem>
-                    {isLate ? (
-                      <RowBadgeItem label="LATE" className="bg-yellow-100 text-yellow-800">Late</RowBadgeItem>
-                    ) : (
-                      <RowBadgeItem label="LATE">—</RowBadgeItem>
-                    )}
-                    {log.admin_flagged ? (
-                      <RowBadgeItem label="FLAGGED" className="bg-red-100 text-red-700">Flagged</RowBadgeItem>
-                    ) : (
-                      <RowBadgeItem label="FLAGGED">—</RowBadgeItem>
-                    )}
-                    <RowActions className="justify-self-end">
-                      <button onClick={() => toggleFlag(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.admin_flagged ? "Unflag" : "Flag"}>
-                        <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-[#d1d5db]"}`} />
-                      </button>
-                      <button onClick={() => toggleLock(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.is_locked ? "Unlock" : "Lock"}>
-                        <Lock className={`h-4 w-4 ${log.is_locked ? "text-blue-600" : "text-[#d1d5db]"}`} />
-                      </button>
-                      <button
-                        onClick={() => {
-                          setEditingLogId(log.id);
-                          setEditProjectId(log.project_id);
-                          setEditCategory(log.category);
-                          setComment(log.admin_comment || "");
-                          setEditLogOpen(true);
-                        }}
-                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
-                        title="Edit Log"
-                      >
-                        <Pencil className="h-4 w-4 text-[#6b7280]" />
-                      </button>
-                      <button
-                        onClick={() => setExpandedLogId(expandedLogId === log.id ? null : log.id)}
-                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
-                        title={expandedLogId === log.id ? "Hide Details" : "View Details"}
-                      >
-                        <Eye className={`h-4 w-4 ${expandedLogId === log.id ? "text-blue-600" : "text-[#6b7280]"}`} />
-                      </button>
-                    </RowActions>
-                  </DataRow>
-                  {expandedLogId === log.id && (
-                    <div className="bg-muted/30 border-b px-6 py-4">
-                      <div className="max-w-3xl space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-sm font-semibold">{emp?.full_name || log.users?.full_name}</p>
-                            <p className="text-xs text-muted-foreground">{format(new Date(log.log_date + "T00:00:00"), "EEEE, MMM d, yyyy")}</p>
-                          </div>
-                          <div className="flex gap-1.5">
-                            {log.admin_flagged && <Badge className="bg-red-100 text-red-700 text-[10px]">Flagged</Badge>}
-                            {log.is_locked && <Badge className="bg-blue-100 text-blue-700 text-[10px]">Locked</Badge>}
-                            {isLate && <Badge className="bg-yellow-100 text-yellow-700 text-[10px]">Late</Badge>}
-                          </div>
+                  <div key={row.userId}>
+                    <div
+                      className={`grid grid-cols-[40px_1fr_90px_90px_140px_40px] gap-2 items-center px-4 py-3 border-b cursor-pointer hover:bg-muted/30 transition-colors ${isExpanded ? "bg-muted/20" : ""}`}
+                      onClick={() => setExpandedEmployeeId(isExpanded ? null : row.userId)}
+                    >
+                      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300"
+                          checked={allSelected}
+                          ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
+                          onChange={() => toggleAllLogsForEmployee(row.logs)}
+                        />
+                      </div>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
+                          {getInitials(row.name)}
                         </div>
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                          <div className="space-y-0.5">
-                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Hours</span>
-                            <p className="font-medium">{formatHours(log.hours)}</p>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Category</span>
-                            <p className="font-medium capitalize">{log.category?.replace(/_/g, " ")}</p>
-                          </div>
-                          <div className="space-y-0.5">
-                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Project</span>
-                            <p className="font-medium">{log.projects?.name || "Miscellaneous"}</p>
-                          </div>
-                          {log.submitted_at && (
-                            <div className="space-y-0.5">
-                              <span className="text-xs text-muted-foreground uppercase tracking-wide">Submitted</span>
-                              <p className="font-medium">{format(new Date(log.submitted_at), "h:mm a")}</p>
-                            </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium break-words flex items-center gap-1.5">
+                            {row.name}
+                            {hasFlagged && <Flag className="h-3 w-3 text-destructive fill-destructive shrink-0" />}
+                          </p>
+                          {row.leaveName && (
+                            <p className="text-xs text-muted-foreground">{row.leaveName}</p>
                           )}
                         </div>
-                        {log.description && (
-                          <div className="space-y-1">
-                            <span className="text-xs text-muted-foreground uppercase tracking-wide">Description</span>
-                            <p className="text-sm bg-white rounded-md p-3 whitespace-pre-wrap border">{log.description}</p>
-                          </div>
+                      </div>
+                      <div>
+                        <span className="text-sm font-medium">{row.logCount}</span>
+                        {row.overtimeHours > 0 && (
+                          <span className="text-xs text-muted-foreground ml-1">(+{formatHours(row.overtimeHours)} OT)</span>
                         )}
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground uppercase tracking-wide">Admin Comment</Label>
-                          <Textarea
-                            className="text-sm bg-white"
-                            rows={2}
-                            placeholder="Add a comment..."
-                            value={comment}
-                            onChange={(e) => setComment(e.target.value)}
-                          />
-                          <Button size="sm" variant="outline" onClick={() => saveComment(log.id)}>
-                            <Save className="h-3 w-3 mr-1" />Save Comment
-                          </Button>
-                        </div>
+                      </div>
+                      <div className="text-sm font-medium">{formatHours(row.loggedHours)}</div>
+                      <div>{statusBadge(row.logStatus)}</div>
+                      <div className="flex items-center justify-center">
+                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
+
+                    {isExpanded && (
+                      <div className="bg-muted/10 border-b">
+                        {row.logs.length === 0 ? (
+                          <div className="px-6 py-4 text-sm text-muted-foreground">No logs submitted this day.</div>
+                        ) : (
+                          <div className="divide-y divide-border/50">
+                            {row.logs.map((log: any) => {
+                              const empForLog = employees.find((e: any) => e.id === log.user_id);
+                              const logShiftEnd = empForLog?.has_custom_shift ? empForLog.shift_end : globalShiftEnd;
+                              const isLate = log.submitted_at && logShiftEnd && isLogSubmissionLate(log.submitted_at, logShiftEnd, log.log_date);
+                              return (
+                                <div key={log.id} className="px-6 py-3.5">
+                                  <div className="flex items-start justify-between gap-4">
+                                    <div className="min-w-0 flex-1 space-y-1.5">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <Badge variant="outline" className="text-xs font-normal capitalize">{(log.projects?.name || "Miscellaneous")}</Badge>
+                                        <Badge variant="secondary" className="text-xs font-normal capitalize">{log.category?.replace(/_/g, " ")}</Badge>
+                                        <span className="text-sm font-medium">{formatHours(log.hours)}</span>
+                                        {isLate && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
+                                        {log.admin_flagged && <Badge className="bg-red-100 text-red-700 text-[10px]">Flagged</Badge>}
+                                        {log.is_locked && <Badge className="bg-blue-100 text-blue-700 text-[10px]">Locked</Badge>}
+                                        {log.submitted_at && (
+                                          <span className="text-xs text-muted-foreground">Submitted {format(new Date(log.submitted_at), "h:mm a")}</span>
+                                        )}
+                                      </div>
+                                      {log.description && (
+                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{log.description}</p>
+                                      )}
+                                      {log.admin_comment && (
+                                        <p className="text-xs text-blue-600 italic">Admin: {log.admin_comment}</p>
+                                      )}
+                                    </div>
+                                    <div className="flex items-center gap-0.5 shrink-0">
+                                      <button
+                                        onClick={() => {
+                                          setEditingLogId(log.id);
+                                          setEditProjectId(log.project_id);
+                                          setEditCategory(log.category);
+                                          setEditDescription(log.description || "");
+                                          setComment(log.admin_comment || "");
+                                          setEditLogOpen(true);
+                                        }}
+                                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
+                                        title="Edit Log"
+                                      >
+                                        <Pencil className="h-4 w-4 text-[#6b7280]" />
+                                      </button>
+                                      <button onClick={() => toggleFlag(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.admin_flagged ? "Unflag" : "Flag"}>
+                                        <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-[#d1d5db]"}`} />
+                                      </button>
+                                      <button onClick={() => toggleLock(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.is_locked ? "Unlock" : "Lock"}>
+                                        <Lock className={`h-4 w-4 ${log.is_locked ? "text-blue-600" : "text-[#d1d5db]"}`} />
+                                      </button>
+                                      <button
+                                        onClick={() => setDeleteId(log.id)}
+                                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
+                                        title="Delete Log"
+                                      >
+                                        <Trash2 className="h-4 w-4 text-[#d1d5db] hover:text-destructive" />
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </TabsContent>
@@ -755,7 +704,6 @@ export default function LogsAdminPage() {
         {isAdmin && (
           <TabsContent value="rules">
             <Card className="p-6 space-y-6">
-
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <h4 className="text-sm font-medium border-b pb-2">Log Submission Rules</h4>
@@ -789,7 +737,6 @@ export default function LogsAdminPage() {
                 </div>
               </div>
               <div className="flex items-center justify-end">
-                {/* <h3 className="font-semibold">Log Rules & Threshols</h3> */}
                 <Button onClick={handleSaveSettings} disabled={savingSettings} className="rounded-button">
                   <Save className="h-4 w-4 mr-2" />{savingSettings ? "Saving…" : "Save Rules"}
                 </Button>
@@ -824,12 +771,21 @@ export default function LogsAdminPage() {
                     <span className="text-xs text-muted-foreground uppercase tracking-wide">Hours</span>
                     <p className="font-medium">{formatHours(editLog.hours)}</p>
                   </div>
-                  {editLog.description && (
-                    <div className="col-span-2 space-y-0.5">
-                      <span className="text-xs text-muted-foreground uppercase tracking-wide">Description</span>
-                      <p className="text-sm bg-muted/50 rounded-md p-2.5 whitespace-pre-wrap">{editLog.description}</p>
+                  {editLog.submitted_at && (
+                    <div className="space-y-0.5">
+                      <span className="text-xs text-muted-foreground uppercase tracking-wide">Submitted</span>
+                      <p className="font-medium">{format(new Date(editLog.submitted_at), "h:mm a")}</p>
                     </div>
                   )}
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Description</Label>
+                  <Textarea
+                    rows={3}
+                    placeholder="Log description..."
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label className="text-sm font-medium">Project</Label>

@@ -89,7 +89,10 @@ export function NotificationBell() {
                   <div
                     key={notification.id}
                     className={`p-4 hover:bg-accent/50 cursor-pointer transition-colors ${!notification.read ? "bg-blue-50" : ""}`}
-                    onClick={() => !notification.read && markAsRead(notification.id)}
+                    onClick={() => {
+                      if (!notification.read) markAsRead(notification.id);
+                      if (meta?.project_id) { setIsOpen(false); navigate(`/projects/${meta.project_id}`); }
+                    }}
                   >
                     <div className="flex gap-3">
                       <div className="text-2xl mt-0.5">{getNotificationIcon(notification.type)}</div>

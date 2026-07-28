@@ -33,7 +33,7 @@ export function DataRow({ children, onClick, className, gridCols }: DataRowProps
 }
 
 export function RowPrimary({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("font-semibold text-[15px] text-[#111827] truncate", className)}>{children}</div>;
+  return <div className={cn("font-semibold text-[15px] text-[#111827] break-words", className)}>{children}</div>;
 }
 
 export function RowSecondary({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -52,7 +52,7 @@ export function RowDataItem({ label, children, className }: { label: string; chi
   return (
     <div className={cn("min-w-0", className)}>
       <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">{label}</div>
-      <div className="text-[13px] text-[#374151] mt-0.5 md:mt-0 truncate">{children}</div>
+      <div className="text-[13px] text-[#374151] mt-0.5 md:mt-0 break-words">{children}</div>
     </div>
   );
 }

@@ -392,7 +392,9 @@ export default function LeaveAdminPage() {
       await supabase.from("notifications").insert({
         user_id: request.user_id,
         type: `leave.${newStatus}`,
+        channel: "in_app",
         metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
+        read: false,
       });
 
       supabase.functions.invoke("send-request-notification", {
@@ -436,7 +438,9 @@ export default function LeaveAdminPage() {
                 await supabase.from("notifications").insert({
                   user_id: request.user_id,
                   type: "leave.balance_exhausted",
+                  channel: "in_app",
                   metadata: { message: "You have run out of Annual Leave days. Please contact your admin." },
+                  read: false,
                 });
               }
             }

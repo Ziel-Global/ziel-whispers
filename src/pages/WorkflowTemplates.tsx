@@ -355,7 +355,7 @@ export default function WorkflowTemplatesPage() {
                             <tbody>
                               {expandedStatuses.map((from) => (
                                 <tr key={from.id}>
-                                  <td className="p-2 border font-medium">
+                                  <td className="p-2 border font-medium break-words">
                                     <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${from.color}`}>{from.name}</span>
                                   </td>
                                   {expandedStatuses.map((to) => {
@@ -363,7 +363,7 @@ export default function WorkflowTemplatesPage() {
                                       (tr) => tr.from_status_id === from.id && tr.to_status_id === to.id
                                     );
                                     return (
-                                      <td key={to.id} className="p-2 border text-center">
+                                      <td key={to.id} className="p-2 border text-center break-words">
                                         {from.id === to.id ? (
                                           <span className="text-gray-300">—</span>
                                         ) : (

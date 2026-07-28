@@ -826,7 +826,7 @@ export default function LogSubmitPage() {
                       setSelectedDraftIds(next);
                     }} />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <RowPrimary>{log.projects?.name || "Project"}</RowPrimary>
                   <RowSecondary>{log.category.replace(/_/g, " ")} · {log.tasks?.title || "No task"}</RowSecondary>
                 </div>

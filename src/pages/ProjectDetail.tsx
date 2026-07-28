@@ -2235,20 +2235,20 @@ const { data: resolvedId } = useQuery({
                             <tbody>
                               {clientTasks.map((t: any) => (
                                 <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                                  <td className="px-4 py-3">
+                                  <td className="px-4 py-3 break-words">
                                     <div className="font-semibold text-[15px] text-[#111827] break-words">{t.title}</div>
                                     <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
                                   </td>
-                                  <td className="px-4 py-3">
+                                  <td className="px-4 py-3 break-words">
                                     <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
                                   </td>
-                                  <td className="px-4 py-3">
+                                  <td className="px-4 py-3 break-words">
                                     <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                                   </td>
-                                  <td className="px-4 py-3">
+                                  <td className="px-4 py-3 break-words">
                                     <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
                                   </td>
-                                  <td className="px-4 py-3">
+                                  <td className="px-4 py-3 break-words">
                                     <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
                                   </td>
                                 </tr>
@@ -2855,7 +2855,7 @@ const { data: resolvedId } = useQuery({
                     <tbody>
                       {myTasks.map((t: any) => (
                         <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 break-words">
                             <div className="flex items-center gap-2">
                               <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
                                 {t.title}
@@ -2865,23 +2865,23 @@ const { data: resolvedId } = useQuery({
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 break-words">
                             <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
                             <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 break-words">
                             <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
                             <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 break-words">
                             <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
                             <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-3 break-words">
                             <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
                             <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
                           </td>
-                          <td className="px-4 py-3 text-right">
+                          <td className="px-4 py-3 break-words text-right">
                             <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
                               <Info className="h-4 w-4" />
                             </button>
@@ -3067,10 +3067,10 @@ const { data: resolvedId } = useQuery({
                   <tbody>
                   {filteredTasks.map((t: any) => (
                     <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <input type="checkbox" className="rounded" checked={selectedTaskIds.has(t.id)} onChange={(e) => { const next = new Set(selectedTaskIds); if (e.target.checked) next.add(t.id); else next.delete(t.id); setSelectedTaskIds(next); }} />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="font-semibold text-[15px] text-[#111827] break-words">
                           {t.title}
                           {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
@@ -3079,35 +3079,35 @@ const { data: resolvedId } = useQuery({
                         </div>
                         <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">ASSIGNED TO</div>
                         <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
                         <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
                         <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
                         <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
                         <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">FLAGGED</div>
                         {t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">VISIBLE</div>
                         {t.client_visible !== false ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
                       </td>
-                      <td className="px-4 py-3 text-right flex gap-2">
+                      <td className="px-4 py-3 break-words text-right flex gap-2">
                         <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
                           <Info className="h-4 w-4" />
                         </button>
@@ -4004,16 +4004,16 @@ const { data: resolvedId } = useQuery({
                     <tbody>
                       {csvRows.map((r) => (
                         <tr key={r.rowNum} className={r.isDuplicate ? "bg-orange-50" : r.errors.length > 0 ? "bg-red-50" : "border-t"}>
-                          <td className="p-2 text-muted-foreground">{r.rowNum}</td>
-                          <td className={`p-2 font-medium ${!r.title ? "text-red-500" : ""}`}>{r.title || <span className="italic text-red-400">empty</span>}</td>
-                          <td className="p-2 text-muted-foreground">{truncateWords(r.description, 4) || "—"}</td>
-                          <td className="p-2">
+                          <td className="p-2 break-words text-muted-foreground">{r.rowNum}</td>
+                          <td className={`p-2 break-words font-medium ${!r.title ? "text-red-500" : ""}`}>{r.title || <span className="italic text-red-400">empty</span>}</td>
+                          <td className="p-2 break-words text-muted-foreground">{truncateWords(r.description, 4) || "—"}</td>
+                          <td className="p-2 break-words">
                             <Badge className={PRIORITY_COLORS[r.priority] || ""}>{r.priority}</Badge>
                           </td>
-                          <td className="p-2 text-muted-foreground">{r.estimated_hours || "—"}</td>
-                          <td className="p-2 text-muted-foreground">{r.due_date || "—"}</td>
-                          <td className="p-2">{r.client_visible && !["false", "no", "0"].includes(r.client_visible) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</td>
-                          <td className="p-2">
+                          <td className="p-2 break-words text-muted-foreground">{r.estimated_hours || "—"}</td>
+                          <td className="p-2 break-words text-muted-foreground">{r.due_date || "—"}</td>
+                          <td className="p-2 break-words">{r.client_visible && !["false", "no", "0"].includes(r.client_visible) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</td>
+                          <td className="p-2 break-words">
                             {r.assigned_to ? (
                               r.resolvedId ? (
                                 <span className="text-green-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{r.assigned_to}</span>
@@ -4022,10 +4022,10 @@ const { data: resolvedId } = useQuery({
                               )
                             ) : "—"}
                           </td>
-                          <td className="p-2">
+                          <td className="p-2 break-words">
                             {r.isDuplicate && <Badge className="bg-orange-100 text-orange-800 text-[10px]">Duplicate</Badge>}
                           </td>
-                          <td className="p-2">
+                          <td className="p-2 break-words">
                             {r.errors.length > 0 ? (
                               <span className="text-red-500 text-[10px]">{r.errors.join("; ")}</span>
                             ) : (

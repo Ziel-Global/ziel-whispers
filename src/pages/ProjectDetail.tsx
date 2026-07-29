@@ -1252,12 +1252,23 @@ const { data: resolvedId } = useQuery({
     if (error) { toast.error(error.message); return; }
     if (sprintTaskIds.length > 0 && newSprint) {
       const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
-      const { error: updateErr } = await supabase.from("tasks").update({
-        sprint_id: newSprint.id,
-        status_id: linkedStatus?.id || null,
-        status: "linked",
-      }).in("id", sprintTaskIds);
-      if (updateErr) { toast.error(updateErr.message); return; }
+      const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
+      const assignTasks = (tasks || []).filter((t: any) => sprintTaskIds.includes(t.id));
+      const validTasks = assignTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
+      const orphanedTasks = assignTasks.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
+      if (validTasks.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: newSprint.id,
+          status_id: linkedStatus?.id || null,
+        }).in("id", validTasks.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
+      if (orphanedTasks.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: newSprint.id,
+        }).in("id", orphanedTasks.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
     }
     toast.success("Sprint created");
     setAddSprintOpen(false);
@@ -1295,23 +1306,46 @@ const { data: resolvedId } = useQuery({
     }
     const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
     if (error) { toast.error(error.message); return; }
-    const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId).map((t: any) => t.id);
-    const toUnassign = previouslyAssigned.filter((tid: string) => !editSprintTaskIds.includes(tid));
+    const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId);
+    const toUnassign = previouslyAssigned.filter((t: any) => !editSprintTaskIds.includes(t.id));
+    const toUnassignIds = toUnassign.map((t: any) => t.id);
     const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
     const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
-    if (toUnassign.length > 0) {
-      await supabase.from("tasks").update({
-        sprint_id: null,
-        status_id: unlinkedStatus?.id || null,
-        status: "unlinked",
-      }).in("id", toUnassign);
+    const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
+    if (toUnassignIds.length > 0) {
+      const validUnassign = toUnassign.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
+      const orphanedUnassign = toUnassign.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
+      if (validUnassign.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: null,
+          status_id: unlinkedStatus?.id || null,
+        }).in("id", validUnassign.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
+      if (orphanedUnassign.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: null,
+        }).in("id", orphanedUnassign.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
     }
     if (editSprintTaskIds.length > 0) {
-      await supabase.from("tasks").update({
-        sprint_id: editSprintId,
-        status_id: linkedStatus?.id || null,
-        status: "linked",
-      }).in("id", editSprintTaskIds);
+      const assignTasks = (tasks || []).filter((t: any) => editSprintTaskIds.includes(t.id));
+      const validAssign = assignTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
+      const orphanedAssign = assignTasks.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
+      if (validAssign.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: editSprintId,
+          status_id: linkedStatus?.id || null,
+        }).in("id", validAssign.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
+      if (orphanedAssign.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: editSprintId,
+        }).in("id", orphanedAssign.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
     }
     toast.success("Sprint updated");
     setEditSprintOpen(false);
@@ -1324,11 +1358,23 @@ const { data: resolvedId } = useQuery({
   const deleteSprint = async (sprintId: string) => {
     if (!confirm("Delete this sprint? Tasks will be unassigned from it.")) return;
     const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
-    await supabase.from("tasks").update({
-      sprint_id: null,
-      status_id: unlinkedStatus?.id || null,
-      status: "unlinked",
-    }).eq("sprint_id", sprintId);
+    const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
+    const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === sprintId);
+    const validTasks = sprintTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
+    const orphanedTasks = sprintTasks.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
+    if (validTasks.length > 0) {
+      const { error: unassignErr } = await supabase.from("tasks").update({
+        sprint_id: null,
+        status_id: unlinkedStatus?.id || null,
+      }).in("id", validTasks.map((t: any) => t.id));
+      if (unassignErr) { toast.error(unassignErr.message); return; }
+    }
+    if (orphanedTasks.length > 0) {
+      const { error: orphanErr } = await supabase.from("tasks").update({
+        sprint_id: null,
+      }).in("id", orphanedTasks.map((t: any) => t.id));
+      if (orphanErr) { toast.error(orphanErr.message); return; }
+    }
     const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
     if (error) { toast.error(error.message); return; }
     toast.success("Sprint deleted");

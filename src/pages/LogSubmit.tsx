@@ -382,9 +382,9 @@ export default function LogSubmitPage() {
 
     if (!task || task.estimated_hours === null) return;
 
-    const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
-    const completeStatus = workflowStatuses?.find((s: any) => s.name === "complete");
-    const inProgressStatus = workflowStatuses?.find((s: any) => s.name === "in_progress");
+    const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
+    const completeStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "complete");
+    const inProgressStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "in_progress");
 
     const isLinked = linkedStatus ? task.status_id === linkedStatus.id : task.status === "linked";
 

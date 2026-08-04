@@ -415,6 +415,7 @@ export type Database = {
           log_date: string
           project_id: string | null
           status: string
+          status_id: string | null
           submitted_at: string
           task_id: string | null
           user_id: string | null
@@ -434,6 +435,7 @@ export type Database = {
           log_date: string
           project_id?: string | null
           status?: string
+          status_id?: string | null
           submitted_at?: string
           task_id?: string | null
           user_id?: string | null
@@ -453,6 +455,7 @@ export type Database = {
           log_date?: string
           project_id?: string | null
           status?: string
+          status_id?: string | null
           submitted_at?: string
           task_id?: string | null
           user_id?: string | null
@@ -477,6 +480,13 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_logs_status_id_fkey"
+            columns: ["status_id"]
+            isOneToOne: false
+            referencedRelation: "workflow_statuses"
             referencedColumns: ["id"]
           },
         ]
@@ -1518,6 +1528,7 @@ export type Database = {
       }
       task_status_history: {
         Row: {
+          assigned_to_at_change: string | null
           changed_at: string
           changed_by: string | null
           changed_by_type: string
@@ -1527,6 +1538,7 @@ export type Database = {
           to_status_id: string
         }
         Insert: {
+          assigned_to_at_change?: string | null
           changed_at?: string
           changed_by?: string | null
           changed_by_type: string
@@ -1536,6 +1548,7 @@ export type Database = {
           to_status_id: string
         }
         Update: {
+          assigned_to_at_change?: string | null
           changed_at?: string
           changed_by?: string | null
           changed_by_type?: string
@@ -1571,6 +1584,13 @@ export type Database = {
             columns: ["to_status_id"]
             isOneToOne: false
             referencedRelation: "workflow_statuses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_status_history_assigned_to_at_change_fkey"
+            columns: ["assigned_to_at_change"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]

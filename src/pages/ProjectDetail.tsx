@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -34,7 +34,9 @@ import { Calendar } from "@/components/ui/calendar";
 import { cn } from "@/lib/utils";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
 
-import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS, getAllowedTransitions } from "@/lib/workflow";
+import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS, getAllowedTransitions, getStatusColor, getDoneStatusIds, getInitialStatus, getStatusDisplay } from "@/lib/workflow";
+import { StageOutcomeSelector } from "@/components/StageOutcomeSelector";
+import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 
 const truncateWords = (str: string | null | undefined, n: number) => {
@@ -94,7 +96,6 @@ export default function ProjectDetailPage() {
   const [editTaskDateOpen, setEditTaskDateOpen] = useState(false);
   const [editTaskClientVisible, setEditTaskClientVisible] = useState(true);
   const [editTaskAssignedTo, setEditTaskAssignedTo] = useState("");
-  const [editTaskStatusId, setEditTaskStatusId] = useState<string>("");
   const [bulkTaskOpen, setBulkTaskOpen] = useState(false);
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
   const [kanbanSprintFilter, setKanbanSprintFilter] = useState<string>("all");
@@ -109,7 +110,6 @@ export default function ProjectDetailPage() {
   const [selectedPhase, setSelectedPhase] = useState<any>(null);
   const [phaseTasksOpen, setPhaseTasksOpen] = useState(false);
   const [confirmPhaseDelId, setConfirmPhaseDelId] = useState<string | null>(null);
-  const [dependencyWarning, setDependencyWarning] = useState("");
   const [viewAddDepOpen, setViewAddDepOpen] = useState(false);
   const [viewAddDepTaskId, setViewAddDepTaskId] = useState("");
   const [viewAddDepType, setViewAddDepType] = useState("finish_to_start");
@@ -335,6 +335,13 @@ const { data: resolvedId } = useQuery({
     enabled: !!id && !!project?.workflow_template_id,
   });
 
+  const doneStatusIds = useMemo(() => getDoneStatusIds(workflowStatuses || []), [workflowStatuses]);
+  const initialStatus = useMemo(() => getInitialStatus(workflowStatuses || []), [workflowStatuses]);
+  const statusColor = useCallback(
+    (statusId: string | null) => getStatusColor(workflowStatuses || [], statusId),
+    [workflowStatuses]
+  );
+
   const { data: workflowTransitions } = useQuery({
     queryKey: ["project-workflow-transitions", id],
     queryFn: async () => {
@@ -363,6 +370,10 @@ const { data: resolvedId } = useQuery({
   });
 
   const [viewTaskData, setViewTaskData] = useState<any>(null);
+  const [viewDependencyWarning, setViewDependencyWarning] = useState("");
+  useEffect(() => {
+    setViewDependencyWarning("");
+  }, [viewTaskData]);
   const [descExpanded, setDescExpanded] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
@@ -634,7 +645,7 @@ const { data: resolvedId } = useQuery({
       if (sprintTasks.length === 0) {
         progress[s.id] = 0;
       } else {
-        const completed = sprintTasks.filter((t: any) => t.status === "complete").length;
+        const completed = sprintTasks.filter((t: any) => doneStatusIds.has(t.status_id)).length;
         progress[s.id] = Math.round((completed / sprintTasks.length) * 100);
       }
     });
@@ -697,7 +708,7 @@ const { data: resolvedId } = useQuery({
 
   const addViewBlocker = async () => {
     if (!newViewBlockerDescription.trim() || !viewTaskData?.id || !profile) return;
-    if (viewTaskData.status === "complete") {
+    if (viewTaskData.status_id && doneStatusIds.has(viewTaskData.status_id)) {
       toast.error("Cannot add blockers to a completed task");
       return;
     }
@@ -890,32 +901,6 @@ const { data: resolvedId } = useQuery({
     if (updatedTask) setViewTaskData(updatedTask);
   };
 
-  // Dependency warning effect — fires when edit status changes to done/in_progress
-  useEffect(() => {
-    setDependencyWarning("");
-    if (!editTaskId || !editTaskStatusId || !workflowStatuses) return;
-    const selectedStatus = workflowStatuses.find((s: any) => s.id === editTaskStatusId);
-    if (!selectedStatus || (selectedStatus.category !== "done" && selectedStatus.category !== "in_progress")) return;
-
-    supabase
-      .from("task_dependencies")
-      .select("*, depends_on:tasks!task_dependencies_depends_on_task_id_fkey(id, title, status_id)")
-      .eq("task_id", editTaskId)
-      .eq("dependency_type", "finish_to_start")
-      .then(({ data }) => {
-        if (!data || data.length === 0) return;
-        const unfinished = data.filter((d: any) => {
-          const depStatus = workflowStatuses.find((s: any) => s.id === d.depends_on?.status_id);
-          return depStatus?.category !== "done";
-        });
-        if (unfinished.length > 0) {
-          setDependencyWarning(
-            `Unfinished dependencies: ${unfinished.map((d: any) => d.depends_on?.title).join(", ")}`
-          );
-        }
-      });
-  }, [editTaskStatusId, editTaskId, workflowStatuses]);
-
   useEffect(() => {
     if (!expandedActionItemId) return;
     const channel = supabase
@@ -957,7 +942,7 @@ const { data: resolvedId } = useQuery({
 
   const addViewDependency = async () => {
     if (!viewAddDepTaskId || !viewTaskData?.id || !profile) return;
-    if (viewTaskData.status === "complete") {
+    if (viewTaskData.status_id && doneStatusIds.has(viewTaskData.status_id)) {
       toast.error("Cannot add dependencies to a completed task");
       return;
     }
@@ -1173,10 +1158,10 @@ const { data: resolvedId } = useQuery({
     if (!deleteTaskConfirmId || !id) return;
     const { data: delTask } = await supabase
       .from("tasks")
-      .select("status, title")
+      .select("status_id, title")
       .eq("id", deleteTaskConfirmId)
       .single();
-    if (delTask?.status === "complete") {
+    if (delTask?.status_id && doneStatusIds.has(delTask.status_id)) {
       toast.warning("Deleting a completed task — this will remove history");
     }
     const { error } = await supabase.from("tasks").delete().eq("id", deleteTaskConfirmId);
@@ -1251,7 +1236,6 @@ const { data: resolvedId } = useQuery({
     }).select("id").single();
     if (error) { toast.error(error.message); return; }
     if (sprintTaskIds.length > 0 && newSprint) {
-      const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
       const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
       const assignTasks = (tasks || []).filter((t: any) => sprintTaskIds.includes(t.id));
       const validTasks = assignTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
@@ -1259,7 +1243,7 @@ const { data: resolvedId } = useQuery({
       if (validTasks.length > 0) {
         const { error } = await supabase.from("tasks").update({
           sprint_id: newSprint.id,
-          status_id: linkedStatus?.id || null,
+          status_id: initialStatus?.id || null,
         }).in("id", validTasks.map((t: any) => t.id));
         if (error) { toast.error(error.message); return; }
       }
@@ -1309,8 +1293,8 @@ const { data: resolvedId } = useQuery({
     const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId);
     const toUnassign = previouslyAssigned.filter((t: any) => !editSprintTaskIds.includes(t.id));
     const toUnassignIds = toUnassign.map((t: any) => t.id);
-    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
-    const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
+    const unlinkedStatus = initialStatus;
+    const linkedStatus = initialStatus;
     const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
     if (toUnassignIds.length > 0) {
       const validUnassign = toUnassign.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
@@ -1357,7 +1341,6 @@ const { data: resolvedId } = useQuery({
 
   const deleteSprint = async (sprintId: string) => {
     if (!confirm("Delete this sprint? Tasks will be unassigned from it.")) return;
-    const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
     const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
     const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === sprintId);
     const validTasks = sprintTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
@@ -1365,7 +1348,7 @@ const { data: resolvedId } = useQuery({
     if (validTasks.length > 0) {
       const { error: unassignErr } = await supabase.from("tasks").update({
         sprint_id: null,
-        status_id: unlinkedStatus?.id || null,
+        status_id: initialStatus?.id || null,
       }).in("id", validTasks.map((t: any) => t.id));
       if (unassignErr) { toast.error(unassignErr.message); return; }
     }
@@ -1507,9 +1490,6 @@ const { data: resolvedId } = useQuery({
     e.preventDefault();
     if (!taskTitle.trim()) return;
     try {
-      const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
-      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
-      const hasSprint = !!taskSprintId;
       const { error } = await supabase.from("tasks").insert({
         project_id: id!,
         title: taskTitle.trim(),
@@ -1520,8 +1500,7 @@ const { data: resolvedId } = useQuery({
         client_visible: taskClientVisible,
         assigned_to: taskAssignedTo || null,
         sprint_id: taskSprintId || null,
-        status_id: hasSprint ? linkedStatus?.id : (unlinkedStatus?.id || null),
-        status: hasSprint ? "linked" : "unlinked",
+        status_id: initialStatus?.id || null,
         created_by: profile?.id,
       });
       if (error) throw error;
@@ -1547,7 +1526,7 @@ const { data: resolvedId } = useQuery({
   };
 
   const openEditTask = (task: any) => {
-    if (task.status === "complete") {
+    if (task.status_id && doneStatusIds.has(task.status_id)) {
       toast.error("Cannot edit a completed task");
       return;
     }
@@ -1573,9 +1552,6 @@ const { data: resolvedId } = useQuery({
         .eq("id", editTaskId)
         .single();
 
-      const linkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "linked");
-      const unlinkedStatus = workflowStatuses?.find((s: any) => s.name.toLowerCase() === "unlinked");
-      const hasSprint = !!editTaskSprintId;
       const updates: any = {
         title: editTaskTitle.trim(),
         description: editTaskDescription.trim() || null,
@@ -1585,8 +1561,7 @@ const { data: resolvedId } = useQuery({
         client_visible: editTaskClientVisible,
         assigned_to: editTaskAssignedTo || null,
         sprint_id: editTaskSprintId || null,
-        status_id: hasSprint ? linkedStatus?.id : (unlinkedStatus?.id || null),
-        status: hasSprint ? "linked" : "unlinked",
+        status_id: initialStatus?.id || null,
       };
 
       const oldAssignedTo = oldTask?.assigned_to;
@@ -1603,13 +1578,9 @@ const { data: resolvedId } = useQuery({
         .eq("id", editTaskId);
       if (error) throw error;
       toast.success("Task updated");
-      const { error: rpcError } = await supabase.rpc("run_automation_rules", {
-        p_project_id: id,
-        p_trigger_type: "status_change",
-        p_entity_type: "task",
-        p_entity_id: editTaskId,
-      });
-      if (rpcError) console.error("Automation engine error:", rpcError);
+      // Automation rules for status_change are now fired automatically by
+      // the trg_run_automation_on_status_change database trigger whenever
+      // status_id changes — no manual RPC call needed here.
 
       const newAssignedTo = updates.assigned_to;
       if (newAssignedTo && oldAssignedTo !== newAssignedTo) {
@@ -1772,7 +1743,6 @@ const { data: resolvedId } = useQuery({
         due_date: r.due_date || null,
         client_visible: !["false", "no", "0"].includes(r.client_visible),
         status_id: initialStatus?.id || null,
-        status: initialStatus?.name || "unlinked",
         created_by: profile?.id,
         assigned_to: r.resolvedId || null,
       }));
@@ -1819,7 +1789,6 @@ const { data: resolvedId } = useQuery({
   };
 
   const PRIORITY_COLORS: Record<string, string> = { high: "bg-red-100 text-red-800", medium: "bg-yellow-100 text-yellow-800", low: "bg-green-100 text-green-800" };
-  const TASK_STATUS_COLORS: Record<string, string> = { unlinked: "bg-gray-100 text-gray-800", linked: "bg-blue-100 text-blue-800", in_progress: "bg-yellow-100 text-yellow-800", complete: "bg-green-100 text-green-800", returned: "bg-red-100 text-red-800" };
 
   if (isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
   if (!project) return <div className="text-center py-12 text-muted-foreground">Project not found</div>;
@@ -2292,7 +2261,7 @@ const { data: resolvedId } = useQuery({
                                     <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                                   </td>
                                   <td className="px-4 py-3 break-words">
-                                    <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                                    <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                                   </td>
                                   <td className="px-4 py-3 break-words">
                                     <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
@@ -2903,7 +2872,7 @@ const { data: resolvedId } = useQuery({
                         <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
                           <td className="px-4 py-3 break-words">
                             <div className="flex items-center gap-2">
-                              <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
+                              <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status_id && doneStatusIds.has(t.status_id) ? " line-through text-muted-foreground" : "")}>
                                 {t.title}
                                 {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
                                 {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
@@ -2913,7 +2882,7 @@ const { data: resolvedId } = useQuery({
                           </td>
                           <td className="px-4 py-3 break-words">
                             <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
-                            <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                            <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                           </td>
                           <td className="px-4 py-3 break-words">
                             <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
@@ -3069,8 +3038,9 @@ const { data: resolvedId } = useQuery({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All</SelectItem>
-                    <SelectItem value="linked">Linked</SelectItem>
-                    <SelectItem value="complete">Complete</SelectItem>
+                    {(workflowStatuses || []).map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
                 <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button"><Upload className="h-4 w-4 mr-1" />Bulk Add Tasks</Button>
@@ -3080,7 +3050,7 @@ const { data: resolvedId } = useQuery({
 
             {(() => {
               const filteredTasks = (tasks || []).filter(
-                (t: any) => taskStatusFilter === "all" || t.status === taskStatusFilter
+                (t: any) => taskStatusFilter === "all" || t.status_id === taskStatusFilter
               );
               return filteredTasks.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No tasks yet.</p>
@@ -3135,7 +3105,7 @@ const { data: resolvedId } = useQuery({
                       </td>
                       <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
-                        <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                        <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                       </td>
                       <td className="px-4 py-3 break-words">
                         <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
@@ -3444,7 +3414,7 @@ const { data: resolvedId } = useQuery({
                 <div key={status.id} className="flex-shrink-0 w-72 bg-muted/30 rounded-lg border flex flex-col">
                   <div className="p-3 border-b flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <div className={`w-2.5 h-2.5 rounded-full ${(TASK_STATUS_COLORS[status.name] || "").split(" ")[0] || "bg-gray-400"}`} />
+                      <div className={`w-2.5 h-2.5 rounded-full ${(status.color || "bg-gray-400").split(" ")[0] || "bg-gray-400"}`} />
                       <span className="font-semibold text-sm capitalize">{status.name.replace(/_/g, " ")}</span>
                     </div>
                     <Badge variant="secondary" className="text-xs">{tasksInColumn.length}</Badge>
@@ -3800,6 +3770,7 @@ const { data: resolvedId } = useQuery({
                           <SelectItem value="assign_role">Assign to Role</SelectItem>
                           <SelectItem value="add_comment">Add Comment to Task</SelectItem>
                           <SelectItem value="resolve_blocker">Resolve the Blocker</SelectItem>
+                          <SelectItem value="reassign_to_stage_owner">Reassign to Stage Owner</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -3842,6 +3813,27 @@ const { data: resolvedId } = useQuery({
                   )}
                   {act.type === "resolve_blocker" && (
                     <p className="text-xs text-muted-foreground">This action resolves the blocker that triggered the rule. No additional parameters needed.</p>
+                  )}
+                  {act.type === "reassign_to_stage_owner" && (
+                    <div className="space-y-2">
+                      <Select value={act.params.status_id || ""} onValueChange={(v) => setActionParam(idx, "status_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select target status" /></SelectTrigger>
+                        <SelectContent>
+                          {(workflowStatuses || []).map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={act.params.fallback_role_id || ""} onValueChange={(v) => setActionParam(idx, "fallback_role_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Fallback role (optional)" /></SelectTrigger>
+                        <SelectContent>
+                          {(projectRoles || []).map((r: any) => (
+                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Looks up the previous assignee who held this task at the target status. If none found, falls back to a balanced assignment from the selected role.</p>
+                    </div>
                   )}
                 </Card>
               ))}
@@ -4171,11 +4163,6 @@ const { data: resolvedId } = useQuery({
                 </SelectContent>
               </Select>
             </div>
-            {dependencyWarning && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-                <span className="font-medium">⚠ {dependencyWarning}</span>
-              </div>
-            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditTaskOpen(false)}>Cancel</Button>
               <Button type="submit">Save</Button>
@@ -4220,7 +4207,7 @@ const { data: resolvedId } = useQuery({
 
           <div className="flex flex-wrap gap-2 mt-2">
             {viewTaskData?.priority && <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>}
-            {viewTaskData?.status && <Badge className={TASK_STATUS_COLORS[viewTaskData.status] || ""}>{viewTaskData.status.replace(/_/g, " ")}</Badge>}
+            {viewTaskData?.status_id && <Badge className={statusColor(viewTaskData.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}</Badge>}
             {viewTaskData?.estimated_hours && <span className="text-xs text-muted-foreground">{viewTaskData.estimated_hours}h est.</span>}
             {viewTaskData?.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d")}</span>}
             {viewTaskData?.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null; })()}
@@ -4303,13 +4290,13 @@ const { data: resolvedId } = useQuery({
                     <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
                     <SelectContent>
                       {(tasks || [])
-                        .filter((t: any) => t.id !== viewTaskData?.id && t.status !== "complete" && t.assigned_to !== profile?.id)
+                        .filter((t: any) => t.id !== viewTaskData?.id && !(t.status_id && doneStatusIds.has(t.status_id)) && t.assigned_to !== profile?.id)
                         .map((t: any) => (
                           <SelectItem key={t.id} value={t.id}>
                             <div className="flex items-center gap-2">
                               <span>{t.title}</span>
                               <span className="text-xs text-muted-foreground">— {t.users?.full_name || "Unassigned"}</span>
-                              <Badge className={`text-[10px] ${TASK_STATUS_COLORS[t.status] || ""}`}>{t.status?.replace(/_/g, " ")}</Badge>
+                              <Badge className={`text-[10px] ${statusColor(t.status_id) || ""}`}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                             </div>
                           </SelectItem>
                         ))}
@@ -4429,6 +4416,53 @@ const { data: resolvedId } = useQuery({
               </Button>
             )}
           </div>
+
+          {viewTaskData?.assigned_to === profile?.id && viewTaskData?.status_id && workflowStatuses && workflowTransitions && (
+            <div className="mt-4">
+              <StageOutcomeSelector
+                taskId={viewTaskData.id}
+                currentStatusId={viewTaskData.status_id}
+                workflowStatuses={workflowStatuses}
+                transitions={workflowTransitions}
+                onDeclare={async (toStatusId) => {
+                  const { error } = await supabase.rpc("declare_stage_outcome", {
+                    p_task_id: viewTaskData.id,
+                    p_to_status_id: toStatusId,
+                    p_changed_by_type: "admin",
+                  });
+                  if (error) {
+                    toast.error(`Could not move task: ${error.message}`);
+                    return;
+                  }
+                  const { data: updated } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
+                  if (updated) setViewTaskData(updated);
+                  queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+                }}
+                onTargetChange={(toStatusId) => {
+                  if (!toStatusId) {
+                    setViewDependencyWarning("");
+                    return;
+                  }
+                  const target = workflowStatuses.find((s: any) => s.id === toStatusId);
+                  if (!target || !isDependencyWarnTarget(target.category)) {
+                    setViewDependencyWarning("");
+                    return;
+                  }
+                  getUnfinishedDependencies(viewTaskData.id, workflowStatuses).then((deps) => {
+                    setViewDependencyWarning(
+                      deps.length > 0 ? `Unfinished dependencies: ${deps.map((d) => d.title).join(", ")}` : ""
+                    );
+                  });
+                }}
+                compact
+              />
+              {viewDependencyWarning && (
+                <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                  <span className="font-medium">⚠ {viewDependencyWarning}</span>
+                </div>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
@@ -4567,7 +4601,7 @@ const { data: resolvedId } = useQuery({
                       <span className="text-sm font-medium">{t.title}</span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                      <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                       {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
                       {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
                       <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
@@ -4641,7 +4675,7 @@ const { data: resolvedId } = useQuery({
                         {(tasks || []).map((t: any) => {
                           const isSelected = sprintTaskIds.includes(t.id);
                           const isAssignedToSprint = !!t.sprint_id;
-                          const isComplete = t.status === "complete";
+                          const isComplete = !!(t.status_id && doneStatusIds.has(t.status_id));
                           const disabled = isAssignedToSprint || isComplete;
                           return (
                             <CommandItem
@@ -4653,7 +4687,7 @@ const { data: resolvedId } = useQuery({
                               <Checkbox checked={isSelected} disabled={disabled} className="pointer-events-none" />
                               <span className="flex-1 truncate font-medium">{t.title}</span>
                               <Badge variant="secondary" className="text-[10px] shrink-0">{t.users?.full_name || "Unassigned"}</Badge>
-                              <Badge className={`text-[10px] shrink-0 ${TASK_STATUS_COLORS[t.status] || ""}`}>{t.status?.replace(/_/g, " ")}</Badge>
+                              <Badge className={`text-[10px] shrink-0 ${statusColor(t.status_id) || ""}`}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                               {isAssignedToSprint && <span className="text-[10px] text-amber-600 shrink-0 whitespace-nowrap">In: {sprintMap[t.sprint_id] || "Sprint"}</span>}
                             </CommandItem>
                           );
@@ -4730,7 +4764,7 @@ const { data: resolvedId } = useQuery({
                         {(tasks || []).map((t: any) => {
                           const isSelected = editSprintTaskIds.includes(t.id);
                           const isAssignedToOtherSprint = !!t.sprint_id && t.sprint_id !== editSprintId;
-                          const isComplete = t.status === "complete";
+                          const isComplete = !!(t.status_id && doneStatusIds.has(t.status_id));
                           const disabled = isAssignedToOtherSprint || isComplete;
                           return (
                             <CommandItem
@@ -4742,7 +4776,7 @@ const { data: resolvedId } = useQuery({
                               <Checkbox checked={isSelected} disabled={disabled} className="pointer-events-none" />
                               <span className="flex-1 truncate font-medium">{t.title}</span>
                               <Badge variant="secondary" className="text-[10px] shrink-0">{t.users?.full_name || "Unassigned"}</Badge>
-                              <Badge className={`text-[10px] shrink-0 ${TASK_STATUS_COLORS[t.status] || ""}`}>{t.status?.replace(/_/g, " ")}</Badge>
+                              <Badge className={`text-[10px] shrink-0 ${statusColor(t.status_id) || ""}`}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                               {isAssignedToOtherSprint && <span className="text-[10px] text-amber-600 shrink-0 whitespace-nowrap">In: {sprintMap[t.sprint_id] || "Sprint"}</span>}
                             </CommandItem>
                           );

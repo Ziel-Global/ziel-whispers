@@ -71,6 +71,15 @@ export default function WorkflowTemplatesPage() {
   const queryClient = useQueryClient();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  function invalidateWorkflowConsumers() {
+    queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
+    queryClient.invalidateQueries({ queryKey: ["workflow-statuses"] });
+    queryClient.invalidateQueries({ queryKey: ["workflow-transitions"] });
+    queryClient.invalidateQueries({ queryKey: ["project-workflow"] });
+    queryClient.invalidateQueries({ queryKey: ["project-workflow-transitions"] });
+    queryClient.invalidateQueries({ queryKey: ["logsubmit-workflow"] });
+  }
+
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
   const [templateName, setTemplateName] = useState("");
@@ -82,6 +91,7 @@ export default function WorkflowTemplatesPage() {
   const [statusCategory, setStatusCategory] = useState("todo");
   const [statusColor, setStatusColor] = useState("bg-gray-100 text-gray-800");
   const [statusInitial, setStatusInitial] = useState(false);
+  const [statusSortOrder, setStatusSortOrder] = useState("");
 
   const [deletingStatusId, setDeletingStatusId] = useState<string | null>(null);
   const [confirmDelTemplateId, setConfirmDelTemplateId] = useState<string | null>(null);
@@ -144,10 +154,12 @@ export default function WorkflowTemplatesPage() {
 
   async function saveTemplate() {
     if (!templateName.trim()) { toast.error("Name is required"); return; }
-    if (editTemplateId) {
-      await supabase.from("workflow_templates").update({ name: templateName.trim(), description: templateDesc.trim() || null }).eq("id", editTemplateId);
-    } else {
-      await supabase.from("workflow_templates").insert({ name: templateName.trim(), description: templateDesc.trim() || null, created_by: profile?.id });
+    const { error } = editTemplateId
+      ? await supabase.from("workflow_templates").update({ name: templateName.trim(), description: templateDesc.trim() || null }).eq("id", editTemplateId)
+      : await supabase.from("workflow_templates").insert({ name: templateName.trim(), description: templateDesc.trim() || null, created_by: profile?.id });
+    if (error) {
+      toast.error(`Could not save template: ${error.message}`);
+      return;
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
     setTemplateDialogOpen(false);
@@ -155,7 +167,11 @@ export default function WorkflowTemplatesPage() {
   }
 
   async function deleteTemplate(id: string) {
-    await supabase.from("workflow_templates").delete().eq("id", id);
+    const { error } = await supabase.from("workflow_templates").delete().eq("id", id);
+    if (error) {
+      toast.error(`Could not delete template: ${error.message}`);
+      return;
+    }
     queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
     toast.success("Template deleted");
   }
@@ -163,11 +179,17 @@ export default function WorkflowTemplatesPage() {
   async function handleBulkDeleteTemplates() {
     const ids = Array.from(selectedTemplateIds);
     if (!ids.length) return;
+    let failed = 0;
     for (const id of ids) {
-      await supabase.from("workflow_templates").delete().eq("id", id);
+      const { error } = await supabase.from("workflow_templates").delete().eq("id", id);
+      if (error) failed++;
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
-    toast.success(`${ids.length} template${ids.length > 1 ? "s" : ""} deleted`);
+    if (failed > 0) {
+      toast.error(`${failed} template${failed > 1 ? "s" : ""} could not be deleted`);
+    } else {
+      toast.success(`${ids.length} template${ids.length > 1 ? "s" : ""} deleted`);
+    }
     setSelectedTemplateIds(new Set());
     setBulkDeleteTemplateOpen(false);
   }
@@ -178,6 +200,8 @@ export default function WorkflowTemplatesPage() {
     setStatusCategory("todo");
     setStatusColor("bg-gray-100 text-gray-800");
     setStatusInitial(false);
+    const maxOrder = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
+    setStatusSortOrder(String(maxOrder + 1));
     setStatusDialogOpen(true);
   }
 
@@ -187,30 +211,139 @@ export default function WorkflowTemplatesPage() {
     setStatusCategory(s.category);
     setStatusColor(s.color);
     setStatusInitial(s.is_initial);
+    setStatusSortOrder(String(s.sort_order));
     setStatusDialogOpen(true);
   }
 
   async function saveStatus() {
     if (!statusName.trim() || !expandedId) { toast.error("Name is required"); return; }
-    const maxOrder = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
+    const targetOrder = parseInt(statusSortOrder, 10);
+    if (isNaN(targetOrder) || targetOrder < 0) { toast.error("Sort order must be a non-negative number"); return; }
+
+    const others = expandedStatuses.filter((s) => s.id !== editStatusId);
+    const maxOrderAll = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
+    const tempOrder = maxOrderAll + 1;
+
     if (editStatusId) {
-      const update: Partial<WorkflowStatus> = { name: statusName.trim(), category: statusCategory, color: statusColor, is_initial: statusInitial };
-      await supabase.from("workflow_statuses").update(update).eq("id", editStatusId);
+      const current = expandedStatuses.find((s) => s.id === editStatusId);
+      const oldOrder = current ? current.sort_order : targetOrder;
+
+      if (targetOrder !== oldOrder) {
+        // Park the moved status out of the way first, so no unique-constraint collisions
+        // occur while the other statuses shift.
+        const { error: parkError } = await supabase
+          .from("workflow_statuses")
+          .update({ sort_order: tempOrder })
+          .eq("id", editStatusId);
+        if (parkError) {
+          toast.error(`Could not save status: ${parkError.message}`);
+          return;
+        }
+
+        if (targetOrder < oldOrder) {
+          // Moving up: statuses between target and old shift down by 1 (descending to keep slots free)
+          const toShift = others
+            .filter((s) => s.sort_order >= targetOrder && s.sort_order < oldOrder)
+            .sort((a, b) => b.sort_order - a.sort_order);
+          for (const s of toShift) {
+            const { error } = await supabase.from("workflow_statuses").update({ sort_order: s.sort_order + 1 }).eq("id", s.id);
+            if (error) {
+              toast.error(`Could not save status: ${error.message}`);
+              return;
+            }
+          }
+        } else {
+          // Moving down: statuses between old and target shift up by 1 (ascending to keep slots free)
+          const toShift = others
+            .filter((s) => s.sort_order > oldOrder && s.sort_order <= targetOrder)
+            .sort((a, b) => a.sort_order - b.sort_order);
+          for (const s of toShift) {
+            const { error } = await supabase.from("workflow_statuses").update({ sort_order: s.sort_order - 1 }).eq("id", s.id);
+            if (error) {
+              toast.error(`Could not save status: ${error.message}`);
+              return;
+            }
+          }
+        }
+      }
+
+      const { error: updateError } = await supabase.from("workflow_statuses").update({
+        name: statusName.trim(),
+        category: statusCategory,
+        color: statusColor,
+        is_initial: statusInitial,
+        sort_order: targetOrder,
+      }).eq("id", editStatusId);
+      if (updateError) {
+        toast.error(`Could not save status: ${updateError.message}`);
+        return;
+      }
     } else {
-      await supabase.from("workflow_statuses").insert({
-        workflow_template_id: expandedId, name: statusName.trim(), category: statusCategory, color: statusColor, sort_order: maxOrder + 1, is_initial: statusInitial,
+      // Adding: shift everything at target or later down by 1 (descending keeps slots free)
+      const toShift = others
+        .filter((s) => s.sort_order >= targetOrder)
+        .sort((a, b) => b.sort_order - a.sort_order);
+      for (const s of toShift) {
+        const { error } = await supabase.from("workflow_statuses").update({ sort_order: s.sort_order + 1 }).eq("id", s.id);
+        if (error) {
+          toast.error(`Could not save status: ${error.message}`);
+          return;
+        }
+      }
+      const { error: insertError } = await supabase.from("workflow_statuses").insert({
+        workflow_template_id: expandedId,
+        name: statusName.trim(),
+        category: statusCategory,
+        color: statusColor,
+        sort_order: targetOrder,
+        is_initial: statusInitial,
       });
+      if (insertError) {
+        toast.error(`Could not create status: ${insertError.message}`);
+        return;
+      }
     }
-    queryClient.invalidateQueries({ queryKey: ["workflow-statuses"] });
+    invalidateWorkflowConsumers();
     setStatusDialogOpen(false);
     toast.success(editStatusId ? "Status updated" : "Status created");
   }
 
   async function deleteStatus(id: string) {
     setDeletingStatusId(id);
-    await supabase.from("workflow_statuses").delete().eq("id", id);
-    queryClient.invalidateQueries({ queryKey: ["workflow-statuses"] });
-    queryClient.invalidateQueries({ queryKey: ["workflow-transitions"] });
+    const { data: deletedRows, error: deleteError } = await supabase
+      .from("workflow_statuses")
+      .delete()
+      .eq("id", id)
+      .select();
+    if (deleteError) {
+      toast.error(`Could not delete status: ${deleteError.message}`);
+      setDeletingStatusId(null);
+      return;
+    }
+    if (!deletedRows || deletedRows.length === 0) {
+      toast.error("Could not delete status. It may not exist, or you may not have permission to delete it.");
+      setDeletingStatusId(null);
+      return;
+    }
+    if (expandedId) {
+      // Renumber remaining statuses to contiguous 0..n-1 to close any gaps
+      const remaining = expandedStatuses
+        .filter((s) => s.id !== id)
+        .sort((a, b) => a.sort_order - b.sort_order);
+      for (let i = 0; i < remaining.length; i++) {
+        if (remaining[i].sort_order !== i) {
+          const { error: renumberError } = await supabase
+            .from("workflow_statuses")
+            .update({ sort_order: i })
+            .eq("id", remaining[i].id);
+          if (renumberError) {
+            toast.error(`Status deleted, but renumbering failed: ${renumberError.message}`);
+            break;
+          }
+        }
+      }
+    }
+    invalidateWorkflowConsumers();
     setDeletingStatusId(null);
     toast.success("Status deleted");
   }
@@ -219,11 +352,23 @@ export default function WorkflowTemplatesPage() {
     if (!expandedId) return;
     const existing = expandedTransitions.find((t) => t.from_status_id === fromId && t.to_status_id === toId);
     if (existing) {
-      await supabase.from("workflow_transitions").delete().eq("id", existing.id);
+      const { error } = await supabase.from("workflow_transitions").delete().eq("id", existing.id);
+      if (error) {
+        toast.error(`Could not remove transition: ${error.message}`);
+        return;
+      }
     } else {
-      await supabase.from("workflow_transitions").insert({ workflow_template_id: expandedId, from_status_id: fromId, to_status_id: toId });
+      const { error } = await supabase.from("workflow_transitions").insert({
+        workflow_template_id: expandedId,
+        from_status_id: fromId,
+        to_status_id: toId,
+      });
+      if (error) {
+        toast.error(`Could not add transition: ${error.message}`);
+        return;
+      }
     }
-    queryClient.invalidateQueries({ queryKey: ["workflow-transitions"] });
+    invalidateWorkflowConsumers();
   }
 
   const gridCols = "40px 1fr 192px 80px";
@@ -449,6 +594,31 @@ export default function WorkflowTemplatesPage() {
               <div className="mt-2">
                 <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${statusColor}`}>Preview</span>
               </div>
+            </div>
+            <div>
+              <Label>Sort Order</Label>
+              <Input
+                type="number"
+                min={0}
+                value={statusSortOrder}
+                onChange={(e) => setStatusSortOrder(e.target.value)}
+                placeholder="e.g. 0"
+              />
+              {(() => {
+                const parsed = parseInt(statusSortOrder, 10);
+                const takenBy = !isNaN(parsed) && parsed >= 0
+                  ? expandedStatuses.find((s) => s.id !== editStatusId && s.sort_order === parsed)
+                  : undefined;
+                if (takenBy) {
+                  return (
+                    <p className="text-xs text-amber-600 mt-1">
+                      Sort {parsed} is taken by "{takenBy.name}". It will shift down by 1 to make room
+                      {!editStatusId && " (along with every status after it)"}.
+                    </p>
+                  );
+                }
+                return <p className="text-xs text-muted-foreground mt-1">Determines the column order on the kanban board. Defaults to the next available number.</p>;
+              })()}
             </div>
             <div className="flex items-center gap-2">
               <input type="checkbox" checked={statusInitial} onChange={(e) => setStatusInitial(e.target.checked)} className="h-4 w-4 accent-blue-600" />

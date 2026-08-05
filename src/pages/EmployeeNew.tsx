@@ -43,12 +43,13 @@ const clientSchema = z.object({
   email: z.string().email("Please enter a valid email address").refine((v) => !/\s/.test(v), "No spaces allowed"),
   password: z.string().min(8, "Min 8 characters").regex(/[0-9]/, "Must contain a number").regex(/[^a-zA-Z0-9]/, "Must contain a special character"),
   project_id: z.string().optional(),
+  client_id: z.string().optional(),
 });
 
 type StaffFormData = z.infer<typeof staffSchema>;
 type ClientFormData = z.infer<typeof clientSchema>;
 
-type RoleType = "admin" | "manager" | "employee" | "client" | "client member";
+type RoleType = "admin" | "manager" | "employee" | "client" | "client member" | "client portal";
 
 // ─── Step 1: Role Picker (Dropdown style) ─────────────────────────────────────
 function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
@@ -70,11 +71,12 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
             <SelectTrigger>
               <SelectValue placeholder="Select a role…" />
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent> 
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="manager">Manager</SelectItem>
               <SelectItem value="employee">Employee</SelectItem>
               <SelectItem value="client member">Client Member</SelectItem>
+              {/* <SelectItem value="client portal">Client Portal</SelectItem> */}
             </SelectContent>
           </Select>
           {role && (
@@ -84,6 +86,7 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
               {role === "employee" && "Standard employee — submit logs, apply for leave"}
               {role === "client" && "Client who owns the project — portal access to assigned projects"}
               {role === "client member" && "Member of the client's team — portal access to assigned projects"}
+              {role === "client portal" && "Client portal user — portal access to assigned projects via /portal"}
             </p>
           )}
         </div>
@@ -439,7 +442,7 @@ function ClientForm({ onBack }: { onBack: () => void }) {
 }
 
 // ─── Step 2C: Client Member Form ────────────────────────────────────────────────
-function ClientMemberForm({ onBack }: { onBack: () => void }) {
+function ClientMemberForm({ onBack, portalMode }: { onBack: () => void; portalMode?: boolean }) {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [submitting, setSubmitting] = useState(false);
@@ -451,6 +454,18 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
         .from("projects")
         .select("id, name")
         .in("status", ["active", "on_hold"])
+        .order("name");
+      return data || [];
+    },
+  });
+
+  const { data: clients = [] } = useQuery({
+    queryKey: ["clients-list-for-client-member"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("clients")
+        .select("id, name")
+        .eq("status", "active")
         .order("name");
       return data || [];
     },
@@ -468,17 +483,18 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
         full_name: data.full_name,
         email: data.email,
         password: data.password,
-        designation: "Client Member",
-        role: "client member",
+        designation: portalMode ? "Client Portal" : "Client Member",
+        role: portalMode ? "client portal" : "client member",
         department: "Other",
         employment_type: "contract",
         join_date: new Date().toISOString().split("T")[0],
+        ...(data.client_id ? { client_id: data.client_id } : {}),
       };
 
       const { data: result, error } = await supabase.functions.invoke("invite-user", { body: { ...payload, app_url: window.location.origin } });
-      if (error) { toast.error(error.message || "Failed to create client member"); setSubmitting(false); return; }
+      if (error) { toast.error(error.message || (portalMode ? "Failed to create client portal user" : "Failed to create client member")); setSubmitting(false); return; }
       const res = result as { ok?: boolean; user_id?: string; error?: string };
-      if (!res.ok) { toast.error(res.error || "Failed to create client member"); setSubmitting(false); return; }
+      if (!res.ok) { toast.error(res.error || (portalMode ? "Failed to create client portal user" : "Failed to create client member")); setSubmitting(false); return; }
 
       // If a project was selected, add the client member as a project member
       if (data.project_id && res.user_id) {
@@ -516,7 +532,7 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
         });
       }
 
-      toast.success("Client Member created successfully. A welcome email with password setup link has been sent.");
+      toast.success(portalMode ? "Client Portal user created successfully. A welcome email with password setup link has been sent." : "Client Member created successfully. A welcome email with password setup link has been sent.");
       navigate("/employees");
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }
@@ -527,8 +543,8 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={onBack}><ArrowLeft className="h-4 w-4" /></Button>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Add New Client Member</h1>
-          <p className="text-muted-foreground mt-1">Create an account for a member of the client's team</p>
+          <h1 className="text-2xl font-bold tracking-tight">{portalMode ? "Add New Client Portal User" : "Add New Client Member"}</h1>
+          <p className="text-muted-foreground mt-1">{portalMode ? "Create an account for a client portal user" : "Create an account for a member of the client's team"}</p>
         </div>
       </div>
 
@@ -563,6 +579,29 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
                   <PasswordInput {...field} placeholder="Min 8 characters" showStrength />
                 </FormControl>
                 <p className="text-xs text-muted-foreground">The client member will be prompted to change this via the welcome email link.</p>
+                <FormMessage />
+              </FormItem>
+            )} />
+
+            <FormField control={form.control} name="client_id" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Link to Client {portalMode && <span className="text-destructive">*</span>} {!portalMode && <span className="text-muted-foreground text-xs">(optional)</span>}</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a client…" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    {clients.map((c: any) => (
+                      <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                    ))}
+                    {clients.length === 0 && (
+                      <div className="px-3 py-2 text-sm text-muted-foreground">No clients found</div>
+                    )}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">{portalMode ? "Required — this links the portal user to a client and auto-assigns their projects." : "Linking to a client auto-syncs project access."}</p>
                 <FormMessage />
               </FormItem>
             )} />
@@ -630,6 +669,11 @@ export default function EmployeeNewPage() {
   // Step 2C: Client Member selected
   if (selectedRole === "client member") {
     return <ClientMemberForm onBack={handleBack} />;
+  }
+
+  // Step 2D: Client Portal selected
+  if (selectedRole === "client portal") {
+    return <ClientMemberForm onBack={handleBack} portalMode />;
   }
 
   // Step 2A: Admin / Manager / Employee

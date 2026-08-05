@@ -20,7 +20,6 @@ const schema = z.object({
   name: z.string().min(1, "Required").max(200),
   description: z.string().optional(),
   client_id: z.string().min(1, "Required"),
-  workflow_template_id: z.string().min(1, "Workflow template is required"),
   start_date: z.string().min(1, "Required"),
   end_date: z.string().optional(),
   document_link: z.string().url("Must be a valid URL").optional().or(z.literal("")),
@@ -30,6 +29,7 @@ export default function ProjectNewPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const [saving, setSaving] = useState(false);
+  const [templateId, setTemplateId] = useState<string>("");
 
   const { data: clients } = useQuery({
     queryKey: ["clients-active"],
@@ -47,7 +47,7 @@ export default function ProjectNewPage() {
     },
   });
 
-  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", client_id: "", workflow_template_id: "", start_date: new Date().toISOString().split("T")[0], end_date: "", document_link: "" } });
+  const form = useForm({ resolver: zodResolver(schema), defaultValues: { name: "", description: "", client_id: "", start_date: new Date().toISOString().split("T")[0], end_date: "", document_link: "" } });
 
   const onSubmit = async (data: z.infer<typeof schema>) => {
     setSaving(true);
@@ -59,7 +59,7 @@ export default function ProjectNewPage() {
         start_date: data.start_date,
         end_date: data.end_date || null,
         document_link: data.document_link || null,
-        workflow_template_id: data.workflow_template_id,
+        workflow_template_id: templateId || null,
         created_by: profile?.id,
       }).select("id").single();
       if (error) throw error;
@@ -93,15 +93,15 @@ export default function ProjectNewPage() {
                 <FormMessage />
               </FormItem>
             )} />
-            <FormField control={form.control} name="workflow_template_id" render={({ field }) => (
-              <FormItem><FormLabel>Workflow Template *</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select workflow template" /></SelectTrigger></FormControl>
-                  <SelectContent>{(templates || []).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <FormItem>
+              <FormLabel>Workflow Template</FormLabel>
+              <Select value={templateId} onValueChange={setTemplateId}>
+                <SelectTrigger><SelectValue placeholder="Select workflow template" /></SelectTrigger>
+                <SelectContent>
+                  {(templates || []).map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </FormItem>
             <div className="grid grid-cols-2 gap-4">
               <FormField control={form.control} name="start_date" render={({ field }) => (
                 <FormItem><FormLabel>Start Date *</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>

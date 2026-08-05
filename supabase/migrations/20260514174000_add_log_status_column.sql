@@ -3,7 +3,6 @@
 ALTER TABLE public.daily_logs ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'submitted';
 
 -- Add a check constraint for valid status values
-ALTER TABLE public.daily_logs DROP CONSTRAINT IF EXISTS daily_logs_status_check;
 ALTER TABLE public.daily_logs ADD CONSTRAINT daily_logs_status_check
   CHECK (status IN ('draft', 'submitted'));
 

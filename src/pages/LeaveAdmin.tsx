@@ -35,10 +35,6 @@ export default function LeaveAdminPage() {
   const [deleting, setDeleting] = useState(false);
   const [wfhDeleteId, setWfhDeleteId] = useState<string | null>(null);
   const [wfhDeleting, setWfhDeleting] = useState(false);
-  const [selectedLeaveIds, setSelectedLeaveIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteLeaveOpen, setBulkDeleteLeaveOpen] = useState(false);
-  const [selectedWfhIds, setSelectedWfhIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteWfhOpen, setBulkDeleteWfhOpen] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
   const [wfhStatusFilter, setWfhStatusFilter] = useState("all");
   const [leaveTypeFilter, setLeaveTypeFilter] = useState("all");
@@ -325,14 +321,6 @@ export default function LeaveAdminPage() {
         metadata: { employee_id: userId, action: newStatus },
       });
 
-      await supabase.from("notifications").insert({
-        user_id: userId,
-        type: `remote_work.${newStatus}`,
-        channel: "in_app",
-        metadata: { title: "Remote Work Request Updated", message: `Your remote work request was ${newStatus}` },
-        read: false,
-      });
-
       supabase.functions.invoke("send-request-notification", {
         body: { type: "wfh", action: newStatus, request_id: id, app_url: window.location.origin },
       }).catch(() => {});
@@ -392,9 +380,7 @@ export default function LeaveAdminPage() {
       await supabase.from("notifications").insert({
         user_id: request.user_id,
         type: `leave.${newStatus}`,
-        channel: "in_app",
         metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
-        read: false,
       });
 
       supabase.functions.invoke("send-request-notification", {
@@ -438,9 +424,7 @@ export default function LeaveAdminPage() {
                 await supabase.from("notifications").insert({
                   user_id: request.user_id,
                   type: "leave.balance_exhausted",
-                  channel: "in_app",
                   metadata: { message: "You have run out of Annual Leave days. Please contact your admin." },
-                  read: false,
                 });
               }
             }
@@ -489,40 +473,6 @@ export default function LeaveAdminPage() {
     }
   };
 
-  const handleBulkDeleteLeave = async () => {
-    const ids = Array.from(selectedLeaveIds);
-    if (!ids.length) return;
-    setDeleting(true);
-    const { error } = await supabase.from("leave_requests").delete().in("id", ids);
-    setDeleting(false);
-    if (error) { toast.error(error.message); return; }
-    for (const id of ids) {
-      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "leave.deleted", target_entity: "leave_requests", target_id: id });
-    }
-    toast.success(`${ids.length} leave request${ids.length > 1 ? "s" : ""} deleted`);
-    setSelectedLeaveIds(new Set());
-    setBulkDeleteLeaveOpen(false);
-    await queryClient.refetchQueries({ queryKey: ["admin-leave-requests"], type: "all" });
-    await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
-  };
-
-  const handleBulkDeleteWfh = async () => {
-    const ids = Array.from(selectedWfhIds);
-    if (!ids.length) return;
-    setWfhDeleting(true);
-    const { error } = await supabase.from("remote_work_requests").delete().in("id", ids);
-    setWfhDeleting(false);
-    if (error) { toast.error(error.message); return; }
-    for (const id of ids) {
-      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "wfh.deleted", target_entity: "remote_work_requests", target_id: id });
-    }
-    toast.success(`${ids.length} remote work request${ids.length > 1 ? "s" : ""} deleted`);
-    setSelectedWfhIds(new Set());
-    setBulkDeleteWfhOpen(false);
-    await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
-    await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
-  };
-
   const statusBadge = (status: string) => {
     const map: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", approved: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-700", cancelled: "bg-gray-100 text-gray-500" };
     return <Badge className={`${map[status] || ""} capitalize`}>{status}</Badge>;
@@ -547,7 +497,7 @@ export default function LeaveAdminPage() {
           <TabsTrigger value="requests" className="relative">
             Leave Requests
             {requests.filter((r: any) => r.status === "pending").length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] flex items-center justify-center px-1">
                 {requests.filter((r: any) => r.status === "pending").length}
               </span>
             )}
@@ -555,7 +505,7 @@ export default function LeaveAdminPage() {
           <TabsTrigger value="wfh" className="relative">
             Remote Requests
             {wfhRequests.filter((r: any) => r.status === "pending").length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] flex items-center justify-center px-1">
                 {wfhRequests.filter((r: any) => r.status === "pending").length}
               </span>
             )}
@@ -633,7 +583,7 @@ export default function LeaveAdminPage() {
           </div>
 
           <Dialog open={showBalanceDialog} onOpenChange={setShowBalanceDialog}>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Employee Leave Balance</DialogTitle>
               </DialogHeader>
@@ -668,15 +618,7 @@ export default function LeaveAdminPage() {
             <Card><div className="py-12 text-center text-muted-foreground">No requests</div></Card>
           ) : (
             <div>
-              <TableHeader gridCols="40px 1fr 112px 112px 80px 96px 80px">
-                <div className="flex items-center justify-center">
-                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                    checked={selectedLeaveIds.size === filtered.length && filtered.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedLeaveIds(new Set(filtered.map((r: any) => r.id)));
-                      else setSelectedLeaveIds(new Set());
-                    }} />
-                </div>
+              <TableHeader gridCols="1fr 112px 112px 80px 96px 80px">
                 <span>EMPLOYEE</span>
                 <span>FROM</span>
                 <span>TO</span>
@@ -684,28 +626,8 @@ export default function LeaveAdminPage() {
                 <span>STATUS</span>
                 <span className="text-right">ACTIONS</span>
               </TableHeader>
-              {selectedLeaveIds.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                  <span className="text-sm text-blue-700">{selectedLeaveIds.size} leave request{selectedLeaveIds.size > 1 ? "s" : ""} selected</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedLeaveIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                    <button onClick={() => setBulkDeleteLeaveOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                      <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                    </button>
-                  </div>
-                </div>
-              )}
               {filtered.map((r: any) => (
-                <DataRow key={r.id} gridCols="40px 1fr 112px 112px 80px 96px 80px">
-                  <div className="flex items-center justify-center">
-                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                      checked={selectedLeaveIds.has(r.id)}
-                      onChange={(e) => {
-                        const next = new Set(selectedLeaveIds);
-                        if (e.target.checked) next.add(r.id); else next.delete(r.id);
-                        setSelectedLeaveIds(next);
-                      }} />
-                  </div>
+                <DataRow key={r.id} gridCols="1fr 112px 112px 80px 96px 80px">
                   <div>
                     <RowPrimary>{r.users?.full_name}</RowPrimary>
                     <RowSecondary>{getLeaveTypeName(r)}</RowSecondary>
@@ -756,15 +678,7 @@ export default function LeaveAdminPage() {
             <Card><div className="py-12 text-center text-muted-foreground">No Remote Requests</div></Card>
           ) : (
             <div>
-              <TableHeader gridCols="40px 1fr 1fr 80px 112px 96px 1fr 80px">
-                <div className="flex items-center justify-center">
-                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                    checked={selectedWfhIds.size === wfhFiltered.length && wfhFiltered.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedWfhIds(new Set(wfhFiltered.map((r: any) => r.id)));
-                      else setSelectedWfhIds(new Set());
-                    }} />
-                </div>
+              <TableHeader gridCols="1fr 1fr 80px 112px 96px 1fr 80px">
                 <span>EMPLOYEE</span>
                 <span>DATE RANGE</span>
                 <span>DAYS</span>
@@ -773,34 +687,13 @@ export default function LeaveAdminPage() {
                 <span>REVIEWED</span>
                 <span className="text-right">ACTIONS</span>
               </TableHeader>
-              {selectedWfhIds.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                  <span className="text-sm text-blue-700">{selectedWfhIds.size} remote work request{selectedWfhIds.size > 1 ? "s" : ""} selected</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedWfhIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                    <button onClick={() => setBulkDeleteWfhOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                      <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                    </button>
-                  </div>
-                </div>
-              )}
               {wfhFiltered.map((r: any) => (
                 <React.Fragment key={r.id}>
                   <DataRow
                     className={`${r.users?.is_oversight ? "bg-amber-50/70" : r.status === "pending" ? "bg-yellow-50/50" : ""}`}
                     onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                    gridCols="40px 1fr 1fr 80px 112px 96px 1fr 80px"
+                    gridCols="1fr 1fr 80px 112px 96px 1fr 80px"
                   >
-                    <div className="flex items-center justify-center">
-                      <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                        checked={selectedWfhIds.has(r.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedWfhIds);
-                          if (e.target.checked) next.add(r.id); else next.delete(r.id);
-                          setSelectedWfhIds(next);
-                        }}
-                        onClick={(e) => e.stopPropagation()} />
-                    </div>
                     <div>
                       <RowPrimary>{r.users?.full_name}</RowPrimary>
                       <RowSecondary>{r.users?.designation || "—"}</RowSecondary>
@@ -915,7 +808,7 @@ export default function LeaveAdminPage() {
           </Card>
 
           <Dialog open={!!namesModal} onOpenChange={() => setNamesModal(null)}>
-            <DialogContent>
+            <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>Employees on {namesModal?.date}</DialogTitle>
               </DialogHeader>
@@ -1079,36 +972,6 @@ export default function LeaveAdminPage() {
             <AlertDialogCancel disabled={wfhDeleting}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleWfhDelete} disabled={wfhDeleting} className="bg-destructive hover:bg-destructive/90">
               {wfhDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={bulkDeleteLeaveOpen} onOpenChange={setBulkDeleteLeaveOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedLeaveIds.size} Leave Request{selectedLeaveIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to permanently delete {selectedLeaveIds.size} leave request{selectedLeaveIds.size > 1 ? "s" : ""}? This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDeleteLeave} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
-              {deleting ? "Deleting..." : "Delete all"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={bulkDeleteWfhOpen} onOpenChange={setBulkDeleteWfhOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedWfhIds.size} Remote Work Request{selectedWfhIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to permanently delete {selectedWfhIds.size} remote work request{selectedWfhIds.size > 1 ? "s" : ""}? This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={wfhDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDeleteWfh} disabled={wfhDeleting} className="bg-destructive hover:bg-destructive/90">
-              {wfhDeleting ? "Deleting..." : "Delete all"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

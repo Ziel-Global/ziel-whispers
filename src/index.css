@@ -17,8 +17,9 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 0%;
 
-    --primary: 82 100% 72.2%;
-    --primary-foreground: 0 0% 0%;
+    /* Brand Orange: #EC6824 = hsl(21, 83%, 53%) */
+    --primary: 21 83% 53%;
+    --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 96%;
     --secondary-foreground: 0 0% 0%;
@@ -26,26 +27,26 @@
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 45%;
 
-    --accent: 82 100% 72.2%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 21 83% 53%;
+    --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 82 100% 72.2%;
+    --ring: 21 83% 53%;
 
     --radius: 0.5rem;
 
     --sidebar-background: 240 3% 11%;
     --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 82 100% 72.2%;
-    --sidebar-primary-foreground: 0 0% 0%;
+    --sidebar-primary: 21 83% 53%;
+    --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 3% 16%;
     --sidebar-accent-foreground: 0 0% 100%;
     --sidebar-border: 240 3% 20%;
-    --sidebar-ring: 82 100% 72.2%;
+    --sidebar-ring: 21 83% 53%;
   }
 
   .dark {
@@ -55,19 +56,19 @@
     --card-foreground: 0 0% 100%;
     --popover: 240 3% 14%;
     --popover-foreground: 0 0% 100%;
-    --primary: 82 100% 72.2%;
-    --primary-foreground: 0 0% 0%;
+    --primary: 21 83% 53%;
+    --primary-foreground: 0 0% 100%;
     --secondary: 240 3% 16%;
     --secondary-foreground: 0 0% 100%;
     --muted: 240 3% 16%;
     --muted-foreground: 0 0% 60%;
-    --accent: 82 100% 72.2%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 21 83% 53%;
+    --accent-foreground: 0 0% 100%;
     --destructive: 0 62% 30%;
     --destructive-foreground: 0 0% 100%;
     --border: 240 3% 20%;
     --input: 240 3% 20%;
-    --ring: 82 100% 72.2%;
+    --ring: 21 83% 53%;
   }
 }
 
@@ -85,29 +86,29 @@
 }
 
 @layer components {
-  /* Global button logic: Primary buttons MUST have black text in default state */
+  /* Global button logic: Primary buttons use orange brand color with white text */
   .rounded-button,
   button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]) {
-    @apply text-black !important;
+    @apply text-white !important;
     transition: all 150ms ease;
   }
 
-  /* Hover effect for primary buttons: Background turns black, text turns white */
+  /* Hover effect for primary buttons: Background turns darker orange */
   .rounded-button:hover,
   button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover {
-    background-color: black !important;
+    background-color: #c4541a !important;
     @apply text-white !important;
   }
 
-  /* Icons with primary background must have black icon color */
+  /* Icons with primary background must have white icon color */
   [class*="bg-primary"] svg,
   [class*="bg-primary/"] svg {
-    @apply text-black !important;
+    @apply text-white !important;
     stroke: currentColor !important;
     transition: color 150ms ease;
   }
 
-  /* Ensure icons turn white when their primary button parent is hovered */
+  /* Ensure icons stay white when their primary button parent is hovered */
   button[class*="bg-primary"]:hover svg,
   .rounded-button:hover svg {
     @apply text-white !important;

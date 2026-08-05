@@ -52,7 +52,7 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
               {[1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className={cn("h-1 flex-1 rounded-full transition-colors", i <= strength.level ? strengthColors[strength.level] : "bg-muted")}
+                  className={cn("h-1 flex-1 rounded-md transition-colors", i <= strength.level ? strengthColors[strength.level] : "bg-muted")}
                 />
               ))}
             </div>

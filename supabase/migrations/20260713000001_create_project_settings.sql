@@ -17,7 +17,6 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_project_settings_project_id ON public.proj
 
 ALTER TABLE public.project_settings ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "project_settings_select" ON public.project_settings;
 CREATE POLICY "project_settings_select"
   ON public.project_settings FOR SELECT
   USING (
@@ -26,7 +25,6 @@ CREATE POLICY "project_settings_select"
     )
   );
 
-DROP POLICY IF EXISTS "project_settings_insert" ON public.project_settings;
 CREATE POLICY "project_settings_insert"
   ON public.project_settings FOR INSERT
   WITH CHECK (
@@ -35,7 +33,6 @@ CREATE POLICY "project_settings_insert"
     )
   );
 
-DROP POLICY IF EXISTS "project_settings_update" ON public.project_settings;
 CREATE POLICY "project_settings_update"
   ON public.project_settings FOR UPDATE
   USING (

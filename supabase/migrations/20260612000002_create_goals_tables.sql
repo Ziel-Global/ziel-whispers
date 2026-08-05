@@ -1,5 +1,5 @@
 -- Create goals table
-CREATE TABLE IF NOT EXISTS public.goals (
+CREATE TABLE public.goals (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   title VARCHAR(255) NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS public.goals (
 );
 
 -- Create goal_resources table
-CREATE TABLE IF NOT EXISTS public.goal_resources (
+CREATE TABLE public.goal_resources (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   goal_id UUID NOT NULL REFERENCES public.goals(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES public.users(id),
@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS public.goal_resources (
 );
 
 -- Add FK constraint on tasks.goal_id (column already exists)
-ALTER TABLE public.tasks DROP CONSTRAINT IF EXISTS tasks_goal_id_fkey;
 ALTER TABLE public.tasks
   ADD CONSTRAINT tasks_goal_id_fkey
   FOREIGN KEY (goal_id) REFERENCES public.goals(id)
@@ -30,7 +29,6 @@ ALTER TABLE public.goals ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.goal_resources ENABLE ROW LEVEL SECURITY;
 
 -- Goals: Admin/Manager can do all operations
-DROP POLICY IF EXISTS "admin_manager_all_goals" ON public.goals;
 CREATE POLICY "admin_manager_all_goals"
   ON public.goals
   FOR ALL
@@ -39,7 +37,6 @@ CREATE POLICY "admin_manager_all_goals"
   WITH CHECK (public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text]));
 
 -- Goals: Resources assigned to the goal can view it
-DROP POLICY IF EXISTS "resource_select_goals" ON public.goals;
 CREATE POLICY "resource_select_goals"
   ON public.goals
   FOR SELECT
@@ -53,7 +50,6 @@ CREATE POLICY "resource_select_goals"
   );
 
 -- Goal Resources: Admin/Manager can do all operations
-DROP POLICY IF EXISTS "admin_manager_all_goal_resources" ON public.goal_resources;
 CREATE POLICY "admin_manager_all_goal_resources"
   ON public.goal_resources
   FOR ALL
@@ -62,7 +58,6 @@ CREATE POLICY "admin_manager_all_goal_resources"
   WITH CHECK (public.get_my_role() = ANY (ARRAY['admin'::text, 'manager'::text]));
 
 -- Goal Resources: Assigned user can view their own
-DROP POLICY IF EXISTS "resource_select_goal_resources" ON public.goal_resources;
 CREATE POLICY "resource_select_goal_resources"
   ON public.goal_resources
   FOR SELECT

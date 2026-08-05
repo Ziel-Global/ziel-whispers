@@ -12,11 +12,11 @@ export default function AppLayout() {
 
   return (
     <SidebarProvider>
-      <div className="min-h-screen flex w-full">
+      <div className="h-screen flex w-full overflow-hidden">
         <AppSidebar />
-        <div className="flex-1 flex flex-col min-w-0">
+        <div className="flex-1 flex flex-col min-w-0 h-screen">
           <TopBar />
-          <main className="flex-1 p-3 md:p-6 overflow-auto bg-background">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden p-6 bg-background">
             <AutoClockoutAlert />
             {showMissingLog && <MissingLogAlert />}
             <Outlet />

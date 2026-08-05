@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { useNavigate } from "react-router-dom";
-import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight } from "lucide-react";
+import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight, Info } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -21,7 +21,7 @@ export default function DashboardPage() {
   const queryClient = useQueryClient();
   const [requestBannerDismissTick, setRequestBannerDismissTick] = useState(0);
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
-  const isClient = profile?.role === "client" || profile?.role === "client member";
+  const isClient = profile?.role === "client" || profile?.role === "client member" || profile?.role === "client portal";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
   const { annualLeaveEntitlement, shiftStart, shiftEnd, workingDays, graceMinutes } = useWorkSettings();
@@ -386,29 +386,112 @@ export default function DashboardPage() {
           <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/employees")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10"><Users className="h-5 w-5" /></div>
-              <div><p className="text-sm text-muted-foreground">Active Employees</p><p className="text-2xl font-bold">{stats?.activeEmployees ?? "—"}</p></div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[18px]">
+          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/employees")}>
+            <div className="p-5 flex-1">
+              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
+                Active Employees
+                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.activeEmployees ?? "—"}</div>
+                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
+                    vs last week <span className="text-[#22C55E] font-semibold ml-1.5 flex items-center">↑ 2</span>
+                  </div>
+                </div>
+                <div className="h-9 flex items-end justify-end gap-1.5 mb-1">
+                  <div className="w-[5px] bg-[#EC6824]/40 rounded-t-[2px] h-[14px]"></div>
+                  <div className="w-[5px] bg-[#EC6824]/70 rounded-t-[2px] h-[22px]"></div>
+                  <div className="w-[5px] bg-[#EC6824] rounded-t-[2px] h-[34px]"></div>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
+              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
+                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
+              </span>
             </div>
           </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/projects")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-blue-50"><FolderKanban className="h-5 w-5 text-blue-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Active Projects</p><p className="text-2xl font-bold">{stats?.activeProjects ?? "—"}</p></div>
+
+          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/projects")}>
+            <div className="p-5 flex-1">
+              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
+                Active Projects
+                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.activeProjects ?? "—"}</div>
+                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
+                    vs last week <span className="text-[#22C55E] font-semibold ml-1.5 flex items-center">↑ 1</span>
+                  </div>
+                </div>
+                <div className="h-9 w-[52px] text-[#EC6824] flex items-center mb-1">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full opacity-90">
+                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                    <polyline points="16 7 22 7 22 13"></polyline>
+                  </svg>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
+              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
+                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
+              </span>
             </div>
           </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/attendance")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-green-50"><Clock className="h-5 w-5 text-green-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Today's Attendance</p><p className="text-2xl font-bold">{stats?.todayClockedIn ?? 0} <span className="text-sm font-normal text-muted-foreground">/ {stats?.activeEmployees ?? 0}</span></p></div>
+
+          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/attendance")}>
+            <div className="p-5 flex-1">
+              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
+                Today's Attendance
+                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.todayClockedIn ?? 0}<span className="text-[22px] text-[#A1A1AA] font-semibold">/{stats?.activeEmployees ?? 0}</span></div>
+                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
+                    vs yesterday <span className="text-[#71717A] font-semibold ml-1.5 flex items-center">- 0%</span>
+                  </div>
+                </div>
+                <div className="h-9 flex items-center justify-end mb-1 pr-1">
+                  <div className="h-[22px] w-[22px] rounded-full border-[3px] border-[#FDBA74]/50"></div>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
+              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
+                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
+              </span>
             </div>
           </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/leave/requests")}>
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-md ${(stats?.pendingLeaves ?? 0) > 0 ? "bg-yellow-50" : "bg-muted"}`}><Calendar className={`h-5 w-5 ${(stats?.pendingLeaves ?? 0) > 0 ? "text-yellow-600" : "text-muted-foreground"}`} /></div>
-              <div><p className="text-sm text-muted-foreground">Pending Leave</p><p className="text-2xl font-bold">{stats?.pendingLeaves ?? "—"}</p></div>
+
+          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/leave/requests")}>
+            <div className="p-5 flex-1">
+              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
+                Pending Leave
+                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
+              </div>
+              <div className="flex items-end justify-between">
+                <div>
+                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.pendingLeaves ?? "—"}</div>
+                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
+                    vs last week <span className="text-[#EF4444] font-semibold ml-1.5 flex items-center">↓ 3</span>
+                  </div>
+                </div>
+                <div className="h-9 flex items-end justify-end gap-1.5 mb-1">
+                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[18px]"></div>
+                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[12px]"></div>
+                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[26px]"></div>
+                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[16px]"></div>
+                </div>
+              </div>
+            </div>
+            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
+              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
+                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
+              </span>
             </div>
           </Card>
         </div>
@@ -581,7 +664,7 @@ export default function DashboardPage() {
       {visibleProjectNotifications && visibleProjectNotifications.length > 0 && (
         <div className="bg-black border border-black/10 rounded-xl p-5 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top duration-500">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-full">
+            <div className="p-3 bg-white/10 rounded-md">
               <FolderKanban className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -600,7 +683,7 @@ export default function DashboardPage() {
       {visibleRequestNotifications && visibleRequestNotifications.length > 0 && (
         <div className="bg-black border border-black/10 rounded-xl p-5 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top duration-500">
           <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/10 rounded-full">
+            <div className="p-3 bg-white/10 rounded-md">
               <Calendar className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -731,7 +814,7 @@ export default function DashboardPage() {
               </div>
             </Card>
           </DialogTrigger>
-          <DialogContent className="p-0">
+          <DialogContent className="max-w-md p-0 overflow-y-auto">
             <DialogHeader className="p-4 pb-2 border-b">
               <DialogTitle className="flex items-center gap-2 text-lg">
                 <Users className="h-5 w-5 text-purple-600" />

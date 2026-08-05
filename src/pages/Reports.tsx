@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+﻿import { useState, useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -15,7 +15,7 @@ import { format, eachDayOfInterval, isWeekend, startOfMonth, endOfMonth, subDays
 import { getPKTDateString, formatPKTTime } from "@/hooks/useWorkSettings";
 import html2canvas from "html2canvas";
 
-const _CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
+const _CHART_COLORS = ["#EC6824", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#EC6824", "#ec4899"];
 const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 
 function exportCSV(rows: Record<string, any>[], filename: string) {
@@ -116,7 +116,7 @@ function UtilizationReport() {
               <XAxis type="number" domain={[0, Math.max(120, ...rows.map((r) => r.pct))]} unit="%" />
               <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 12 }} />
               <RechartsTooltip formatter={(v: number) => `${v}%`} />
-              <Bar dataKey="pct" fill="hsl(82,100%,72%)" radius={[0, 4, 4, 0]} />
+              <Bar dataKey="pct" fill="#EC6824" radius={[0, 4, 4, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -368,13 +368,13 @@ function AttendanceTrendReport() {
       </div>
       <div ref={chartRef} className="space-y-4">
         <Card className="p-4"><h3 className="font-medium text-sm mb-2">Average Clock-in Time</h3>
-          <ResponsiveContainer width="100%" height={200}><LineChart data={chartData}><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis domain={[7, 12]} tickFormatter={(v) => `${Math.floor(v)}:${String(Math.round((v % 1) * 60)).padStart(2, "0")}`} /><RechartsTooltip /><Line type="monotone" dataKey="avgClockIn" stroke="hsl(82,100%,72%)" strokeWidth={2} name="Avg Clock-in" /></LineChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={200}><LineChart data={chartData}><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis domain={[7, 12]} tickFormatter={(v) => `${Math.floor(v)}:${String(Math.round((v % 1) * 60)).padStart(2, "0")}`} /><RechartsTooltip /><Line type="monotone" dataKey="avgClockIn" stroke="#EC6824" strokeWidth={2} name="Avg Clock-in" /></LineChart></ResponsiveContainer>
         </Card>
         <Card className="p-4"><h3 className="font-medium text-sm mb-2">Daily Attendance Rate</h3>
           <ResponsiveContainer width="100%" height={200}><BarChart data={chartData}><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis domain={[0, 100]} unit="%" /><RechartsTooltip /><Bar dataKey="rate" fill="#60a5fa" radius={[2, 2, 0, 0]} name="Attendance %" /></BarChart></ResponsiveContainer>
         </Card>
         <Card className="p-4"><h3 className="font-medium text-sm mb-2">Remote vs Onsite</h3>
-          <ResponsiveContainer width="100%" height={200}><AreaChart data={chartData}><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis /><RechartsTooltip /><Area type="monotone" dataKey="onsite" stackId="1" fill="hsl(82,100%,72%)" stroke="hsl(82,100%,60%)" name="Onsite" /><Area type="monotone" dataKey="remote" stackId="1" fill="#60a5fa" stroke="#3b82f6" name="Remote" /></AreaChart></ResponsiveContainer>
+          <ResponsiveContainer width="100%" height={200}><AreaChart data={chartData}><XAxis dataKey="date" tick={{ fontSize: 11 }} /><YAxis /><RechartsTooltip /><Area type="monotone" dataKey="onsite" stackId="1" fill="#EC6824" stroke="hsl(82,100%,60%)" name="Onsite" /><Area type="monotone" dataKey="remote" stackId="1" fill="#60a5fa" stroke="#3b82f6" name="Remote" /></AreaChart></ResponsiveContainer>
         </Card>
       </div>
     </div>

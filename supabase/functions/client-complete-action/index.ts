@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (
-      profile && !["client", "client member", "admin", "manager"].includes(profile.role)
+      profile && !["client", "client member", "client portal", "admin", "manager"].includes(profile.role)
     ) {
       return jsonResponse({ ok: false, error: "Insufficient permissions" });
     }

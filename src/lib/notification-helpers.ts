@@ -10,13 +10,7 @@ type NotificationType =
   | 'blocker_created' 
   | 'blocker_resolved' 
   | 'leave_request' 
-  | 'remote_work_request'
-  | 'task_created'
-  | 'task_edited'
-  | 'task_deleted'
-  | 'task_completed'
-  | 'task_returned'
-  | 'task_assigned';
+  | 'remote_work_request';
 
 export async function createNotification({
   userId,
@@ -55,10 +49,18 @@ export async function getProjectMemberIds(projectId: string) {
 }
 
 export async function getAdminManagerIds(excludeUserId?: string) {
-  const { data, error } = await supabase.rpc("get_admin_manager_ids");
+  let query = supabase
+    .from("users")
+    .select("id")
+    .in("role", ["admin", "manager"]);
   
+  if (excludeUserId) {
+    query = query.ne("id", excludeUserId);
+  }
+  
+  const { data, error } = await query;
   if (error) throw error;
-  return (data || []).map((r: any) => r.id).filter((id: string) => id !== excludeUserId);
+  return data?.map(user => user.id) || [];
 }
 
 export async function createProjectRelatedNotifications({
@@ -110,7 +112,7 @@ export async function getClientMemberIds(projectId: string) {
     .select("user_id, users!inner(role)")
     .eq("project_id", projectId)
     .is("removed_at", null)
-    .in("users.role", ["client", "client member"]);
+    .in("users.role", ["client", "client member", "client portal"]);
   
   if (error) throw error;
   return data?.map(member => member.user_id) || [];

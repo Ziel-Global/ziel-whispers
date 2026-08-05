@@ -147,7 +147,7 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
       <DialogTrigger asChild>
         <Button><Plus className="w-4 h-4 mr-2" /> Add Log</Button>
       </DialogTrigger>
-      <DialogContent>
+      <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle>Add Log</DialogTitle>
         </DialogHeader>

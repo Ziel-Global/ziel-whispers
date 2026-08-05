@@ -30,7 +30,6 @@ import ReportsPage from "@/pages/Reports";
 import SettingsPage from "@/pages/Settings";
 import AuditLogPage from "@/pages/AuditLog";
 import WorkflowTemplatesPage from "@/pages/WorkflowTemplates";
-import NotificationsPage from "@/pages/Notifications";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -43,8 +42,8 @@ const queryClient = new QueryClient({
 
 function HomeRouter() {
   const { profile } = useAuth();
-  if (profile?.role === "client" || profile?.role === "client member") {
-    return <Navigate to="/projects" replace />;
+  if (profile?.role === "client" || profile?.role === "client member" || profile?.role === "client portal") {
+    return <Navigate to={profile?.role === "client portal" ? "/portal" : "/projects"} replace />;
   }
   return <Navigate to="/dashboard" replace />;
 }
@@ -89,13 +88,16 @@ const App = () => (
               <Route path="/projects/:slug" element={<ProjectDetailPage />} />
               <Route path="/projects/:slug/phases/:phaseId" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PhaseEditPage /></ProtectedRoute>} />
 
+              {/* Client Portal */}
+              <Route path="/portal" element={<ProjectsPage />} />
+              <Route path="/portal/:slug" element={<ProjectDetailPage />} />
+
               {/* Other */}
               <Route path="/announcements" element={<AnnouncementsPage />} />
               <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ReportsPage /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
               <Route path="/audit" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogPage /></ProtectedRoute>} />
               <Route path="/workflow-templates" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowTemplatesPage /></ProtectedRoute>} />
-              <Route path="/notifications" element={<NotificationsPage />} />
               <Route path="/my-projects" element={<ProjectsPage />} />
             </Route>
 

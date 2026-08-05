@@ -127,7 +127,7 @@ export function MissingLogAlert() {
           <div className="bg-red-50 p-4 rounded-lg border border-red-100 space-y-2">
             <div className="flex justify-between items-center">
               <span className="text-sm text-red-700 font-medium">Status</span>
-              <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-bold uppercase">
+              <span className="text-xs bg-red-200 text-red-800 px-2 py-0.5 rounded-md font-bold uppercase">
                 {totalLogged === 0 ? "Incomplete" : "Partial"}
               </span>
             </div>

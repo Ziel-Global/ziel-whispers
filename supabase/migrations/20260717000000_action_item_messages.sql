@@ -21,7 +21,6 @@ ALTER TABLE public.client_action_item_messages ENABLE ROW LEVEL SECURITY;
 
 -- 4. Policies
 -- SELECT: any authenticated user who is an active project member
-DROP POLICY IF EXISTS "project_members_select_action_item_messages" ON public.client_action_item_messages;
 CREATE POLICY "project_members_select_action_item_messages"
   ON public.client_action_item_messages FOR SELECT TO authenticated
   USING (
@@ -33,13 +32,11 @@ CREATE POLICY "project_members_select_action_item_messages"
   );
 
 -- INSERT: sender must be the auth user
-DROP POLICY IF EXISTS "sender_insert_action_item_messages" ON public.client_action_item_messages;
 CREATE POLICY "sender_insert_action_item_messages"
   ON public.client_action_item_messages FOR INSERT TO authenticated
   WITH CHECK (sender_id = auth.uid());
 
 -- Admin/Manager bypass: role-based access (mirrors admin_all_action_items on parent table)
-DROP POLICY IF EXISTS "admin_select_action_item_messages" ON public.client_action_item_messages;
 CREATE POLICY "admin_select_action_item_messages"
   ON public.client_action_item_messages FOR SELECT TO authenticated
   USING (

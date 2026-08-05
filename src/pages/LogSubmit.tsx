@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkSettings, getPKTDateString, formatPKTTime, getPKTISOString, isLogSubmissionLate } from "@/hooks/useWorkSettings";
@@ -23,12 +23,9 @@ import { format, parseISO, startOfDay, subDays, isSameDay } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
 import { cn, formatHours, MISC_PROJECT_ID } from "@/lib/utils";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { getAllowedTransitions } from "@/lib/workflow";
-import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 
 const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
-import { PRIORITY_COLORS, getDoneStatusIds, getStatusDisplay, getStatusColor } from "@/lib/workflow";
+import { PRIORITY_COLORS } from "@/lib/workflow";
 
 function getMinDateStr(days: number) {
   const d = new Date(getPKTDateString());
@@ -71,16 +68,10 @@ export default function LogSubmitPage() {
   const overtimeEnabled = profile?.overtime_enabled ?? false;
   const [submitting, setSubmitting] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
-  const [selectedDraftIds, setSelectedDraftIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteDraftOpen, setBulkDeleteDraftOpen] = useState(false);
-  const transitionsRef = useRef<any[]>([]);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [showSubmitConfirm, setShowSubmitConfirm] = useState(false);
-  const [declareOutcome, setDeclareOutcome] = useState(false);
-  const [selectedOutcomeStatusId, setSelectedOutcomeStatusId] = useState<string>("");
-  const [dependencyWarning, setDependencyWarning] = useState("");
 
   const today = getPKTDateString();
 
@@ -97,41 +88,6 @@ export default function LogSubmitPage() {
       return data || [];
     },
     enabled: !!user?.id,
-  });
-
-  const declaredTaskIds = useMemo(() => {
-    const ids: string[] = [];
-    pendingLogs.forEach((l: any) => {
-      if (l.declared_outcome_status_id && l.task_id && !ids.includes(l.task_id)) ids.push(l.task_id);
-    });
-    return ids;
-  }, [pendingLogs]);
-
-  const { data: declaredMoves = [] } = useQuery({
-    queryKey: ["logsubmit-declared-moves", declaredTaskIds.join(",")],
-    queryFn: async () => {
-      if (declaredTaskIds.length === 0) return [];
-      const { data: tasks } = await supabase
-        .from("tasks")
-        .select("id, title, status_id, projects(workflow_template_id)")
-        .in("id", declaredTaskIds);
-      const templateIds = [...new Set((tasks || []).map((t: any) => t.projects?.workflow_template_id).filter(Boolean))] as string[];
-      const { data: statuses } = templateIds.length > 0
-        ? await supabase.from("workflow_statuses").select("id, name, color").in("workflow_template_id", templateIds)
-        : { data: [] as any[] };
-      const targetByTask: Record<string, string> = {};
-      pendingLogs.forEach((l: any) => {
-        if (l.declared_outcome_status_id && l.task_id && !targetByTask[l.task_id]) targetByTask[l.task_id] = l.declared_outcome_status_id;
-      });
-      return (tasks || []).map((t: any) => ({
-        taskId: t.id,
-        title: t.title,
-        fromStatusId: t.status_id,
-        toStatusId: targetByTask[t.id] || "",
-        statuses: statuses || [],
-      }));
-    },
-    enabled: declaredTaskIds.length > 0,
   });
 
   const { data: perEmployeeLogEditDays } = useQuery({
@@ -224,12 +180,11 @@ export default function LogSubmitPage() {
         .eq("id", selectedProjectId!)
         .single();
       if (!proj?.workflow_template_id) return null;
-      const [statusesRes, transitionsRes] = await Promise.all([
-        supabase.from("workflow_statuses").select("*").eq("workflow_template_id", proj.workflow_template_id),
-        supabase.from("workflow_transitions").select("*").eq("workflow_template_id", proj.workflow_template_id),
-      ]);
-      transitionsRef.current = transitionsRes.data || [];
-      return statusesRes.data || [];
+      const { data } = await supabase
+        .from("workflow_statuses")
+        .select("*")
+        .eq("workflow_template_id", proj.workflow_template_id);
+      return data || [];
     },
     enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
   });
@@ -237,22 +192,13 @@ export default function LogSubmitPage() {
   const { data: availableTasks = [] } = useQuery({
     queryKey: ["my-project-tasks", selectedProjectId, user?.id],
     queryFn: async () => {
-      const doneStatusIds = (workflowStatuses || [])
-        .filter((s: any) => s.category === "done")
-        .map((s: any) => s.id);
-
-      let query = supabase
+      const { data: tasks } = await supabase
         .from("tasks")
         .select("id, title, priority, estimated_hours, status, status_id")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
+        .neq("status", "complete")
         .order("title");
-
-      if (doneStatusIds.length > 0) {
-        query = query.not.in("status_id", doneStatusIds);
-      }
-
-      const { data: tasks } = await query;
       if (!tasks) return [];
       const taskIds = tasks.map((t: any) => t.id);
       const { data: logs } = await supabase
@@ -315,49 +261,11 @@ export default function LogSubmitPage() {
         : null,
     }));
   }, [availableTasks, pendingLogs]);
-  const selectedTaskId = form.watch("task_id");
-  const selectedTask = selectedTaskId ? availableTasks.find((t: any) => t.id === selectedTaskId) : null;
-  const allowedTransitions = useMemo(() => {
-    if (!selectedTask?.status_id || !workflowStatuses) return [];
-    return getAllowedTransitions(workflowStatuses, transitionsRef.current, selectedTask.status_id);
-  }, [selectedTask?.status_id, workflowStatuses]);
-  useEffect(() => {
-    if (declareOutcome && allowedTransitions.length === 1) {
-      setSelectedOutcomeStatusId(allowedTransitions[0].id);
-    }
-  }, [declareOutcome, allowedTransitions]);
-
-  const pendingOutcomeStatusId = declareOutcome
-    ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
-    : "";
-  useEffect(() => {
-    if (!pendingOutcomeStatusId || !selectedTask?.id || !workflowStatuses) {
-      setDependencyWarning("");
-      return;
-    }
-    const targetStatus = workflowStatuses.find((s: any) => s.id === pendingOutcomeStatusId);
-    if (!targetStatus || !isDependencyWarnTarget(targetStatus.category)) {
-      setDependencyWarning("");
-      return;
-    }
-    let cancelled = false;
-    getUnfinishedDependencies(selectedTask.id, workflowStatuses).then((deps) => {
-      if (cancelled) return;
-      setDependencyWarning(
-        deps.length > 0 ? `Unfinished dependencies: ${deps.map((d) => d.title).join(", ")}` : ""
-      );
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [pendingOutcomeStatusId, selectedTask?.id, workflowStatuses]);
-  // TEMP: daily-limit lock disabled so testing can submit repeatedly
-  const isLocked = false;
-  // const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
-  //   selectedDate === today
-  //     ? submittedHours > 0
-  //     : submittedHours >= 8
-  // );
+  const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
+    selectedDate === today
+      ? submittedHours > 0
+      : submittedHours >= 8
+  );
 
   const onAddLog = async (data: z.infer<typeof schema>) => {
     const currentHours = Number(data.hours);
@@ -366,13 +274,6 @@ export default function LogSubmitPage() {
       toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
       return;
     }
-    if (declareOutcome && allowedTransitions.length > 1 && !selectedOutcomeStatusId) {
-      toast.error("Select the stage that actually happened before adding the log.");
-      return;
-    }
-    const declaredTarget = declareOutcome
-      ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
-      : "";
 
     try {
       if (editId) {
@@ -384,7 +285,6 @@ export default function LogSubmitPage() {
           description: data.description,
           log_date: data.log_date,
           task_id: data.task_id || null,
-          declared_outcome_status_id: declaredTarget || null,
         }).eq("id", editId).eq("status", "draft");
         if (error) throw error;
         setEditId(null);
@@ -402,15 +302,12 @@ export default function LogSubmitPage() {
           is_late: false,
           is_overtime: false,
           task_id: data.task_id || null,
-          declared_outcome_status_id: declaredTarget || null,
         });
         if (error) throw error;
         toast.success("Log added to list");
       }
       queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
       form.reset({ ...form.getValues(), hours: 1, description: "", task_id: null });
-      setDeclareOutcome(false);
-      setSelectedOutcomeStatusId("");
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -418,8 +315,6 @@ export default function LogSubmitPage() {
 
   const startEdit = (log: any) => {
     setEditId(log.id);
-    setDeclareOutcome(!!log.declared_outcome_status_id);
-    setSelectedOutcomeStatusId(log.declared_outcome_status_id || "");
     form.reset({
       project_id: log.project_id || "",
       category: log.category,
@@ -433,8 +328,6 @@ export default function LogSubmitPage() {
 
   const cancelEdit = () => {
     setEditId(null);
-    setDeclareOutcome(false);
-    setSelectedOutcomeStatusId("");
     form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
   };
 
@@ -449,15 +342,59 @@ export default function LogSubmitPage() {
     }
   };
 
-  const handleBulkDeleteDrafts = async () => {
-    const ids = Array.from(selectedDraftIds);
-    if (!ids.length) return;
-    const { error } = await supabase.from("daily_logs").delete().in("id", ids).eq("status", "draft");
-    if (error) { toast.error(error.message); return; }
-    toast.success(`${ids.length} draft log${ids.length > 1 ? "s" : ""} deleted`);
-    setSelectedDraftIds(new Set());
-    setBulkDeleteDraftOpen(false);
-    queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
+  const updateTaskProgress = async (taskId: string) => {
+    const { data: sumData } = await supabase
+      .from("daily_logs")
+      .select("hours")
+      .eq("task_id", taskId)
+      .neq("status", "draft");
+    const totalHours = (sumData || []).reduce((sum: number, l: any) => sum + Number(l.hours || 0), 0);
+
+    const { data: task } = await supabase
+      .from("tasks")
+      .select("estimated_hours, status, status_id, phase_id, project_id")
+      .eq("id", taskId)
+      .single();
+
+    if (!task || task.estimated_hours === null) return;
+
+    const linkedStatus = workflowStatuses?.find((s: any) => s.name === "linked");
+    const completeStatus = workflowStatuses?.find((s: any) => s.name === "complete");
+    const inProgressStatus = workflowStatuses?.find((s: any) => s.name === "in_progress");
+
+    const isLinked = linkedStatus ? task.status_id === linkedStatus.id : task.status === "linked";
+
+    const needsUpdate =
+      (totalHours >= task.estimated_hours) ||
+      (totalHours < task.estimated_hours && isLinked);
+
+    if (needsUpdate) {
+      if (totalHours >= task.estimated_hours) {
+        const update: any = { completed_at: getPKTISOString() };
+        if (completeStatus) {
+          update.status_id = completeStatus.id;
+        } else {
+          update.status = "complete";
+        }
+        if (totalHours > task.estimated_hours) {
+          update.is_flagged = true;
+        }
+        await supabase.from("tasks").update(update).eq("id", taskId);
+      } else if (totalHours < task.estimated_hours && isLinked) {
+        const update: any = {};
+        if (inProgressStatus) {
+          update.status_id = inProgressStatus.id;
+        } else {
+          update.status = "in_progress";
+        }
+        await supabase.from("tasks").update(update).eq("id", taskId);
+      }
+    }
+
+    if (task.phase_id) {
+      queryClient.invalidateQueries({ queryKey: ["project-phases", task.project_id] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", task.project_id] });
+    }
   };
 
   const handleSubmitAll = async () => {
@@ -502,49 +439,24 @@ export default function LogSubmitPage() {
         }
       }
 
-      // Build a map of task_id -> current status_id for all touched tasks
-      const touchedTaskIds = [...new Set(
-        pendingLogs.filter((l: any) => l.task_id).map((l: any) => l.task_id)
-      )] as string[];
-      const taskStatusMap: Record<string, string | null> = {};
-      if (touchedTaskIds.length > 0) {
-        const { data: taskStatuses } = await supabase
-          .from("tasks")
-          .select("id, status_id")
-          .in("id", touchedTaskIds);
-        (taskStatuses || []).forEach((t: any) => { taskStatusMap[t.id] = t.status_id; });
-      }
-
-      // Update each draft to submitted with computed fields + status_id
+      // Update each draft to submitted with computed fields
       for (const log of pendingLogs) {
         const { error } = await supabase.from("daily_logs").update({
           status: "submitted",
           is_late: isLateForDate(log.log_date),
           is_overtime: overtimeFlags[log.id] || false,
           submitted_at: nowPKTStr,
-          status_id: log.task_id ? (taskStatusMap[log.task_id] || null) : null,
         }).eq("id", log.id).eq("status", "draft");
         if (error) throw error;
       }
 
-      // Declare stage outcome for each draft that carries a stored intent, once per task
-      const outcomeErrors: string[] = [];
-      const declaredByTask: Record<string, string> = {};
-      for (const log of pendingLogs) {
-        if (log.declared_outcome_status_id && log.task_id && !declaredByTask[log.task_id]) {
-          declaredByTask[log.task_id] = log.declared_outcome_status_id;
-        }
+      // Update task progress for submitted logs that have a task_id
+      const touchedTaskIds = new Set(
+        pendingLogs.filter((l: any) => l.task_id).map((l: any) => l.task_id)
+      );
+      for (const taskId of touchedTaskIds) {
+        await updateTaskProgress(taskId);
       }
-      for (const [taskId, toStatusId] of Object.entries(declaredByTask)) {
-        const { error } = await supabase.rpc("declare_stage_outcome", {
-          p_task_id: taskId,
-          p_to_status_id: toStatusId,
-          p_changed_by_type: "admin",
-        });
-        if (error) outcomeErrors.push(error.message);
-      }
-      const movedTasks = declaredMoves.filter((m: any) => m.toStatusId);
-      const outcomeApplied = movedTasks.length > 0 && outcomeErrors.length === 0;
 
       // Only auto clock out if at least one of today's logs is being submitted AND the open session is from today
       const hasTodayLogs = pendingLogs.some((log: any) => log.log_date === todayStr);
@@ -588,18 +500,10 @@ export default function LogSubmitPage() {
         metadata: { count: pendingLogs.length }
       });
 
-      setDeclareOutcome(false);
-      setSelectedOutcomeStatusId("");
-
-      const movedText = movedTasks.length === 1
-        ? ` · moved to ${getStatusDisplay(movedTasks[0].statuses, movedTasks[0].toStatusId).name}`
-        : ` · moved ${movedTasks.length} tasks to next stage`;
-      const baseMsg = `${pendingLogs.length} log${pendingLogs.length > 1 ? "s" : ""} submitted${clockedOut ? " and clocked out" : ""}${outcomeApplied ? movedText : ""}`;
-
-      if (outcomeErrors.length > 0) {
-        toast.warning(`Logs submitted, but the stage move failed: ${outcomeErrors.join("; ")}`);
+      if (clockedOut) {
+        toast.success(`${pendingLogs.length} logs submitted and clocked out successfully`);
       } else {
-        toast.success(`${baseMsg} successfully`);
+        toast.success(`${pendingLogs.length} logs submitted successfully`);
       }
 
       form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
@@ -649,7 +553,7 @@ export default function LogSubmitPage() {
               <CalendarClock className="h-4 w-4 text-black" />
               <span className="text-md font-semibold">Logging Progress for {format(parseISO(selectedDate), "MMM d")}</span>
             </div>
-            <span className="text-xs font-medium px-2 py-0.5 bg-primary rounded-full">Target: {expectedDailyHours} Hours</span>
+            <span className="text-xs font-medium px-2 py-0.5 bg-primary rounded-md">Target: {expectedDailyHours} Hours</span>
           </div>
           <Progress value={progressPercentage} className="h-2 bg-gray-200" />
           <div className="flex justify-between items-center mt-2 text-xs">
@@ -785,7 +689,7 @@ export default function LogSubmitPage() {
                         onClick={() => form.setValue("task_id", form.watch("task_id") === t.id ? null : t.id, { shouldDirty: true })}
                       >
                         <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                          <div className={`w-4 h-4 rounded-md border-2 shrink-0 flex items-center justify-center ${
                             form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
                           }`}>
                             {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
@@ -798,68 +702,6 @@ export default function LogSubmitPage() {
                         </div>
                       </div>
                     ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {selectedTask && selectedTask.status_id && workflowStatuses && allowedTransitions.length > 0 && (
-              <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-                <div className="flex items-start gap-3">
-                  <input type="checkbox" id="declare-outcome" checked={declareOutcome}
-                    onChange={(e) => { setDeclareOutcome(e.target.checked); if (!e.target.checked) setSelectedOutcomeStatusId(""); }}
-                    className="mt-0.5 h-4 w-4 rounded border-gray-300" />
-                  <label htmlFor="declare-outcome" className="text-sm cursor-pointer select-none">
-                    <span className="font-medium">I finished this stage</span>
-                    <span className="block text-xs text-muted-foreground">
-                      Tick this to move the task to its next stage when you submit this log.
-                    </span>
-                  </label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-muted text-muted-foreground text-[10px] ml-1 cursor-help mt-1 shrink-0">?</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs text-xs">
-                        Only tick this when the current stage's work is actually done. Skipping it is fine — your log is still saved, and you can move the task next time.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                {declareOutcome && (
-                  <div className="ml-7 space-y-2">
-                    <p className="text-sm">
-                      <span className="text-muted-foreground">Your log will move</span>{" "}
-                      <span className="font-medium">{selectedTask.title}</span>{" "}
-                      <span className="text-muted-foreground">to the next stage:</span>
-                    </p>
-                    <div className="flex items-center gap-2">
-                      <Badge className={getStatusColor(workflowStatuses, selectedTask.status_id)}>
-                        {getStatusDisplay(workflowStatuses, selectedTask.status_id).name}
-                      </Badge>
-                      <span className="text-muted-foreground">→</span>
-                      {allowedTransitions.length === 1 ? (
-                        <Badge className={getStatusColor(workflowStatuses, allowedTransitions[0].id)}>
-                          {getStatusDisplay(workflowStatuses, allowedTransitions[0].id).name}
-                        </Badge>
-                      ) : (
-                        <Select value={selectedOutcomeStatusId} onValueChange={setSelectedOutcomeStatusId}>
-                          <SelectTrigger className="w-[220px] h-9">
-                            <SelectValue placeholder="Which stage actually happened?" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {allowedTransitions.map((s: any) => (
-                              <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {dependencyWarning && (
-                  <div className="ml-7 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-                    <span className="font-medium">⚠ {dependencyWarning}</span>
                   </div>
                 )}
               </div>
@@ -878,7 +720,7 @@ export default function LogSubmitPage() {
 
             {isLocked ? (
               <div className="bg-muted p-6 rounded-xl border-2 border-dashed flex flex-col items-center text-center space-y-3">
-                <div className="p-3 bg-primary/10 rounded-full"><Lock className="h-6 w-6 text-primary" /></div>
+                <div className="p-3 bg-primary/10 rounded-md"><Lock className="h-6 w-6 text-primary" /></div>
                 <div>
                   <p className="font-bold">Daily Limit Reached</p>
                   <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
@@ -914,46 +756,18 @@ export default function LogSubmitPage() {
             </Button>
           </div>
           <div>
-            <TableHeader gridCols="40px 1fr 112px 80px 200px 80px">
-              <div className="flex items-center justify-center">
-                <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                  checked={selectedDraftIds.size === pendingLogs.length && pendingLogs.length > 0}
-                  onChange={(e) => {
-                    if (e.target.checked) setSelectedDraftIds(new Set(pendingLogs.map((log: any) => log.id)));
-                    else setSelectedDraftIds(new Set());
-                  }} />
-              </div>
+            <TableHeader gridCols="1fr 112px 80px 200px 80px">
               <span>PROJECT</span>
               <span>DATE</span>
               <span>HOURS</span>
               <span>DESCRIPTION</span>
               <span className="text-right">ACTIONS</span>
             </TableHeader>
-            {selectedDraftIds.size > 0 && (
-              <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                <span className="text-sm text-blue-700">{selectedDraftIds.size} draft{selectedDraftIds.size > 1 ? "s" : ""} selected</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setSelectedDraftIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                  <button onClick={() => setBulkDeleteDraftOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                    <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                  </button>
-                </div>
-              </div>
-            )}
             {pendingLogs.map((log: any) => (
-              <DataRow key={log.id} gridCols="40px 1fr 112px 80px 200px 80px">
-                <div className="flex items-center justify-center">
-                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                    checked={selectedDraftIds.has(log.id)}
-                    onChange={(e) => {
-                      const next = new Set(selectedDraftIds);
-                      if (e.target.checked) next.add(log.id); else next.delete(log.id);
-                      setSelectedDraftIds(next);
-                    }} />
-                </div>
-                <div className="min-w-0">
+              <DataRow key={log.id} gridCols="1fr 112px 80px 200px 80px">
+                <div>
                   <RowPrimary>{log.projects?.name || "Project"}</RowPrimary>
-                  <RowSecondary>{log.category.replace(/_/g, " ")} · {log.tasks?.title || "No task"}{log.declared_outcome_status_id && <span className="text-blue-600 font-medium"> · will move to next stage</span>}</RowSecondary>
+                  <RowSecondary>{log.category.replace(/_/g, " ")} · {log.tasks?.title || "No task"}</RowSecondary>
                 </div>
                 <RowDataItem label="DATE">{format(parseISO(log.log_date), "MMM d, yyyy")}</RowDataItem>
                 <RowDataItem label="HOURS">{formatHours(log.hours)}</RowDataItem>
@@ -1020,30 +834,6 @@ export default function LogSubmitPage() {
             <AlertDialogTitle className="flex items-center gap-2 text-primary"><Send className="h-5 w-5" />Final Submission</AlertDialogTitle>
             <AlertDialogDescription className="space-y-3 pt-2">
               <p className="font-semibold text-foreground">Are you sure you want to submit all {pendingLogs.length} logs?</p>
-              {declaredMoves.length > 0 && (
-                <div className="bg-blue-50 border border-blue-200 p-3 rounded-md text-blue-900 text-xs flex gap-3">
-                  <AlertCircle className="h-5 w-5 shrink-0" />
-                  <div className="space-y-1">
-                    <p className="font-semibold">
-                      {declaredMoves.length === 1
-                        ? "This will also move the task to its next stage:"
-                        : `This will also move ${declaredMoves.length} tasks to their next stages:`}
-                    </p>
-                    {declaredMoves.map((m: any) => (
-                      <p key={m.taskId}>
-                        <span className="font-medium">{m.title}:</span>{" "}
-                        <Badge className={getStatusColor(m.statuses, m.fromStatusId)}>
-                          {getStatusDisplay(m.statuses, m.fromStatusId).name}
-                        </Badge>{" "}
-                        →{" "}
-                        <Badge className={getStatusColor(m.statuses, m.toStatusId)}>
-                          {getStatusDisplay(m.statuses, m.toStatusId).name}
-                        </Badge>
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              )}
               {logsAreAllForToday && (
                 <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-800 text-xs flex gap-3">
                   <AlertCircle className="h-5 w-5 shrink-0" />
@@ -1068,19 +858,6 @@ export default function LogSubmitPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={() => deleteConfirmId && removePendingLog(deleteConfirmId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={bulkDeleteDraftOpen} onOpenChange={setBulkDeleteDraftOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedDraftIds.size} Draft Log{selectedDraftIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>This unsubmitted log will be removed from your list.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDeleteDrafts} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete all</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

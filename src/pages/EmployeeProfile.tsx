@@ -69,8 +69,6 @@ export default function EmployeeProfilePage() {
   const [emailWarningOpen, setEmailWarningOpen] = useState(false);
   const [pendingEmail, setPendingEmail] = useState("");
   const [deleteLogId, setDeleteLogId] = useState<string | null>(null);
-  const [selectedLogIds, setSelectedLogIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteLogOpen, setBulkDeleteLogOpen] = useState(false);
   const [adminNewPassword, setAdminNewPassword] = useState("");
   const [adminConfirmPassword, setAdminConfirmPassword] = useState("");
   const [adminPwError, setAdminPwError] = useState("");
@@ -174,7 +172,7 @@ export default function EmployeeProfilePage() {
         .order("name");
       return data || [];
     },
-    enabled: !!employee && employee.role === "client member",
+    enabled: !!employee && (employee.role === "client member" || employee.role === "client portal"),
   });
 
   // Client Member edit: current project membership
@@ -189,10 +187,10 @@ export default function EmployeeProfilePage() {
         .maybeSingle();
       return data?.project_id || "";
     },
-    enabled: !!id && !!employee && employee.role === "client member",
+    enabled: !!id && !!employee && (employee.role === "client member" || employee.role === "client portal"),
   });
 
-  const isClientMember = employee?.role === "client member";
+  const isClientMember = employee?.role === "client member" || employee?.role === "client portal";
 
   const clientEditForm = useForm<z.infer<typeof clientEditSchema>>({
     resolver: zodResolver(clientEditSchema),
@@ -614,17 +612,6 @@ export default function EmployeeProfilePage() {
     if (error) { toast.error(error.message); return; }
     toast.success("Log entry deleted.");
     setDeleteLogId(null);
-    queryClient.invalidateQueries({ queryKey: ["employee-work-logs"] });
-  };
-
-  const handleBulkDeleteLogs = async () => {
-    const ids = Array.from(selectedLogIds);
-    if (!ids.length) return;
-    const { error } = await supabase.from("daily_logs").delete().in("id", ids);
-    if (error) { toast.error(error.message); return; }
-    toast.success(`${ids.length} log${ids.length > 1 ? "s" : ""} deleted`);
-    setSelectedLogIds(new Set());
-    setBulkDeleteLogOpen(false);
     queryClient.invalidateQueries({ queryKey: ["employee-work-logs"] });
   };
 
@@ -1070,43 +1057,15 @@ export default function EmployeeProfilePage() {
               <Card><div className="py-12 text-center text-muted-foreground">No logs found</div></Card>
             ) : (
               <div>
-                <TableHeader gridCols="40px 1fr 112px 80px 112px 80px">
-                  <div className="flex items-center justify-center">
-                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                      checked={selectedLogIds.size === workLogs.length && workLogs.length > 0}
-                      onChange={(e) => {
-                        if (e.target.checked) setSelectedLogIds(new Set(workLogs.map((log: any) => log.id)));
-                        else setSelectedLogIds(new Set());
-                      }} />
-                  </div>
+                <TableHeader gridCols="1fr 112px 80px 112px 80px">
                   <span>PROJECT</span>
                   <span>DATE</span>
                   <span>HOURS</span>
                   <span>SUBMITTED AT</span>
                   <span className="text-right">ACTIONS</span>
                 </TableHeader>
-                {selectedLogIds.size > 0 && (
-                  <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                    <span className="text-sm text-blue-700">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
-                    <div className="flex items-center gap-2">
-                      <button onClick={() => setSelectedLogIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                      <button onClick={() => setBulkDeleteLogOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                        <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                      </button>
-                    </div>
-                  </div>
-                )}
                 {workLogs.map((log: any) => (
-                  <DataRow key={log.id} gridCols="40px 1fr 112px 80px 112px 80px">
-                    <div className="flex items-center justify-center">
-                      <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                        checked={selectedLogIds.has(log.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedLogIds);
-                          if (e.target.checked) next.add(log.id); else next.delete(log.id);
-                          setSelectedLogIds(next);
-                        }} />
-                    </div>
+                  <DataRow key={log.id} gridCols="1fr 112px 80px 112px 80px">
                     <div>
                       <RowPrimary>{getProjectName(log)}</RowPrimary>
                       <RowSecondary>{log.description}</RowSecondary>
@@ -1141,18 +1100,6 @@ export default function EmployeeProfilePage() {
                   >
                     Yes, Delete
                   </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <AlertDialog open={bulkDeleteLogOpen} onOpenChange={setBulkDeleteLogOpen}>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Delete {selectedLogIds.size} Log{selectedLogIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-                  <AlertDialogDescription>This action is permanent and cannot be undone. These log entries will be removed from the employee's record.</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleBulkDeleteLogs} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete all</AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>

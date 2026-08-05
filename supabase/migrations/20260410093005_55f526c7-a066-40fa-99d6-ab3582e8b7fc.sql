@@ -3,7 +3,6 @@
 ALTER TABLE public.clients ADD COLUMN IF NOT EXISTS notes text;
 
 -- Allow employees to view their own project's client (for project detail)
-DROP POLICY IF EXISTS "Employees can view clients of their projects" ON public.clients;
 CREATE POLICY "Employees can view clients of their projects"
 ON public.clients
 FOR SELECT

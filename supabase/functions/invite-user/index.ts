@@ -41,7 +41,7 @@ Deno.serve(async (req) => {
     const {
       email, full_name, department, designation, employment_type,
       join_date, role, phone, shift_start, shift_end,
-      reminder_offset_minutes, password, app_url,
+      reminder_offset_minutes, password, app_url, client_id,
     } = body;
 
     if (!email || !full_name || !department || !designation || !employment_type || !join_date) {
@@ -105,6 +105,7 @@ Deno.serve(async (req) => {
       must_change_password: true,
       status: "active",
       created_by: callerId,
+      ...(client_id ? { client_id } : {}),
     };
 
     const { error: upsertError } = await adminClient.from("users").upsert(profileData, { onConflict: "id" });
@@ -125,7 +126,7 @@ Deno.serve(async (req) => {
     });
 
     // 4. If the new user is a Client or Client Member, send a branded welcome email with a password setup link
-    if (designation === "Client" || designation === "Client Member") {
+    if (designation === "Client" || designation === "Client Member" || designation === "Client Portal") {
       await adminClient.from("audit_logs").insert({
         actor_id: callerId,
         action: "debug.email_block_entered",

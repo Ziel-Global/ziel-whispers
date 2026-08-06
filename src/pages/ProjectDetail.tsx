@@ -1100,13 +1100,26 @@ const { data: resolvedId } = useQuery({
       return;
     }
 
+    const processedActions = ruleActions.map((act) => {
+      if (act.type === "reassign_to_stage_owner") {
+        return {
+          ...act,
+          params: {
+            ...act.params,
+            lookup_by: act.params.lookup_by || "from",
+          },
+        };
+      }
+      return act;
+    });
+
     const payload = {
       name: ruleName.trim(),
       description: ruleDescription.trim(),
       status: ruleStatus,
       trigger_type: ruleTriggerType,
       conditions: ruleConditions,
-      actions: ruleActions,
+      actions: processedActions,
       priority: rulePriority,
       allow_triggering_other_rules: ruleAllowTriggering,
     };
@@ -1236,21 +1249,11 @@ const { data: resolvedId } = useQuery({
     }).select("id").single();
     if (error) { toast.error(error.message); return; }
     if (sprintTaskIds.length > 0 && newSprint) {
-      const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
       const assignTasks = (tasks || []).filter((t: any) => sprintTaskIds.includes(t.id));
-      const validTasks = assignTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
-      const orphanedTasks = assignTasks.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
-      if (validTasks.length > 0) {
+      if (assignTasks.length > 0) {
         const { error } = await supabase.from("tasks").update({
           sprint_id: newSprint.id,
-          status_id: initialStatus?.id || null,
-        }).in("id", validTasks.map((t: any) => t.id));
-        if (error) { toast.error(error.message); return; }
-      }
-      if (orphanedTasks.length > 0) {
-        const { error } = await supabase.from("tasks").update({
-          sprint_id: newSprint.id,
-        }).in("id", orphanedTasks.map((t: any) => t.id));
+        }).in("id", assignTasks.map((t: any) => t.id));
         if (error) { toast.error(error.message); return; }
       }
     }
@@ -1293,41 +1296,18 @@ const { data: resolvedId } = useQuery({
     const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId);
     const toUnassign = previouslyAssigned.filter((t: any) => !editSprintTaskIds.includes(t.id));
     const toUnassignIds = toUnassign.map((t: any) => t.id);
-    const unlinkedStatus = initialStatus;
-    const linkedStatus = initialStatus;
-    const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
     if (toUnassignIds.length > 0) {
-      const validUnassign = toUnassign.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
-      const orphanedUnassign = toUnassign.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
-      if (validUnassign.length > 0) {
-        const { error } = await supabase.from("tasks").update({
-          sprint_id: null,
-          status_id: unlinkedStatus?.id || null,
-        }).in("id", validUnassign.map((t: any) => t.id));
-        if (error) { toast.error(error.message); return; }
-      }
-      if (orphanedUnassign.length > 0) {
-        const { error } = await supabase.from("tasks").update({
-          sprint_id: null,
-        }).in("id", orphanedUnassign.map((t: any) => t.id));
-        if (error) { toast.error(error.message); return; }
-      }
+      const { error } = await supabase.from("tasks").update({
+        sprint_id: null,
+      }).in("id", toUnassignIds);
+      if (error) { toast.error(error.message); return; }
     }
     if (editSprintTaskIds.length > 0) {
       const assignTasks = (tasks || []).filter((t: any) => editSprintTaskIds.includes(t.id));
-      const validAssign = assignTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
-      const orphanedAssign = assignTasks.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
-      if (validAssign.length > 0) {
+      if (assignTasks.length > 0) {
         const { error } = await supabase.from("tasks").update({
           sprint_id: editSprintId,
-          status_id: linkedStatus?.id || null,
-        }).in("id", validAssign.map((t: any) => t.id));
-        if (error) { toast.error(error.message); return; }
-      }
-      if (orphanedAssign.length > 0) {
-        const { error } = await supabase.from("tasks").update({
-          sprint_id: editSprintId,
-        }).in("id", orphanedAssign.map((t: any) => t.id));
+        }).in("id", assignTasks.map((t: any) => t.id));
         if (error) { toast.error(error.message); return; }
       }
     }
@@ -1341,22 +1321,12 @@ const { data: resolvedId } = useQuery({
 
   const deleteSprint = async (sprintId: string) => {
     if (!confirm("Delete this sprint? Tasks will be unassigned from it.")) return;
-    const currentWorkflowStatusIds = new Set(workflowStatuses?.map((s: any) => s.id) || []);
     const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === sprintId);
-    const validTasks = sprintTasks.filter((t: any) => currentWorkflowStatusIds.has(t.status_id));
-    const orphanedTasks = sprintTasks.filter((t: any) => !currentWorkflowStatusIds.has(t.status_id));
-    if (validTasks.length > 0) {
+    if (sprintTasks.length > 0) {
       const { error: unassignErr } = await supabase.from("tasks").update({
         sprint_id: null,
-        status_id: initialStatus?.id || null,
-      }).in("id", validTasks.map((t: any) => t.id));
+      }).in("id", sprintTasks.map((t: any) => t.id));
       if (unassignErr) { toast.error(unassignErr.message); return; }
-    }
-    if (orphanedTasks.length > 0) {
-      const { error: orphanErr } = await supabase.from("tasks").update({
-        sprint_id: null,
-      }).in("id", orphanedTasks.map((t: any) => t.id));
-      if (orphanErr) { toast.error(orphanErr.message); return; }
     }
     const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
     if (error) { toast.error(error.message); return; }
@@ -1845,7 +1815,7 @@ const { data: resolvedId } = useQuery({
           <TabsTrigger value="clients">Client's Member ({clientMembers.length})</TabsTrigger>
           {isAdmin && <TabsTrigger value="logs">Logs</TabsTrigger>}
           <TabsTrigger value="stats">Stats</TabsTrigger>
-          <TabsTrigger value="tasks">Tasks ({tasks?.length || 0})</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks ({isAdmin ? tasks?.length || 0 : (tasks || []).filter((t: any) => t.assigned_to === profile?.id).length})</TabsTrigger>
           <TabsTrigger value="kanban">Kanban</TabsTrigger>
           {isAdmin && <TabsTrigger value="phases">Phases</TabsTrigger>}
           <TabsTrigger value="sprints">Sprints ({sprints?.length || 0})</TabsTrigger>
@@ -3770,6 +3740,7 @@ const { data: resolvedId } = useQuery({
                           <SelectItem value="add_comment">Add Comment to Task</SelectItem>
                           <SelectItem value="resolve_blocker">Resolve the Blocker</SelectItem>
                           <SelectItem value="reassign_to_stage_owner">Reassign to Stage Owner</SelectItem>
+                          <SelectItem value="notify_user">Notify User / Group</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -3823,6 +3794,13 @@ const { data: resolvedId } = useQuery({
                           ))}
                         </SelectContent>
                       </Select>
+                      <Select value={act.params.lookup_by || "from"} onValueChange={(v) => setActionParam(idx, "lookup_by", v)}>
+                        <SelectTrigger><SelectValue placeholder="Lookup direction" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="from">Who sent task away from stage (e.g. Original Developer)</SelectItem>
+                          <SelectItem value="to">Who last arrived at stage</SelectItem>
+                        </SelectContent>
+                      </Select>
                       <Select value={act.params.fallback_role_id || ""} onValueChange={(v) => setActionParam(idx, "fallback_role_id", v)}>
                         <SelectTrigger><SelectValue placeholder="Fallback role (optional)" /></SelectTrigger>
                         <SelectContent>
@@ -3831,7 +3809,41 @@ const { data: resolvedId } = useQuery({
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground">Looks up the previous assignee who held this task at the target status. If none found, falls back to a balanced assignment from the selected role.</p>
+                      <p className="text-xs text-muted-foreground">Looks up the previous assignee who held this task at the target status (e.g. the original developer). If none found, falls back to a balanced assignment from the selected role.</p>
+                    </div>
+                  )}
+                  {act.type === "notify_user" && (
+                    <div className="space-y-2">
+                      <Select value={act.params.recipient || "task_assignee"} onValueChange={(v) => setActionParam(idx, "recipient", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select recipient" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="task_assignee">Task Assignee</SelectItem>
+                          <SelectItem value="specific_user">Specific User</SelectItem>
+                          <SelectItem value="admins_managers">Admins & Managers</SelectItem>
+                          <SelectItem value="project_members">All Project Members</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {act.params.recipient === "specific_user" && (
+                        <Select value={act.params.user_id || ""} onValueChange={(v) => setActionParam(idx, "user_id", v)}>
+                          <SelectTrigger><SelectValue placeholder="Select user to notify" /></SelectTrigger>
+                          <SelectContent>
+                            {(members || []).map((m: any) => (
+                              <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <Input
+                        value={act.params.title || ""}
+                        onChange={(e) => setActionParam(idx, "title", e.target.value)}
+                        placeholder="Notification Title (e.g., Task Moved to QA)"
+                      />
+                      <Textarea
+                        value={act.params.message_template || ""}
+                        onChange={(e) => setActionParam(idx, "message_template", e.target.value)}
+                        placeholder="Message Template (Supports {task_title}, {project_name}, {assignee_name})"
+                        rows={2}
+                      />
                     </div>
                   )}
                 </Card>

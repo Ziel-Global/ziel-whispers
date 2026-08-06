@@ -1561,7 +1561,6 @@ const { data: resolvedId } = useQuery({
         client_visible: editTaskClientVisible,
         assigned_to: editTaskAssignedTo || null,
         sprint_id: editTaskSprintId || null,
-        status_id: initialStatus?.id || null,
       };
 
       const oldAssignedTo = oldTask?.assigned_to;
@@ -4088,10 +4087,7 @@ const { data: resolvedId } = useQuery({
       </Dialog>
 
       {/* Edit Task Dialog */}
-      <Dialog open={editTaskOpen} onOpenChange={(open) => {
-        if (!open) setDependencyWarning("");
-        setEditTaskOpen(open);
-      }}>
+      <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Task</DialogTitle></DialogHeader>
           <form onSubmit={handleEditTaskSave} className="space-y-4">

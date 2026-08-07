@@ -351,13 +351,11 @@ export default function LogSubmitPage() {
       cancelled = true;
     };
   }, [pendingOutcomeStatusId, selectedTask?.id, workflowStatuses]);
-  // TEMP: daily-limit lock disabled so testing can submit repeatedly
-  const isLocked = false;
-  // const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
-  //   selectedDate === today
-  //     ? submittedHours > 0
-  //     : submittedHours >= 8
-  // );
+  const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
+    selectedDate === today
+      ? submittedHours > 0
+      : submittedHours >= 8
+  );
 
   const onAddLog = async (data: z.infer<typeof schema>) => {
     const currentHours = Number(data.hours);

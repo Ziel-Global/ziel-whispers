@@ -78,45 +78,43 @@ export function NotificationBell() {
             </Button>
           )}
         </div>
-        <ScrollArea className="max-h-[400px] [&>div>div>div]:bg-muted-foreground/30">
+        <div className="max-h-[300px] overflow-y-auto divide-y">
           {isLoading ? (
             <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
           ) : notifications && notifications.length > 0 ? (
-            <div className="divide-y">
-              {notifications.map((notification) => {
-                const meta = notification.metadata as { title?: string; message?: string; project_id?: string };
-                return (
-                  <div
-                    key={notification.id}
-                    className={`p-4 hover:bg-accent/50 cursor-pointer transition-colors ${!notification.read ? "bg-blue-50" : ""}`}
-                    onClick={() => {
-                      if (!notification.read) markAsRead(notification.id);
-                      if (meta?.project_id) { setIsOpen(false); navigate(`/projects/${meta.project_id}`); }
-                    }}
-                  >
-                    <div className="flex gap-3">
-                      <div className="text-2xl mt-0.5">{getNotificationIcon(notification.type)}</div>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <p className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>{meta?.title || notification.type}</p>
-                          <p className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                            {formatDistanceToNow(new Date(notification.triggered_at), { addSuffix: true })}
-                          </p>
-                        </div>
-                        <p className="text-sm text-muted-foreground line-clamp-2 break-words">{formatMessage(meta?.message || "")}</p>
-                        {meta?.project_id && (
-                          <span className="text-xs text-blue-600">Project notification</span>
-                        )}
+            (notifications.slice(0, 7)).map((notification) => {
+              const meta = notification.metadata as { title?: string; message?: string; project_id?: string };
+              return (
+                <div
+                  key={notification.id}
+                  className={`p-4 hover:bg-accent/50 cursor-pointer transition-colors ${!notification.read ? "bg-blue-50" : ""}`}
+                  onClick={() => {
+                    if (!notification.read) markAsRead(notification.id);
+                    if (meta?.project_id) { setIsOpen(false); navigate(`/projects/${meta.project_id}`); }
+                  }}
+                >
+                  <div className="flex gap-3">
+                    <div className="text-2xl mt-0.5">{getNotificationIcon(notification.type)}</div>
+                    <div className="flex-1 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <p className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>{meta?.title || notification.type}</p>
+                        <p className="text-xs text-muted-foreground whitespace-nowrap ml-2">
+                          {formatDistanceToNow(new Date(notification.triggered_at), { addSuffix: true })}
+                        </p>
                       </div>
+                      <p className="text-sm text-muted-foreground line-clamp-2 break-words">{formatMessage(meta?.message || "")}</p>
+                      {meta?.project_id && (
+                        <span className="text-xs text-blue-600">Project notification</span>
+                      )}
                     </div>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })
           ) : (
             <div className="p-8 text-center text-sm text-muted-foreground">No notifications</div>
           )}
-        </ScrollArea>
+        </div>
         <div className="border-t p-2">
           <Button
             variant="ghost"

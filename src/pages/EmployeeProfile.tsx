@@ -332,7 +332,12 @@ export default function EmployeeProfilePage() {
     },
     enabled: !!id,
   });
-  const isOnLeaveToday = todayLeave.length > 0;
+  const hasAdminLeave = !!(
+    employee?.is_on_leave &&
+    (!employee.is_on_leave_from || employee.is_on_leave_from <= todayPKT) &&
+    (!employee.is_on_leave_to || employee.is_on_leave_to >= todayPKT)
+  );
+  const isOnLeaveToday = todayLeave.length > 0 || hasAdminLeave;
 
   // Aggregated stats for the month
   const monthlyStats = useMemo(() => {
@@ -425,11 +430,11 @@ export default function EmployeeProfilePage() {
       setEmployeeRemoteAccess(employee.remote_access ?? false);
       setEmployeeRemoteAccessFrom(employee.remote_access_from ?? "");
       setEmployeeRemoteAccessTo(employee.remote_access_to ?? "");
-      setEmployeeIsOnLeave(isOnLeaveToday);
+      setEmployeeIsOnLeave(employee.is_on_leave ?? isOnLeaveToday);
       setEmployeeIsOnLeaveFrom(employee.is_on_leave_from ?? "");
       setEmployeeIsOnLeaveTo(employee.is_on_leave_to ?? "");
     }
-  }, [employee, form]);
+  }, [employee, form, isOnLeaveToday]);
 
   const avatarUrl = getAvatarUrl(employee?.avatar_url);
 
@@ -669,8 +674,65 @@ export default function EmployeeProfilePage() {
         is_on_leave_to: employeeIsOnLeave ? employeeIsOnLeaveTo : null,
       } as any).eq("id", employee.id);
       if (error) throw error;
-      toast.success("Access controls updated");
+
+      // Sync with leave_requests table for leave history & balance deduction
+      if (employeeIsOnLeave && employeeIsOnLeaveFrom && employeeIsOnLeaveTo) {
+        const startDateObj = new Date(employeeIsOnLeaveFrom + "T00:00:00");
+        const endDateObj = new Date(employeeIsOnLeaveTo + "T00:00:00");
+        let count = 0;
+        const cur = new Date(startDateObj);
+        const wd = employee.working_days || 5;
+        while (cur <= endDateObj) {
+          const d = cur.getDay();
+          if (wd === 5 ? (d !== 0 && d !== 6) : (d !== 0)) count++;
+          cur.setDate(cur.getDate() + 1);
+        }
+        const daysCount = Math.max(1, count);
+
+        const { data: defaultType } = await supabase.from("leave_types").select("id").limit(1).maybeSingle();
+        const { data: existingAdminReq } = await supabase
+          .from("leave_requests")
+          .select("id")
+          .eq("user_id", employee.id)
+          .eq("reason", "Admin Granted Leave (Access Controls)")
+          .maybeSingle();
+
+        if (existingAdminReq) {
+          await supabase.from("leave_requests").update({
+            start_date: employeeIsOnLeaveFrom,
+            end_date: employeeIsOnLeaveTo,
+            days_count: daysCount,
+            status: "approved",
+            reviewed_by: myProfile?.id || null,
+            reviewed_at: new Date().toISOString(),
+          }).eq("id", existingAdminReq.id);
+        } else {
+          await supabase.from("leave_requests").insert({
+            user_id: employee.id,
+            leave_type_id: defaultType?.id || null,
+            start_date: employeeIsOnLeaveFrom,
+            end_date: employeeIsOnLeaveTo,
+            days_count: daysCount,
+            status: "approved",
+            reason: "Admin Granted Leave (Access Controls)",
+            reviewed_by: myProfile?.id || null,
+            reviewed_at: new Date().toISOString(),
+          });
+        }
+      } else {
+        await supabase
+          .from("leave_requests")
+          .delete()
+          .eq("user_id", employee.id)
+          .eq("reason", "Admin Granted Leave (Access Controls)");
+      }
+
+      toast.success("Access controls updated and leave synced");
       queryClient.invalidateQueries({ queryKey: ["employee", id] });
+      queryClient.invalidateQueries({ queryKey: ["my-leave-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["my-used-leave-days"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-team-today"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     } catch (err: any) {
       toast.error(err.message);
     } finally {

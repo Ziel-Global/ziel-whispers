@@ -16,7 +16,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, ChevronLeft, ChevronRight, Save, Trash2, CalendarCheck, CalendarDays, AlertTriangle, Eye } from "lucide-react";
+import { Check, X, ChevronLeft, ChevronRight, Save, Trash2, CalendarCheck, CalendarDays, AlertTriangle, Eye, Search } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 
@@ -43,6 +43,7 @@ export default function LeaveAdminPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
   const [showBalanceDialog, setShowBalanceDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Annual leave entitlement setting
   const [annualEntitlement, setAnnualEntitlement] = useState("12");
@@ -161,9 +162,10 @@ export default function LeaveAdminPage() {
       const typeName = getLeaveTypeName(r);
       const matchLeaveType = leaveTypeFilter === "all" || typeName.startsWith(leaveTypeFilter);
       const matchSubmitted = !submittedDate || (r.created_at && r.created_at.startsWith(submittedDate));
-      return matchStatus && matchYear && matchLeaveType && matchSubmitted;
+      const matchSearch = !searchQuery.trim() || (r.users?.full_name || "").toLowerCase().includes(searchQuery.trim().toLowerCase());
+      return matchStatus && matchYear && matchLeaveType && matchSubmitted && matchSearch;
     });
-  }, [requests, statusFilter, selectedYear, leaveTypeFilter, submittedDate]);
+  }, [requests, statusFilter, selectedYear, leaveTypeFilter, submittedDate, searchQuery]);
 
   const { data: wfhRequests = [] } = useQuery({
     queryKey: ["admin-wfh-requests"],
@@ -238,13 +240,10 @@ export default function LeaveAdminPage() {
       r.status === "approved" && r.start_date.startsWith(currentMonth)
     ).length;
 
-    const entitlementVal = Number(annualEntitlement) || 12;
-    const employeesAtLimit = Object.values(employeeUsage).filter(
-      (u: any) => u.used >= entitlementVal
-    ).length;
+    const pendingApprovals = requests.filter((r: any) => r.status === "pending").length;
 
-    return { employeesOnLeaveToday, leavesThisMonth, employeesAtLimit };
-  }, [requests, today, currentMonth, employeeUsage, annualEntitlement]);
+    return { employeesOnLeaveToday, leavesThisMonth, pendingApprovals };
+  }, [requests, today, currentMonth]);
 
   // Group filtered requests by employee for the grouped layout
   const groupedByUser = useMemo(() => {
@@ -491,38 +490,102 @@ export default function LeaveAdminPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-[32px] font-bold text-[#09090B] tracking-tight leading-none mb-1">
+            Leave Management
+          </h1>
+          <p className="text-[13px] text-[#71717A]">
+            Leave year: {getLeaveYearRange(selectedYear).label}
+          </p>
+        </div>
+        <Button className="bg-[#EC6824] hover:bg-[#c4541a] text-white rounded-md h-9 px-4 text-[13px] font-medium shadow-sm">
+          + Apply Leave
+        </Button>
+      </div>
       <Tabs defaultValue="requests">
-        <TabsList>
-          <TabsTrigger value="requests" className="relative">
+        <TabsList className="bg-transparent border-b border-[#E4E4E7] rounded-none p-0 h-auto gap-0">
+          <TabsTrigger value="requests" className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors">
             Leave Requests
             {requests.filter((r: any) => r.status === "pending").length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] flex items-center justify-center px-1">
+              <span className="ml-2 bg-[#EC6824] text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] inline-flex items-center justify-center px-1">
                 {requests.filter((r: any) => r.status === "pending").length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="wfh" className="relative">
+          <TabsTrigger value="wfh" className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors">
             Remote Requests
             {wfhRequests.filter((r: any) => r.status === "pending").length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] flex items-center justify-center px-1">
+              <span className="ml-2 bg-[#EC6824] text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] inline-flex items-center justify-center px-1">
                 {wfhRequests.filter((r: any) => r.status === "pending").length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          <TabsTrigger value="settings">Leave Settings</TabsTrigger>
+          <TabsTrigger value="calendar" className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors">Calendar</TabsTrigger>
+          <TabsTrigger value="settings" className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors">Leave Settings</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="requests" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Leave Year: {getLeaveYearRange(selectedYear).label}
-            </p>
+        <TabsContent value="requests" className="space-y-0 mt-0">
+          {/* ── SUMMARY CARDS ── */}
+          <div className="grid grid-cols-3 border border-[#E4E4E7] rounded-[16px] bg-white overflow-hidden mb-6">
+            <div className="flex items-center gap-3 px-5 py-4 border-r border-[#E4E4E7]">
+              <div className="h-10 w-10 rounded-lg bg-[#EBF5FF] flex items-center justify-center shrink-0">
+                <CalendarCheck className="h-5 w-5 text-[#3B82F6]" />
+              </div>
+              <div>
+                <p className="text-[12px] text-[#71717A]">On leave today</p>
+                <p className="text-[22px] font-bold text-[#09090B] leading-tight">{summaryStats.employeesOnLeaveToday}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-5 py-4 border-r border-[#E4E4E7]">
+              <div className="h-10 w-10 rounded-lg bg-[#ECFDF5] flex items-center justify-center shrink-0">
+                <CalendarDays className="h-5 w-5 text-[#10B981]" />
+              </div>
+              <div>
+                <p className="text-[12px] text-[#71717A]">Leaves taken this month</p>
+                <p className="text-[22px] font-bold text-[#09090B] leading-tight">{summaryStats.leavesThisMonth}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowBalanceDialog(true)}
+              className="flex items-center gap-3 px-5 py-4 hover:bg-[#FFF4EA] transition-colors cursor-pointer"
+            >
+              <div className="h-10 w-10 rounded-lg bg-[#FFF4EA] flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-[#EC6824]" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-[12px] text-[#71717A]">Pending approvals</p>
+                <p className="text-[22px] font-bold text-[#09090B] leading-tight">{summaryStats.pendingApprovals}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-[#A1A1AA]" />
+            </button>
           </div>
-          <div className="flex gap-3 flex-wrap">
+
+          {/* ── SEARCH + FILTERS ── */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A1A1AA]" />
+              <Input
+                type="text"
+                placeholder="Search by employee name…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 rounded-md border-[#E4E4E7] bg-white h-10 text-[13px] text-[#09090B] placeholder:text-[#A1A1AA] shadow-sm focus-visible:ring-[#EC6824] focus-visible:ring-1 focus-visible:border-[#EC6824]"
+              />
+            </div>
+            <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
+              <SelectTrigger className="w-[130px] h-10 text-[13px] font-medium text-[#09090B] border-[#E4E4E7] bg-white shadow-sm rounded-md hover:border-[#EC6824] hover:bg-[#FFF4EA] focus:border-[#EC6824] focus:ring-2 focus:ring-[#EC6824]/20 data-[state=open]:border-[#EC6824] transition-colors">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {LEAVE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-[110px] h-10 text-[13px] font-medium text-[#09090B] border-[#E4E4E7] bg-white shadow-sm rounded-md hover:border-[#EC6824] hover:bg-[#FFF4EA] focus:border-[#EC6824] focus:ring-2 focus:ring-[#EC6824]/20 data-[state=open]:border-[#EC6824] transition-colors">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
@@ -531,55 +594,132 @@ export default function LeaveAdminPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-              <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {getLeaveYearOptions().map((y) => (
-                  <SelectItem key={y.startYear} value={String(y.startYear)}>{y.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Leave Type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {LEAVE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input type="date" value={submittedDate} onChange={(e) => setSubmittedDate(e.target.value)} className="w-[160px]" placeholder="Submitted date" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <CalendarCheck className="h-5 w-5 text-blue-600" />
-              </div>
+          {/* ── LEAVE TABLE ── */}
+          <div className="border border-[#E4E4E7] rounded-[16px] bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
+            {filtered.length === 0 ? (
+              <div className="px-4 py-12 text-center text-[#71717A] text-[13px]">No requests</div>
+            ) : (
               <div>
-                <p className="text-2xl font-bold">{summaryStats.employeesOnLeaveToday}</p>
-                <p className="text-xs text-muted-foreground">Employees on leave today</p>
+                {/* Table Header */}
+                <div className="px-6 py-3 border-b border-[#E4E4E7] grid gap-4 items-center text-[10px] font-bold text-[#A1A1AA] tracking-wider uppercase bg-transparent"
+                  style={{ gridTemplateColumns: "40px 1.8fr 120px 120px 80px 100px 80px" }}>
+                  <span></span>
+                  <span>EMPLOYEE</span>
+                  <span>FROM</span>
+                  <span>TO</span>
+                  <span>DAYS</span>
+                  <span>STATUS</span>
+                  <span className="text-right">ACTIONS</span>
+                </div>
+
+                {/* Table Rows */}
+                <div className="flex flex-col bg-white">
+                  {filtered.map((r: any) => {
+                    const initials = (r.users?.full_name || "").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                    const avatarColors: Record<string, string> = {
+                      "AB": "bg-[#E9D5FF] text-[#7C3AED]",
+                      "AZ": "bg-[#E9D5FF] text-[#7C3AED]",
+                      "SH": "bg-[#DBEAFE] text-[#2563EB]",
+                      "SM": "bg-[#D1FAE5] text-[#059669]",
+                      "AR": "bg-[#DBEAFE] text-[#2563EB]",
+                      "FA": "bg-[#FEE2E2] text-[#DC2626]",
+                      "FR": "bg-[#FED7AA] text-[#EA580C]",
+                      "HA": "bg-[#FEF3C7] text-[#D97706]",
+                    };
+                    const colorKey = initials;
+                    const defaultColor = "bg-[#F3F4F6] text-[#6B7280]";
+                    const leaveTypeTagColors: Record<string, string> = {
+                      "Casual Leave": "bg-[#D1FAE5] text-[#059669]",
+                      "Sick Leave": "bg-[#FEE2E2] text-[#DC2626]",
+                      "Hourly Leave": "bg-[#DBEAFE] text-[#2563EB]",
+                      "Half Day Leave": "bg-[#D1FAE5] text-[#059669]",
+                      "Annual Leave": "bg-[#DBEAFE] text-[#2563EB]",
+                      "Others": "bg-[#F3F4F6] text-[#6B7280]",
+                    };
+                    const typeName = getLeaveTypeName(r);
+                    const tagColor = leaveTypeTagColors[typeName] || "bg-[#F3F4F6] text-[#6B7280]";
+                    return (
+                      <div
+                        key={r.id}
+                        className="px-6 py-3.5 border-b border-[#F4F4F5] last:border-b-0 grid gap-4 items-center hover:bg-[#FFF1E6] transition-colors"
+                        style={{ gridTemplateColumns: "40px 1.8fr 120px 120px 80px 100px 80px" }}
+                      >
+                        {/* Checkbox */}
+                        <div>
+                          <input type="checkbox" className="h-4 w-4 rounded border-[#D4D4D8] text-[#EC6824] focus:ring-[#EC6824]/20 cursor-pointer" />
+                        </div>
+
+                        {/* Employee */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className={`h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${avatarColors[colorKey] || defaultColor}`}>
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[14px] font-bold text-[#18181B] truncate tracking-tight">
+                              {r.users?.full_name || "Unknown"}
+                            </p>
+                            <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md mt-0.5 ${tagColor}`}>
+                              {typeName}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* From */}
+                        <div className="text-[13px] text-[#52525B]">
+                          {format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}
+                        </div>
+
+                        {/* To */}
+                        <div className="text-[13px] text-[#52525B]">
+                          {format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}
+                        </div>
+
+                        {/* Days */}
+                        <div className="text-[13px] text-[#52525B]">
+                          {r.hours ? `${r.hours} hrs` : `${r.days_count} day${r.days_count !== 1 ? "s" : ""}`}
+                        </div>
+
+                        {/* Status */}
+                        <div>
+                          {statusBadge(r.status)}
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-end gap-1">
+                          {r.status === "pending" && (
+                            <>
+                              <button
+                                onClick={() => setActionModal({ type: "approve", request: r })}
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-[#DCFCE7] text-[#16A34A] hover:bg-[#BBF7D0] transition-colors"
+                                title="Approve"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setActionModal({ type: "reject", request: r })}
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA] transition-colors"
+                                title="Reject"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => setExpandedEmployeeId(r.user_id)}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg bg-[#F4F4F5] text-[#71717A] hover:bg-[#E4E4E7] transition-colors"
+                            title="View details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </Card>
-            <Card className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summaryStats.leavesThisMonth}</p>
-                <p className="text-xs text-muted-foreground">Leaves taken this month</p>
-              </div>
-            </Card>
-            <Card
-              className="p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setShowBalanceDialog(true)}
-            >
-              <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-orange-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-muted-foreground font-medium" style={{ fontSize: 20 }}>Employee Leave Balance</p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </Card>
+            )}
           </div>
 
           <Dialog open={showBalanceDialog} onOpenChange={setShowBalanceDialog}>
@@ -613,53 +753,6 @@ export default function LeaveAdminPage() {
               </div>
             </DialogContent>
           </Dialog>
-
-          {filtered.length === 0 ? (
-            <Card><div className="py-12 text-center text-muted-foreground">No requests</div></Card>
-          ) : (
-            <div>
-              <TableHeader gridCols="1fr 112px 112px 80px 96px 80px">
-                <span>EMPLOYEE</span>
-                <span>FROM</span>
-                <span>TO</span>
-                <span>DAYS</span>
-                <span>STATUS</span>
-                <span className="text-right">ACTIONS</span>
-              </TableHeader>
-              {filtered.map((r: any) => (
-                <DataRow key={r.id} gridCols="1fr 112px 112px 80px 96px 80px">
-                  <div>
-                    <RowPrimary>{r.users?.full_name}</RowPrimary>
-                    <RowSecondary>{getLeaveTypeName(r)}</RowSecondary>
-                  </div>
-                  <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                  <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                  <RowDataItem label="DAYS">{r.hours ? `${r.hours} hrs` : r.days_count}</RowDataItem>
-                  <RowBadgeItem label="STATUS">{statusBadge(r.status)}</RowBadgeItem>
-                  <RowActions className="justify-self-end">
-                    {r.status === "pending" && (
-                      <>
-                        <button onClick={() => setActionModal({ type: "approve", request: r })} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => setActionModal({ type: "reject", request: r })} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
-                  </RowActions>
-                  <div style={{ gridColumn: "1 / -1" }} className="flex gap-4 mt-1">
-                    {r.reason && (
-                      <p className="text-[11px] text-[#6b7280]"><span className="text-[10px] uppercase tracking-wider text-[#9ca3af]">Reason: </span>{r.reason}</p>
-                    )}
-                    {(r.status === "approved" || r.status === "rejected") && r.admin_comment && (
-                      <p className="text-[11px] text-[#6b7280]" title={r.admin_comment}><span className="text-[10px] uppercase tracking-wider text-[#9ca3af]">Admin: </span>{r.admin_comment}</p>
-                    )}
-                  </div>
-                </DataRow>
-              ))}
-            </div>
-          )}
         </TabsContent>
 
         <TabsContent value="wfh" className="space-y-4">

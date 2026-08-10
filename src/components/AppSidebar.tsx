@@ -112,7 +112,7 @@ export function AppSidebar() {
     { label: "Blockers",        value: "blockers" },
     { label: "Project Updates", value: "status-updates" },
     { label: "Action Items",    value: "action-items" },
-    { label: "Resources",       value: "resources" },
+    { label: "People",          value: "people" },
   ];
   useEffect(() => { if (isOnProjectDetail) setProjectsSubOpen(true); }, [isOnProjectDetail]);
 

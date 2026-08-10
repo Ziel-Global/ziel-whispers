@@ -67,7 +67,7 @@ export default function ProjectDetailPage() {
   const activeTab = searchParams.get("tab") || "overview";
 
   const [addMemberOpen, setAddMemberOpen] = useState(false);
-  const [addMemberMode, setAddMemberMode] = useState<"resource" | "client">("resource");
+  const [addMemberMode, setAddMemberMode] = useState<"team" | "client">("team");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [roleInputs, setRoleInputs] = useState<Record<string, string>>({});
   const [showOtherRole, setShowOtherRole] = useState<Record<string, boolean>>({});
@@ -101,7 +101,7 @@ export default function ProjectDetailPage() {
   const [workSubTab, setWorkSubTab] = useState("tasks");
   const [planningSubTab, setPlanningSubTab] = useState("phases");
   const [selectedPhaseForSprints, setSelectedPhaseForSprints] = useState<string | null>(null);
-  const [peopleSubTab, setPeopleSubTab] = useState("resources");
+  const [peopleSubTab, setPeopleSubTab] = useState("team");
   const [taskSearch, setTaskSearch] = useState("");
   const [taskPhaseFilter, setTaskPhaseFilter] = useState("all");
   const [taskSprintFilter, setTaskSprintFilter] = useState("all");
@@ -286,6 +286,19 @@ const { data: resolvedId } = useQuery({
 
   const resourceMembers = (members || []).filter((m: any) => !["Client", "Client Member", "Client Portal"].includes((m.users as any)?.designation));
   const clientMembers = (members || []).filter((m: any) => ["Client", "Client Member", "Client Portal"].includes((m.users as any)?.designation));
+
+  const activeTasksByUser = useMemo(() => {
+    const doneStatusIds = new Set(
+      (workflowStatuses || []).filter((s: any) => s.category === "done").map((s: any) => s.id)
+    );
+    const counts: Record<string, number> = {};
+    (tasks || []).forEach((t: any) => {
+      if (t.assigned_to && !doneStatusIds.has(t.status_id)) {
+        counts[t.assigned_to] = (counts[t.assigned_to] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [tasks, workflowStatuses]);
 
   const { data: employeeProjects } = useQuery({
     queryKey: ["employee-projects"],
@@ -1556,6 +1569,163 @@ const { data: resolvedId } = useQuery({
     }, {})
   ).sort().map(([week, hours]) => ({ week, hours }));
 
+  const PeopleTabInner = () => {
+    const AVATAR_COLORS: Array<{ bg: string; fg: string }> = [
+      { bg: "#D1FAE5", fg: "#059669" },
+      { bg: "#DBEAFE", fg: "#2563EB" },
+      { bg: "#E9D5FF", fg: "#7C3AED" },
+      { bg: "#FEE2E2", fg: "#DC2626" },
+      { bg: "#FED7AA", fg: "#EA580C" },
+      { bg: "#FEF3C7", fg: "#D97706" },
+      { bg: "#CFFAFE", fg: "#0891B2" },
+      { bg: "#FCE7F3", fg: "#DB2777" },
+    ];
+    const getAvatar = (name: string) => {
+      let h = 0;
+      for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+      return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+    };
+    const COLS_TEAM = "minmax(200px, 2fr) 140px 110px 150px 50px";
+    const COLS_CLIENT = "minmax(200px, 2fr) 50px";
+
+    const SubTab = ({ val, icon, label, count }: { val: string; icon: React.ReactNode; label: string; count: number }) => {
+      const active = peopleSubTab === val;
+      return (
+        <button onClick={() => setPeopleSubTab(val)} style={{
+          display: "inline-flex", alignItems: "center", gap: "6px", padding: "10px 12px",
+          border: "none", borderBottom: active ? "2px solid #EC6824" : "2px solid transparent",
+          cursor: "pointer", fontSize: "14px", fontWeight: active ? 700 : 400,
+          fontFamily: "inherit", background: "transparent", color: active ? "#09090B" : "#71717A",
+          transition: "all 0.15s",
+        }}>
+          {icon} {label} ({count})
+        </button>
+      );
+    };
+
+    const ActionBar = ({ label, btnLabel, onClick }: { label: string; btnLabel: string; onClick: () => void }) => (
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 24px", borderBottom: "1px solid #E4E4E7" }}>
+        <span style={{ fontSize: "15px", fontWeight: 700, color: "#09090B" }}>{label}</span>
+        {isAdmin && (
+          <button onClick={onClick} style={{
+            display: "inline-flex", alignItems: "center", gap: "6px", backgroundColor: "#EC6824", color: "#fff",
+            border: "none", borderRadius: "8px", padding: "10px 20px", fontSize: "13px", fontWeight: 600,
+            cursor: "pointer", fontFamily: "inherit", lineHeight: "1",
+          }} onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#d95a18"} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#EC6824"}>
+            <Plus className="h-4 w-4" />{btnLabel}
+          </button>
+        )}
+      </div>
+    );
+
+    const TeamMemberRow = ({ m }: { m: any }) => {
+      const name = (m.users as any)?.full_name || "?";
+      const initials = name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+      const av = getAvatar(name);
+      const activeCount = activeTasksByUser[(m.users as any)?.id] || 0;
+      return (
+        <div style={{ display: "grid", alignItems: "center", padding: "14px 24px", borderTop: "1px solid #F4F4F5", gridTemplateColumns: COLS_TEAM, gap: "12px" }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#FFF8F2"} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700, flexShrink: 0, backgroundColor: av.bg, color: av.fg }}>{initials}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: "#09090B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "1.3" }}>{name}</div>
+              <div style={{ fontSize: "12px", color: "#A1A1AA", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "2px" }}>{(m.users as any)?.designation}</div>
+            </div>
+          </div>
+          <div style={{ display: "inline-flex" }}>
+            <span style={{ padding: "2px 10px", borderRadius: "9999px", fontSize: "12px", fontWeight: 600, color: "#EA580C", backgroundColor: "#FFF7ED" }}>{activeCount} active</span>
+          </div>
+          <div style={{ fontSize: "13px", color: "#71717A" }}>{m._hoursSpent}h</div>
+          <div style={{ fontSize: "13px", color: "#71717A" }}>{isAdmin ? format(new Date(m.assigned_at), "MMM d, yyyy") : "\u2014"}</div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            {isAdmin && (
+              <button onClick={() => { setConfirmMemberDelId(m.id); setConfirmMemberDelUserId((m.users as any)?.id); }}
+                style={{ width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px", backgroundColor: "#FEE2E2", color: "#DC2626", border: "none", cursor: "pointer" }} title="Remove">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const ClientMemberRow = ({ m }: { m: any }) => {
+      const name = (m.users as any)?.full_name || "?";
+      const initials = name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+      const av = getAvatar(name);
+      return (
+        <div style={{ display: "grid", alignItems: "center", padding: "14px 24px", borderTop: "1px solid #F4F4F5", gridTemplateColumns: COLS_CLIENT, gap: "12px" }}
+          onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#FFF8F2"} onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "transparent"}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", minWidth: 0 }}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: 700, flexShrink: 0, backgroundColor: av.bg, color: av.fg }}>{initials}</div>
+            <div style={{ minWidth: 0 }}>
+              <div style={{ fontSize: "14px", fontWeight: 700, color: "#09090B", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", lineHeight: "1.3" }}>{name}</div>
+              <div style={{ fontSize: "12px", color: "#A1A1AA", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", marginTop: "2px" }}>{(m.users as any)?.designation}</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            {isAdmin && (
+              <button onClick={() => { setConfirmMemberDelId(m.id); setConfirmMemberDelUserId((m.users as any)?.id); }}
+                style={{ width: "32px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "8px", backgroundColor: "#FEE2E2", color: "#DC2626", border: "none", cursor: "pointer" }} title="Remove">
+                <Trash2 className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const TableHeader = ({ cols, style }: { cols: string; style?: React.CSSProperties }) => (
+      <div style={{ display: "grid", alignItems: "center", padding: "12px 24px", fontSize: "11px", fontWeight: 600, color: "#A1A1AA", letterSpacing: "0.05em", textTransform: "uppercase" as const, gridTemplateColumns: cols, gap: "12px", ...style }}>
+      </div>
+    );
+
+    const sortedTeam = [...resourceMembers].sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    const sortedClients = [...clientMembers].sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+
+    return (
+      <div>
+        <div style={{ display: "flex", borderBottom: "1px solid #E4E4E7" }}>
+          <SubTab val="team" icon={<Users className="h-4 w-4" style={{ verticalAlign: "text-bottom" }} />} label="Team" count={resourceMembers.length} />
+          <SubTab val="clients" icon={<FileText className="h-4 w-4" style={{ verticalAlign: "text-bottom" }} />} label="Client Members" count={clientMembers.length} />
+        </div>
+
+        {peopleSubTab === "team" && (
+          <div style={{ marginTop: "16px", border: "1px solid #E4E4E7", borderRadius: "12px", background: "#fff", overflow: "hidden" }}>
+            <ActionBar label={`${resourceMembers.length} team members`} btnLabel="Add Team Member" onClick={() => { setAddMemberMode("team"); setAddMemberOpen(true); }} />
+            {resourceMembers.length === 0 ? (
+              <div style={{ padding: "64px 0", textAlign: "center", color: "#A1A1AA", fontSize: "13px" }}>No team members assigned</div>
+            ) : (
+              <div>
+                <div style={{ display: "grid", alignItems: "center", padding: "12px 24px", fontSize: "11px", fontWeight: 600, color: "#A1A1AA", letterSpacing: "0.05em", textTransform: "uppercase" as const, gridTemplateColumns: COLS_TEAM, gap: "12px" }}>
+                  <span>TEAM MEMBER</span><span>ACTIVE PROJECTS</span><span>HOURS SPENT</span><span>ASSIGNED</span><span style={{ textAlign: "right" }}>ACTIONS</span>
+                </div>
+                {sortedTeam.map((m) => <TeamMemberRow key={m.id} m={m} />)}
+              </div>
+            )}
+          </div>
+        )}
+
+        {peopleSubTab === "clients" && (
+          <div style={{ marginTop: "16px", border: "1px solid #E4E4E7", borderRadius: "12px", background: "#fff", overflow: "hidden" }}>
+            <ActionBar label={`${clientMembers.length} client members`} btnLabel="Add Client Member" onClick={() => { setAddMemberMode("client"); setAddMemberOpen(true); }} />
+            {clientMembers.length === 0 ? (
+              <div style={{ padding: "64px 0", textAlign: "center", color: "#A1A1AA", fontSize: "13px" }}>No client members assigned</div>
+            ) : (
+              <div>
+                <div style={{ display: "grid", alignItems: "center", padding: "12px 24px", fontSize: "11px", fontWeight: 600, color: "#A1A1AA", letterSpacing: "0.05em", textTransform: "uppercase" as const, gridTemplateColumns: COLS_CLIENT, gap: "12px" }}>
+                  <span>CLIENT MEMBER</span><span style={{ textAlign: "right" }}>ACTIONS</span>
+                </div>
+                {sortedClients.map((m) => <ClientMemberRow key={m.id} m={m} />)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -1575,17 +1745,40 @@ const { data: resolvedId } = useQuery({
       </div>
 
       <Tabs value={activeTab} onValueChange={(tab) => setSearchParams({ tab })}>
-        {!isClient && (
-        <TabsList>
-          <TabsTrigger value="overview"><LayoutGrid className="h-4 w-4 mr-1.5" />Overview</TabsTrigger>
-          <TabsTrigger value="work"><ClipboardList className="h-4 w-4 mr-1.5" />Work</TabsTrigger>
-          <TabsTrigger value="planning"><CalendarIcon className="h-4 w-4 mr-1.5" />Planning</TabsTrigger>
-          <TabsTrigger value="people"><Users className="h-4 w-4 mr-1.5" />People</TabsTrigger>
-          {isAdmin && <TabsTrigger value="activity"><ActivityIcon className="h-4 w-4 mr-1.5" />Activity</TabsTrigger>}
-          <TabsTrigger value="stats"><BarChart3 className="h-4 w-4 mr-1.5" />Insights</TabsTrigger>
-          {isAdmin && <TabsTrigger value="automation"><Zap className="h-4 w-4 mr-1.5" />Automation</TabsTrigger>}
-        </TabsList>
-        )}
+        {!isClient && (() => {
+          const topTabs = [
+            { val: "overview", icon: <LayoutGrid className="h-4 w-4" />, label: "Overview" },
+            { val: "work", icon: <ClipboardList className="h-4 w-4" />, label: "Work" },
+            { val: "planning", icon: <CalendarIcon className="h-4 w-4" />, label: "Planning" },
+          ];
+          const afterTabs = [
+            ...(isAdmin ? [{ val: "activity", icon: <ActivityIcon className="h-4 w-4" />, label: "Activity" }] : []),
+            { val: "stats", icon: <BarChart3 className="h-4 w-4" />, label: "Insights" },
+            ...(isAdmin ? [{ val: "automation", icon: <Zap className="h-4 w-4" />, label: "Automation" }] : []),
+          ];
+          const allTabs = [...topTabs, { val: "people", icon: <Users className="h-4 w-4" />, label: "People" }, ...afterTabs];
+          return (
+            <div style={{ display: "inline-flex", alignItems: "center", gap: "2px", padding: "4px", background: "transparent", borderRadius: "12px" }}>
+              {allTabs.map((t) => {
+                const isActive = activeTab === t.val;
+                const isPeople = t.val === "people";
+                return (
+                  <button key={t.val} onClick={() => setSearchParams({ tab: t.val })}
+                    style={{
+                      display: "inline-flex", alignItems: "center", gap: "6px", padding: isPeople ? "8px 16px" : "8px 12px",
+                      borderRadius: isPeople ? "9999px" : "8px", border: "none", cursor: "pointer",
+                      fontSize: "13px", fontWeight: 500, fontFamily: "inherit", transition: "all 0.15s",
+                      backgroundColor: isActive ? (isPeople ? "#09090B" : "#F4F4F5") : "transparent",
+                      color: isActive ? (isPeople ? "white" : "#09090B") : "#71717A",
+                    }}
+                    onMouseEnter={(e) => { if (!isActive) e.currentTarget.style.backgroundColor = "#F4F4F5"; e.currentTarget.style.color = "#09090B"; }}
+                    onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#71717A"; } else { e.currentTarget.style.backgroundColor = isPeople ? "#09090B" : "#F4F4F5"; e.currentTarget.style.color = isPeople ? "white" : "#09090B"; } }}
+                  >{t.icon}{t.label}</button>
+                );
+              })}
+            </div>
+          );
+        })()}
         <TabsContent value="overview">
           {(() => {
             /* ── computed values for the overview dashboard ── */
@@ -3447,100 +3640,10 @@ const { data: resolvedId } = useQuery({
           </Tabs>
         </TabsContent>
 
-        {/* ═══ PEOPLE TAB — Resources · Clients ═══ */}
+        {/* ═══ PEOPLE TAB — Team · Client Members ═══ */}
         <TabsContent value="people">
-          <Tabs value={peopleSubTab} onValueChange={setPeopleSubTab} className="mt-0">
-            <TabsList className="mb-4">
-              <TabsTrigger value="resources">Resources</TabsTrigger>
-              <TabsTrigger value="clients">Clients</TabsTrigger>
-            </TabsList>
+          <PeopleTabInner />
 
-            {/* ── Resources Sub-tab ── */}
-            <TabsContent value="resources">
-          <Card>
-            <div className="p-4 flex justify-between items-center border-b">
-              <span className="font-medium">{resourceMembers.length} resource{resourceMembers.length !== 1 ? "s" : ""}</span>
-              {isAdmin && (
-                <Button size="sm" onClick={() => { setAddMemberMode("resource"); setAddMemberOpen(true); }} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Resource</Button>
-              )}
-            </div>
-            {resourceMembers.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground text-sm">No resources assigned</div>
-            ) : (
-              <div>
-                <TableHeader gridCols="1fr 112px 112px 80px">
-                  <span>RESOURCE</span>
-                  <span>HOURS SPENT</span>
-                  <span>ASSIGNED</span>
-                  <span className="text-right">ACTIONS</span>
-                </TableHeader>
-                {resourceMembers.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
-                  <DataRow key={m.id} gridCols="1fr 112px 112px 80px">
-                    <div className="flex items-center gap-2">
-                      <Avatar className="h-7 w-7 shrink-0">
-                        <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
-                        <AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <RowPrimary>{(m.users as any)?.full_name}</RowPrimary>
-                        <RowSecondary>{(m.users as any)?.designation}</RowSecondary>
-                      </div>
-                    </div>
-                    <RowDataItem label="HOURS SPENT">{m._hoursSpent}h</RowDataItem>
-                    <RowDataItem label="ASSIGNED">{isAdmin ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}</RowDataItem>
-                    <RowActions className="justify-self-end">
-                      {isAdmin && (
-                        <button onClick={() => { setConfirmMemberDelId(m.id); setConfirmMemberDelUserId((m.users as any)?.id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Remove">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      )}
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
-            )}
-          </Card>
-            </TabsContent>
-
-            {/* ── Clients Sub-tab ── */}
-            <TabsContent value="clients">
-          <Card>
-            <div className="p-4 flex justify-between items-center border-b">
-              <span className="font-medium">{clientMembers.length} Client Member{clientMembers.length !== 1 ? "s" : ""}</span>
-              {isAdmin && (
-                <Button size="sm" onClick={() => { setAddMemberMode("client"); setAddMemberOpen(true); }} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Client Member</Button>
-              )}
-            </div>
-            <Table>
-              <ShadcnTableHeader><TableRow>
-                <TableHead>Name</TableHead>
-                {isAdmin && <TableHead className="text-right">Actions</TableHead>}
-              </TableRow></ShadcnTableHeader>
-              <TableBody>
-                {clientMembers.sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || "")).map((m) => (
-                  <TableRow key={m.id}>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
-                        <Avatar className="h-7 w-7">
-                          <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
-                          <AvatarFallback className="text-xs">{((m.users as any)?.full_name || "?")[0]}</AvatarFallback>
-                        </Avatar>
-                        {(m.users as any)?.full_name}
-                      </div>
-                    </TableCell>
-                    {isAdmin && (
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => { setConfirmMemberDelId(m.id); setConfirmMemberDelUserId((m.users as any)?.id); }}><Trash2 className="h-4 w-4 text-destructive" /></Button>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))}
-                {clientMembers.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 2 : 1} className="text-center text-muted-foreground py-8">No client members assigned</TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </Card>
-            </TabsContent>
-          </Tabs>
         </TabsContent>
 
         {/* ═══ ACTIVITY TAB — Logs ═══ */}
@@ -4622,14 +4725,14 @@ const { data: resolvedId } = useQuery({
         <SheetContent className="flex flex-col h-full">
           <SheetHeader>
             <SheetTitle>
-              {addMemberMode === "client" ? "Add Client Member" : "Add Resource"}
+              {addMemberMode === "client" ? "Add Client Member" : "Add Team Member"}
             </SheetTitle>
           </SheetHeader>
           <div className="space-y-3 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
             <div className="relative mb-2">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder={addMemberMode === "client" ? "Search client users..." : "Search resources..."}
+                placeholder={addMemberMode === "client" ? "Search client users..." : "Search team members..."}
                 value={memberSearch}
                 onChange={(e) => setMemberSearch(e.target.value)}
                 className="pl-9"
@@ -4692,7 +4795,7 @@ const { data: resolvedId } = useQuery({
           </div>
           <SheetFooter className="mt-4 pt-4 border-t shrink-0">
             <Button onClick={addMembers} disabled={selectedUsers.length === 0} className="rounded-button w-full">
-              Add {selectedUsers.length} {addMemberMode === "client" ? "Client Member" : "Resource"}{selectedUsers.length !== 1 ? "s" : ""}
+              Add {selectedUsers.length} {addMemberMode === "client" ? "Client Member" : "Team Member"}{selectedUsers.length !== 1 ? "s" : ""}
             </Button>
           </SheetFooter>
         </SheetContent>

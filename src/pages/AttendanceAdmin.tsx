@@ -117,7 +117,7 @@ export default function AttendanceAdminPage() {
     }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
   }, [records, activeUsers, statusFilter, workModeFilter, searchQuery, selectedDate]);
 
-  const lateCount = useMemo(() => filtered.filter((r: any) => r.clock_in && r.is_late).length, [filtered]);
+  const lateCount = useMemo(() => records.filter((r: any) => r.clock_in && r.is_late).length, [records]);
 
   const formatDuration = (clockIn: string, clockOut: string | null) => {
     const end = clockOut ? new Date(clockOut) : new Date();
@@ -416,13 +416,13 @@ export default function AttendanceAdminPage() {
                         <Badge className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border-transparent bg-[#F4F4F5] text-[#71717A]">
                           Absent
                         </Badge>
-                      ) : !r.clock_out ? (
-                        <Badge className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border-transparent bg-[#DCFCE7] text-[#166534]">
-                          Active
-                        </Badge>
                       ) : r.is_late ? (
                         <Badge className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border-transparent bg-yellow-100 text-yellow-800">
                           Late
+                        </Badge>
+                      ) : !r.clock_out ? (
+                        <Badge className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border-transparent bg-[#DCFCE7] text-[#166534]">
+                          Active
                         </Badge>
                       ) : (
                         <Badge className="text-[11px] font-bold px-2.5 py-0.5 rounded-md border-transparent bg-[#DCFCE7] text-[#166534]">

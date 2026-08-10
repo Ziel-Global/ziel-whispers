@@ -154,14 +154,39 @@ export default function WorkflowTemplatesPage() {
 
   async function saveTemplate() {
     if (!templateName.trim()) { toast.error("Name is required"); return; }
-    const { error } = editTemplateId
-      ? await supabase.from("workflow_templates").update({ name: templateName.trim(), description: templateDesc.trim() || null }).eq("id", editTemplateId)
-      : await supabase.from("workflow_templates").insert({ name: templateName.trim(), description: templateDesc.trim() || null, created_by: profile?.id });
-    if (error) {
-      toast.error(`Could not save template: ${error.message}`);
-      return;
+    if (editTemplateId) {
+      const { error } = await supabase
+        .from("workflow_templates")
+        .update({ name: templateName.trim(), description: templateDesc.trim() || null })
+        .eq("id", editTemplateId);
+      if (error) {
+        toast.error(`Could not save template: ${error.message}`);
+        return;
+      }
+    } else {
+      const { data: newT, error } = await supabase
+        .from("workflow_templates")
+        .insert({ name: templateName.trim(), description: templateDesc.trim() || null, created_by: profile?.id })
+        .select("id")
+        .single();
+      if (error) {
+        toast.error(`Could not create template: ${error.message}`);
+        return;
+      }
+      if (newT?.id) {
+        // Auto-seed Backlog status as initial status
+        await supabase.from("workflow_statuses").insert({
+          workflow_template_id: newT.id,
+          name: "Backlog",
+          category: "todo",
+          color: "bg-gray-100 text-gray-800",
+          sort_order: 0,
+          is_initial: true,
+        });
+      }
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
+    queryClient.invalidateQueries({ queryKey: ["workflow-statuses"] });
     setTemplateDialogOpen(false);
     toast.success(editTemplateId ? "Template updated" : "Template created");
   }

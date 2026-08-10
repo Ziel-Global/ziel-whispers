@@ -188,6 +188,14 @@ export default function LogSubmitPage() {
       return total < 24;
     }, "This day already has the maximum hours logged"),
     task_id: z.string().nullable().optional(),
+  }).refine((data) => {
+    if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
+      return !!data.task_id;
+    }
+    return true;
+  }, {
+    message: "Please select a task (or 'Other')",
+    path: ["task_id"],
   });
 
   const { data: projects = [] } = useQuery({
@@ -373,6 +381,8 @@ export default function LogSubmitPage() {
       : "";
 
     try {
+      const finalTaskId = data.task_id === "other" ? null : (data.task_id || null);
+
       if (editId) {
         // Update existing draft in database
         const { error } = await supabase.from("daily_logs").update({
@@ -381,7 +391,7 @@ export default function LogSubmitPage() {
           hours: data.hours,
           description: data.description,
           log_date: data.log_date,
-          task_id: data.task_id || null,
+          task_id: finalTaskId,
           declared_outcome_status_id: declaredTarget || null,
         }).eq("id", editId).eq("status", "draft");
         if (error) throw error;
@@ -399,7 +409,7 @@ export default function LogSubmitPage() {
           status: "draft",
           is_late: false,
           is_overtime: false,
-          task_id: data.task_id || null,
+          task_id: finalTaskId,
           declared_outcome_status_id: declaredTarget || null,
         });
         if (error) throw error;
@@ -424,7 +434,7 @@ export default function LogSubmitPage() {
       hours: log.hours,
       description: log.description,
       log_date: log.log_date,
-      task_id: log.task_id || null,
+      task_id: log.task_id || (log.project_id && log.project_id !== MISC_PROJECT_ID ? "other" : null),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -769,60 +779,65 @@ export default function LogSubmitPage() {
 
             {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && (
               <div className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task (Optional)</span>
-                {tasksWithRemaining.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No tasks assigned for this project</p>
-                ) : (
-                  <div className="space-y-1">
-                    {tasksWithRemaining.map((t: any) => (
-                      <div
-                        key={t.id}
-                        className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
-                          form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                        }`}
-                        onClick={() => form.setValue("task_id", form.watch("task_id") === t.id ? null : t.id, { shouldDirty: true })}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                            form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
-                          }`}>
-                            {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-                          </div>
-                          <span className="text-sm font-medium truncate">{t.title}</span>
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task (Required) *</span>
+                <div className="space-y-1">
+                  {tasksWithRemaining.map((t: any) => (
+                    <div
+                      key={t.id}
+                      className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
+                        form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                      }`}
+                      onClick={() => form.setValue("task_id", form.watch("task_id") === t.id ? null : t.id, { shouldDirty: true, shouldValidate: true })}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                          form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
+                        }`}>
+                          {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 ml-2">
-                          {t.remaining_hours !== null && <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>}
-                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                        </div>
+                        <span className="text-sm font-medium truncate">{t.title}</span>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {t.remaining_hours !== null && <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>}
+                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                  <div
+                    key="other-task-option"
+                    className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
+                      form.watch("task_id") === "other" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                    }`}
+                    onClick={() => form.setValue("task_id", form.watch("task_id") === "other" ? null : "other", { shouldDirty: true, shouldValidate: true })}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                        form.watch("task_id") === "other" ? "border-primary" : "border-muted-foreground"
+                      }`}>
+                        {form.watch("task_id") === "other" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
+                      <span className="text-sm font-medium truncate">Other</span>
+                    </div>
                   </div>
+                </div>
+                {form.formState.errors.task_id && (
+                  <p className="text-xs font-medium text-destructive mt-1">{form.formState.errors.task_id.message as string}</p>
                 )}
               </div>
             )}
 
-            {selectedTask && selectedTask.status_id && workflowStatuses && allowedTransitions.length > 0 && (
+            {selectedTask && selectedTask.id !== "other" && selectedTask.status_id && workflowStatuses && allowedTransitions.length > 0 && (
               <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
                 <div className="flex items-start gap-3">
                   <input type="checkbox" id="declare-outcome" checked={declareOutcome}
                     onChange={(e) => { setDeclareOutcome(e.target.checked); if (!e.target.checked) setSelectedOutcomeStatusId(""); }}
                     className="mt-0.5 h-4 w-4 rounded border-gray-300" />
                   <label htmlFor="declare-outcome" className="text-sm cursor-pointer select-none">
-                    <span className="font-medium">I finished this stage</span>
+                    <span className="font-medium">Change Task Status</span>
                     <span className="block text-xs text-muted-foreground">
                       Tick this to move the task to its next stage when you submit this log.
                     </span>
                   </label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <span className="inline-flex items-center justify-center h-4 w-4 rounded-full bg-muted text-muted-foreground text-[10px] ml-1 cursor-help mt-1 shrink-0">?</span>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-xs text-xs">
-                        Only tick this when the current stage's work is actually done. Skipping it is fine — your log is still saved, and you can move the task next time.
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
                 </div>
                 {declareOutcome && (
                   <div className="ml-7 space-y-2">
@@ -863,35 +878,39 @@ export default function LogSubmitPage() {
               </div>
             )}
 
-            <FormField control={form.control} name="description" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</FormLabel>
-                <FormControl><Textarea {...field} rows={3} className="bg-background resize-none" placeholder="Explain your progress..." disabled={isLocked} /></FormControl>
-                <div className="flex justify-between items-center px-1">
-                  <FormMessage />
-                  <span className={`text-[10px] font-mono ${descValue?.length < 20 ? "text-destructive" : "text-muted-foreground"}`}>{descValue?.length || 0} / 20 chars min</span>
-                </div>
-              </FormItem>
-            )} />
+            {(selectedProjectId === MISC_PROJECT_ID || Boolean(form.watch("task_id"))) && (
+              <>
+                <FormField control={form.control} name="description" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</FormLabel>
+                    <FormControl><Textarea {...field} rows={3} className="bg-background resize-none" placeholder="Explain your progress..." disabled={isLocked} /></FormControl>
+                    <div className="flex justify-between items-center px-1">
+                      <FormMessage />
+                      <span className={`text-[10px] font-mono ${descValue?.length < 20 ? "text-destructive" : "text-muted-foreground"}`}>{descValue?.length || 0} / 20 chars min</span>
+                    </div>
+                  </FormItem>
+                )} />
 
-            {isLocked ? (
-              <div className="bg-muted p-6 rounded-xl border-2 border-dashed flex flex-col items-center text-center space-y-3">
-                <div className="p-3 bg-primary/10 rounded-full"><Lock className="h-6 w-6 text-primary" /></div>
-                <div>
-                  <p className="font-bold">Daily Limit Reached</p>
-                  <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => navigate("/logs/my")} className="rounded-button">Go to My Logs</Button>
-              </div>
-            ) : (
-              <div className="flex justify-end gap-3 pt-2">
-                {editId && (
-                  <Button type="button" variant="ghost" onClick={cancelEdit} className="rounded-button">Cancel Edit</Button>
+                {isLocked ? (
+                  <div className="bg-muted p-6 rounded-xl border-2 border-dashed flex flex-col items-center text-center space-y-3">
+                    <div className="p-3 bg-primary/10 rounded-full"><Lock className="h-6 w-6 text-primary" /></div>
+                    <div>
+                      <p className="font-bold">Daily Limit Reached</p>
+                      <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => navigate("/logs/my")} className="rounded-button">Go to My Logs</Button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end gap-3 pt-2">
+                    {editId && (
+                      <Button type="button" variant="ghost" onClick={cancelEdit} className="rounded-button">Cancel Edit</Button>
+                    )}
+                    <Button type="submit" className="rounded-button px-8" disabled={!overtimeEnabled && totalHoursForSelectedDate >= 24 && !editId}>
+                      {editId ? "Update Log Entry" : "Add Log Entry"}
+                    </Button>
+                  </div>
                 )}
-                <Button type="submit" className="rounded-button px-8" disabled={!overtimeEnabled && totalHoursForSelectedDate >= 24 && !editId}>
-                  {editId ? "Update Log Entry" : "Add Log Entry"}
-                </Button>
-              </div>
+              </>
             )}
           </form>
         </Form>

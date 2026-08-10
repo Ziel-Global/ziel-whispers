@@ -1007,13 +1007,26 @@ const { data: resolvedId } = useQuery({
       return;
     }
 
+    const processedActions = ruleActions.map((act) => {
+      if (act.type === "reassign_to_stage_owner") {
+        return {
+          ...act,
+          params: {
+            ...act.params,
+            lookup_by: act.params.lookup_by || "from",
+          },
+        };
+      }
+      return act;
+    });
+
     const payload = {
       name: ruleName.trim(),
       description: ruleDescription.trim(),
       status: ruleStatus,
       trigger_type: ruleTriggerType,
       conditions: ruleConditions,
-      actions: ruleActions,
+      actions: processedActions,
       priority: rulePriority,
       allow_triggering_other_rules: ruleAllowTriggering,
     };
@@ -1141,6 +1154,15 @@ const { data: resolvedId } = useQuery({
       end_date: sprintEndDate,
     });
     if (error) { toast.error(error.message); return; }
+    if (sprintTaskIds.length > 0 && newSprint) {
+      const assignTasks = (tasks || []).filter((t: any) => sprintTaskIds.includes(t.id));
+      if (assignTasks.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: newSprint.id,
+        }).in("id", assignTasks.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
+    }
     toast.success("Sprint created");
     setAddSprintOpen(false);
     setSprintName("");
@@ -1172,11 +1194,26 @@ const { data: resolvedId } = useQuery({
     if (editSprintStatus) {
       const oldStatus = sprints.find((s: any) => s.id === editSprintId)?.status;
       updates.status = editSprintStatus;
-      const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
+    }
+    const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
+    if (error) { toast.error(error.message); return; }
+    const previouslyAssigned = (tasks || []).filter((t: any) => t.sprint_id === editSprintId);
+    const toUnassign = previouslyAssigned.filter((t: any) => !editSprintTaskIds.includes(t.id));
+    const toUnassignIds = toUnassign.map((t: any) => t.id);
+    if (toUnassignIds.length > 0) {
+      const { error } = await supabase.from("tasks").update({
+        sprint_id: null,
+      }).in("id", toUnassignIds);
       if (error) { toast.error(error.message); return; }
-    } else {
-      const { error } = await supabase.from("sprints").update(updates).eq("id", editSprintId);
-      if (error) { toast.error(error.message); return; }
+    }
+    if (editSprintTaskIds.length > 0) {
+      const assignTasks = (tasks || []).filter((t: any) => editSprintTaskIds.includes(t.id));
+      if (assignTasks.length > 0) {
+        const { error } = await supabase.from("tasks").update({
+          sprint_id: editSprintId,
+        }).in("id", assignTasks.map((t: any) => t.id));
+        if (error) { toast.error(error.message); return; }
+      }
     }
     toast.success("Sprint updated");
     setEditSprintOpen(false);
@@ -1186,6 +1223,13 @@ const { data: resolvedId } = useQuery({
 
   const deleteSprint = async (sprintId: string) => {
     if (!confirm("Delete this sprint? Tasks will be unassigned from it.")) return;
+    const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === sprintId);
+    if (sprintTasks.length > 0) {
+      const { error: unassignErr } = await supabase.from("tasks").update({
+        sprint_id: null,
+      }).in("id", sprintTasks.map((t: any) => t.id));
+      if (unassignErr) { toast.error(unassignErr.message); return; }
+    }
     const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
     if (error) { toast.error(error.message); return; }
     toast.success("Sprint deleted");
@@ -4144,6 +4188,8 @@ const { data: resolvedId } = useQuery({
                           <SelectItem value="assign_role">Assign to Role</SelectItem>
                           <SelectItem value="add_comment">Add Comment to Task</SelectItem>
                           <SelectItem value="resolve_blocker">Resolve the Blocker</SelectItem>
+                          <SelectItem value="reassign_to_stage_owner">Reassign to Stage Owner</SelectItem>
+                          <SelectItem value="notify_user">Notify User / Group</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -4186,6 +4232,68 @@ const { data: resolvedId } = useQuery({
                   )}
                   {act.type === "resolve_blocker" && (
                     <p className="text-xs text-muted-foreground">This action resolves the blocker that triggered the rule. No additional parameters needed.</p>
+                  )}
+                  {act.type === "reassign_to_stage_owner" && (
+                    <div className="space-y-2">
+                      <Select value={act.params.status_id || ""} onValueChange={(v) => setActionParam(idx, "status_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select target status" /></SelectTrigger>
+                        <SelectContent>
+                          {(workflowStatuses || []).map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select value={act.params.lookup_by || "from"} onValueChange={(v) => setActionParam(idx, "lookup_by", v)}>
+                        <SelectTrigger><SelectValue placeholder="Lookup direction" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="from">Who sent task away from stage (e.g. Original Developer)</SelectItem>
+                          <SelectItem value="to">Who last arrived at stage</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={act.params.fallback_role_id || ""} onValueChange={(v) => setActionParam(idx, "fallback_role_id", v)}>
+                        <SelectTrigger><SelectValue placeholder="Fallback role (optional)" /></SelectTrigger>
+                        <SelectContent>
+                          {(projectRoles || []).map((r: any) => (
+                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">Looks up the previous assignee who held this task at the target status (e.g. the original developer). If none found, falls back to a balanced assignment from the selected role.</p>
+                    </div>
+                  )}
+                  {act.type === "notify_user" && (
+                    <div className="space-y-2">
+                      <Select value={act.params.recipient || "task_assignee"} onValueChange={(v) => setActionParam(idx, "recipient", v)}>
+                        <SelectTrigger><SelectValue placeholder="Select recipient" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="task_assignee">Task Assignee</SelectItem>
+                          <SelectItem value="specific_user">Specific User</SelectItem>
+                          <SelectItem value="admins_managers">Admins & Managers</SelectItem>
+                          <SelectItem value="project_members">All Project Members</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      {act.params.recipient === "specific_user" && (
+                        <Select value={act.params.user_id || ""} onValueChange={(v) => setActionParam(idx, "user_id", v)}>
+                          <SelectTrigger><SelectValue placeholder="Select user to notify" /></SelectTrigger>
+                          <SelectContent>
+                            {(members || []).map((m: any) => (
+                              <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <Input
+                        value={act.params.title || ""}
+                        onChange={(e) => setActionParam(idx, "title", e.target.value)}
+                        placeholder="Notification Title (e.g., Task Moved to QA)"
+                      />
+                      <Textarea
+                        value={act.params.message_template || ""}
+                        onChange={(e) => setActionParam(idx, "message_template", e.target.value)}
+                        placeholder="Message Template (Supports {task_title}, {project_name}, {assignee_name})"
+                        rows={2}
+                      />
+                    </div>
                   )}
                 </Card>
               ))}

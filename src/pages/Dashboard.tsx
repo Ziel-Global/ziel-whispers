@@ -265,9 +265,10 @@ export default function DashboardPage() {
   const { data: teamStatus } = useQuery({
     queryKey: ["dashboard-team-today"],
     queryFn: async () => {
-      const [{ data: users }, { data: attendance }] = await Promise.all([
-        supabase.from("users").select("id, full_name, designation, avatar_url, role").neq("role", "admin").eq("status", "active"),
-        supabase.from("attendance").select("user_id, work_mode, clock_in, clock_out").eq("date", today)
+      const [{ data: users }, { data: attendance }, { data: todayLeaves }] = await Promise.all([
+        supabase.from("users").select("id, full_name, designation, avatar_url, role, is_on_leave, is_on_leave_from, is_on_leave_to").eq("role", "employee").eq("status", "active"),
+        supabase.from("attendance").select("user_id, work_mode, clock_in, clock_out").eq("date", today),
+        supabase.from("leave_requests").select("user_id, leave_types(name)").lte("start_date", today).gte("end_date", today).eq("status", "approved")
       ]);
       
       const attendanceMap = (attendance || []).reduce((acc: any, curr) => {
@@ -288,16 +289,36 @@ export default function DashboardPage() {
         return acc;
       }, {});
 
+      const leaveMap = (todayLeaves || []).reduce((acc: any, curr: any) => {
+        acc[curr.user_id] = (curr.leave_types as any)?.name || "Leave";
+        return acc;
+      }, {});
+
+      (users || []).forEach((u: any) => {
+        if (!leaveMap[u.id] && u.is_on_leave) {
+          const fromOk = !u.is_on_leave_from || u.is_on_leave_from <= today;
+          const toOk = !u.is_on_leave_to || u.is_on_leave_to >= today;
+          if (fromOk && toOk) {
+            leaveMap[u.id] = "On Leave";
+          }
+        }
+      });
+
       const team = (users || []).map(u => ({
         ...u,
-        attendance: attendanceMap[u.id] || null
+        attendance: attendanceMap[u.id] || null,
+        onLeave: leaveMap[u.id] || null
       }));
 
       return team.sort((a, b) => {
         const aClocked = !!a.attendance?.clock_in;
         const bClocked = !!b.attendance?.clock_in;
+        const aLeave = !!a.onLeave;
+        const bLeave = !!b.onLeave;
         if (aClocked && !bClocked) return -1;
         if (!aClocked && bClocked) return 1;
+        if (aLeave && !bLeave) return -1;
+        if (!aLeave && bLeave) return 1;
         return a.full_name.localeCompare(b.full_name);
       });
     },
@@ -844,7 +865,11 @@ export default function DashboardPage() {
                         </div>
                         
                         <div className="flex items-center">
-                          {!clockedIn ? (
+                          {member.onLeave ? (
+                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-none flex items-center gap-1 text-[10px] font-medium">
+                              <Calendar className="h-3 w-3" /> On Leave ({member.onLeave})
+                            </Badge>
+                          ) : !clockedIn ? (
                             <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
                               Not Clocked In
                             </Badge>

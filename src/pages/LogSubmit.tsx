@@ -261,6 +261,42 @@ export default function LogSubmitPage() {
         : null,
     }));
   }, [availableTasks, pendingLogs]);
+  const selectedTaskId = form.watch("task_id");
+  const selectedTask = selectedTaskId ? availableTasks.find((t: any) => t.id === selectedTaskId) : null;
+  const allowedTransitions = useMemo(() => {
+    if (!selectedTask?.status_id || !workflowStatuses) return [];
+    return getAllowedTransitions(workflowStatuses, transitionsRef.current, selectedTask.status_id);
+  }, [selectedTask?.status_id, workflowStatuses]);
+  useEffect(() => {
+    if (declareOutcome && allowedTransitions.length === 1) {
+      setSelectedOutcomeStatusId(allowedTransitions[0].id);
+    }
+  }, [declareOutcome, allowedTransitions]);
+
+  const pendingOutcomeStatusId = declareOutcome
+    ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
+    : "";
+  useEffect(() => {
+    if (!pendingOutcomeStatusId || !selectedTask?.id || !workflowStatuses) {
+      setDependencyWarning("");
+      return;
+    }
+    const targetStatus = workflowStatuses.find((s: any) => s.id === pendingOutcomeStatusId);
+    if (!targetStatus || !isDependencyWarnTarget(targetStatus.category)) {
+      setDependencyWarning("");
+      return;
+    }
+    let cancelled = false;
+    getUnfinishedDependencies(selectedTask.id, workflowStatuses).then((deps) => {
+      if (cancelled) return;
+      setDependencyWarning(
+        deps.length > 0 ? `Unfinished dependencies: ${deps.map((d) => d.title).join(", ")}` : ""
+      );
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [pendingOutcomeStatusId, selectedTask?.id, workflowStatuses]);
   const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
     selectedDate === today
       ? submittedHours > 0

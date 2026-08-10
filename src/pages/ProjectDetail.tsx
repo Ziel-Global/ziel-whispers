@@ -3370,7 +3370,7 @@ const { data: resolvedId } = useQuery({
           </div>
 
           <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "500px" }}>
-            {(workflowStatuses || []).map((status: any) => {
+            {(workflowStatuses || []).filter((s: any) => s.name.toLowerCase() !== "backlog").map((status: any) => {
               const tasksInColumn = (tasks || []).filter((t: any) => {
                 const statusMatch = t.status === status.name;
                 const sprintMatch = kanbanSprintFilter === "all"

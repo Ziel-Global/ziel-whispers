@@ -2103,149 +2103,54 @@ const { data: resolvedId } = useQuery({
               })()}
             </TabsContent>
             <TabsContent value="tasks" className="space-y-4">
-              {(() => {
-                const scopeTasks = burndownScope === "project"
-                  ? (tasks || []).filter((t: any) => t.client_visible === true)
-                  : (tasks || []).filter((t: any) => {
-                      const taskSprint = (sprints || []).find((s: any) => s.id === t.sprint_id);
-                      return t.client_visible === true && taskSprint?.phase_id === burndownScope;
-                    })
-
-                const doneStatusIds = new Set(
-                  (workflowStatuses || []).filter((s: any) => s.category === "done").map((s: any) => s.id)
-                );
-                const completed = scopeTasks.filter((t: any) => doneStatusIds.has(t.status_id));
-                const total = scopeTasks.length;
-                const doneCount = completed.length;
-                const remainingTasks = total - doneCount;
-                const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-
-                const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
-                const endDate = scopePhase?.due_date || project?.end_date;
-                const startDate = project?.start_date;
-
-                if (total === 0) {
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Client Tasks</h3>
+                {(() => {
+                  const clientTasks = (tasks || []).filter((t: any) => t.client_visible === true);
+                  if (clientTasks.length === 0) {
+                    return (
+                      <Card className="p-6 text-center">
+                        <p className="text-sm text-muted-foreground">No client-visible tasks are available for this project.</p>
+                      </Card>
+                    );
+                  }
                   return (
-                    <Card className="p-6 text-center">
-                      <p className="text-muted-foreground">No client-visible tasks are available for this project.</p>
-                    </Card>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                          <th className="px-4 py-2 text-left">TASK</th>
+                          <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                          <th className="px-4 py-2 text-left">PRIORITY</th>
+                          <th className="px-4 py-2 text-left">STATUS</th>
+                          <th className="px-4 py-2 text-left">DUE DATE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {clientTasks.map((t: any) => (
+                          <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                            <td className="px-4 py-3 break-words">
+                              <div className="font-semibold text-[15px] text-[#111827] break-words">{t.title}</div>
+                              <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   );
-                }
-
-                if (!endDate || !startDate) {
-                  return (
-                    <Card className="p-6 text-center">
-                      <p className="text-muted-foreground">Project needs start and end dates for burndown.</p>
-                    </Card>
-                  );
-                }
-
-                const daysTotal = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000));
-                const daysElapsed = Math.max(0, Math.round((Date.now() - new Date(startDate).getTime()) / 86400000));
-                const idealPerDay = total / daysTotal;
-                const idealRemaining = Math.max(0, total - idealPerDay * Math.min(daysElapsed, daysTotal));
-
-                const burndownData = [
-                  { name: "Start", ideal: total, actual: total },
-                  { name: "Now", ideal: idealRemaining, actual: remainingTasks },
-                  { name: "Due", ideal: 0, actual: null },
-                ];
-
-                return (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Total Tasks</span>
-                        <span className="text-2xl font-bold">{total}</span>
-                      </Card>
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Completed</span>
-                        <span className="text-2xl font-bold text-green-600">{doneCount}</span>
-                      </Card>
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Remaining</span>
-                        <span className="text-2xl font-bold">{remainingTasks}</span>
-                      </Card>
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Progress</span>
-                        <span className="text-2xl font-bold">{pct}%</span>
-                      </Card>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold">Task Burndown</h3>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-muted-foreground">Scope:</label>
-                        <Select value={burndownScope} onValueChange={setBurndownScope}>
-                          <SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="project">Project</SelectItem>
-                            {phases.map((p: any) => (
-                              <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={burndownData}>
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                        <Tooltip contentStyle={{ fontSize: 12 }} />
-                        <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 4 }} name="Ideal" />
-                        <Line type="monotone" dataKey="actual" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} connectNulls name="Actual" />
-                      </LineChart>
-                    </ResponsiveContainer>
-
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-semibold">Tasks</h3>
-                      {(() => {
-                        const clientTasks = (tasks || []).filter((t: any) => t.client_visible === true);
-                        if (clientTasks.length === 0) {
-                          return <p className="text-sm text-muted-foreground">No client-visible tasks are available for this project.</p>;
-                        }
-                        return (
-                          <table className="w-full">
-                            <thead>
-                              <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
-                                <th className="px-4 py-2 text-left">TASK</th>
-                                <th className="px-4 py-2 text-left">ASSIGNED TO</th>
-                                <th className="px-4 py-2 text-left">PRIORITY</th>
-                                <th className="px-4 py-2 text-left">STATUS</th>
-                                <th className="px-4 py-2 text-left">DUE DATE</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {clientTasks.map((t: any) => (
-                                <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                                  <td className="px-4 py-3 break-words">
-                                    <div className="font-semibold text-[15px] text-[#111827] break-words">{t.title}</div>
-                                    <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
-                                  </td>
-                                  <td className="px-4 py-3 break-words">
-                                    <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
-                                  </td>
-                                  <td className="px-4 py-3 break-words">
-                                    <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                                  </td>
-                                  <td className="px-4 py-3 break-words">
-                                    <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
-                                  </td>
-                                  <td className="px-4 py-3 break-words">
-                                    <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        );
-                      })()}
-                    </div>
-
-                  </>
-                );
-              })()}
+                })()}
+              </div>
             </TabsContent>
             <TabsContent value="blockers" className="space-y-4">
               <h2 className="text-lg font-semibold">Blockers</h2>

@@ -15,7 +15,9 @@ class TestReporter {
       date: new Date().toISOString().split("T")[0],
     };
     this.results.push(fullEntry);
-    console.log(`[TEST REPORT] ${fullEntry.testId} - ${fullEntry.testName}: ${fullEntry.status} ${fullEntry.notes ? `(${fullEntry.notes})` : ""}`);
+    console.log(
+      `[TEST REPORT] ${fullEntry.testId} - ${fullEntry.testName}: ${fullEntry.status} ${fullEntry.notes ? `(${fullEntry.notes})` : ""}`,
+    );
   }
 
   public getResults(): TestResultEntry[] {
@@ -29,7 +31,9 @@ class TestReporter {
     console.log("| Test # | Test Name | Date | Pass / Fail | Notes |");
     console.log("| :---: | :--- | :---: | :---: | :--- |");
     for (const r of this.results) {
-      console.log(`| **${r.testId}** | ${r.testName} | ${r.date} | ${r.status} | ${r.notes || ""} |`);
+      console.log(
+        `| **${r.testId}** | ${r.testName} | ${r.date} | ${r.status} | ${r.notes || ""} |`,
+      );
     }
     console.log("=========================================================\n");
   }

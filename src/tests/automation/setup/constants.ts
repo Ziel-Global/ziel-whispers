@@ -16,7 +16,7 @@ export function assertTargetEnvironment(url?: string) {
   const currentUrl = url || process.env.VITE_SUPABASE_URL || "";
   if (!currentUrl.includes(TARGET_PROJECT_ID)) {
     throw new Error(
-      `REFUSING TO EXECUTE TEST SUITE: Environment URL "${currentUrl}" does not match DEV project "${TARGET_PROJECT_ID}".`
+      `REFUSING TO EXECUTE TEST SUITE: Environment URL "${currentUrl}" does not match DEV project "${TARGET_PROJECT_ID}".`,
     );
   }
 }

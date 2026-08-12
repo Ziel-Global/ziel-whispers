@@ -2,7 +2,7 @@
 -- Creates sprints, sprint_snapshots tables, adds sprint_id to tasks, RLS, compute functions
 
 -- 1. sprints table
-CREATE TABLE IF NOT EXISTS public.sprints (
+CREATE TABLE public.sprints (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS public.sprints (
 CREATE INDEX IF NOT EXISTS idx_sprints_project_id ON sprints(project_id);
 
 -- 2. sprint_snapshots table
-CREATE TABLE IF NOT EXISTS public.sprint_snapshots (
+CREATE TABLE public.sprint_snapshots (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   sprint_id UUID NOT NULL REFERENCES public.sprints(id) ON DELETE CASCADE,
   snapshot_date DATE NOT NULL,
@@ -35,12 +35,10 @@ CREATE INDEX IF NOT EXISTS idx_tasks_sprint_id ON tasks(sprint_id);
 -- 4. RLS policies — sprints
 ALTER TABLE public.sprints ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Admin full access on sprints" ON public.sprints;
 CREATE POLICY "Admin full access on sprints"
   ON public.sprints FOR ALL
   USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
 
-DROP POLICY IF EXISTS "Employees view sprints on assigned projects" ON public.sprints;
 CREATE POLICY "Employees view sprints on assigned projects"
   ON public.sprints FOR SELECT
   USING (EXISTS (
@@ -51,12 +49,10 @@ CREATE POLICY "Employees view sprints on assigned projects"
 -- 5. RLS policies — sprint_snapshots
 ALTER TABLE public.sprint_snapshots ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Admin full access on sprint_snapshots" ON public.sprint_snapshots;
 CREATE POLICY "Admin full access on sprint_snapshots"
   ON public.sprint_snapshots FOR ALL
   USING (EXISTS (SELECT 1 FROM public.users WHERE id = auth.uid() AND role = 'admin'));
 
-DROP POLICY IF EXISTS "Employees view snapshots on assigned projects" ON public.sprint_snapshots;
 CREATE POLICY "Employees view snapshots on assigned projects"
   ON public.sprint_snapshots FOR SELECT
   USING (EXISTS (

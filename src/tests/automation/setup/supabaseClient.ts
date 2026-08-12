@@ -14,7 +14,7 @@ const key =
 
 if (!key) {
   throw new Error(
-    "Missing Supabase Key. Please define SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_ANON_KEY in your environment variables."
+    "Missing Supabase Key. Please define SUPABASE_SERVICE_ROLE_KEY or VITE_SUPABASE_ANON_KEY in your environment variables.",
   );
 }
 

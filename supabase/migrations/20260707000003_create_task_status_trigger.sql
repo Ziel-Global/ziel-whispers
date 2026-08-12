@@ -68,7 +68,6 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_validate_task_status_transition ON public.tasks;
 CREATE TRIGGER trg_validate_task_status_transition
   BEFORE INSERT OR UPDATE OF status_id ON public.tasks
   FOR EACH ROW

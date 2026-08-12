@@ -13,7 +13,11 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
   const location = useLocation();
   const toastShown = useRef(false);
 
-  const unauthorized = !!(allowedRoles && profile && !allowedRoles.includes(profile.role));
+  const unauthorized = !!(
+    allowedRoles &&
+    profile &&
+    !allowedRoles.includes(profile.role)
+  );
 
   useEffect(() => {
     if (unauthorized && !toastShown.current) {
@@ -34,7 +38,11 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (location.pathname === "/set-password" && profile && !profile.must_change_password) {
+  if (
+    location.pathname === "/set-password" &&
+    profile &&
+    !profile.must_change_password
+  ) {
     // If we're in the immediate password-set flow, don't redirect to dashboard to avoid a UI flash.
     // This flow sets a short-lived localStorage flag `_zl_just_set_password` which we honor here.
     try {

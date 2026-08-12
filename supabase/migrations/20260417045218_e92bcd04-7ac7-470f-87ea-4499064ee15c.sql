@@ -15,7 +15,6 @@ CREATE POLICY "Admin can update any user; employee can update own"
 ON public.users FOR UPDATE TO authenticated
 USING (public.get_my_role() = 'admin' OR id = auth.uid());
 
-DROP POLICY IF EXISTS "Admin/Manager can view all users; employee own" ON public.users;
 CREATE POLICY "Admin/Manager can view all users; employee own"
 ON public.users FOR SELECT TO authenticated
 USING (public.get_my_role() = ANY (ARRAY['admin','manager']) OR id = auth.uid());
@@ -25,7 +24,6 @@ USING (public.get_my_role() = ANY (ARRAY['admin','manager']) OR id = auth.uid())
 -- ============================================
 DROP POLICY IF EXISTS "Any authenticated user can insert audit logs" ON public.audit_logs;
 
-DROP POLICY IF EXISTS "Users can insert own audit logs" ON public.audit_logs;
 CREATE POLICY "Users can insert own audit logs"
 ON public.audit_logs FOR INSERT TO authenticated
 WITH CHECK (auth.uid() IS NOT NULL AND actor_id = auth.uid());

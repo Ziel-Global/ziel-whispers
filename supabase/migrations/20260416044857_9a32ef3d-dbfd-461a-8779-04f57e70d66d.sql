@@ -7,7 +7,6 @@ ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS minutes_late integer NOT 
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS has_custom_shift boolean NOT NULL DEFAULT false;
 
 -- 3. Allow all authenticated users to SELECT system_settings
-DROP POLICY IF EXISTS "Authenticated users can read system settings" ON public.system_settings;
 CREATE POLICY "Authenticated users can read system settings"
 ON public.system_settings
 FOR SELECT
@@ -105,7 +104,6 @@ END;
 $function$;
 
 -- Create the trigger (BEFORE INSERT so it can modify NEW)
-DROP TRIGGER IF EXISTS trg_calculate_late_clockin ON public.attendance;
 CREATE TRIGGER trg_calculate_late_clockin
 BEFORE INSERT ON public.attendance
 FOR EACH ROW

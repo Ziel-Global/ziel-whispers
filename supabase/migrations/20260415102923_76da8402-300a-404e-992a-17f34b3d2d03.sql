@@ -7,7 +7,7 @@ ALTER TABLE public.attendance ADD COLUMN IF NOT EXISTS auto_clockout_notes text;
 ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_night_shift boolean NOT NULL DEFAULT false;
 
 -- Create acknowledgment table for auto clock-out alerts
-CREATE TABLE IF NOT EXISTS public.auto_clockout_acks (
+CREATE TABLE public.auto_clockout_acks (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id uuid NOT NULL,
   attendance_id uuid NOT NULL,
@@ -16,17 +16,15 @@ CREATE TABLE IF NOT EXISTS public.auto_clockout_acks (
 
 ALTER TABLE public.auto_clockout_acks ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "Users can view own acks" ON public.auto_clockout_acks;
 CREATE POLICY "Users can view own acks"
 ON public.auto_clockout_acks
 FOR SELECT
 USING (user_id = auth.uid());
 
-DROP POLICY IF EXISTS "Users can insert own acks" ON public.auto_clockout_acks;
 CREATE POLICY "Users can insert own acks"
 ON public.auto_clockout_acks
 FOR INSERT
 WITH CHECK (user_id = auth.uid());
 
 -- Unique constraint to prevent duplicate acks
-CREATE UNIQUE INDEX IF NOT EXISTS idx_auto_clockout_acks_unique ON public.auto_clockout_acks (user_id, attendance_id);
+CREATE UNIQUE INDEX idx_auto_clockout_acks_unique ON public.auto_clockout_acks (user_id, attendance_id);

@@ -4,7 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardFooter } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardFooter,
+} from "@/components/ui/card";
 import { toast } from "sonner";
 import { PasswordInput } from "@/components/ui/password-input";
 import zielLogoWhite from "@/assets/ziel-logo-black.png";
@@ -19,12 +24,17 @@ export default function LoginPage() {
   const [passwordError, setPasswordError] = useState("");
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "failed">("checking");
+  const [dbStatus, setDbStatus] = useState<"checking" | "connected" | "failed">(
+    "checking",
+  );
 
   useEffect(() => {
     const checkConn = async () => {
       try {
-        const { error } = await supabase.from("system_settings").select("key").limit(1);
+        const { error } = await supabase
+          .from("system_settings")
+          .select("key")
+          .limit(1);
         if (error) {
           console.error("DB Connection Error:", error);
           setDbStatus("failed");
@@ -43,17 +53,25 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
 
-    const { data: lockData } = await supabase.functions.invoke("log-login-attempt", {
-      body: { action: "check", email },
-    });
+    const { data: lockData } = await supabase.functions.invoke(
+      "log-login-attempt",
+      {
+        body: { action: "check", email },
+      },
+    );
 
     if (lockData?.locked) {
-      toast.error("Your account has been locked due to too many failed attempts. Please try again in 15 minutes.");
+      toast.error(
+        "Your account has been locked due to too many failed attempts. Please try again in 15 minutes.",
+      );
       setLoading(false);
       return;
     }
 
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
     if (error) {
       await supabase.functions.invoke("log-login-attempt", {
@@ -81,11 +99,16 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#1A1B1E" }}>
+    <div
+      className="flex min-h-screen items-center justify-center"
+      style={{ backgroundColor: "#1A1B1E" }}
+    >
       <Card className="w-full max-w-sm border-border bg-card">
         <CardHeader className="text-center">
           <img src={zielLogoWhite} alt="Ziel" className="h-10 mx-auto" />
-          <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Sign in to your account
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin} className="space-y-4">
@@ -102,7 +125,9 @@ export default function LoginPage() {
                 }}
                 className={emailError ? "!border-red-500" : ""}
               />
-              {emailError && <p className="text-sm text-red-500 font-medium">{emailError}</p>}
+              {emailError && (
+                <p className="text-sm text-red-500 font-medium">{emailError}</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
@@ -116,7 +141,11 @@ export default function LoginPage() {
                 }}
                 className={passwordError ? "!border-red-500" : ""}
               />
-              {passwordError && <p className="text-sm text-red-500 font-medium">{passwordError}</p>}
+              {passwordError && (
+                <p className="text-sm text-red-500 font-medium">
+                  {passwordError}
+                </p>
+              )}
             </div>
             <Button
               type="submit"

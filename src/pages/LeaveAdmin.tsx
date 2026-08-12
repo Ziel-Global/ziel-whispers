@@ -8,45 +8,116 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
-import { Table, TableBody, TableCell, TableHead, TableHeader as ShadcnTableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  DataRow,
+  RowPrimary,
+  RowSecondary,
+  RowDataGrid,
+  RowDataItem,
+  RowBadgeItem,
+  RowActions,
+  TableHeader,
+} from "@/components/ui/data-row";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader as ShadcnTableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Check, X, ChevronLeft, ChevronRight, Save, Trash2, CalendarCheck, CalendarDays, AlertTriangle, Eye } from "lucide-react";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths, isWeekend } from "date-fns";
+import {
+  Check,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Save,
+  Trash2,
+  CalendarCheck,
+  CalendarDays,
+  AlertTriangle,
+  Eye,
+  Search,
+} from "lucide-react";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  eachDayOfInterval,
+  addMonths,
+  subMonths,
+  isWeekend,
+} from "date-fns";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 
-const LEAVE_CATEGORIES = ["Sick Leave", "Casual Leave", "Hourly Leave", "Others"];
+const LEAVE_CATEGORIES = [
+  "Sick Leave",
+  "Casual Leave",
+  "Hourly Leave",
+  "Others",
+];
 
-import { getLeaveTypeName, getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
+import {
+  getLeaveTypeName,
+  getCurrentLeaveYear,
+  getLeaveYearRange,
+  getLeaveYearOptions,
+} from "@/lib/utils";
 
 export default function LeaveAdminPage() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState("all");
-  const [actionModal, setActionModal] = useState<{ type: "approve" | "reject"; request: any } | null>(null);
+  const [actionModal, setActionModal] = useState<{
+    type: "approve" | "reject";
+    request: any;
+  } | null>(null);
   const [adminComment, setAdminComment] = useState("");
   const [processing, setProcessing] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [wfhDeleteId, setWfhDeleteId] = useState<string | null>(null);
   const [wfhDeleting, setWfhDeleting] = useState(false);
-  const [selectedLeaveIds, setSelectedLeaveIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteLeaveOpen, setBulkDeleteLeaveOpen] = useState(false);
-  const [selectedWfhIds, setSelectedWfhIds] = useState<Set<string>>(new Set());
-  const [bulkDeleteWfhOpen, setBulkDeleteWfhOpen] = useState(false);
   const [calMonth, setCalMonth] = useState(new Date());
   const [wfhStatusFilter, setWfhStatusFilter] = useState("all");
   const [leaveTypeFilter, setLeaveTypeFilter] = useState("all");
   const [submittedDate, setSubmittedDate] = useState("");
-  const [selectedYear, setSelectedYear] = useState<number>(getCurrentLeaveYear().startYear);
+  const [selectedYear, setSelectedYear] = useState<number>(
+    getCurrentLeaveYear().startYear,
+  );
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(null);
+  const [expandedEmployeeId, setExpandedEmployeeId] = useState<string | null>(
+    null,
+  );
   const [showBalanceDialog, setShowBalanceDialog] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Annual leave entitlement setting
   const [annualEntitlement, setAnnualEntitlement] = useState("12");
@@ -62,9 +133,13 @@ export default function LeaveAdminPage() {
   const { data: settings } = useQuery({
     queryKey: ["system-settings"],
     queryFn: async () => {
-      const { data } = await supabase.from("system_settings").select("key, value");
+      const { data } = await supabase
+        .from("system_settings")
+        .select("key, value");
       const map: Record<string, string> = {};
-      (data || []).forEach((s) => { map[s.key] = s.value; });
+      (data || []).forEach((s) => {
+        map[s.key] = s.value;
+      });
       return map;
     },
   });
@@ -79,8 +154,12 @@ export default function LeaveAdminPage() {
     setSavingEntitlement(true);
     try {
       await supabase.from("system_settings").upsert(
-        { key: "annual_leave_entitlement", value: annualEntitlement, updated_by: profile?.id },
-        { onConflict: "key" }
+        {
+          key: "annual_leave_entitlement",
+          value: annualEntitlement,
+          updated_by: profile?.id,
+        },
+        { onConflict: "key" },
       );
       await supabase.from("audit_logs").insert({
         actor_id: profile?.id,
@@ -90,16 +169,23 @@ export default function LeaveAdminPage() {
       });
       queryClient.invalidateQueries({ queryKey: ["system-settings"] });
       toast.success("Annual leave entitlement updated");
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSavingEntitlement(false); }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingEntitlement(false);
+    }
   };
 
   const handleBulkEnable = async () => {
-    if (!bulkRemoteFrom) { toast.error("Please select From date"); return; }
+    if (!bulkRemoteFrom) {
+      toast.error("Please select From date");
+      return;
+    }
     const to = bulkRemoteTo || bulkRemoteFrom;
     setBulkRemoteSubmitting(true);
     try {
-      const { error } = await supabase.from("users")
+      const { error } = await supabase
+        .from("users")
         .update({
           remote_access: true,
           remote_access_from: bulkRemoteFrom,
@@ -118,14 +204,18 @@ export default function LeaveAdminPage() {
       toast.success("Remote access enabled for all non-admin users");
       setShowBulkEnableConfirm(false);
       queryClient.invalidateQueries({ queryKey: ["admin-all-employees"] });
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBulkRemoteSubmitting(false); }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBulkRemoteSubmitting(false);
+    }
   };
 
   const handleBulkDisable = async () => {
     setBulkRemoteSubmitting(true);
     try {
-      const { error } = await supabase.from("users")
+      const { error } = await supabase
+        .from("users")
         .update({
           remote_access: false,
           remote_access_from: null,
@@ -143,15 +233,21 @@ export default function LeaveAdminPage() {
       toast.success("Bulk remote access disabled for all non-admin users");
       setShowBulkDisableConfirm(false);
       queryClient.invalidateQueries({ queryKey: ["admin-all-employees"] });
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBulkRemoteSubmitting(false); }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBulkRemoteSubmitting(false);
+    }
   };
 
   const { data: requests = [] } = useQuery({
     queryKey: ["admin-leave-requests"],
     queryFn: async () => {
-      const { data } = await supabase.from("leave_requests")
-        .select("*, leave_types(name), users!leave_requests_user_id_fkey(full_name, department, email, is_oversight)")
+      const { data } = await supabase
+        .from("leave_requests")
+        .select(
+          "*, leave_types(name), users!leave_requests_user_id_fkey(full_name, department, email, is_oversight)",
+        )
         .order("created_at", { ascending: false });
       return data || [];
     },
@@ -161,19 +257,44 @@ export default function LeaveAdminPage() {
     const yearRange = getLeaveYearRange(selectedYear);
     return requests.filter((r: any) => {
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
-      const matchYear = r.start_date >= yearRange.start && r.start_date <= yearRange.end;
+      const matchYear =
+        r.start_date >= yearRange.start && r.start_date <= yearRange.end;
       const typeName = getLeaveTypeName(r);
-      const matchLeaveType = leaveTypeFilter === "all" || typeName.startsWith(leaveTypeFilter);
-      const matchSubmitted = !submittedDate || (r.created_at && r.created_at.startsWith(submittedDate));
-      return matchStatus && matchYear && matchLeaveType && matchSubmitted;
+      const matchLeaveType =
+        leaveTypeFilter === "all" || typeName.startsWith(leaveTypeFilter);
+      const matchSubmitted =
+        !submittedDate ||
+        (r.created_at && r.created_at.startsWith(submittedDate));
+      const matchSearch =
+        !searchQuery.trim() ||
+        (r.users?.full_name || "")
+          .toLowerCase()
+          .includes(searchQuery.trim().toLowerCase());
+      return (
+        matchStatus &&
+        matchYear &&
+        matchLeaveType &&
+        matchSubmitted &&
+        matchSearch
+      );
     });
-  }, [requests, statusFilter, selectedYear, leaveTypeFilter, submittedDate]);
+  }, [
+    requests,
+    statusFilter,
+    selectedYear,
+    leaveTypeFilter,
+    submittedDate,
+    searchQuery,
+  ]);
 
   const { data: wfhRequests = [] } = useQuery({
     queryKey: ["admin-wfh-requests"],
     queryFn: async () => {
-      const { data } = await supabase.from("remote_work_requests")
-        .select("*, users!remote_work_requests_user_id_fkey(full_name, designation, is_oversight), reviewer:users!remote_work_requests_reviewed_by_fkey(full_name)")
+      const { data } = await supabase
+        .from("remote_work_requests")
+        .select(
+          "*, users!remote_work_requests_user_id_fkey(full_name, designation, is_oversight), reviewer:users!remote_work_requests_reviewed_by_fkey(full_name)",
+        )
         .order("created_at", { ascending: false });
       return data || [];
     },
@@ -182,7 +303,10 @@ export default function LeaveAdminPage() {
   const { data: leaveTypes = [] } = useQuery({
     queryKey: ["leave-types"],
     queryFn: async () => {
-      const { data } = await supabase.from("leave_types").select("*").order("name");
+      const { data } = await supabase
+        .from("leave_types")
+        .select("*")
+        .order("name");
       return data || [];
     },
   });
@@ -202,7 +326,9 @@ export default function LeaveAdminPage() {
 
   // Per-employee used days for the selected leave year
   // Includes full-day leaves (days_count) + half-day leaves converted to day-equivalent (every 8 hours = 1 day)
-  const { data: employeeUsage = {} as Record<string, { used: number; total: number }> } = useQuery({
+  const {
+    data: employeeUsage = {} as Record<string, { used: number; total: number }>,
+  } = useQuery({
     queryKey: ["admin-employee-usage", selectedYear],
     queryFn: async () => {
       const yearRange = getLeaveYearRange(selectedYear);
@@ -212,9 +338,17 @@ export default function LeaveAdminPage() {
         .eq("status", "approved")
         .gte("start_date", yearRange.start)
         .lte("start_date", yearRange.end);
-      const usage: Record<string, { used: number; total: number; halfDayHours: number }> = {};
+      const usage: Record<
+        string,
+        { used: number; total: number; halfDayHours: number }
+      > = {};
       (approved || []).forEach((r: any) => {
-        if (!usage[r.user_id]) usage[r.user_id] = { used: 0, total: Number(annualEntitlement) || 12, halfDayHours: 0 };
+        if (!usage[r.user_id])
+          usage[r.user_id] = {
+            used: 0,
+            total: Number(annualEntitlement) || 12,
+            halfDayHours: 0,
+          };
         usage[r.user_id].used += r.days_count;
         usage[r.user_id].halfDayHours += Number(r.hours || 0);
       });
@@ -233,22 +367,27 @@ export default function LeaveAdminPage() {
   // Summary strip stats
   const summaryStats = useMemo(() => {
     const employeesOnLeaveToday = new Set(
-      requests.filter((r: any) =>
-        r.status === "approved" && r.start_date <= today && r.end_date >= today
-      ).map((r: any) => r.user_id)
+      requests
+        .filter(
+          (r: any) =>
+            r.status === "approved" &&
+            r.start_date <= today &&
+            r.end_date >= today,
+        )
+        .map((r: any) => r.user_id),
     ).size;
 
-    const leavesThisMonth = requests.filter((r: any) =>
-      r.status === "approved" && r.start_date.startsWith(currentMonth)
+    const leavesThisMonth = requests.filter(
+      (r: any) =>
+        r.status === "approved" && r.start_date.startsWith(currentMonth),
     ).length;
 
-    const entitlementVal = Number(annualEntitlement) || 12;
-    const employeesAtLimit = Object.values(employeeUsage).filter(
-      (u: any) => u.used >= entitlementVal
+    const pendingApprovals = requests.filter(
+      (r: any) => r.status === "pending",
     ).length;
 
-    return { employeesOnLeaveToday, leavesThisMonth, employeesAtLimit };
-  }, [requests, today, currentMonth, employeeUsage, annualEntitlement]);
+    return { employeesOnLeaveToday, leavesThisMonth, pendingApprovals };
+  }, [requests, today, currentMonth]);
 
   // Group filtered requests by employee for the grouped layout
   const groupedByUser = useMemo(() => {
@@ -260,7 +399,10 @@ export default function LeaveAdminPage() {
     });
 
     for (const [, reqs] of userMap) {
-      reqs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      reqs.sort(
+        (a, b) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
     }
 
     return Array.from(userMap.entries())
@@ -270,10 +412,15 @@ export default function LeaveAdminPage() {
         requests: reqs,
         latest: reqs[0],
         usedDays: employeeUsage[userId]?.used || 0,
-        totalDays: employeeUsage[userId]?.total || Number(annualEntitlement) || 12,
+        totalDays:
+          employeeUsage[userId]?.total || Number(annualEntitlement) || 12,
         isOversight: reqs[0]?.users?.is_oversight === true,
       }))
-      .sort((a, b) => new Date(b.latest.created_at).getTime() - new Date(a.latest.created_at).getTime());
+      .sort(
+        (a, b) =>
+          new Date(b.latest.created_at).getTime() -
+          new Date(a.latest.created_at).getTime(),
+      );
   }, [filtered, employeeUsage, annualEntitlement]);
 
   const employeeBalanceData = useMemo(() => {
@@ -294,12 +441,16 @@ export default function LeaveAdminPage() {
     if (!expandedEmployeeId) return [];
     const yearRange = getLeaveYearRange(selectedYear);
     return requests
-      .filter((r: any) =>
-        r.user_id === expandedEmployeeId &&
-        r.start_date >= yearRange.start &&
-        r.start_date <= yearRange.end
+      .filter(
+        (r: any) =>
+          r.user_id === expandedEmployeeId &&
+          r.start_date >= yearRange.start &&
+          r.start_date <= yearRange.end,
       )
-      .sort((a: any, b: any) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort(
+        (a: any, b: any) =>
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      );
   }, [expandedEmployeeId, requests, selectedYear]);
 
   const wfhFiltered = useMemo(() => {
@@ -307,14 +458,21 @@ export default function LeaveAdminPage() {
     return wfhRequests.filter((r: any) => r.status === wfhStatusFilter);
   }, [wfhRequests, wfhStatusFilter]);
 
-  const handleWfhAction = async (id: string, type: "approve" | "reject", userId: string) => {
+  const handleWfhAction = async (
+    id: string,
+    type: "approve" | "reject",
+    userId: string,
+  ) => {
     try {
       const newStatus = type === "approve" ? "approved" : "rejected";
-      const { error } = await supabase.from("remote_work_requests").update({
-        status: newStatus,
-        reviewed_by: user!.id,
-        reviewed_at: new Date().toISOString(),
-      }).eq("id", id);
+      const { error } = await supabase
+        .from("remote_work_requests")
+        .update({
+          status: newStatus,
+          reviewed_by: user!.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", id);
       if (error) throw error;
 
       await supabase.from("audit_logs").insert({
@@ -325,21 +483,26 @@ export default function LeaveAdminPage() {
         metadata: { employee_id: userId, action: newStatus },
       });
 
-      await supabase.from("notifications").insert({
-        user_id: userId,
-        type: `remote_work.${newStatus}`,
-        channel: "in_app",
-        metadata: { title: "Remote Work Request Updated", message: `Your remote work request was ${newStatus}` },
-        read: false,
-      });
-
-      supabase.functions.invoke("send-request-notification", {
-        body: { type: "wfh", action: newStatus, request_id: id, app_url: window.location.origin },
-      }).catch(() => {});
+      supabase.functions
+        .invoke("send-request-notification", {
+          body: {
+            type: "wfh",
+            action: newStatus,
+            request_id: id,
+            app_url: window.location.origin,
+          },
+        })
+        .catch(() => {});
 
       toast.success(`Work From Home request ${type}d`);
-      await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
-      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
+      await queryClient.refetchQueries({
+        queryKey: ["admin-wfh-requests"],
+        type: "all",
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["pending-leave-count"],
+        type: "all",
+      });
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -348,7 +511,10 @@ export default function LeaveAdminPage() {
   const handleAction = async () => {
     if (!actionModal) return;
     const { type, request } = actionModal;
-    if (type === "reject" && !adminComment.trim()) { toast.error("Rejection reason is required"); return; }
+    if (type === "reject" && !adminComment.trim()) {
+      toast.error("Rejection reason is required");
+      return;
+    }
 
     // Check entitlement on approval (using leave year)
     if (type === "approve") {
@@ -361,10 +527,15 @@ export default function LeaveAdminPage() {
         .eq("status", "approved")
         .gte("start_date", currentLY.start)
         .lte("start_date", currentLY.end);
-      const usedDays = (approvedReqs || []).reduce((s: number, r: any) => s + r.days_count, 0);
+      const usedDays = (approvedReqs || []).reduce(
+        (s: number, r: any) => s + r.days_count,
+        0,
+      );
       const newTotal = usedDays + request.days_count;
       if (newTotal > entitlementVal) {
-        toast.error(`Cannot approve — employee would exceed annual entitlement (${usedDays} used + ${request.days_count} requested > ${entitlementVal} allowed)`);
+        toast.error(
+          `Cannot approve — employee would exceed annual entitlement (${usedDays} used + ${request.days_count} requested > ${entitlementVal} allowed)`,
+        );
         setProcessing(false);
         return;
       }
@@ -373,12 +544,15 @@ export default function LeaveAdminPage() {
     setProcessing(true);
     try {
       const newStatus = type === "approve" ? "approved" : "rejected";
-      const { error } = await supabase.from("leave_requests").update({
-        status: newStatus,
-        admin_comment: adminComment || null,
-        reviewed_by: user!.id,
-        reviewed_at: new Date().toISOString(),
-      }).eq("id", request.id);
+      const { error } = await supabase
+        .from("leave_requests")
+        .update({
+          status: newStatus,
+          admin_comment: adminComment || null,
+          reviewed_by: user!.id,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq("id", request.id);
       if (error) throw error;
 
       await supabase.from("audit_logs").insert({
@@ -386,20 +560,33 @@ export default function LeaveAdminPage() {
         action: type === "approve" ? "leave.approved" : "leave.rejected",
         target_entity: "leave_requests",
         target_id: request.id,
-        metadata: { employee: request.users?.full_name, days: request.days_count, leave_type: getLeaveTypeName(request) },
+        metadata: {
+          employee: request.users?.full_name,
+          days: request.days_count,
+          leave_type: getLeaveTypeName(request),
+        },
       });
 
       await supabase.from("notifications").insert({
         user_id: request.user_id,
         type: `leave.${newStatus}`,
-        channel: "in_app",
-        metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
-        read: false,
+        metadata: {
+          leave_type: getLeaveTypeName(request),
+          days: request.days_count,
+        },
       });
 
-      supabase.functions.invoke("send-request-notification", {
-        body: { type: "leave", action: newStatus, request_id: request.id, admin_comment: adminComment || undefined, app_url: window.location.origin },
-      }).catch(() => {});
+      supabase.functions
+        .invoke("send-request-notification", {
+          body: {
+            type: "leave",
+            action: newStatus,
+            request_id: request.id,
+            admin_comment: adminComment || undefined,
+            app_url: window.location.origin,
+          },
+        })
+        .catch(() => {});
 
       // Half-day leave → Annual Leave conversion (using leave year)
       if (type === "approve" && request.hours) {
@@ -412,7 +599,10 @@ export default function LeaveAdminPage() {
           .not("hours", "is", null)
           .gte("start_date", currentLY.start)
           .lte("start_date", currentLY.end);
-        const totalHours = (halfDayData || []).reduce((s: number, r: any) => s + Number(r.hours), 0);
+        const totalHours = (halfDayData || []).reduce(
+          (s: number, r: any) => s + Number(r.hours),
+          0,
+        );
         const currentHours = Number(request.hours);
         const oldChunks = Math.floor((totalHours - currentHours) / 8);
         const newChunks = Math.floor(totalHours / 8);
@@ -432,15 +622,20 @@ export default function LeaveAdminPage() {
               .eq("year", currentLY.startYear)
               .maybeSingle();
             if (balance) {
-              const newUsedDays = (balance.used_days || 0) + additionalDeduction;
-              await supabase.from("leave_balances").update({ used_days: newUsedDays }).eq("id", balance.id);
+              const newUsedDays =
+                (balance.used_days || 0) + additionalDeduction;
+              await supabase
+                .from("leave_balances")
+                .update({ used_days: newUsedDays })
+                .eq("id", balance.id);
               if (balance.total_days <= newUsedDays) {
                 await supabase.from("notifications").insert({
                   user_id: request.user_id,
                   type: "leave.balance_exhausted",
-                  channel: "in_app",
-                  metadata: { message: "You have run out of Annual Leave days. Please contact your admin." },
-                  read: false,
+                  metadata: {
+                    message:
+                      "You have run out of Annual Leave days. Please contact your admin.",
+                  },
                 });
               }
             }
@@ -451,81 +646,91 @@ export default function LeaveAdminPage() {
       toast.success(`Leave request ${type}d`);
       setActionModal(null);
       setAdminComment("");
-      await queryClient.refetchQueries({ queryKey: ["admin-leave-requests"], type: "all" });
-      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
-    } catch (err: any) { toast.error(err.message); }
-    finally { setProcessing(false); }
+      await queryClient.refetchQueries({
+        queryKey: ["admin-leave-requests"],
+        type: "all",
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["pending-leave-count"],
+        type: "all",
+      });
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setProcessing(false);
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
     setDeleting(true);
-    const { error } = await supabase.from("leave_requests").delete().eq("id", deleteId);
+    const { error } = await supabase
+      .from("leave_requests")
+      .delete()
+      .eq("id", deleteId);
     setDeleting(false);
     if (error) {
       toast.error(error.message);
     } else {
-      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "leave.deleted", target_entity: "leave_requests", target_id: deleteId });
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "leave.deleted",
+        target_entity: "leave_requests",
+        target_id: deleteId,
+      });
       toast.success("Leave request deleted");
       setDeleteId(null);
-      await queryClient.refetchQueries({ queryKey: ["admin-leave-requests"], type: "all" });
-      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
+      await queryClient.refetchQueries({
+        queryKey: ["admin-leave-requests"],
+        type: "all",
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["pending-leave-count"],
+        type: "all",
+      });
     }
   };
 
   const handleWfhDelete = async () => {
     if (!wfhDeleteId) return;
     setWfhDeleting(true);
-    const { error } = await supabase.from("remote_work_requests").delete().eq("id", wfhDeleteId);
+    const { error } = await supabase
+      .from("remote_work_requests")
+      .delete()
+      .eq("id", wfhDeleteId);
     setWfhDeleting(false);
     if (error) {
       toast.error(error.message);
     } else {
-      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "wfh.deleted", target_entity: "remote_work_requests", target_id: wfhDeleteId });
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "wfh.deleted",
+        target_entity: "remote_work_requests",
+        target_id: wfhDeleteId,
+      });
       toast.success("Remote work request deleted");
       setWfhDeleteId(null);
-      await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
-      await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
+      await queryClient.refetchQueries({
+        queryKey: ["admin-wfh-requests"],
+        type: "all",
+      });
+      await queryClient.refetchQueries({
+        queryKey: ["pending-leave-count"],
+        type: "all",
+      });
     }
-  };
-
-  const handleBulkDeleteLeave = async () => {
-    const ids = Array.from(selectedLeaveIds);
-    if (!ids.length) return;
-    setDeleting(true);
-    const { error } = await supabase.from("leave_requests").delete().in("id", ids);
-    setDeleting(false);
-    if (error) { toast.error(error.message); return; }
-    for (const id of ids) {
-      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "leave.deleted", target_entity: "leave_requests", target_id: id });
-    }
-    toast.success(`${ids.length} leave request${ids.length > 1 ? "s" : ""} deleted`);
-    setSelectedLeaveIds(new Set());
-    setBulkDeleteLeaveOpen(false);
-    await queryClient.refetchQueries({ queryKey: ["admin-leave-requests"], type: "all" });
-    await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
-  };
-
-  const handleBulkDeleteWfh = async () => {
-    const ids = Array.from(selectedWfhIds);
-    if (!ids.length) return;
-    setWfhDeleting(true);
-    const { error } = await supabase.from("remote_work_requests").delete().in("id", ids);
-    setWfhDeleting(false);
-    if (error) { toast.error(error.message); return; }
-    for (const id of ids) {
-      await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "wfh.deleted", target_entity: "remote_work_requests", target_id: id });
-    }
-    toast.success(`${ids.length} remote work request${ids.length > 1 ? "s" : ""} deleted`);
-    setSelectedWfhIds(new Set());
-    setBulkDeleteWfhOpen(false);
-    await queryClient.refetchQueries({ queryKey: ["admin-wfh-requests"], type: "all" });
-    await queryClient.refetchQueries({ queryKey: ["pending-leave-count"], type: "all" });
   };
 
   const statusBadge = (status: string) => {
-    const map: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", approved: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-700", cancelled: "bg-gray-100 text-gray-500" };
-    return <Badge className={`${map[status] || ""} capitalize`}>{status}</Badge>;
+    const map: Record<string, string> = {
+      pending: "bg-yellow-100 text-yellow-800",
+      approved: "bg-green-100 text-green-800",
+      rejected: "bg-red-100 text-red-700",
+      cancelled: "bg-gray-100 text-gray-500",
+    };
+    return (
+      <Badge className={`${map[status] || ""} capitalize`}>{status}</Badge>
+    );
   };
 
   const monthStart = startOfMonth(calMonth);
@@ -534,45 +739,143 @@ export default function LeaveAdminPage() {
   const approvedRequests = requests.filter((r: any) => r.status === "approved");
   const getLeavesForDay = (d: Date) => {
     const ds = format(d, "yyyy-MM-dd");
-    return approvedRequests.filter((r: any) => r.start_date <= ds && r.end_date >= ds);
+    return approvedRequests.filter(
+      (r: any) => r.start_date <= ds && r.end_date >= ds,
+    );
   };
 
-  const [namesModal, setNamesModal] = useState<{ date: string; leaves: any[] } | null>(null);
+  const [namesModal, setNamesModal] = useState<{
+    date: string;
+    leaves: any[];
+  } | null>(null);
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-[32px] font-bold text-[#09090B] tracking-tight leading-none mb-1">
+            Leave Management
+          </h1>
+          <p className="text-[13px] text-[#71717A]">
+            Leave year: {getLeaveYearRange(selectedYear).label}
+          </p>
+        </div>
+        <Button className="bg-[#EC6824] hover:bg-[#c4541a] text-white rounded-md h-9 px-4 text-[13px] font-medium shadow-sm">
+          + Apply Leave
+        </Button>
+      </div>
       <Tabs defaultValue="requests">
-        <TabsList>
-          <TabsTrigger value="requests" className="relative">
+        <TabsList className="bg-transparent border-b border-[#E4E4E7] rounded-none p-0 h-auto gap-0">
+          <TabsTrigger
+            value="requests"
+            className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors"
+          >
             Leave Requests
             {requests.filter((r: any) => r.status === "pending").length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+              <span className="ml-2 bg-[#EC6824] text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] inline-flex items-center justify-center px-1">
                 {requests.filter((r: any) => r.status === "pending").length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="wfh" className="relative">
+          <TabsTrigger
+            value="wfh"
+            className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors"
+          >
             Remote Requests
-            {wfhRequests.filter((r: any) => r.status === "pending").length > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+            {wfhRequests.filter((r: any) => r.status === "pending").length >
+              0 && (
+              <span className="ml-2 bg-[#EC6824] text-white text-[10px] font-bold rounded-md h-5 min-w-[20px] inline-flex items-center justify-center px-1">
                 {wfhRequests.filter((r: any) => r.status === "pending").length}
               </span>
             )}
           </TabsTrigger>
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          <TabsTrigger value="settings">Leave Settings</TabsTrigger>
+          <TabsTrigger
+            value="calendar"
+            className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors"
+          >
+            Calendar
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="relative rounded-none border-b-2 border-transparent px-4 py-2.5 text-[13px] font-medium text-[#71717A] data-[state=active]:border-[#09090B] data-[state=active]:text-[#09090B] data-[state=active]:shadow-none hover:text-[#09090B] transition-colors"
+          >
+            Leave Settings
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="requests" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              Leave Year: {getLeaveYearRange(selectedYear).label}
-            </p>
+        <TabsContent value="requests" className="space-y-0 mt-0">
+          {/* ── SUMMARY CARDS ── */}
+          <div className="grid grid-cols-3 border border-[#E4E4E7] rounded-[16px] bg-white overflow-hidden mb-6">
+            <div className="flex items-center gap-3 px-5 py-4 border-r border-[#E4E4E7]">
+              <div className="h-10 w-10 rounded-lg bg-[#EBF5FF] flex items-center justify-center shrink-0">
+                <CalendarCheck className="h-5 w-5 text-[#3B82F6]" />
+              </div>
+              <div>
+                <p className="text-[12px] text-[#71717A]">On leave today</p>
+                <p className="text-[22px] font-bold text-[#09090B] leading-tight">
+                  {summaryStats.employeesOnLeaveToday}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 px-5 py-4 border-r border-[#E4E4E7]">
+              <div className="h-10 w-10 rounded-lg bg-[#ECFDF5] flex items-center justify-center shrink-0">
+                <CalendarDays className="h-5 w-5 text-[#10B981]" />
+              </div>
+              <div>
+                <p className="text-[12px] text-[#71717A]">
+                  Leaves taken this month
+                </p>
+                <p className="text-[22px] font-bold text-[#09090B] leading-tight">
+                  {summaryStats.leavesThisMonth}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowBalanceDialog(true)}
+              className="flex items-center gap-3 px-5 py-4 hover:bg-[#FFF4EA] transition-colors cursor-pointer"
+            >
+              <div className="h-10 w-10 rounded-lg bg-[#FFF4EA] flex items-center justify-center shrink-0">
+                <AlertTriangle className="h-5 w-5 text-[#EC6824]" />
+              </div>
+              <div className="flex-1 text-left">
+                <p className="text-[12px] text-[#71717A]">Pending approvals</p>
+                <p className="text-[22px] font-bold text-[#09090B] leading-tight">
+                  {summaryStats.pendingApprovals}
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-[#A1A1AA]" />
+            </button>
           </div>
-          <div className="flex gap-3 flex-wrap">
+
+          {/* ── SEARCH + FILTERS ── */}
+          <div className="flex items-center gap-3 mb-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#A1A1AA]" />
+              <Input
+                type="text"
+                placeholder="Search by employee name…"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-10 rounded-md border-[#E4E4E7] bg-white h-10 text-[13px] text-[#09090B] placeholder:text-[#A1A1AA] shadow-sm focus-visible:ring-[#EC6824] focus-visible:ring-1 focus-visible:border-[#EC6824]"
+              />
+            </div>
+            <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
+              <SelectTrigger className="w-[130px] h-10 text-[13px] font-medium text-[#09090B] border-[#E4E4E7] bg-white shadow-sm rounded-md hover:border-[#EC6824] hover:bg-[#FFF4EA] focus:border-[#EC6824] focus:ring-2 focus:ring-[#EC6824]/20 data-[state=open]:border-[#EC6824] transition-colors">
+                <SelectValue placeholder="All Types" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Types</SelectItem>
+                {LEAVE_CATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-[110px] h-10 text-[13px] font-medium text-[#09090B] border-[#E4E4E7] bg-white shadow-sm rounded-md hover:border-[#EC6824] hover:bg-[#FFF4EA] focus:border-[#EC6824] focus:ring-2 focus:ring-[#EC6824]/20 data-[state=open]:border-[#EC6824] transition-colors">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
@@ -581,59 +884,173 @@ export default function LeaveAdminPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={String(selectedYear)} onValueChange={(v) => setSelectedYear(Number(v))}>
-              <SelectTrigger className="w-[210px]"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                {getLeaveYearOptions().map((y) => (
-                  <SelectItem key={y.startYear} value={String(y.startYear)}>{y.label}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select value={leaveTypeFilter} onValueChange={setLeaveTypeFilter}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Leave Type" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {LEAVE_CATEGORIES.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Input type="date" value={submittedDate} onChange={(e) => setSubmittedDate(e.target.value)} className="w-[160px]" placeholder="Submitted date" />
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
-                <CalendarCheck className="h-5 w-5 text-blue-600" />
+          {/* ── LEAVE TABLE ── */}
+          <div className="border border-[#E4E4E7] rounded-[16px] bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
+            {filtered.length === 0 ? (
+              <div className="px-4 py-12 text-center text-[#71717A] text-[13px]">
+                No requests
               </div>
+            ) : (
               <div>
-                <p className="text-2xl font-bold">{summaryStats.employeesOnLeaveToday}</p>
-                <p className="text-xs text-muted-foreground">Employees on leave today</p>
+                {/* Table Header */}
+                <div
+                  className="px-6 py-3 border-b border-[#E4E4E7] grid gap-4 items-center text-[10px] font-bold text-[#A1A1AA] tracking-wider uppercase bg-transparent"
+                  style={{
+                    gridTemplateColumns:
+                      "40px 1.8fr 120px 120px 80px 100px 80px",
+                  }}
+                >
+                  <span></span>
+                  <span>EMPLOYEE</span>
+                  <span>FROM</span>
+                  <span>TO</span>
+                  <span>DAYS</span>
+                  <span>STATUS</span>
+                  <span className="text-right">ACTIONS</span>
+                </div>
+
+                {/* Table Rows */}
+                <div className="flex flex-col bg-white">
+                  {filtered.map((r: any) => {
+                    const initials = (r.users?.full_name || "")
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .join("")
+                      .toUpperCase()
+                      .slice(0, 2);
+                    const avatarColors: Record<string, string> = {
+                      AB: "bg-[#E9D5FF] text-[#7C3AED]",
+                      AZ: "bg-[#E9D5FF] text-[#7C3AED]",
+                      SH: "bg-[#DBEAFE] text-[#2563EB]",
+                      SM: "bg-[#D1FAE5] text-[#059669]",
+                      AR: "bg-[#DBEAFE] text-[#2563EB]",
+                      FA: "bg-[#FEE2E2] text-[#DC2626]",
+                      FR: "bg-[#FED7AA] text-[#EA580C]",
+                      HA: "bg-[#FEF3C7] text-[#D97706]",
+                    };
+                    const colorKey = initials;
+                    const defaultColor = "bg-[#F3F4F6] text-[#6B7280]";
+                    const leaveTypeTagColors: Record<string, string> = {
+                      "Casual Leave": "bg-[#D1FAE5] text-[#059669]",
+                      "Sick Leave": "bg-[#FEE2E2] text-[#DC2626]",
+                      "Hourly Leave": "bg-[#DBEAFE] text-[#2563EB]",
+                      "Half Day Leave": "bg-[#D1FAE5] text-[#059669]",
+                      "Annual Leave": "bg-[#DBEAFE] text-[#2563EB]",
+                      Others: "bg-[#F3F4F6] text-[#6B7280]",
+                    };
+                    const typeName = getLeaveTypeName(r);
+                    const tagColor =
+                      leaveTypeTagColors[typeName] ||
+                      "bg-[#F3F4F6] text-[#6B7280]";
+                    return (
+                      <div
+                        key={r.id}
+                        className="px-6 py-3.5 border-b border-[#F4F4F5] last:border-b-0 grid gap-4 items-center hover:bg-[#FFF1E6] transition-colors"
+                        style={{
+                          gridTemplateColumns:
+                            "40px 1.8fr 120px 120px 80px 100px 80px",
+                        }}
+                      >
+                        {/* Checkbox */}
+                        <div>
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-[#D4D4D8] text-[#EC6824] focus:ring-[#EC6824]/20 cursor-pointer"
+                          />
+                        </div>
+
+                        {/* Employee */}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div
+                            className={`h-9 w-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 ${avatarColors[colorKey] || defaultColor}`}
+                          >
+                            {initials}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-[14px] font-bold text-[#18181B] truncate tracking-tight">
+                              {r.users?.full_name || "Unknown"}
+                            </p>
+                            <span
+                              className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-md mt-0.5 ${tagColor}`}
+                            >
+                              {typeName}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* From */}
+                        <div className="text-[13px] text-[#52525B]">
+                          {format(
+                            new Date(r.start_date + "T00:00:00"),
+                            "MMM d, yyyy",
+                          )}
+                        </div>
+
+                        {/* To */}
+                        <div className="text-[13px] text-[#52525B]">
+                          {format(
+                            new Date(r.end_date + "T00:00:00"),
+                            "MMM d, yyyy",
+                          )}
+                        </div>
+
+                        {/* Days */}
+                        <div className="text-[13px] text-[#52525B]">
+                          {r.hours
+                            ? `${r.hours} hrs`
+                            : `${r.days_count} day${r.days_count !== 1 ? "s" : ""}`}
+                        </div>
+
+                        {/* Status */}
+                        <div>{statusBadge(r.status)}</div>
+
+                        {/* Actions */}
+                        <div className="flex items-center justify-end gap-1">
+                          {r.status === "pending" && (
+                            <>
+                              <button
+                                onClick={() =>
+                                  setActionModal({
+                                    type: "approve",
+                                    request: r,
+                                  })
+                                }
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-[#DCFCE7] text-[#16A34A] hover:bg-[#BBF7D0] transition-colors"
+                                title="Approve"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() =>
+                                  setActionModal({ type: "reject", request: r })
+                                }
+                                className="h-7 w-7 flex items-center justify-center rounded-lg bg-[#FEE2E2] text-[#DC2626] hover:bg-[#FECACA] transition-colors"
+                                title="Reject"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => setExpandedEmployeeId(r.user_id)}
+                            className="h-7 w-7 flex items-center justify-center rounded-lg bg-[#F4F4F5] text-[#71717A] hover:bg-[#E4E4E7] transition-colors"
+                            title="View details"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </Card>
-            <Card className="p-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
-                <CalendarDays className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{summaryStats.leavesThisMonth}</p>
-                <p className="text-xs text-muted-foreground">Leaves taken this month</p>
-              </div>
-            </Card>
-            <Card
-              className="p-4 flex items-center gap-3 cursor-pointer hover:shadow-md transition-shadow"
-              onClick={() => setShowBalanceDialog(true)}
-            >
-              <div className="h-10 w-10 rounded-full bg-orange-100 flex items-center justify-center">
-                <AlertTriangle className="h-5 w-5 text-orange-600" />
-              </div>
-              <div className="flex-1">
-                <p className="text-muted-foreground font-medium" style={{ fontSize: 20 }}>Employee Leave Balance</p>
-              </div>
-              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-            </Card>
+            )}
           </div>
 
           <Dialog open={showBalanceDialog} onOpenChange={setShowBalanceDialog}>
-            <DialogContent>
+            <DialogContent className="max-w-lg">
               <DialogHeader>
                 <DialogTitle>Employee Leave Balance</DialogTitle>
               </DialogHeader>
@@ -642,108 +1059,44 @@ export default function LeaveAdminPage() {
                   <ShadcnTableHeader>
                     <TableRow>
                       <TableHead>Employee Name</TableHead>
-                      <TableHead className="text-right">Remaining Leave Days</TableHead>
+                      <TableHead className="text-right">
+                        Remaining Leave Days
+                      </TableHead>
                     </TableRow>
                   </ShadcnTableHeader>
                   <TableBody>
                     {employeeBalanceData.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={2} className="text-center py-8 text-muted-foreground">
+                        <TableCell
+                          colSpan={2}
+                          className="text-center py-8 text-muted-foreground"
+                        >
                           No employees found
                         </TableCell>
                       </TableRow>
-                    ) : employeeBalanceData.map((emp) => (
-                      <TableRow key={emp.id}>
-                        <TableCell>{emp.name}</TableCell>
-                        <TableCell className="text-right font-medium">{emp.remaining}</TableCell>
-                      </TableRow>
-                    ))}
+                    ) : (
+                      employeeBalanceData.map((emp) => (
+                        <TableRow key={emp.id}>
+                          <TableCell>{emp.name}</TableCell>
+                          <TableCell className="text-right font-medium">
+                            {emp.remaining}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
                   </TableBody>
                 </Table>
               </div>
             </DialogContent>
           </Dialog>
-
-          {filtered.length === 0 ? (
-            <Card><div className="py-12 text-center text-muted-foreground">No requests</div></Card>
-          ) : (
-            <div>
-              <TableHeader gridCols="40px 1fr 112px 112px 80px 96px 80px">
-                <div className="flex items-center justify-center">
-                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                    checked={selectedLeaveIds.size === filtered.length && filtered.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedLeaveIds(new Set(filtered.map((r: any) => r.id)));
-                      else setSelectedLeaveIds(new Set());
-                    }} />
-                </div>
-                <span>EMPLOYEE</span>
-                <span>FROM</span>
-                <span>TO</span>
-                <span>DAYS</span>
-                <span>STATUS</span>
-                <span className="text-right">ACTIONS</span>
-              </TableHeader>
-              {selectedLeaveIds.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                  <span className="text-sm text-blue-700">{selectedLeaveIds.size} leave request{selectedLeaveIds.size > 1 ? "s" : ""} selected</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedLeaveIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                    <button onClick={() => setBulkDeleteLeaveOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                      <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                    </button>
-                  </div>
-                </div>
-              )}
-              {filtered.map((r: any) => (
-                <DataRow key={r.id} gridCols="40px 1fr 112px 112px 80px 96px 80px">
-                  <div className="flex items-center justify-center">
-                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                      checked={selectedLeaveIds.has(r.id)}
-                      onChange={(e) => {
-                        const next = new Set(selectedLeaveIds);
-                        if (e.target.checked) next.add(r.id); else next.delete(r.id);
-                        setSelectedLeaveIds(next);
-                      }} />
-                  </div>
-                  <div>
-                    <RowPrimary>{r.users?.full_name}</RowPrimary>
-                    <RowSecondary>{getLeaveTypeName(r)}</RowSecondary>
-                  </div>
-                  <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                  <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                  <RowDataItem label="DAYS">{r.hours ? `${r.hours} hrs` : r.days_count}</RowDataItem>
-                  <RowBadgeItem label="STATUS">{statusBadge(r.status)}</RowBadgeItem>
-                  <RowActions className="justify-self-end">
-                    {r.status === "pending" && (
-                      <>
-                        <button onClick={() => setActionModal({ type: "approve", request: r })} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
-                          <Check className="h-4 w-4" />
-                        </button>
-                        <button onClick={() => setActionModal({ type: "reject", request: r })} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject">
-                          <X className="h-4 w-4" />
-                        </button>
-                      </>
-                    )}
-                  </RowActions>
-                  <div style={{ gridColumn: "1 / -1" }} className="flex gap-4 mt-1">
-                    {r.reason && (
-                      <p className="text-[11px] text-[#6b7280]"><span className="text-[10px] uppercase tracking-wider text-[#9ca3af]">Reason: </span>{r.reason}</p>
-                    )}
-                    {(r.status === "approved" || r.status === "rejected") && r.admin_comment && (
-                      <p className="text-[11px] text-[#6b7280]" title={r.admin_comment}><span className="text-[10px] uppercase tracking-wider text-[#9ca3af]">Admin: </span>{r.admin_comment}</p>
-                    )}
-                  </div>
-                </DataRow>
-              ))}
-            </div>
-          )}
         </TabsContent>
 
         <TabsContent value="wfh" className="space-y-4">
           <div className="flex gap-3">
             <Select value={wfhStatusFilter} onValueChange={setWfhStatusFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue /></SelectTrigger>
+              <SelectTrigger className="w-[140px]">
+                <SelectValue />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All</SelectItem>
                 <SelectItem value="pending">Pending</SelectItem>
@@ -753,18 +1106,14 @@ export default function LeaveAdminPage() {
             </Select>
           </div>
           {wfhFiltered.length === 0 ? (
-            <Card><div className="py-12 text-center text-muted-foreground">No Remote Requests</div></Card>
+            <Card>
+              <div className="py-12 text-center text-muted-foreground">
+                No Remote Requests
+              </div>
+            </Card>
           ) : (
             <div>
-              <TableHeader gridCols="40px 1fr 1fr 80px 112px 96px 1fr 80px">
-                <div className="flex items-center justify-center">
-                  <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                    checked={selectedWfhIds.size === wfhFiltered.length && wfhFiltered.length > 0}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedWfhIds(new Set(wfhFiltered.map((r: any) => r.id)));
-                      else setSelectedWfhIds(new Set());
-                    }} />
-                </div>
+              <TableHeader gridCols="1fr 1fr 80px 112px 96px 1fr 80px">
                 <span>EMPLOYEE</span>
                 <span>DATE RANGE</span>
                 <span>DAYS</span>
@@ -773,95 +1122,144 @@ export default function LeaveAdminPage() {
                 <span>REVIEWED</span>
                 <span className="text-right">ACTIONS</span>
               </TableHeader>
-              {selectedWfhIds.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                  <span className="text-sm text-blue-700">{selectedWfhIds.size} remote work request{selectedWfhIds.size > 1 ? "s" : ""} selected</span>
-                  <div className="flex items-center gap-2">
-                    <button onClick={() => setSelectedWfhIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                    <button onClick={() => setBulkDeleteWfhOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                      <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                    </button>
-                  </div>
-                </div>
-              )}
               {wfhFiltered.map((r: any) => (
                 <React.Fragment key={r.id}>
                   <DataRow
                     className={`${r.users?.is_oversight ? "bg-amber-50/70" : r.status === "pending" ? "bg-yellow-50/50" : ""}`}
-                    onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
-                    gridCols="40px 1fr 1fr 80px 112px 96px 1fr 80px"
+                    onClick={() =>
+                      setExpandedId(expandedId === r.id ? null : r.id)
+                    }
+                    gridCols="1fr 1fr 80px 112px 96px 1fr 80px"
                   >
-                    <div className="flex items-center justify-center">
-                      <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                        checked={selectedWfhIds.has(r.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedWfhIds);
-                          if (e.target.checked) next.add(r.id); else next.delete(r.id);
-                          setSelectedWfhIds(next);
-                        }}
-                        onClick={(e) => e.stopPropagation()} />
-                    </div>
                     <div>
                       <RowPrimary>{r.users?.full_name}</RowPrimary>
                       <RowSecondary>{r.users?.designation || "—"}</RowSecondary>
                     </div>
                     <RowDataItem label="DATE RANGE">
                       {r.start_date === r.end_date
-                        ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
-                        : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
-                      }
+                        ? format(
+                            new Date(r.start_date + "T00:00:00"),
+                            "MMM d, yyyy",
+                          )
+                        : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`}
                     </RowDataItem>
                     <RowDataItem label="DAYS">{r.days_count}</RowDataItem>
-                    <RowDataItem label="SUBMITTED">{format(new Date(r.created_at), "MMM d, yyyy")}</RowDataItem>
-                    <RowBadgeItem label="STATUS">{statusBadge(r.status)}</RowBadgeItem>
+                    <RowDataItem label="SUBMITTED">
+                      {format(new Date(r.created_at), "MMM d, yyyy")}
+                    </RowDataItem>
+                    <RowBadgeItem label="STATUS">
+                      {statusBadge(r.status)}
+                    </RowBadgeItem>
                     <RowDataItem label="REVIEWED">
                       {r.reviewed_at ? (
-                        <>{format(new Date(r.reviewed_at), "MMM d")} <span className="text-[11px] text-[#9ca3af]">by {r.reviewer?.full_name || "Admin"}</span></>
-                      ) : "—"}
+                        <>
+                          {format(new Date(r.reviewed_at), "MMM d")}{" "}
+                          <span className="text-[11px] text-[#9ca3af]">
+                            by {r.reviewer?.full_name || "Admin"}
+                          </span>
+                        </>
+                      ) : (
+                        "—"
+                      )}
                     </RowDataItem>
                     <RowActions className="justify-self-end">
                       {r.status === "pending" && (
                         <>
-                          <button onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "approve", r.user_id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve"><Check className="h-4 w-4" /></button>
-                          <button onClick={(e) => { e.stopPropagation(); handleWfhAction(r.id, "reject", r.user_id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject"><X className="h-4 w-4" /></button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWfhAction(r.id, "approve", r.user_id);
+                            }}
+                            className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600"
+                            title="Approve"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleWfhAction(r.id, "reject", r.user_id);
+                            }}
+                            className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive"
+                            title="Reject"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
                         </>
                       )}
-                      <button onClick={(e) => { e.stopPropagation(); setWfhDeleteId(r.id); }} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Delete"><Trash2 className="h-4 w-4" /></button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setWfhDeleteId(r.id);
+                        }}
+                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive"
+                        title="Delete"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
                     </RowActions>
                   </DataRow>
                   {expandedId === r.id && (
                     <div className="bg-[#f9fafb] border-b border-[#f3f4f6] px-4 py-4">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
                         <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Employee</p>
-                          <p className="text-sm font-medium text-[#111827] mt-0.5">{r.users?.full_name}</p>
-                          <p className="text-xs text-[#6b7280]">{r.users?.designation || "—"}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">
+                            Employee
+                          </p>
+                          <p className="text-sm font-medium text-[#111827] mt-0.5">
+                            {r.users?.full_name}
+                          </p>
+                          <p className="text-xs text-[#6b7280]">
+                            {r.users?.designation || "—"}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Date Range</p>
+                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">
+                            Date Range
+                          </p>
                           <p className="text-sm text-[#374151] mt-0.5">
                             {r.start_date === r.end_date
-                              ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
-                              : `${format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`
-                            }
+                              ? format(
+                                  new Date(r.start_date + "T00:00:00"),
+                                  "MMM d, yyyy",
+                                )
+                              : `${format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")} — ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`}
                           </p>
-                          <p className="text-xs text-[#6b7280]">{r.days_count} working day(s)</p>
+                          <p className="text-xs text-[#6b7280]">
+                            {r.days_count} working day(s)
+                          </p>
                         </div>
                         <div>
-                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Submitted On</p>
-                          <p className="text-sm text-[#374151] mt-0.5">{format(new Date(r.created_at), "MMM d, yyyy 'at' h:mm a")}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">
+                            Submitted On
+                          </p>
+                          <p className="text-sm text-[#374151] mt-0.5">
+                            {format(
+                              new Date(r.created_at),
+                              "MMM d, yyyy 'at' h:mm a",
+                            )}
+                          </p>
                         </div>
                       </div>
                       <div className="mb-3">
-                        <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">Reason</p>
-                        <p className="text-sm text-[#374151] mt-0.5 whitespace-pre-wrap">{r.reason || "No reason provided"}</p>
+                        <p className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium">
+                          Reason
+                        </p>
+                        <p className="text-sm text-[#374151] mt-0.5 whitespace-pre-wrap">
+                          {r.reason || "No reason provided"}
+                        </p>
                       </div>
                       {r.status !== "pending" && (
                         <div className="flex items-center gap-2 mt-2">
                           {statusBadge(r.status)}
                           {r.reviewed_at && (
                             <span className="text-xs text-[#6b7280]">
-                              Reviewed {format(new Date(r.reviewed_at), "MMM d, yyyy 'at' h:mm a")} by {r.reviewer?.full_name || "Admin"}
+                              Reviewed{" "}
+                              {format(
+                                new Date(r.reviewed_at),
+                                "MMM d, yyyy 'at' h:mm a",
+                              )}{" "}
+                              by {r.reviewer?.full_name || "Admin"}
                             </span>
                           )}
                         </div>
@@ -877,35 +1275,75 @@ export default function LeaveAdminPage() {
         <TabsContent value="calendar" className="space-y-4">
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <Button variant="ghost" size="icon" onClick={() => setCalMonth(subMonths(calMonth, 1))}><ChevronLeft className="h-4 w-4" /></Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCalMonth(subMonths(calMonth, 1))}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
               <h3 className="font-semibold">{format(calMonth, "MMMM yyyy")}</h3>
-              <Button variant="ghost" size="icon" onClick={() => setCalMonth(addMonths(calMonth, 1))}><ChevronRight className="h-4 w-4" /></Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setCalMonth(addMonths(calMonth, 1))}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
             </div>
             <div className="grid grid-cols-7 gap-1 text-center text-xs font-medium text-muted-foreground mb-2">
-              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d}>{d}</div>)}
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                <div key={d}>{d}</div>
+              ))}
             </div>
             <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: calDays[0].getDay() }).map((_, i) => <div key={`pad-${i}`} />)}
+              {Array.from({ length: calDays[0].getDay() }).map((_, i) => (
+                <div key={`pad-${i}`} />
+              ))}
               {calDays.map((d) => {
                 const leaves = getLeavesForDay(d);
                 return (
-                  <div key={d.toISOString()} className={`min-h-[60px] p-1 rounded text-xs border ${d.getDay() === 0 ? "bg-muted opacity-60 blur-sm" : "bg-card"}`}>
+                  <div
+                    key={d.toISOString()}
+                    className={`min-h-[60px] p-1 rounded text-xs border ${d.getDay() === 0 ? "bg-muted opacity-60 blur-sm" : "bg-card"}`}
+                  >
                     <span className="font-medium">{d.getDate()}</span>
                     <div className="mt-0.5 space-y-0.5">
                       {leaves.slice(0, 2).map((l: any) => {
-                        const initials = l.users?.full_name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
+                        const initials = l.users?.full_name
+                          ?.split(" ")
+                          .map((n: string) => n[0])
+                          .join("")
+                          .toUpperCase()
+                          .slice(0, 2);
                         return (
-                          <div key={l.id} className="flex items-center gap-1" title={`${l.users?.full_name} - ${getLeaveTypeName(l)}`}>
-                            <Avatar className="h-4 w-4"><AvatarFallback className="text-[8px]">{initials}</AvatarFallback></Avatar>
-                            <span className="truncate">{l.users?.full_name?.split(" ")[0]}</span>
+                          <div
+                            key={l.id}
+                            className="flex items-center gap-1"
+                            title={`${l.users?.full_name} - ${getLeaveTypeName(l)}`}
+                          >
+                            <Avatar className="h-4 w-4">
+                              <AvatarFallback className="text-[8px]">
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span className="truncate">
+                              {l.users?.full_name?.split(" ")[0]}
+                            </span>
                           </div>
                         );
                       })}
                       {leaves.length > 2 && (
                         <button
-                          onClick={(e) => { e.stopPropagation(); const ds = format(d, "yyyy-MM-dd"); setNamesModal({ date: ds, leaves }); }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const ds = format(d, "yyyy-MM-dd");
+                            setNamesModal({ date: ds, leaves });
+                          }}
                           className="text-muted-foreground text-xs ml-1 underline"
-                        >+{leaves.length - 2}</button>
+                        >
+                          +{leaves.length - 2}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -915,7 +1353,7 @@ export default function LeaveAdminPage() {
           </Card>
 
           <Dialog open={!!namesModal} onOpenChange={() => setNamesModal(null)}>
-            <DialogContent>
+            <DialogContent className="max-w-sm">
               <DialogHeader>
                 <DialogTitle>Employees on {namesModal?.date}</DialogTitle>
               </DialogHeader>
@@ -924,10 +1362,22 @@ export default function LeaveAdminPage() {
                   <div className="divide-y divide-black/30">
                     {namesModal.leaves.map((l: any) => (
                       <div key={l.id} className="flex items-center gap-3 py-3">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{(l.users?.full_name || "").split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)}</div>
+                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">
+                          {(l.users?.full_name || "")
+                            .split(" ")
+                            .map((n: string) => n[0])
+                            .join("")
+                            .toUpperCase()
+                            .slice(0, 2)}
+                        </div>
                         <div>
-                          <p className="text-sm font-medium">{l.users?.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{getLeaveTypeName(l)} · {l.hours ? "0.5" : l.days_count} day(s)</p>
+                          <p className="text-sm font-medium">
+                            {l.users?.full_name}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {getLeaveTypeName(l)} ·{" "}
+                            {l.hours ? "0.5" : l.days_count} day(s)
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -944,23 +1394,44 @@ export default function LeaveAdminPage() {
           <Card className="p-6 space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="font-semibold">Leave Configuration</h3>
-              <Button onClick={handleSaveEntitlement} disabled={savingEntitlement} className="rounded-button">
-                <Save className="h-4 w-4 mr-2" />{savingEntitlement ? "Saving…" : "Save"}
+              <Button
+                onClick={handleSaveEntitlement}
+                disabled={savingEntitlement}
+                className="rounded-button"
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {savingEntitlement ? "Saving…" : "Save"}
               </Button>
             </div>
             <div className="space-y-1 max-w-xs">
               <Label>Annual Leave Entitlement (days)</Label>
-              <Input type="number" value={annualEntitlement} onChange={(e) => setAnnualEntitlement(e.target.value)} min="0" max="365" />
-              <p className="text-xs text-muted-foreground">Total annual leave days each employee is entitled to per year. All leave types draw from this single pool.</p>
+              <Input
+                type="number"
+                value={annualEntitlement}
+                onChange={(e) => setAnnualEntitlement(e.target.value)}
+                min="0"
+                max="365"
+              />
+              <p className="text-xs text-muted-foreground">
+                Total annual leave days each employee is entitled to per year.
+                All leave types draw from this single pool.
+              </p>
             </div>
             <div className="mt-4">
-              <Label className="text-sm font-medium">Leave Categories (for tracking)</Label>
+              <Label className="text-sm font-medium">
+                Leave Categories (for tracking)
+              </Label>
               <div className="flex flex-wrap gap-2 mt-2">
                 {LEAVE_CATEGORIES.map((c) => (
-                  <Badge key={c} variant="outline">{c}</Badge>
+                  <Badge key={c} variant="outline">
+                    {c}
+                  </Badge>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">These categories are fixed and used for tracking purposes only. All draw from the single annual pool.</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                These categories are fixed and used for tracking purposes only.
+                All draw from the single annual pool.
+              </p>
             </div>
           </Card>
 
@@ -968,60 +1439,96 @@ export default function LeaveAdminPage() {
             <h3 className="font-semibold">Remote Access</h3>
             <p className="text-sm text-muted-foreground">
               Enable or disable remote work for all non-admin users at once.
-              Employees who already have individual remote access enabled will be skipped.
+              Employees who already have individual remote access enabled will
+              be skipped.
             </p>
             <div className="grid grid-cols-2 gap-3 max-w-xs">
               <div className="space-y-1">
                 <Label>From Date</Label>
-                <Input type="date" value={bulkRemoteFrom} onChange={(e) => setBulkRemoteFrom(e.target.value)} />
+                <Input
+                  type="date"
+                  value={bulkRemoteFrom}
+                  onChange={(e) => setBulkRemoteFrom(e.target.value)}
+                />
               </div>
               <div className="space-y-1">
                 <Label>To Date</Label>
-                <Input type="date" value={bulkRemoteTo} onChange={(e) => setBulkRemoteTo(e.target.value)} />
+                <Input
+                  type="date"
+                  value={bulkRemoteTo}
+                  onChange={(e) => setBulkRemoteTo(e.target.value)}
+                />
               </div>
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => setShowBulkEnableConfirm(true)} disabled={bulkRemoteSubmitting}>
+              <Button
+                onClick={() => setShowBulkEnableConfirm(true)}
+                disabled={bulkRemoteSubmitting}
+              >
                 Enable Remote Access
               </Button>
-              <Button variant="outline" onClick={() => setShowBulkDisableConfirm(true)} disabled={bulkRemoteSubmitting}>
+              <Button
+                variant="outline"
+                onClick={() => setShowBulkDisableConfirm(true)}
+                disabled={bulkRemoteSubmitting}
+              >
                 Disable Remote Access
               </Button>
             </div>
           </Card>
 
-          <AlertDialog open={showBulkEnableConfirm} onOpenChange={setShowBulkEnableConfirm}>
+          <AlertDialog
+            open={showBulkEnableConfirm}
+            onOpenChange={setShowBulkEnableConfirm}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>Enable Remote Access for All Users?</AlertDialogTitle>
+                <AlertDialogTitle>
+                  Enable Remote Access for All Users?
+                </AlertDialogTitle>
                 <AlertDialogDescription>
                   This will enable remote access for all non-admin users from{" "}
                   <strong>{bulkRemoteFrom || "—"}</strong> to{" "}
                   <strong>{bulkRemoteTo || bulkRemoteFrom || "—"}</strong>.
-                  Users who already have individual remote access settings will not be affected.
+                  Users who already have individual remote access settings will
+                  not be affected.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={bulkRemoteSubmitting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleBulkEnable} disabled={bulkRemoteSubmitting}>
+                <AlertDialogCancel disabled={bulkRemoteSubmitting}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleBulkEnable}
+                  disabled={bulkRemoteSubmitting}
+                >
                   {bulkRemoteSubmitting ? "Enabling…" : "Enable"}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
 
-          <AlertDialog open={showBulkDisableConfirm} onOpenChange={setShowBulkDisableConfirm}>
+          <AlertDialog
+            open={showBulkDisableConfirm}
+            onOpenChange={setShowBulkDisableConfirm}
+          >
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Disable Bulk Remote Access?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This will disable remote access for all non-admin users who were previously enabled
-                  via the bulk action. Users with individual remote access settings will not be affected.
+                  This will disable remote access for all non-admin users who
+                  were previously enabled via the bulk action. Users with
+                  individual remote access settings will not be affected.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel disabled={bulkRemoteSubmitting}>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleBulkDisable} disabled={bulkRemoteSubmitting}>
+                <AlertDialogCancel disabled={bulkRemoteSubmitting}>
+                  Cancel
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleBulkDisable}
+                  disabled={bulkRemoteSubmitting}
+                >
                   {bulkRemoteSubmitting ? "Disabling…" : "Disable"}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -1030,85 +1537,104 @@ export default function LeaveAdminPage() {
         </TabsContent>
       </Tabs>
 
-      <Dialog open={!!actionModal} onOpenChange={(o) => !o && setActionModal(null)}>
+      <Dialog
+        open={!!actionModal}
+        onOpenChange={(o) => !o && setActionModal(null)}
+      >
         <DialogContent>
-          <DialogHeader><DialogTitle>{actionModal?.type === "approve" ? "Approve" : "Reject"} Leave Request</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              {actionModal?.type === "approve" ? "Approve" : "Reject"} Leave
+              Request
+            </DialogTitle>
+          </DialogHeader>
           <div className="space-y-3">
-            <p className="text-sm"><strong>{actionModal?.request?.users?.full_name}</strong> — {actionModal?.request?.leave_types?.name} ({actionModal?.request?.days_count} days)</p>
+            <p className="text-sm">
+              <strong>{actionModal?.request?.users?.full_name}</strong> —{" "}
+              {actionModal?.request?.leave_types?.name} (
+              {actionModal?.request?.days_count} days)
+            </p>
             <div className="space-y-1">
-              <Label>{actionModal?.type === "reject" ? "Rejection Reason *" : "Comment (optional)"}</Label>
-              <Textarea value={adminComment} onChange={(e) => setAdminComment(e.target.value)} rows={2} />
+              <Label>
+                {actionModal?.type === "reject"
+                  ? "Rejection Reason *"
+                  : "Comment (optional)"}
+              </Label>
+              <Textarea
+                value={adminComment}
+                onChange={(e) => setAdminComment(e.target.value)}
+                rows={2}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setActionModal(null)}>Cancel</Button>
-            <Button onClick={handleAction} disabled={processing}
-              className={actionModal?.type === "approve" ? "" : "bg-destructive text-destructive-foreground hover:bg-destructive/90"}>
-              {processing ? "Processing…" : actionModal?.type === "approve" ? "Approve" : "Reject"}
+            <Button variant="outline" onClick={() => setActionModal(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAction}
+              disabled={processing}
+              className={
+                actionModal?.type === "approve"
+                  ? ""
+                  : "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              }
+            >
+              {processing
+                ? "Processing…"
+                : actionModal?.type === "approve"
+                  ? "Approve"
+                  : "Reject"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
+      <AlertDialog
+        open={!!deleteId}
+        onOpenChange={(o) => !o && setDeleteId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Leave Request?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete this leave request? This action cannot be undone.
+              Are you sure you want to permanently delete this leave request?
+              This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
               {deleting ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AlertDialog open={!!wfhDeleteId} onOpenChange={(o) => !o && setWfhDeleteId(null)}>
+      <AlertDialog
+        open={!!wfhDeleteId}
+        onOpenChange={(o) => !o && setWfhDeleteId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Remote Work Request?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to permanently delete this remote work request? This action cannot be undone.
+              Are you sure you want to permanently delete this remote work
+              request? This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={wfhDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleWfhDelete} disabled={wfhDeleting} className="bg-destructive hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleWfhDelete}
+              disabled={wfhDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
               {wfhDeleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={bulkDeleteLeaveOpen} onOpenChange={setBulkDeleteLeaveOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedLeaveIds.size} Leave Request{selectedLeaveIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to permanently delete {selectedLeaveIds.size} leave request{selectedLeaveIds.size > 1 ? "s" : ""}? This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDeleteLeave} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
-              {deleting ? "Deleting..." : "Delete all"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={bulkDeleteWfhOpen} onOpenChange={setBulkDeleteWfhOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedWfhIds.size} Remote Work Request{selectedWfhIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to permanently delete {selectedWfhIds.size} remote work request{selectedWfhIds.size > 1 ? "s" : ""}? This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={wfhDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDeleteWfh} disabled={wfhDeleting} className="bg-destructive hover:bg-destructive/90">
-              {wfhDeleting ? "Deleting..." : "Delete all"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

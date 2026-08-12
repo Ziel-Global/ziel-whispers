@@ -65,7 +65,9 @@ export function useWorkSettings() {
   const shiftEnd = hasCustomShift
     ? (userShift?.shift_end ?? "")
     : (globalSettings?.default_shift_end ?? "");
-  const annualLeaveEntitlement = Number(globalSettings?.annual_leave_entitlement ?? 0);
+  const annualLeaveEntitlement = Number(
+    globalSettings?.annual_leave_entitlement ?? 0,
+  );
   const timezone = "Asia/Karachi";
   const graceMinutes = Number(globalSettings?.late_grace_minutes ?? 15);
 
@@ -130,13 +132,13 @@ export function formatLateness(totalOrHours: number, minutes?: number): string {
  */
 const PKT_OFFSET_HOURS = 5;
 
-/** 
- * Gets "Today" in PKT (Asia/Karachi) regardless of local browser time. 
+/**
+ * Gets "Today" in PKT (Asia/Karachi) regardless of local browser time.
  * Format: YYYY-MM-DD
  */
 export function getPKTDateString(baseDate: Date = new Date()): string {
-  const utc = baseDate.getTime() + (baseDate.getTimezoneOffset() * 60000);
-  const pktDate = new Date(utc + (3600000 * PKT_OFFSET_HOURS));
+  const utc = baseDate.getTime() + baseDate.getTimezoneOffset() * 60000;
+  const pktDate = new Date(utc + 3600000 * PKT_OFFSET_HOURS);
   const year = pktDate.getFullYear();
   const month = String(pktDate.getMonth() + 1).padStart(2, "0");
   const day = String(pktDate.getDate()).padStart(2, "0");
@@ -148,9 +150,9 @@ export function getPKTDateString(baseDate: Date = new Date()): string {
  * Example: 2026-04-21T14:30:00+05:00
  */
 export function getPKTISOString(baseDate: Date = new Date()): string {
-  const utc = baseDate.getTime() + (baseDate.getTimezoneOffset() * 60000);
-  const pktDate = new Date(utc + (3600000 * PKT_OFFSET_HOURS));
-  
+  const utc = baseDate.getTime() + baseDate.getTimezoneOffset() * 60000;
+  const pktDate = new Date(utc + 3600000 * PKT_OFFSET_HOURS);
+
   const year = pktDate.getFullYear();
   const month = String(pktDate.getMonth() + 1).padStart(2, "0");
   const day = String(pktDate.getDate()).padStart(2, "0");
@@ -164,7 +166,9 @@ export function getPKTISOString(baseDate: Date = new Date()): string {
 /**
  * Formats a Date or ISO string into a 12-hour PKT time string (e.g. "09:30 AM").
  */
-export function formatPKTTime(dateInput: Date | string | null | undefined): string {
+export function formatPKTTime(
+  dateInput: Date | string | null | undefined,
+): string {
   if (!dateInput) return "--";
   const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
   if (isNaN(date.getTime())) return "--";
@@ -185,29 +189,34 @@ export function formatPKTTime(dateInput: Date | string | null | undefined): stri
  * Matches the logic in the database trigger calculate_late_clockin.
  * Pass a `clockInDate` to check a historical clock-in instead of "now".
  */
-export function getLatenessInfo(shiftStart: string, graceMinutes: number = 15, workingDays: number = 5, clockInDate?: Date) {
+export function getLatenessInfo(
+  shiftStart: string,
+  graceMinutes: number = 15,
+  workingDays: number = 5,
+  clockInDate?: Date,
+) {
   if (!shiftStart) return { isLate: false, minutesLate: 0 };
-  
+
   const parts = shiftStart.split(":");
   if (parts.length < 2) return { isLate: false, minutesLate: 0 };
-  
+
   const refDate = clockInDate || new Date();
   // getTimezoneOffset is in minutes. PKT is UTC+5, so offset 300 mins.
-  const utc = refDate.getTime() + (refDate.getTimezoneOffset() * 60000);
-  const pktNow = new Date(utc + (3600000 * 5));
-  
+  const utc = refDate.getTime() + refDate.getTimezoneOffset() * 60000;
+  const pktNow = new Date(utc + 3600000 * 5);
+
   // Skip weekends (0=Sun, 6=Sat in JS)
   const day = pktNow.getDay();
   if (day === 0 || (day === 6 && workingDays === 5)) {
     return { isLate: false, minutesLate: 0 };
   }
-  
+
   const shiftStartTime = new Date(pktNow);
   shiftStartTime.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
-  
+
   const diffMs = pktNow.getTime() - shiftStartTime.getTime();
   const diffMins = Math.floor(diffMs / 60000);
-  
+
   return {
     isLate: diffMins > graceMinutes,
     minutesLate: diffMins,
@@ -220,15 +229,20 @@ export function getLatenessInfo(shiftStart: string, graceMinutes: number = 15, w
  * shift start reference, correctly handling night shifts where clock-in
  * may roll over to the next calendar day.
  */
-export function isAttendanceLate(clockIn: string, shiftStart: string, graceMinutes: number = 15, workingDays: number = 5): { isLate: boolean; minutesLate: number } {
+export function isAttendanceLate(
+  clockIn: string,
+  shiftStart: string,
+  graceMinutes: number = 15,
+  workingDays: number = 5,
+): { isLate: boolean; minutesLate: number } {
   if (!clockIn || !shiftStart) return { isLate: false, minutesLate: 0 };
 
   const parts = shiftStart.split(":");
   if (parts.length < 2) return { isLate: false, minutesLate: 0 };
 
   const clockInDate = new Date(clockIn);
-  const utc = clockInDate.getTime() + (clockInDate.getTimezoneOffset() * 60000);
-  const pktTime = new Date(utc + (3600000 * 5));
+  const utc = clockInDate.getTime() + clockInDate.getTimezoneOffset() * 60000;
+  const pktTime = new Date(utc + 3600000 * 5);
 
   const day = pktTime.getDay();
   if (day === 0 || (day === 6 && workingDays === 5)) {
@@ -236,7 +250,9 @@ export function isAttendanceLate(clockIn: string, shiftStart: string, graceMinut
   }
 
   const attendanceDate = clockIn.substring(0, 10);
-  const shiftStartPkt = new Date(attendanceDate + "T" + shiftStart + ":00+05:00");
+  const shiftStartPkt = new Date(
+    attendanceDate + "T" + shiftStart + ":00+05:00",
+  );
 
   const diffMs = pktTime.getTime() - shiftStartPkt.getTime();
   const diffMins = Math.floor(diffMs / 60000);
@@ -253,7 +269,11 @@ export function isAttendanceLate(clockIn: string, shiftStart: string, graceMinut
  * (the log was due on its log_date and was submitted on a later day).
  * Otherwise, compares the submitted_at time against the shift end deadline (in PKT).
  */
-export function isLogSubmissionLate(submittedAt: string, shiftEnd: string, logDate?: string): boolean {
+export function isLogSubmissionLate(
+  submittedAt: string,
+  shiftEnd: string,
+  logDate?: string,
+): boolean {
   if (!submittedAt || !shiftEnd) return false;
 
   if (logDate) {
@@ -265,8 +285,9 @@ export function isLogSubmissionLate(submittedAt: string, shiftEnd: string, logDa
   if (parts.length < 2) return false;
 
   const submittedDate = new Date(submittedAt);
-  const utc = submittedDate.getTime() + (submittedDate.getTimezoneOffset() * 60000);
-  const pktTime = new Date(utc + (3600000 * 5));
+  const utc =
+    submittedDate.getTime() + submittedDate.getTimezoneOffset() * 60000;
+  const pktTime = new Date(utc + 3600000 * 5);
 
   const deadline = new Date(pktTime);
   deadline.setHours(Number(parts[0]), Number(parts[1]), 0, 0);

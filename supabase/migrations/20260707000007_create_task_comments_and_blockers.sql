@@ -32,38 +32,31 @@ ALTER TABLE public.task_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.task_blockers ENABLE ROW LEVEL SECURITY;
 
 -- Comments: admins/managers all access; others can view all, insert own
-DROP POLICY IF EXISTS "admin_manager_all_task_comments" ON public.task_comments;
 CREATE POLICY "admin_manager_all_task_comments" ON public.task_comments
   FOR ALL TO authenticated
   USING ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'manager'));
 
-DROP POLICY IF EXISTS "user_select_task_comments" ON public.task_comments;
 CREATE POLICY "user_select_task_comments" ON public.task_comments
   FOR SELECT TO authenticated
   USING (true);
 
-DROP POLICY IF EXISTS "user_insert_task_comments" ON public.task_comments;
 CREATE POLICY "user_insert_task_comments" ON public.task_comments
   FOR INSERT TO authenticated
   WITH CHECK (author_id = auth.uid() AND author_type = 'human');
 
 -- Blockers: admins/managers all access; others can view all, insert own, resolve own
-DROP POLICY IF EXISTS "admin_manager_all_task_blockers" ON public.task_blockers;
 CREATE POLICY "admin_manager_all_task_blockers" ON public.task_blockers
   FOR ALL TO authenticated
   USING ((SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'manager'));
 
-DROP POLICY IF EXISTS "user_select_task_blockers" ON public.task_blockers;
 CREATE POLICY "user_select_task_blockers" ON public.task_blockers
   FOR SELECT TO authenticated
   USING (true);
 
-DROP POLICY IF EXISTS "user_insert_task_blockers" ON public.task_blockers;
 CREATE POLICY "user_insert_task_blockers" ON public.task_blockers
   FOR INSERT TO authenticated
   WITH CHECK (raised_by = auth.uid());
 
-DROP POLICY IF EXISTS "user_update_task_blockers" ON public.task_blockers;
 CREATE POLICY "user_update_task_blockers" ON public.task_blockers
   FOR UPDATE TO authenticated
   USING (raised_by = auth.uid() OR (SELECT role FROM public.users WHERE id = auth.uid()) IN ('admin', 'manager'));

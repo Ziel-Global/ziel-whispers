@@ -1,12 +1,25 @@
 import { supabase } from "@/integrations/supabase/client";
 
+export const TASK_STATUS_COLORS: Record<string, string> = {
+  unlinked: "bg-gray-100 text-gray-800",
+  linked: "bg-blue-100 text-blue-800",
+  in_progress: "bg-yellow-100 text-yellow-800",
+  complete: "bg-green-100 text-green-800",
+  returned: "bg-red-100 text-red-800",
+};
+
 export const PRIORITY_COLORS: Record<string, string> = {
   high: "bg-red-100 text-red-800",
   medium: "bg-yellow-100 text-yellow-800",
   low: "bg-green-100 text-green-800",
 };
 
-export const PROJECT_STATUS_OPTIONS = ["active", "on_hold", "completed", "archived"];
+export const PROJECT_STATUS_OPTIONS = [
+  "active",
+  "on_hold",
+  "completed",
+  "archived",
+];
 
 export const PROJECT_STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -15,12 +28,8 @@ export const PROJECT_STATUS_COLORS: Record<string, string> = {
   archived: "bg-muted text-muted-foreground",
 };
 
-export function getStatusColor(
-  workflowStatuses: WorkflowStatus[],
-  statusId: string | null
-): string {
-  if (!statusId) return "bg-gray-100 text-gray-800";
-  return workflowStatuses.find((s) => s.id === statusId)?.color || "bg-gray-100 text-gray-800";
+export function getStatusColor(status: string): string {
+  return TASK_STATUS_COLORS[status] || "bg-gray-100 text-gray-800";
 }
 
 export function getPriorityColor(priority: string): string {
@@ -29,10 +38,14 @@ export function getPriorityColor(priority: string): string {
 
 export function getCategoryColor(category: string): string {
   switch (category) {
-    case "todo": return "bg-gray-100 text-gray-800";
-    case "in_progress": return "bg-blue-100 text-blue-800";
-    case "done": return "bg-green-100 text-green-800";
-    default: return "bg-gray-100 text-gray-800";
+    case "todo":
+      return "bg-gray-100 text-gray-800";
+    case "in_progress":
+      return "bg-blue-100 text-blue-800";
+    case "done":
+      return "bg-green-100 text-green-800";
+    default:
+      return "bg-gray-100 text-gray-800";
   }
 }
 
@@ -99,7 +112,7 @@ export async function fetchWorkflowTemplate(projectId: string): Promise<{
 export function getAllowedTransitions(
   statuses: WorkflowStatus[],
   transitions: WorkflowTransition[],
-  fromStatusId: string | null
+  fromStatusId: string | null,
 ): WorkflowStatus[] {
   const allowedIds = transitions
     .filter((t) => t.from_status_id === fromStatusId)
@@ -107,33 +120,16 @@ export function getAllowedTransitions(
   return statuses.filter((s) => allowedIds.includes(s.id));
 }
 
-export function getInitialStatus(statuses: WorkflowStatus[]): WorkflowStatus | undefined {
+export function getInitialStatus(
+  statuses: WorkflowStatus[],
+): WorkflowStatus | undefined {
   return statuses.find((s) => s.is_initial);
-}
-
-export function getDoneStatusIds(statuses: WorkflowStatus[]): Set<string> {
-  return new Set(statuses.filter((s) => s.category === "done").map((s) => s.id));
-}
-
-export function getInProgressStatuses(statuses: WorkflowStatus[]): WorkflowStatus[] {
-  return statuses.filter((s) => s.category === "in_progress");
-}
-
-export function getStatusDisplay(
-  workflowStatuses: WorkflowStatus[],
-  statusId: string | null
-): { name: string; color: string } {
-  const s = workflowStatuses.find((ws) => ws.id === statusId);
-  return {
-    name: s?.name?.replace(/_/g, " ") || "No Status",
-    color: s?.color || "bg-gray-100 text-gray-800",
-  };
 }
 
 export async function changeTaskStatus(
   taskId: string,
   newStatusId: string,
-  changedByType: "admin" | "system" | "auto" = "system"
+  changedByType: "admin" | "system" | "auto" = "system",
 ) {
   const { error } = await supabase.rpc("change_task_status", {
     p_task_id: taskId,

@@ -1,20 +1,23 @@
 "use client";
 import { Bell } from "lucide-react";
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/lib/notifications";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { formatDistanceToNow } from "date-fns";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 export function NotificationBell() {
   const { profile } = useAuth();
-  const { notifications, isLoading, unreadCount, markAsRead, markAllAsRead } = useNotifications();
+  const { notifications, isLoading, unreadCount, markAsRead, markAllAsRead } =
+    useNotifications();
   const [isOpen, setIsOpen] = useState(false);
-  const navigate = useNavigate();
 
   const getNotificationIcon = (type: string) => {
     switch (type) {
@@ -32,10 +35,6 @@ export function NotificationBell() {
         return "📅";
       case "remote_work_request":
         return "🏠";
-      case "task_returned":
-        return "🔄";
-      case "task_assigned":
-        return "👤";
       default:
         return "🔔";
     }
@@ -59,7 +58,7 @@ export function NotificationBell() {
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <span className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-xs font-medium text-white">
-              {unreadCount > 8 ? "8+" : unreadCount}
+              {unreadCount}
             </span>
           )}
         </Button>
@@ -80,31 +79,53 @@ export function NotificationBell() {
         </div>
         <div className="max-h-[300px] overflow-y-auto divide-y">
           {isLoading ? (
-            <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              Loading...
+            </div>
           ) : notifications && notifications.length > 0 ? (
-            (notifications.slice(0, 7)).map((notification) => {
-              const meta = notification.metadata as { title?: string; message?: string; project_id?: string };
+            notifications.slice(0, 7).map((notification) => {
+              const meta = notification.metadata as {
+                title?: string;
+                message?: string;
+                project_id?: string;
+              };
               return (
                 <div
                   key={notification.id}
                   className={`p-4 hover:bg-accent/50 cursor-pointer transition-colors ${!notification.read ? "bg-blue-50" : ""}`}
                   onClick={() => {
                     if (!notification.read) markAsRead(notification.id);
-                    if (meta?.project_id) { setIsOpen(false); navigate(`/projects/${meta.project_id}`); }
+                    if (meta?.project_id) {
+                      setIsOpen(false);
+                      navigate(`/projects/${meta.project_id}`);
+                    }
                   }}
                 >
                   <div className="flex gap-3">
-                    <div className="text-2xl mt-0.5">{getNotificationIcon(notification.type)}</div>
+                    <div className="text-2xl mt-0.5">
+                      {getNotificationIcon(notification.type)}
+                    </div>
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between">
-                        <p className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>{meta?.title || notification.type}</p>
+                        <p
+                          className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}
+                        >
+                          {meta?.title || notification.type}
+                        </p>
                         <p className="text-xs text-muted-foreground whitespace-nowrap ml-2">
-                          {formatDistanceToNow(new Date(notification.triggered_at), { addSuffix: true })}
+                          {formatDistanceToNow(
+                            new Date(notification.triggered_at),
+                            { addSuffix: true },
+                          )}
                         </p>
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2 break-words">{formatMessage(meta?.message || "")}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2 break-words">
+                        {formatMessage(meta?.message || "")}
+                      </p>
                       {meta?.project_id && (
-                        <span className="text-xs text-blue-600">Project notification</span>
+                        <span className="text-xs text-blue-600">
+                          Project notification
+                        </span>
                       )}
                     </div>
                   </div>
@@ -112,7 +133,9 @@ export function NotificationBell() {
               );
             })
           ) : (
-            <div className="p-8 text-center text-sm text-muted-foreground">No notifications</div>
+            <div className="p-8 text-center text-sm text-muted-foreground">
+              No notifications
+            </div>
           )}
         </div>
         <div className="border-t p-2">
@@ -120,9 +143,9 @@ export function NotificationBell() {
             variant="ghost"
             size="sm"
             className="w-full justify-center text-sm"
-            onClick={() => { setIsOpen(false); navigate("/notifications"); }}
+            onClick={() => setIsOpen(false)}
           >
-            Show all
+            Close
           </Button>
         </div>
       </PopoverContent>

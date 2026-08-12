@@ -36,6 +36,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 
 import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS, getAllowedTransitions, getStatusColor, getDoneStatusIds, getInitialStatus, getStatusDisplay } from "@/lib/workflow";
 import { StageOutcomeSelector } from "@/components/StageOutcomeSelector";
+import { TaskCollaboratorsSection } from "@/components/TaskCollaboratorsSection";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 
@@ -4127,6 +4128,18 @@ const { data: resolvedId } = useQuery({
           </div>
 
           <Separator className="my-4" />
+
+          {/* Collaborators */}
+          {viewTaskData?.id && (
+            <>
+              <TaskCollaboratorsSection
+                taskId={viewTaskData.id}
+                projectMembers={resourceMembers}
+                primaryOwnerId={viewTaskData.assigned_to}
+              />
+              <Separator className="my-4" />
+            </>
+          )}
 
           {/* Comments */}
           <div className="space-y-3">

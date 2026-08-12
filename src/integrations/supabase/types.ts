@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -1524,6 +1524,40 @@ export type Database = {
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
+      task_collaborators: {
+        Row: {
+          added_at: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_collaborators_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_collaborators_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       task_status_history: {
@@ -1615,6 +1649,7 @@ export type Database = {
           status: string
           status_id: string | null
           title: string
+          version: number
         }
         Insert: {
           assigned_to?: string | null
@@ -1635,6 +1670,7 @@ export type Database = {
           status?: string
           status_id?: string | null
           title: string
+          version?: number
         }
         Update: {
           assigned_to?: string | null
@@ -1655,6 +1691,7 @@ export type Database = {
           status?: string
           status_id?: string | null
           title?: string
+          version?: number
         }
         Relationships: [
           {

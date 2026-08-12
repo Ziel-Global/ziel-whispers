@@ -112,7 +112,7 @@ export default function LogSubmitPage() {
         .eq("user_id", user!.id)
         .eq("status", "submitted")
         .gte("log_date", minDate);
-      
+
       const totals: Record<string, number> = {};
       data?.forEach((l: any) => {
         totals[l.log_date] = (totals[l.log_date] || 0) + Number(l.hours);
@@ -144,6 +144,14 @@ export default function LogSubmitPage() {
       return total < 24;
     }, "This day already has the maximum hours logged"),
     task_id: z.string().nullable().optional(),
+  }).refine((data) => {
+    if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
+      return !!data.task_id;
+    }
+    return true;
+  }, {
+    message: "Please select a task (or 'Other')",
+    path: ["task_id"],
   });
 
   const { data: projects = [] } = useQuery({
@@ -236,11 +244,11 @@ export default function LogSubmitPage() {
   });
 
   const submittedHours = useMemo(() => dateLogs.reduce((sum, l) => sum + Number(l.hours), 0), [dateLogs]);
-  const pendingHoursForSelectedDate = useMemo(() => 
+  const pendingHoursForSelectedDate = useMemo(() =>
     pendingLogs.filter((p: any) => p.log_date === selectedDate && p.id !== editId).reduce((sum: number, l: any) => sum + Number(l.hours), 0),
     [pendingLogs, selectedDate, editId]
   );
-  
+
   const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
   const remainingFor8 = overtimeEnabled ? 24 : Math.max(0, 24 - totalHoursForSelectedDate);
   const logsAreAllForToday = useMemo(() =>
@@ -312,6 +320,8 @@ export default function LogSubmitPage() {
     }
 
     try {
+      const finalTaskId = data.task_id === "other" ? null : (data.task_id || null);
+
       if (editId) {
         // Update existing draft in database
         const { error } = await supabase.from("daily_logs").update({
@@ -320,7 +330,8 @@ export default function LogSubmitPage() {
           hours: data.hours,
           description: data.description,
           log_date: data.log_date,
-          task_id: data.task_id || null,
+          task_id: finalTaskId,
+          declared_outcome_status_id: declaredTarget || null,
         }).eq("id", editId).eq("status", "draft");
         if (error) throw error;
         setEditId(null);
@@ -337,7 +348,8 @@ export default function LogSubmitPage() {
           status: "draft",
           is_late: false,
           is_overtime: false,
-          task_id: data.task_id || null,
+          task_id: finalTaskId,
+          declared_outcome_status_id: declaredTarget || null,
         });
         if (error) throw error;
         toast.success("Log added to list");
@@ -357,7 +369,7 @@ export default function LogSubmitPage() {
       hours: log.hours,
       description: log.description,
       log_date: log.log_date,
-      task_id: log.task_id || null,
+      task_id: log.task_id || (log.project_id && log.project_id !== MISC_PROJECT_ID ? "other" : null),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -643,7 +655,7 @@ export default function LogSubmitPage() {
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Duration (Hours)</FormLabel>
                   <FormControl>
-                  <Input type="number" step="0.25" min="0.25" className="bg-background" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isLocked} max={24} />
+                    <Input type="number" step="0.25" min="0.25" className="bg-background" {...field} onChange={e => field.onChange(Number(e.target.value))} disabled={isLocked} max={24} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -680,7 +692,7 @@ export default function LogSubmitPage() {
                         disabled={(date) => {
                           const dateStr = format(date, "yyyy-MM-dd");
                           const day = date.getDay();
-                          
+
                           // Overtime users can log on any day
                           if (!overtimeEnabled) {
                             // Disable Sunday
@@ -688,13 +700,13 @@ export default function LogSubmitPage() {
                             // Disable Saturday if 5-day worker
                             if (day === 6 && workingDays === 5) return true;
                           }
-                          
+
                           // Enforce per-employee log edit window (working days only)
                           if (!isWithinLogEditWindow(dateStr, today, effectiveLogEditDays, workingDays)) return true;
-                          
+
                           // Disable if already has 24+ hours (hard cap)
                           if ((logsTotals[dateStr] || 0) >= 24) return true;
-                          
+
                           // Future dates (just in case)
                           if (date > new Date()) return true;
 
@@ -711,76 +723,140 @@ export default function LogSubmitPage() {
 
             {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && (
               <div className="space-y-2">
-                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task (Optional)</span>
-                {tasksWithRemaining.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No tasks assigned for this project</p>
-                ) : (
-                  <div className="space-y-1">
-                    {tasksWithRemaining.map((t: any) => (
-                      <div
-                        key={t.id}
-                        className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
-                          form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Task (Required) *</span>
+                <div className="space-y-1">
+                  {tasksWithRemaining.map((t: any) => (
+                    <div
+                      key={t.id}
+                      className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
                         }`}
-                        onClick={() => form.setValue("task_id", form.watch("task_id") === t.id ? null : t.id, { shouldDirty: true })}
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-4 h-4 rounded-md border-2 shrink-0 flex items-center justify-center ${
-                            form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
+                      onClick={() => form.setValue("task_id", form.watch("task_id") === t.id ? null : t.id, { shouldDirty: true, shouldValidate: true })}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
                           }`}>
-                            {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-                          </div>
-                          <span className="text-sm font-medium truncate">{t.title}</span>
+                          {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                         </div>
-                        <div className="flex items-center gap-2 shrink-0 ml-2">
-                          {t.remaining_hours !== null && <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>}
-                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                        </div>
+                        <span className="text-sm font-medium truncate">{t.title}</span>
                       </div>
-                    ))}
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {t.remaining_hours !== null && <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>}
+                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                      </div>
+                    </div>
+                  ))}
+                  <div
+                    key="other-task-option"
+                    className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === "other" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                      }`}
+                    onClick={() => form.setValue("task_id", form.watch("task_id") === "other" ? null : "other", { shouldDirty: true, shouldValidate: true })}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === "other" ? "border-primary" : "border-muted-foreground"
+                        }`}>
+                        {form.watch("task_id") === "other" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                      </div>
+                      <span className="text-sm font-medium truncate">Other</span>
+                    </div>
+                  </div>
+                </div>
+                {form.formState.errors.task_id && (
+                  <p className="text-xs font-medium text-destructive mt-1">{form.formState.errors.task_id.message as string}</p>
+                )}
+              </div>
+            )}
+
+            {selectedTask && selectedTask.id !== "other" && selectedTask.status_id && workflowStatuses && allowedTransitions.length > 0 && (
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                <div className="flex items-start gap-3">
+                  <input type="checkbox" id="declare-outcome" checked={declareOutcome}
+                    onChange={(e) => { setDeclareOutcome(e.target.checked); if (!e.target.checked) setSelectedOutcomeStatusId(""); }}
+                    className="mt-0.5 h-4 w-4 rounded border-gray-300" />
+                  <label htmlFor="declare-outcome" className="text-sm cursor-pointer select-none">
+                    <span className="font-medium">Change Task Status</span>
+                    <span className="block text-xs text-muted-foreground">
+                      Tick this to move the task to its next stage when you submit this log.
+                    </span>
+                  </label>
+                </div>
+                {declareOutcome && (
+                  <div className="ml-7 space-y-2">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">Your log will move</span>{" "}
+                      <span className="font-medium">{selectedTask.title}</span>{" "}
+                      <span className="text-muted-foreground">to the next stage:</span>
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Badge className={getStatusColor(workflowStatuses, selectedTask.status_id)}>
+                        {getStatusDisplay(workflowStatuses, selectedTask.status_id).name}
+                      </Badge>
+                      <span className="text-muted-foreground">→</span>
+                      {allowedTransitions.length === 1 ? (
+                        <Badge className={getStatusColor(workflowStatuses, allowedTransitions[0].id)}>
+                          {getStatusDisplay(workflowStatuses, allowedTransitions[0].id).name}
+                        </Badge>
+                      ) : (
+                        <Select value={selectedOutcomeStatusId} onValueChange={setSelectedOutcomeStatusId}>
+                          <SelectTrigger className="w-[220px] h-9">
+                            <SelectValue placeholder="Which stage actually happened?" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {allowedTransitions.map((s: any) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {dependencyWarning && (
+                  <div className="ml-7 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                    <span className="font-medium">⚠ {dependencyWarning}</span>
                   </div>
                 )}
               </div>
             )}
 
-            <FormField control={form.control} name="description" render={({ field }) => (
-              <FormItem>
-                <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</FormLabel>
-                <FormControl><Textarea {...field} rows={3} className="bg-background resize-none" placeholder="Explain your progress..." disabled={isLocked} /></FormControl>
-                <div className="flex justify-between items-center px-1">
-                  <FormMessage />
-                  <span className={`text-[10px] font-mono ${descValue?.length < 20 ? "text-destructive" : "text-muted-foreground"}`}>{descValue?.length || 0} / 20 chars min</span>
-                </div>
-              </FormItem>
-            )} />
+            {(selectedProjectId === MISC_PROJECT_ID || Boolean(form.watch("task_id"))) && (
+              <>
+                <FormField control={form.control} name="description" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Description</FormLabel>
+                    <FormControl><Textarea {...field} rows={3} className="bg-background resize-none" placeholder="Explain your progress..." disabled={isLocked} /></FormControl>
+                    <div className="flex justify-between items-center px-1">
+                      <FormMessage />
+                      <span className={`text-[10px] font-mono ${descValue?.length < 20 ? "text-destructive" : "text-muted-foreground"}`}>{descValue?.length || 0} / 20 chars min</span>
+                    </div>
+                  </FormItem>
+                )} />
 
-            {isLocked ? (
-              <div className="bg-muted p-6 rounded-xl border-2 border-dashed flex flex-col items-center text-center space-y-3">
-                <div className="p-3 bg-primary/10 rounded-md"><Lock className="h-6 w-6 text-primary" /></div>
-                <div>
-                  <p className="font-bold">Daily Limit Reached</p>
-                  <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
-                </div>
-                <Button type="button" variant="outline" size="sm" onClick={() => navigate("/logs/my")} className="rounded-button">Go to My Logs</Button>
-              </div>
-            ) : (
-              <div className="flex justify-end gap-3 pt-2">
-                {editId && (
-                  <Button type="button" variant="ghost" onClick={cancelEdit} className="rounded-button">Cancel Edit</Button>
+                {isLocked ? (
+                  <div className="bg-muted p-6 rounded-xl border-2 border-dashed flex flex-col items-center text-center space-y-3">
+                    <div className="p-3 bg-primary/10 rounded-full"><Lock className="h-6 w-6 text-primary" /></div>
+                    <div>
+                      <p className="font-bold">Daily Limit Reached</p>
+                      <p className="text-sm text-muted-foreground">You have already submitted logs for {format(parseISO(selectedDate), "MMM do")}.</p>
+                    </div>
+                    <Button type="button" variant="outline" size="sm" onClick={() => navigate("/logs/my")} className="rounded-button">Go to My Logs</Button>
+                  </div>
+                ) : (
+                  <div className="flex justify-end gap-3 pt-2">
+                    {editId && (
+                      <Button type="button" variant="ghost" onClick={cancelEdit} className="rounded-button">Cancel Edit</Button>
+                    )}
+                    <Button type="submit" className="rounded-button px-8" disabled={!overtimeEnabled && totalHoursForSelectedDate >= 24 && !editId}>
+                      {editId ? "Update Log Entry" : "Add Log Entry"}
+                    </Button>
+                  </div>
                 )}
-                <Button type="submit" className="rounded-button px-8" disabled={!overtimeEnabled && totalHoursForSelectedDate >= 24 && !editId}>
-                  {editId ? "Update Log Entry" : "Add Log Entry"}
-                </Button>
-              </div>
+              </>
             )}
           </form>
         </Form>
       </Card>
 
-      {/* Pending Section */}
-      {pendingLogs.length > 0 && (
-        <div className="space-y-6">
-          <div className="flex items-center justify-between px-1 pt-2">
+      {/* Pending Section */ }
             <div className="flex items-center gap-2">
               <CheckCircle2 className="h-5 w-5 text-black" />
               <h2 className="text-lg font-semibold">Unsubmitted Logs</h2>
@@ -820,10 +896,12 @@ export default function LogSubmitPage() {
             ))}
           </div>
         </div>
-      )}
+      )
+    }
 
-      {/* History Section for the SELECTED date */}
-      {dateLogs.length > 0 && (
+    {/* History Section for the SELECTED date */ }
+    {
+      dateLogs.length > 0 && (
         <div className="space-y-4 pt-4">
           <div className="flex items-center gap-2 px-1">
             <History className="h-5 w-5 text-muted-foreground" />
@@ -852,9 +930,10 @@ export default function LogSubmitPage() {
             ))}
           </div>
         </div>
-      )}
+      )
+    }
 
-      {/* Help Info */}
+    {/* Help Info */ }
       <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-xl border-black border border-2 border-dashed text-muted-foreground">
         <AlertCircle className="h-5 w-5 shrink-0" />
         <p className="text-xs">
@@ -897,6 +976,69 @@ export default function LogSubmitPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div >
+  );
+  }
+  { log.is_overtime && <Badge className="bg-purple-100 text-purple-700 text-[10px]">Overtime</Badge> }
+  { log.submitted_at && isLogSubmissionLate(log.submitted_at, resolvedShiftEnd, log.log_date) && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge> }
+                    </div >
+    <p className="text-sm text-black">{log.description}</p>
+                  </div >
+    <div className="flex flex-col items-end gap-1">
+      <span className="text-[12px] text-muted-foreground font-mono">{formatPKTTime(log.submitted_at)}</span>
+      <Badge variant="secondary" className="text-[12px] bg-primary">Submitted</Badge>
     </div>
+                </div >
+              </Card >
+            ))
+}
+          </div >
+        </div >
+      )}
+
+{/* Help Info */ }
+      <div className="flex items-center gap-3 p-4 bg-muted/40 rounded-xl border-black border border-2 border-dashed text-muted-foreground">
+        <AlertCircle className="h-5 w-5 shrink-0" />
+        <p className="text-xs">
+          {overtimeEnabled
+            ? "Tip: Overtime is enabled for your account. You can log hours beyond 8h and submit logs on weekends. Hours above 8h per day are tracked as overtime."
+            : "Tip: You can select a past date to submit logs you might have missed. You can submit multiple logs for the same day until you reach the daily limit."}
+        </p>
+      </div>
+
+      <AlertDialog open={showSubmitConfirm} onOpenChange={setShowSubmitConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-primary"><Send className="h-5 w-5" />Final Submission</AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p className="font-semibold text-foreground">Are you sure you want to submit all {pendingLogs.length} logs?</p>
+              {logsAreAllForToday && (
+                <div className="bg-amber-50 border border-amber-200 p-3 rounded-md text-amber-800 text-xs flex gap-3">
+                  <AlertCircle className="h-5 w-5 shrink-0" />
+                  <div className="space-y-1">
+                    <p><strong>Warning:</strong> This action is irreversible.</p>
+                    <p>You will be automatically clocked out from your current attendance session when these logs are submitted.</p>
+                  </div>
+                </div>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleSubmitAll} className="rounded-button bg-primary hover:bg-primary/90 text-white">Confirm</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Are you sure?</AlertDialogTitle><AlertDialogDescription>This unsubmitted log will be removed from your list.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteConfirmId && removePendingLog(deleteConfirmId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div >
   );
 }

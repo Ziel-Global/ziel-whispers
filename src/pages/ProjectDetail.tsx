@@ -160,77 +160,77 @@ export default function ProjectDetailPage() {
   const [editTaskSprintId, setEditTaskSprintId] = useState("");
 
   const [automationRulesOpen, setAutomationRulesOpen] = useState(false);
-const [editRuleId, setEditRuleId] = useState<string | null>(null);
-const [ruleName, setRuleName] = useState("");
-const [ruleDescription, setRuleDescription] = useState("");
-const [ruleStatus, setRuleStatus] = useState("draft");
-const [ruleTriggerType, setRuleTriggerType] = useState("status_change");
-const [rulePriority, setRulePriority] = useState(0);
-const [ruleAllowTriggering, setRuleAllowTriggering] = useState(false);
-const [ruleConditions, setRuleConditions] = useState<{field: string; operator: string; value: string}[]>([]);
-const [ruleActions, setRuleActions] = useState<{type: string; params: Record<string, string>}[]>([]);
-const [deleteRuleConfirmId, setDeleteRuleConfirmId] = useState<string | null>(null);
-const [deleteTaskConfirmId, setDeleteTaskConfirmId] = useState<string | null>(null);
+  const [editRuleId, setEditRuleId] = useState<string | null>(null);
+  const [ruleName, setRuleName] = useState("");
+  const [ruleDescription, setRuleDescription] = useState("");
+  const [ruleStatus, setRuleStatus] = useState("draft");
+  const [ruleTriggerType, setRuleTriggerType] = useState("status_change");
+  const [rulePriority, setRulePriority] = useState(0);
+  const [ruleAllowTriggering, setRuleAllowTriggering] = useState(false);
+  const [ruleConditions, setRuleConditions] = useState<{ field: string; operator: string; value: string }[]>([]);
+  const [ruleActions, setRuleActions] = useState<{ type: string; params: Record<string, string> }[]>([]);
+  const [deleteRuleConfirmId, setDeleteRuleConfirmId] = useState<string | null>(null);
+  const [deleteTaskConfirmId, setDeleteTaskConfirmId] = useState<string | null>(null);
 
-const addCondition = () => {
-  setRuleConditions([...ruleConditions, { field: "status_id", operator: "eq", value: "" }]);
-};
+  const addCondition = () => {
+    setRuleConditions([...ruleConditions, { field: "status_id", operator: "eq", value: "" }]);
+  };
 
-const removeCondition = (idx: number) => {
-  setRuleConditions(ruleConditions.filter((_, i) => i !== idx));
-};
+  const removeCondition = (idx: number) => {
+    setRuleConditions(ruleConditions.filter((_, i) => i !== idx));
+  };
 
-const updateCondition = (idx: number, key: string, value: string) => {
-  setRuleConditions(ruleConditions.map((c, i) => i === idx ? { ...c, [key]: value } : c));
-};
+  const updateCondition = (idx: number, key: string, value: string) => {
+    setRuleConditions(ruleConditions.map((c, i) => i === idx ? { ...c, [key]: value } : c));
+  };
 
-const addAction = () => {
-  setRuleActions([...ruleActions, { type: "change_status", params: {} }]);
-};
+  const addAction = () => {
+    setRuleActions([...ruleActions, { type: "change_status", params: {} }]);
+  };
 
-const removeAction = (idx: number) => {
-  setRuleActions(ruleActions.filter((_, i) => i !== idx));
-};
+  const removeAction = (idx: number) => {
+    setRuleActions(ruleActions.filter((_, i) => i !== idx));
+  };
 
-const setActionType = (idx: number, type: string) => {
-  setRuleActions(ruleActions.map((a, i) => i === idx ? { type, params: {} } : a));
-};
+  const setActionType = (idx: number, type: string) => {
+    setRuleActions(ruleActions.map((a, i) => i === idx ? { type, params: {} } : a));
+  };
 
-const setActionParam = (idx: number, key: string, value: string) => {
-  setRuleActions(ruleActions.map((a, i) => i === idx ? { ...a, params: { ...a.params, [key]: value } } : a));
-};
+  const setActionParam = (idx: number, key: string, value: string) => {
+    setRuleActions(ruleActions.map((a, i) => i === idx ? { ...a, params: { ...a.params, [key]: value } } : a));
+  };
 
-const resetRuleForm = () => {
-  setEditRuleId(null);
-  setRuleName("");
-  setRuleDescription("");
-  setRuleStatus("draft");
-  setRuleTriggerType("status_change");
-  setRulePriority(0);
-  setRuleAllowTriggering(false);
-  setRuleConditions([]);
-  setRuleActions([]);
-};
+  const resetRuleForm = () => {
+    setEditRuleId(null);
+    setRuleName("");
+    setRuleDescription("");
+    setRuleStatus("draft");
+    setRuleTriggerType("status_change");
+    setRulePriority(0);
+    setRuleAllowTriggering(false);
+    setRuleConditions([]);
+    setRuleActions([]);
+  };
 
-const openAddRule = () => {
-  resetRuleForm();
-  setAutomationRulesOpen(true);
-};
+  const openAddRule = () => {
+    resetRuleForm();
+    setAutomationRulesOpen(true);
+  };
 
-const openEditRule = (rule: any) => {
-  setEditRuleId(rule.id);
-  setRuleName(rule.name);
-  setRuleDescription(rule.description || "");
-  setRuleStatus(rule.status);
-  setRuleTriggerType(rule.trigger_type);
-  setRulePriority(rule.priority);
-  setRuleAllowTriggering(rule.allow_triggering_other_rules);
-  setRuleConditions(rule.conditions || []);
-  setRuleActions(rule.actions || []);
-  setAutomationRulesOpen(true);
-};
+  const openEditRule = (rule: any) => {
+    setEditRuleId(rule.id);
+    setRuleName(rule.name);
+    setRuleDescription(rule.description || "");
+    setRuleStatus(rule.status);
+    setRuleTriggerType(rule.trigger_type);
+    setRulePriority(rule.priority);
+    setRuleAllowTriggering(rule.allow_triggering_other_rules);
+    setRuleConditions(rule.conditions || []);
+    setRuleActions(rule.actions || []);
+    setAutomationRulesOpen(true);
+  };
 
-const { data: resolvedId } = useQuery({
+  const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
     queryFn: async () => {
       const { data } = await supabase.from("projects").select("id, name");
@@ -675,7 +675,7 @@ const { data: resolvedId } = useQuery({
     setNewBlockerDescription("");
     setShowAddBlocker(false);
     queryClient.invalidateQueries({ queryKey: ["task-blockers", taskId] });
-    
+
     await createNotification({
       userId: profile.id,
       type: "blocker_created",
@@ -744,15 +744,15 @@ const { data: resolvedId } = useQuery({
       if (rpcError) console.error("Automation engine error:", rpcError);
     }
     queryClient.invalidateQueries({ queryKey: ["task-blockers-view", viewTaskData.id] });
-    
+
     const { data: blockers } = await supabase
       .from("task_blockers")
       .select("*, raised_by:users(full_name), resolved_by:users!task_blockers_resolved_by_fkey(full_name)")
       .eq("id", viewTaskData?.blockerId);
-    
+
     const blocker = blockers?.[0];
     const isClientAction = blocker?.requires_client_action || false;
-    
+
     const message = `${profile.full_name} created a new blocker`;
     await createProjectRelatedNotifications({
       createdByUserId: profile.id,
@@ -782,12 +782,12 @@ const { data: resolvedId } = useQuery({
     });
     if (rpcError) console.error("Automation engine error:", rpcError);
     queryClient.invalidateQueries({ queryKey: ["task-blockers-view", taskId] });
-    
+
     const { data: blockers } = await supabase
       .from("task_blockers")
       .select("*, project_id")
       .eq("id", blockerId);
-    
+
     if (blockers?.[0]) {
       const blocker = blockers[0];
       const isClientAction = blocker.requires_client_action || false;
@@ -939,7 +939,7 @@ const { data: resolvedId } = useQuery({
     setNewStatusUpdateVisible(false);
     toast.success("Status update posted");
     queryClient.invalidateQueries({ queryKey: ["project-status-updates", id] });
-    
+
     await createProjectRelatedNotifications({
       createdByUserId: profile.id,
       projectId: id,
@@ -973,7 +973,7 @@ const { data: resolvedId } = useQuery({
     setNewActionItemAssignedTo("");
     toast.success("Action item created");
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
-    
+
     await createProjectRelatedNotifications({
       createdByUserId: profile.id,
       projectId: id,
@@ -1857,9 +1857,9 @@ const { data: resolvedId } = useQuery({
             /* health badge colour */
             const healthColor =
               latestHealth?.health_status === "on_track" ? { bg: "#DCFCE7", text: "#166534", label: "On Track" } :
-              latestHealth?.health_status === "at_risk"  ? { bg: "#FEF9C3", text: "#854D0E", label: "At Risk"  } :
-              latestHealth?.health_status === "off_track"? { bg: "#FEE2E2", text: "#991B1B", label: "Off Track" } :
-              null;
+                latestHealth?.health_status === "at_risk" ? { bg: "#FEF9C3", text: "#854D0E", label: "At Risk" } :
+                  latestHealth?.health_status === "off_track" ? { bg: "#FEE2E2", text: "#991B1B", label: "Off Track" } :
+                    null;
 
             /* burndown data */
             const scopeTasks = burndownScope === "project"
@@ -1877,16 +1877,16 @@ const { data: resolvedId } = useQuery({
             const burnEndDate = scopePhase?.due_date
               || project?.end_date
               || (() => {
-                  const latestDue = estimated
-                    .map((t: any) => t.due_date)
-                    .filter(Boolean)
-                    .sort()
-                    .pop();
-                  if (latestDue) return latestDue;
-                  const fallback = new Date(today);
-                  fallback.setDate(fallback.getDate() + 30);
-                  return fallback.toISOString().slice(0, 10);
-                })();
+                const latestDue = estimated
+                  .map((t: any) => t.due_date)
+                  .filter(Boolean)
+                  .sort()
+                  .pop();
+                if (latestDue) return latestDue;
+                const fallback = new Date(today);
+                fallback.setDate(fallback.getDate() + 30);
+                return fallback.toISOString().slice(0, 10);
+              })();
             const burnStartDate = project?.start_date;
             let burndownData: any[] = [];
             if (estimated.length > 0 && burnEndDate && burnStartDate) {
@@ -2160,10 +2160,9 @@ const { data: resolvedId } = useQuery({
                         {upcomingDeadlines.map((t: any) => (
                           <div key={t.id} className="flex items-center justify-between py-1.5 border-b border-[#F3F4F6] last:border-0">
                             <div className="flex items-center gap-2 min-w-0">
-                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                t.priority === "high" ? "bg-red-500" :
-                                t.priority === "medium" ? "bg-yellow-500" : "bg-green-500"
-                              }`} />
+                              <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${t.priority === "high" ? "bg-red-500" :
+                                  t.priority === "medium" ? "bg-yellow-500" : "bg-green-500"
+                                }`} />
                               <span className="text-sm text-[#374151] truncate">{t.title}</span>
                             </div>
                             <span className="text-[11px] text-[#9CA3AF] shrink-0 ml-2">
@@ -2268,7 +2267,7 @@ const { data: resolvedId } = useQuery({
                     }
                   />
                 )}
-                
+
                 {/* ── Task Calendar ── */}
                 <div className="rounded-[16px] border border-[#E5E7EB]  h-[100%] bg-white p-5 shadow-sm">
                   <h2 className="text-sm font-semibold text-[#111827] mb-4">Task Calendar</h2>
@@ -2387,60 +2386,60 @@ const { data: resolvedId } = useQuery({
                     {statusUpdates.length === 0 ? (
                       <p className="text-sm text-[#9CA3AF]">No recent activity.</p>
                     ) : (
-                    <div>
-                      {statusUpdates.slice(0, 8).map((u: any, idx: number) => {
-                        const summary = u.summary || "";
-                        const lower = summary.toLowerCase();
+                      <div>
+                        {statusUpdates.slice(0, 8).map((u: any, idx: number) => {
+                          const summary = u.summary || "";
+                          const lower = summary.toLowerCase();
 
-                        const iconCycle = ["complete", "approval", "delay", "join", "blocked"] as const;
-                        const iconColors: Record<string, { bg: string; stroke: string }> = {
-                          complete: { bg: "#DCFCE7", stroke: "%2316A34A" },
-                          approval: { bg: "#DBEAFE", stroke: "%232563EB" },
-                          delay: { bg: "#FEF3C7", stroke: "%23D97706" },
-                          join: { bg: "#FCE7F3", stroke: "%23DB2777" },
-                          blocked: { bg: "#FEE2E2", stroke: "%23DC2626" },
-                        };
+                          const iconCycle = ["complete", "approval", "delay", "join", "blocked"] as const;
+                          const iconColors: Record<string, { bg: string; stroke: string }> = {
+                            complete: { bg: "#DCFCE7", stroke: "%2316A34A" },
+                            approval: { bg: "#DBEAFE", stroke: "%232563EB" },
+                            delay: { bg: "#FEF3C7", stroke: "%23D97706" },
+                            join: { bg: "#FCE7F3", stroke: "%23DB2777" },
+                            blocked: { bg: "#FEE2E2", stroke: "%23DC2626" },
+                          };
 
-                        let iconKey = "default";
-                        if (lower.includes("complete") || lower.includes("done") || lower.includes("finished")) iconKey = "complete";
-                        else if (lower.includes("approved") || lower.includes("accepted")) iconKey = "approval";
-                        else if (lower.includes("delay") || lower.includes("slipped") || lower.includes("overdue")) iconKey = "delay";
-                        else if (lower.includes("joined") || lower.includes("added") || lower.includes("assigned")) iconKey = "join";
-                        else if (lower.includes("blocked") || lower.includes("stuck")) iconKey = "blocked";
-                        else iconKey = iconCycle[idx % iconCycle.length];
+                          let iconKey = "default";
+                          if (lower.includes("complete") || lower.includes("done") || lower.includes("finished")) iconKey = "complete";
+                          else if (lower.includes("approved") || lower.includes("accepted")) iconKey = "approval";
+                          else if (lower.includes("delay") || lower.includes("slipped") || lower.includes("overdue")) iconKey = "delay";
+                          else if (lower.includes("joined") || lower.includes("added") || lower.includes("assigned")) iconKey = "join";
+                          else if (lower.includes("blocked") || lower.includes("stuck")) iconKey = "blocked";
+                          else iconKey = iconCycle[idx % iconCycle.length];
 
-                        const ic = iconColors[iconKey] || { bg: "#F3F4F6", stroke: "%236B7280" };
+                          const ic = iconColors[iconKey] || { bg: "#F3F4F6", stroke: "%236B7280" };
 
-                        const iconSvgs: Record<string, string> = {
-                          complete: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z'/%3E%3Cline x1='4' y1='22' x2='4' y2='15'/%3E%3C/svg%3E`,
-                          approval: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3C/svg%3E`,
-                          delay: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E`,
-                          join: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E`,
-                          blocked: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E`,
-                          default: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E`,
-                        };
+                          const iconSvgs: Record<string, string> = {
+                            complete: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z'/%3E%3Cline x1='4' y1='22' x2='4' y2='15'/%3E%3C/svg%3E`,
+                            approval: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z'/%3E%3Cpolyline points='14 2 14 8 20 8'/%3E%3Cline x1='16' y1='13' x2='8' y2='13'/%3E%3Cline x1='16' y1='17' x2='8' y2='17'/%3E%3C/svg%3E`,
+                            delay: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpolyline points='12 6 12 12 16 14'/%3E%3C/svg%3E`,
+                            join: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2'/%3E%3Ccircle cx='12' cy='7' r='4'/%3E%3C/svg%3E`,
+                            blocked: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z'/%3E%3Cline x1='12' y1='9' x2='12' y2='13'/%3E%3Cline x1='12' y1='17' x2='12.01' y2='17'/%3E%3C/svg%3E`,
+                            default: `data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='${ic.stroke}' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cline x1='12' y1='16' x2='12' y2='12'/%3E%3Cline x1='12' y1='8' x2='12.01' y2='8'/%3E%3C/svg%3E`,
+                          };
 
-                        return (
-                          <div key={u.id}>
-                            <div className="flex items-start gap-4 py-4">
-                              <div
-                                className="w-12 h-12 rounded-2xl flex items-start justify-start p-2 shrink-0"
-                                style={{ background: ic.bg }}
-                              >
-                                <img src={iconSvgs[iconKey]} alt="" className="w-6 h-6" />
+                          return (
+                            <div key={u.id}>
+                              <div className="flex items-start gap-4 py-4">
+                                <div
+                                  className="w-12 h-12 rounded-2xl flex items-start justify-start p-2 shrink-0"
+                                  style={{ background: ic.bg }}
+                                >
+                                  <img src={iconSvgs[iconKey]} alt="" className="w-6 h-6" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-[14px] font-semibold text-[#111827] leading-snug">{summary}</p>
+                                  <p className="text-[12px] text-[#9CA3AF] mt-1">{format(new Date(u.created_at), "MMM d, h:mm a")}</p>
+                                </div>
                               </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-[14px] font-semibold text-[#111827] leading-snug">{summary}</p>
-                                <p className="text-[12px] text-[#9CA3AF] mt-1">{format(new Date(u.created_at), "MMM d, h:mm a")}</p>
-                              </div>
+                              {idx < Math.min(statusUpdates.length, 8) - 1 && (
+                                <div className="border-t border-[#F3F4F6]" />
+                              )}
                             </div>
-                            {idx < Math.min(statusUpdates.length, 8) - 1 && (
-                              <div className="border-t border-[#F3F4F6]" />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 )}
@@ -2534,271 +2533,271 @@ const { data: resolvedId } = useQuery({
             <TabsContent value="tasks" className="space-y-4">
               {!isAdmin && !isClient && (
                 <>
-            <h2 className="text-lg font-semibold">My Tasks</h2>
-            {(() => {
-              const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id);
-              if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
-              return (
-                <TooltipProvider>
-                  <table className="w-full">
-                    <thead>
-                      <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
-                        <th className="px-4 py-2 text-left">TASK</th>
-                        <th className="px-4 py-2 text-left">STATUS</th>
-                        <th className="px-4 py-2 text-left">EST. HOURS</th>
-                        <th className="px-4 py-2 text-left">PRIORITY</th>
-                        <th className="px-4 py-2 text-left">DUE DATE</th>
-                        <th className="px-4 py-2 text-right">ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {myTasks.map((t: any) => (
-                        <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <ShadcnTooltip delayDuration={0}>
-                                <TooltipTrigger asChild>
-                                  <span>
-                                    <Checkbox
-                                      id={`task-${t.id}`}
-                                      checked={t.status === "complete"}
-                                      disabled={t.status === "complete"}
-                                      onCheckedChange={() => requestComplete(t)}
-                                      className="h-5 w-5 border-black"
-                                    />
-                                  </span>
-                                </TooltipTrigger>
-                                <TooltipContent side="top">
-                                  <p className="text-xs">Mark as Complete</p>
-                                </TooltipContent>
-                              </ShadcnTooltip>
-                              <div className={"font-semibold text-[15px] text-[#111827] truncate" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
-                                {t.title}
-                                {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
-                                {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
-                                {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
-                              </div>
-                            </div>
-                            <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
-                            <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
-                            <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
-                            <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
-                            <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
-                              <Info className="h-4 w-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </TooltipProvider>
-              );
-            })()}
+                  <h2 className="text-lg font-semibold">My Tasks</h2>
+                  {(() => {
+                    const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id);
+                    if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
+                    return (
+                      <TooltipProvider>
+                        <table className="w-full">
+                          <thead>
+                            <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                              <th className="px-4 py-2 text-left">TASK</th>
+                              <th className="px-4 py-2 text-left">STATUS</th>
+                              <th className="px-4 py-2 text-left">EST. HOURS</th>
+                              <th className="px-4 py-2 text-left">PRIORITY</th>
+                              <th className="px-4 py-2 text-left">DUE DATE</th>
+                              <th className="px-4 py-2 text-right">ACTIONS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {myTasks.map((t: any) => (
+                              <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                                <td className="px-4 py-3">
+                                  <div className="flex items-center gap-2">
+                                    <ShadcnTooltip delayDuration={0}>
+                                      <TooltipTrigger asChild>
+                                        <span>
+                                          <Checkbox
+                                            id={`task-${t.id}`}
+                                            checked={t.status === "complete"}
+                                            disabled={t.status === "complete"}
+                                            onCheckedChange={() => requestComplete(t)}
+                                            className="h-5 w-5 border-black"
+                                          />
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent side="top">
+                                        <p className="text-xs">Mark as Complete</p>
+                                      </TooltipContent>
+                                    </ShadcnTooltip>
+                                    <div className={"font-semibold text-[15px] text-[#111827] truncate" + (t.status === "complete" ? " line-through text-muted-foreground" : "")}>
+                                      {t.title}
+                                      {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                                      {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                                      {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                                    </div>
+                                  </div>
+                                  <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                                  <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                                  <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                                  <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                                </td>
+                                <td className="px-4 py-3">
+                                  <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                                  <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                                </td>
+                                <td className="px-4 py-3 text-right">
+                                  <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                                    <Info className="h-4 w-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </TooltipProvider>
+                    );
+                  })()}
                 </>
               )}
               {isAdmin && (
                 <>
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold">Tasks</h2>
-              <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button bg-[#EC6824] hover:bg-[#c4541a] text-white"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
-            </div>
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">Tasks</h2>
+                    <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button bg-[#EC6824] hover:bg-[#c4541a] text-white"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
+                  </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[200px]">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF]" />
-                <Input placeholder="Search tasks..." value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} className="pl-9 h-9 text-sm border-[#E5E7EB]" />
-              </div>
-              <Select value={taskPhaseFilter} onValueChange={setTaskPhaseFilter}>
-                <SelectTrigger className="w-[130px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Phase: All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Phase: All</SelectItem>
-                  {(phases || []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={taskSprintFilter} onValueChange={setTaskSprintFilter}>
-                <SelectTrigger className="w-[130px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Sprint: All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Sprint: All</SelectItem>
-                  {(sprints || []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={taskAssigneeFilter} onValueChange={setTaskAssigneeFilter}>
-                <SelectTrigger className="w-[150px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Assignee: All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Assignee: All</SelectItem>
-                  {(resourceMembers || []).map((m: any) => <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name || "Unknown"}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
-                <SelectTrigger className="w-[130px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Status: All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Status: All</SelectItem>
-                  {(workflowStatuses || []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-              <Select value={taskDueFilter} onValueChange={setTaskDueFilter}>
-                <SelectTrigger className="w-[120px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Due: Any" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Due: Any</SelectItem>
-                  <SelectItem value="overdue">Overdue</SelectItem>
-                  <SelectItem value="today">Today</SelectItem>
-                  <SelectItem value="week">This Week</SelectItem>
-                  <SelectItem value="none">No Due Date</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#9CA3AF]" />
+                      <Input placeholder="Search tasks..." value={taskSearch} onChange={(e) => setTaskSearch(e.target.value)} className="pl-9 h-9 text-sm border-[#E5E7EB]" />
+                    </div>
+                    <Select value={taskPhaseFilter} onValueChange={setTaskPhaseFilter}>
+                      <SelectTrigger className="w-[130px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Phase: All" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Phase: All</SelectItem>
+                        {(phases || []).map((p: any) => <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={taskSprintFilter} onValueChange={setTaskSprintFilter}>
+                      <SelectTrigger className="w-[130px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Sprint: All" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Sprint: All</SelectItem>
+                        {(sprints || []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={taskAssigneeFilter} onValueChange={setTaskAssigneeFilter}>
+                      <SelectTrigger className="w-[150px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Assignee: All" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Assignee: All</SelectItem>
+                        {(resourceMembers || []).map((m: any) => <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name || "Unknown"}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+                      <SelectTrigger className="w-[130px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Status: All" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Status: All</SelectItem>
+                        {(workflowStatuses || []).map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Select value={taskDueFilter} onValueChange={setTaskDueFilter}>
+                      <SelectTrigger className="w-[120px] h-9 text-xs border-[#E5E7EB]"><SelectValue placeholder="Due: Any" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Due: Any</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                        <SelectItem value="today">Today</SelectItem>
+                        <SelectItem value="week">This Week</SelectItem>
+                        <SelectItem value="none">No Due Date</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
 
-            {(() => {
-              const filteredTasks = (tasks || []).filter((t: any) => {
-                if (taskSearch) {
-                  const q = taskSearch.toLowerCase();
-                  if (!t.title?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false;
-                }
-                if (taskPhaseFilter !== "all" && t.phase_id !== taskPhaseFilter) return false;
-                if (taskSprintFilter !== "all" && t.sprint_id !== taskSprintFilter) return false;
-                if (taskAssigneeFilter !== "all" && t.assigned_to !== taskAssigneeFilter) return false;
-                if (taskStatusFilter !== "all" && t.status_id !== taskStatusFilter) return false;
-                if (taskDueFilter !== "all") {
-                  if (taskDueFilter === "none") { if (t.due_date) return false; }
-                  else {
-                    const now = new Date(); const due = t.due_date ? new Date(t.due_date) : null;
-                    if (!due) return false;
-                    if (taskDueFilter === "overdue" && due >= now) return false;
-                    if (taskDueFilter === "today") { const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); if (due < today || due >= new Date(today.getTime() + 86400000)) return false; }
-                    if (taskDueFilter === "week") { const weekEnd = new Date(now.getTime() + 7 * 86400000); if (due > weekEnd) return false; }
-                  }
-                }
-                return true;
-              });
-              return filteredTasks.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No tasks yet.</p>
-              ) : (
-                <div className="w-full overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-[#E5E7EB] text-[11px] uppercase tracking-[0.06em] text-[#9CA3AF] font-medium">
-                        <th className="px-6 py-3 text-left">TASK</th>
-                        <th className="px-6 py-3 text-left">ASSIGNED TO</th>
-                        <th className="px-6 py-3 text-left">PRIORITY</th>
-                        <th className="px-6 py-3 text-left">STATUS</th>
-                        <th className="px-6 py-3 text-left">PROGRESS</th>
-                        <th className="px-6 py-3 text-left">EST. HOURS</th>
-                        <th className="px-6 py-3 text-left">DUE DATE</th>
-                        <th className="px-6 py-3 text-left">FLAGGED</th>
-                        <th className="px-6 py-3 text-center">ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                    {filteredTasks.map((t: any) => {
-                      const assigneeName = (t as any).users?.full_name || "";
-                      const initials = assigneeName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
-                      const assigneeColors: Record<string, string> = { L: "bg-orange-100 text-orange-700", G: "bg-emerald-100 text-emerald-700", A: "bg-blue-100 text-blue-700", M: "bg-purple-100 text-purple-700", S: "bg-pink-100 text-pink-700" };
-                      const firstLetter = initials[0] || "A";
-                      const avatarColor = assigneeColors[firstLetter] || "bg-gray-100 text-gray-700";
+                  {(() => {
+                    const filteredTasks = (tasks || []).filter((t: any) => {
+                      if (taskSearch) {
+                        const q = taskSearch.toLowerCase();
+                        if (!t.title?.toLowerCase().includes(q) && !t.description?.toLowerCase().includes(q)) return false;
+                      }
+                      if (taskPhaseFilter !== "all" && t.phase_id !== taskPhaseFilter) return false;
+                      if (taskSprintFilter !== "all" && t.sprint_id !== taskSprintFilter) return false;
+                      if (taskAssigneeFilter !== "all" && t.assigned_to !== taskAssigneeFilter) return false;
+                      if (taskStatusFilter !== "all" && t.status_id !== taskStatusFilter) return false;
+                      if (taskDueFilter !== "all") {
+                        if (taskDueFilter === "none") { if (t.due_date) return false; }
+                        else {
+                          const now = new Date(); const due = t.due_date ? new Date(t.due_date) : null;
+                          if (!due) return false;
+                          if (taskDueFilter === "overdue" && due >= now) return false;
+                          if (taskDueFilter === "today") { const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); if (due < today || due >= new Date(today.getTime() + 86400000)) return false; }
+                          if (taskDueFilter === "week") { const weekEnd = new Date(now.getTime() + 7 * 86400000); if (due > weekEnd) return false; }
+                        }
+                      }
+                      return true;
+                    });
+                    return filteredTasks.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">No tasks yet.</p>
+                    ) : (
+                      <div className="w-full overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b border-[#E5E7EB] text-[11px] uppercase tracking-[0.06em] text-[#9CA3AF] font-medium">
+                              <th className="px-6 py-3 text-left">TASK</th>
+                              <th className="px-6 py-3 text-left">ASSIGNED TO</th>
+                              <th className="px-6 py-3 text-left">PRIORITY</th>
+                              <th className="px-6 py-3 text-left">STATUS</th>
+                              <th className="px-6 py-3 text-left">PROGRESS</th>
+                              <th className="px-6 py-3 text-left">EST. HOURS</th>
+                              <th className="px-6 py-3 text-left">DUE DATE</th>
+                              <th className="px-6 py-3 text-left">FLAGGED</th>
+                              <th className="px-6 py-3 text-center">ACTIONS</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filteredTasks.map((t: any) => {
+                              const assigneeName = (t as any).users?.full_name || "";
+                              const initials = assigneeName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "?";
+                              const assigneeColors: Record<string, string> = { L: "bg-orange-100 text-orange-700", G: "bg-emerald-100 text-emerald-700", A: "bg-blue-100 text-blue-700", M: "bg-purple-100 text-purple-700", S: "bg-pink-100 text-pink-700" };
+                              const firstLetter = initials[0] || "A";
+                              const avatarColor = assigneeColors[firstLetter] || "bg-gray-100 text-gray-700";
 
-                      const priorityIconColors: Record<string, string> = { low: "text-[#3B82F6]", medium: "text-[#F97316]", high: "text-[#EF4444]" };
-                      const pColor = priorityIconColors[t.priority] || "text-[#9CA3AF]";
+                              const priorityIconColors: Record<string, string> = { low: "text-[#3B82F6]", medium: "text-[#F97316]", high: "text-[#EF4444]" };
+                              const pColor = priorityIconColors[t.priority] || "text-[#9CA3AF]";
 
-                      const statusColors: Record<string, string> = { "not_started": "text-[#D97706]", "in_progress": "text-[#2563EB]", "blocked": "text-[#DC2626]", "done": "text-[#059669]", "unlinked": "text-[#D97706]", "returned": "text-[#6B7280]", "complete": "text-[#059669]", "linked": "text-[#2563EB]", "active": "text-[#2563EB]" };
-                      const sColor = statusColors[t.status] || "text-[#374151]";
+                              const statusColors: Record<string, string> = { "not_started": "text-[#D97706]", "in_progress": "text-[#2563EB]", "blocked": "text-[#DC2626]", "done": "text-[#059669]", "unlinked": "text-[#D97706]", "returned": "text-[#6B7280]", "complete": "text-[#059669]", "linked": "text-[#2563EB]", "active": "text-[#2563EB]" };
+                              const sColor = statusColors[t.status] || "text-[#374151]";
 
-                      return (
-                        <tr key={t.id} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
-                          <td className="px-6 py-4">
-                            <div className="font-semibold text-[14px] text-[#111827] leading-tight">
-                              {t.title}
-                              {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
-                              {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
-                              {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
-                            </div>
-                            <div className="text-[12px] text-[#9CA3AF] mt-0.5 truncate max-w-[280px]">{truncateWords(t.description, 5) || ""}</div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2.5">
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold ${avatarColor}`}>
-                                {initials}
-                              </div>
-                              <span className="text-[13px] text-[#374151]">{assigneeName || "Unassigned"}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <div className={`flex items-end gap-[2px] ${pColor}`}>
-                                <div className="w-[3px] h-[6px] rounded-sm bg-current" />
-                                <div className="w-[3px] h-[10px] rounded-sm bg-current" />
-                                <div className="w-[3px] h-[14px] rounded-sm bg-current" />
-                              </div>
-                              <span className={`text-[13px] capitalize ${pColor}`}>{t.priority}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3.5 h-3.5 rounded-full border-[2px] border-current ${sColor}`} />
-                              <span className={`text-[13px] capitalize ${sColor}`}>{t.status.replace(/_/g, " ")}</span>
-                            </div>
-                          </td>
-                          <td className="px-6 py-4">
-                            {(() => {
-                              const totalEst = t.estimated_hours || 1;
-                              const logged = hoursByTask[t.id] || 0;
-                              const pct = Math.min(100, Math.round((logged / totalEst) * 100));
                               return (
-                                <div className="flex items-center gap-2">
-                                  <div className="w-20 h-2 bg-[#E5E7EB] rounded-full overflow-hidden">
-                                    <div className="h-full bg-[#22C55E] rounded-full transition-all" style={{ width: `${pct}%` }} />
-                                  </div>
-                                  <span className="text-[12px] text-[#6B7280] font-medium">{pct}%</span>
-                                </div>
+                                <tr key={t.id} className="border-b border-[#F3F4F6] hover:bg-[#F9FAFB] transition-colors">
+                                  <td className="px-6 py-4">
+                                    <div className="font-semibold text-[14px] text-[#111827] leading-tight">
+                                      {t.title}
+                                      {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                                      {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                                      {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
+                                    </div>
+                                    <div className="text-[12px] text-[#9CA3AF] mt-0.5 truncate max-w-[280px]">{truncateWords(t.description, 5) || ""}</div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2.5">
+                                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold ${avatarColor}`}>
+                                        {initials}
+                                      </div>
+                                      <span className="text-[13px] text-[#374151]">{assigneeName || "Unassigned"}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`flex items-end gap-[2px] ${pColor}`}>
+                                        <div className="w-[3px] h-[6px] rounded-sm bg-current" />
+                                        <div className="w-[3px] h-[10px] rounded-sm bg-current" />
+                                        <div className="w-[3px] h-[14px] rounded-sm bg-current" />
+                                      </div>
+                                      <span className={`text-[13px] capitalize ${pColor}`}>{t.priority}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-2">
+                                      <div className={`w-3.5 h-3.5 rounded-full border-[2px] border-current ${sColor}`} />
+                                      <span className={`text-[13px] capitalize ${sColor}`}>{t.status.replace(/_/g, " ")}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    {(() => {
+                                      const totalEst = t.estimated_hours || 1;
+                                      const logged = hoursByTask[t.id] || 0;
+                                      const pct = Math.min(100, Math.round((logged / totalEst) * 100));
+                                      return (
+                                        <div className="flex items-center gap-2">
+                                          <div className="w-20 h-2 bg-[#E5E7EB] rounded-full overflow-hidden">
+                                            <div className="h-full bg-[#22C55E] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                                          </div>
+                                          <span className="text-[12px] text-[#6B7280] font-medium">{pct}%</span>
+                                        </div>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${Number(t.estimated_hours).toFixed(1)}h` : "—"}</span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="text-[13px] text-[#9CA3AF]">—</span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center justify-center gap-2">
+                                      <button onClick={() => setViewTaskData(t)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="View">
+                                        <Eye className="h-[15px] w-[15px] text-[#EA580C]" />
+                                      </button>
+                                      <button onClick={() => openEditTask(t)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="Edit">
+                                        <Pencil className="h-[15px] w-[15px] text-[#EA580C]" />
+                                      </button>
+                                      {profile?.role === "admin" && (
+                                        <button onClick={() => setDeleteTaskConfirmId(t.id)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="Delete">
+                                          <Trash2 className="h-[15px] w-[15px] text-[#EA580C]" />
+                                        </button>
+                                      )}
+                                    </div>
+                                  </td>
+                                </tr>
                               );
-                            })()}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${Number(t.estimated_hours).toFixed(1)}h` : "—"}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[13px] text-[#9CA3AF]">—</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <div className="flex items-center justify-center gap-2">
-                              <button onClick={() => setViewTaskData(t)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="View">
-                                <Eye className="h-[15px] w-[15px] text-[#EA580C]" />
-                              </button>
-                              <button onClick={() => openEditTask(t)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="Edit">
-                                <Pencil className="h-[15px] w-[15px] text-[#EA580C]" />
-                              </button>
-                              {profile?.role === "admin" && (
-                                <button onClick={() => setDeleteTaskConfirmId(t.id)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="Delete">
-                                  <Trash2 className="h-[15px] w-[15px] text-[#EA580C]" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                    </tbody>
-                  </table>
-                </div>
-            );
-          })()}
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
             </TabsContent>
@@ -2944,198 +2943,198 @@ const { data: resolvedId } = useQuery({
             <TabsContent value="action-items" className="space-y-4">
               {!isAdmin && !isClient && (
                 <>
-            <h2 className="text-lg font-semibold">My Action Items</h2>
-            {(() => {
-              const myActionItems = actionItems.filter((a: any) => a.assigned_to === profile?.id);
-              if (myActionItems.length === 0) {
-                return (
-                  <div className="flex flex-col items-center justify-center py-12 text-center">
-                    <CheckCircle2 className="h-12 w-12 text-muted-foreground/40 mb-3" />
-                    <p className="text-sm text-muted-foreground">No action items assigned to you yet.</p>
-                    <p className="text-xs text-muted-foreground mt-1">Action items linked to your tasks will appear here.</p>
-                  </div>
-                );
-              }
-              return (
-                <div>
-                  <TableHeader gridCols="1fr 140px 140px 100px 80px 120px 80px">
-                    <span>TITLE</span>
-                    <span>RELATED BLOCKER</span>
-                    <span>RELATED TASK</span>
-                    <span>STATUS</span>
-                    <span>PRIORITY</span>
-                    <span>REQUESTED BY</span>
-                    <span className="text-right">ACTIONS</span>
-                  </TableHeader>
-                  {myActionItems.map((a: any) => {
-                    const isExpanded = expandedActionItemId === a.id;
-                    const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
+                  <h2 className="text-lg font-semibold">My Action Items</h2>
+                  {(() => {
+                    const myActionItems = actionItems.filter((a: any) => a.assigned_to === profile?.id);
+                    if (myActionItems.length === 0) {
+                      return (
+                        <div className="flex flex-col items-center justify-center py-12 text-center">
+                          <CheckCircle2 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+                          <p className="text-sm text-muted-foreground">No action items assigned to you yet.</p>
+                          <p className="text-xs text-muted-foreground mt-1">Action items linked to your tasks will appear here.</p>
+                        </div>
+                      );
+                    }
                     return (
-                      <div key={a.id}>
-                        <DataRow gridCols="1fr 140px 140px 100px 80px 120px 80px">
-                          <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
-                            {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
-                            <div>
-                              <RowPrimary>{a.title}</RowPrimary>
-                              {a.description && <RowSecondary>{truncateWords(a.description, 6)}</RowSecondary>}
-                            </div>
-                          </div>
-                          <RowDataItem label="RELATED BLOCKER">{a.blockers?.description || a.blockers?.title || "—"}</RowDataItem>
-                          <RowDataItem label="RELATED TASK">{linkedTask?.title || "—"}</RowDataItem>
-                          <RowBadgeItem label="STATUS">
-                            <Badge className={
-                              a.status === "completed" ? "bg-green-100 text-green-800" :
-                              a.status === "waived" ? "bg-gray-100 text-gray-800" :
-                              "bg-yellow-100 text-yellow-800"
-                            }>{a.status}</Badge>
-                          </RowBadgeItem>
-                          <RowBadgeItem label="PRIORITY">
-                            <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge>
-                          </RowBadgeItem>
-                          <RowDataItem label="REQUESTED BY">{a.requested_by_user?.full_name || "—"}</RowDataItem>
-                          <RowActions className="justify-self-end">
-                            {a.status === "pending" && (
-                              <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
-                                <CheckCircle2 className="h-4 w-4 text-green-600" />
-                              </button>
-                            )}
-                          </RowActions>
-                        </DataRow>
-                        {isExpanded && (
-                          <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
-                            {a.description && (
-                              <div className="text-sm text-muted-foreground">{a.description}</div>
-                            )}
-                            <div className="flex flex-wrap gap-3 text-sm">
-                              {a.due_date && <span className="text-muted-foreground">Due: <span className="text-foreground font-medium">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span></span>}
-                              {a.completed_at && <span className="text-muted-foreground">Completed: <span className="text-foreground font-medium">{format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a")}</span></span>}
-                            </div>
-                            {a.status === "completed" && a.resolver && (
-                              <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
-                                Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
-                              </div>
-                            )}
-                            <div className="space-y-2 max-h-64 overflow-y-auto">
-                              {actionItemMessages.length === 0 ? (
-                                <p className="text-xs text-muted-foreground">No messages yet.</p>
-                              ) : (
-                                actionItemMessages.map((m: any) => (
-                                  <div key={m.id} className="flex gap-2 bg-white rounded-md p-2.5 border border-[#e5e7eb]">
-                                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                                      <AvatarImage src={getAvatarUrl(m.sender?.full_name)} />
-                                      <AvatarFallback className="text-[10px]">{m.sender?.full_name?.charAt(0) || "?"}</AvatarFallback>
-                                    </Avatar>
-                                    <div className="min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className="text-xs font-semibold">{m.sender?.full_name || "Unknown"}</span>
-                                        <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "employee"}</Badge>
-                                        <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
-                                      </div>
-                                      <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
-                                    </div>
+                      <div>
+                        <TableHeader gridCols="1fr 140px 140px 100px 80px 120px 80px">
+                          <span>TITLE</span>
+                          <span>RELATED BLOCKER</span>
+                          <span>RELATED TASK</span>
+                          <span>STATUS</span>
+                          <span>PRIORITY</span>
+                          <span>REQUESTED BY</span>
+                          <span className="text-right">ACTIONS</span>
+                        </TableHeader>
+                        {myActionItems.map((a: any) => {
+                          const isExpanded = expandedActionItemId === a.id;
+                          const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
+                          return (
+                            <div key={a.id}>
+                              <DataRow gridCols="1fr 140px 140px 100px 80px 120px 80px">
+                                <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
+                                  {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                                  <div>
+                                    <RowPrimary>{a.title}</RowPrimary>
+                                    {a.description && <RowSecondary>{truncateWords(a.description, 6)}</RowSecondary>}
                                   </div>
-                                ))
+                                </div>
+                                <RowDataItem label="RELATED BLOCKER">{a.blockers?.description || a.blockers?.title || "—"}</RowDataItem>
+                                <RowDataItem label="RELATED TASK">{linkedTask?.title || "—"}</RowDataItem>
+                                <RowBadgeItem label="STATUS">
+                                  <Badge className={
+                                    a.status === "completed" ? "bg-green-100 text-green-800" :
+                                      a.status === "waived" ? "bg-gray-100 text-gray-800" :
+                                        "bg-yellow-100 text-yellow-800"
+                                  }>{a.status}</Badge>
+                                </RowBadgeItem>
+                                <RowBadgeItem label="PRIORITY">
+                                  <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge>
+                                </RowBadgeItem>
+                                <RowDataItem label="REQUESTED BY">{a.requested_by_user?.full_name || "—"}</RowDataItem>
+                                <RowActions className="justify-self-end">
+                                  {a.status === "pending" && (
+                                    <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
+                                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                                    </button>
+                                  )}
+                                </RowActions>
+                              </DataRow>
+                              {isExpanded && (
+                                <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
+                                  {a.description && (
+                                    <div className="text-sm text-muted-foreground">{a.description}</div>
+                                  )}
+                                  <div className="flex flex-wrap gap-3 text-sm">
+                                    {a.due_date && <span className="text-muted-foreground">Due: <span className="text-foreground font-medium">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span></span>}
+                                    {a.completed_at && <span className="text-muted-foreground">Completed: <span className="text-foreground font-medium">{format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a")}</span></span>}
+                                  </div>
+                                  {a.status === "completed" && a.resolver && (
+                                    <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
+                                      Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
+                                    </div>
+                                  )}
+                                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                                    {actionItemMessages.length === 0 ? (
+                                      <p className="text-xs text-muted-foreground">No messages yet.</p>
+                                    ) : (
+                                      actionItemMessages.map((m: any) => (
+                                        <div key={m.id} className="flex gap-2 bg-white rounded-md p-2.5 border border-[#e5e7eb]">
+                                          <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                                            <AvatarImage src={getAvatarUrl(m.sender?.full_name)} />
+                                            <AvatarFallback className="text-[10px]">{m.sender?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                                          </Avatar>
+                                          <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                              <span className="text-xs font-semibold">{m.sender?.full_name || "Unknown"}</span>
+                                              <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "employee"}</Badge>
+                                              <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
+                                            </div>
+                                            <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                          </div>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                  {a.status === "pending" && (
+                                    <div className="flex gap-2">
+                                      <Textarea value={newActionItemMessage} onChange={(e) => setNewActionItemMessage(e.target.value)} placeholder="Type a reply..." className="min-h-[60px] text-sm" />
+                                      <Button size="sm" className="rounded-button shrink-0" disabled={!newActionItemMessage.trim()} onClick={() => sendActionItemMessage(a.id)}>
+                                        <Send className="h-4 w-4" />
+                                      </Button>
+                                    </div>
+                                  )}
+                                </div>
                               )}
                             </div>
-                            {a.status === "pending" && (
-                              <div className="flex gap-2">
-                                <Textarea value={newActionItemMessage} onChange={(e) => setNewActionItemMessage(e.target.value)} placeholder="Type a reply..." className="min-h-[60px] text-sm" />
-                                <Button size="sm" className="rounded-button shrink-0" disabled={!newActionItemMessage.trim()} onClick={() => sendActionItemMessage(a.id)}>
-                                  <Send className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        )}
+                          );
+                        })}
                       </div>
                     );
-                  })}
-                </div>
-              );
-            })()}
+                  })()}
                 </>
               )}
               {isAdmin && (
                 <>
-            <div className="flex items-center justify-between mb-2">
-              <div>
-                <h2 className="text-[22px] font-bold text-[#111827]">Action Items</h2>
-                <p className="text-[13px] text-[#9CA3AF] mt-0.5">Commitments and follow-ups from meetings, reviews, and client requests</p>
-              </div>
-              <button className="flex items-center gap-2 px-5 py-2.5 bg-[#EA580C] text-white text-[13px] font-medium rounded-lg hover:bg-[#C2410C] transition-colors">
-                <Plus className="h-4 w-4" />
-                Add Action Item
-              </button>
-            </div>
-            {actionItems.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No action items yet.</p>
-            ) : (
-              <div className="border border-[#E5E7EB] rounded-2xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-[#E5E7EB] text-[11px] uppercase tracking-[0.06em] text-[#9CA3AF] font-medium">
-                      <th className="px-6 py-3 text-left">DESCRIPTION</th>
-                      <th className="px-6 py-3 text-left">OWNER</th>
-                      <th className="px-6 py-3 text-left">DUE DATE</th>
-                      <th className="px-6 py-3 text-left">SOURCE</th>
-                      <th className="px-6 py-3 text-left">STATUS</th>
-                      <th className="px-6 py-3 text-left">ACTION</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {actionItems.map((a: any) => {
-                      const ownerName = a.assigned_to_user?.full_name || "";
-                      const ownerInitials = ownerName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "";
-                      const ownerColors: Record<string, string> = { L: "bg-orange-100 text-orange-700", G: "bg-emerald-100 text-emerald-700", A: "bg-blue-100 text-blue-700" };
-                      const ownerColor = ownerColors[ownerInitials[0] || "L"] || "bg-gray-100 text-gray-700";
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <h2 className="text-[22px] font-bold text-[#111827]">Action Items</h2>
+                      <p className="text-[13px] text-[#9CA3AF] mt-0.5">Commitments and follow-ups from meetings, reviews, and client requests</p>
+                    </div>
+                    <button className="flex items-center gap-2 px-5 py-2.5 bg-[#EA580C] text-white text-[13px] font-medium rounded-lg hover:bg-[#C2410C] transition-colors">
+                      <Plus className="h-4 w-4" />
+                      Add Action Item
+                    </button>
+                  </div>
+                  {actionItems.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No action items yet.</p>
+                  ) : (
+                    <div className="border border-[#E5E7EB] rounded-2xl overflow-hidden">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b border-[#E5E7EB] text-[11px] uppercase tracking-[0.06em] text-[#9CA3AF] font-medium">
+                            <th className="px-6 py-3 text-left">DESCRIPTION</th>
+                            <th className="px-6 py-3 text-left">OWNER</th>
+                            <th className="px-6 py-3 text-left">DUE DATE</th>
+                            <th className="px-6 py-3 text-left">SOURCE</th>
+                            <th className="px-6 py-3 text-left">STATUS</th>
+                            <th className="px-6 py-3 text-left">ACTION</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {actionItems.map((a: any) => {
+                            const ownerName = a.assigned_to_user?.full_name || "";
+                            const ownerInitials = ownerName.split(" ").map((w: string) => w[0]).join("").toUpperCase().slice(0, 2) || "";
+                            const ownerColors: Record<string, string> = { L: "bg-orange-100 text-orange-700", G: "bg-emerald-100 text-emerald-700", A: "bg-blue-100 text-blue-700" };
+                            const ownerColor = ownerColors[ownerInitials[0] || "L"] || "bg-gray-100 text-gray-700";
 
-                      const statusBadgeStyles: Record<string, string> = {
-                        "completed": "bg-green-100 text-green-700",
-                        "unassigned": "bg-orange-100 text-orange-700",
-                        "open": "bg-blue-100 text-blue-700",
-                        "pending": "bg-orange-100 text-orange-700",
-                      };
-                      const badgeStyle = statusBadgeStyles[a.status] || "bg-gray-100 text-gray-700";
+                            const statusBadgeStyles: Record<string, string> = {
+                              "completed": "bg-green-100 text-green-700",
+                              "unassigned": "bg-orange-100 text-orange-700",
+                              "open": "bg-blue-100 text-blue-700",
+                              "pending": "bg-orange-100 text-orange-700",
+                            };
+                            const badgeStyle = statusBadgeStyles[a.status] || "bg-gray-100 text-gray-700";
 
-                      return (
-                        <tr key={a.id} className="border-b border-[#F3F4F6] last:border-b-0 hover:bg-[#F9FAFB] transition-colors">
-                          <td className="px-6 py-4">
-                            <span className="font-semibold text-[14px] text-[#111827] truncate max-w-[320px] block">{a.title}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {ownerInitials ? (
-                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold ${ownerColor}`}>
-                                {ownerInitials}
-                              </div>
-                            ) : (
-                              <span className="text-[13px] text-[#9CA3AF]">—</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[13px] text-[#374151]">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d") : "—"}</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className="text-[13px] text-[#9CA3AF]">—</span>
-                          </td>
-                          <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-medium capitalize ${badgeStyle}`}>
-                              {a.status}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
-                            {a.status !== "completed" ? (
-                              <button onClick={() => convertActionItemToTask(a.id)} className="text-[13px] font-medium text-[#EA580C] hover:text-[#C2410C] transition-colors">
-                                Convert to Task
-                              </button>
-                            ) : null}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                            return (
+                              <tr key={a.id} className="border-b border-[#F3F4F6] last:border-b-0 hover:bg-[#F9FAFB] transition-colors">
+                                <td className="px-6 py-4">
+                                  <span className="font-semibold text-[14px] text-[#111827] truncate max-w-[320px] block">{a.title}</span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  {ownerInitials ? (
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold ${ownerColor}`}>
+                                      {ownerInitials}
+                                    </div>
+                                  ) : (
+                                    <span className="text-[13px] text-[#9CA3AF]">—</span>
+                                  )}
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="text-[13px] text-[#374151]">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className="text-[13px] text-[#9CA3AF]">—</span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-[12px] font-medium capitalize ${badgeStyle}`}>
+                                    {a.status}
+                                  </span>
+                                </td>
+                                <td className="px-6 py-4">
+                                  {a.status !== "completed" ? (
+                                    <button onClick={() => convertActionItemToTask(a.id)} className="text-[13px] font-medium text-[#EA580C] hover:text-[#C2410C] transition-colors">
+                                      Convert to Task
+                                    </button>
+                                  ) : null}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </>
               )}
             </TabsContent>
@@ -3208,147 +3207,55 @@ const { data: resolvedId } = useQuery({
               })()}
             </TabsContent>
             <TabsContent value="tasks" className="space-y-4">
-              {(() => {
-                const scopeTasks = burndownScope === "project"
-                  ? (tasks || []).filter((t: any) => t.client_visible === true)
-                  : (tasks || []).filter((t: any) => t.client_visible === true && t.phase_id === burndownScope);
-
-                const doneStatusIds = new Set(
-                  (workflowStatuses || []).filter((s: any) => s.category === "done").map((s: any) => s.id)
-                );
-                const completed = scopeTasks.filter((t: any) => doneStatusIds.has(t.status_id));
-                const total = scopeTasks.length;
-                const doneCount = completed.length;
-                const remainingTasks = total - doneCount;
-                const pct = total > 0 ? Math.round((doneCount / total) * 100) : 0;
-
-                const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
-                const endDate = scopePhase?.due_date || project?.end_date;
-                const startDate = project?.start_date;
-
-                if (total === 0) {
-                  return (
-                    <Card className="p-6 text-center">
-                      <p className="text-muted-foreground">No client-visible tasks are available for this project.</p>
-                    </Card>
-                  );
-                }
-
-                if (!endDate || !startDate) {
-                  return (
-                    <Card className="p-6 text-center">
-                      <p className="text-muted-foreground">Project needs start and end dates for burndown.</p>
-                    </Card>
-                  );
-                }
-
-                const daysTotal = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000));
-                const daysElapsed = Math.max(0, Math.round((Date.now() - new Date(startDate).getTime()) / 86400000));
-                const idealPerDay = total / daysTotal;
-                const idealRemaining = Math.max(0, total - idealPerDay * Math.min(daysElapsed, daysTotal));
-
-                const burndownData = [
-                  { name: "Start", ideal: total, actual: total },
-                  { name: "Now", ideal: idealRemaining, actual: remainingTasks },
-                  { name: "Due", ideal: 0, actual: null },
-                ];
-
-                return (
-                  <>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Total Tasks</span>
-                        <span className="text-2xl font-bold">{total}</span>
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">Client Tasks</h3>
+                {(() => {
+                  const clientTasks = (tasks || []).filter((t: any) => t.client_visible === true);
+                  if (clientTasks.length === 0) {
+                    return (
+                      <Card className="p-6 text-center">
+                        <p className="text-sm text-muted-foreground">No client-visible tasks are available for this project.</p>
                       </Card>
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Completed</span>
-                        <span className="text-2xl font-bold text-green-600">{doneCount}</span>
-                      </Card>
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Remaining</span>
-                        <span className="text-2xl font-bold">{remainingTasks}</span>
-                      </Card>
-                      <Card className="p-4 text-center">
-                        <span className="text-xs text-muted-foreground block">Progress</span>
-                        <span className="text-2xl font-bold">{pct}%</span>
-                      </Card>
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold">Task Burndown</h3>
-                      <div className="flex items-center gap-2">
-                        <label className="text-xs text-muted-foreground">Scope:</label>
-                        <Select value={burndownScope} onValueChange={setBurndownScope}>
-                          <SelectTrigger className="h-8 w-[180px]"><SelectValue /></SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="project">Project</SelectItem>
-                            {phases.map((p: any) => (
-                              <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <ResponsiveContainer width="100%" height={200}>
-                      <LineChart data={burndownData}>
-                        <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                        <Tooltip contentStyle={{ fontSize: 12 }} />
-                        <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 4 }} name="Ideal" />
-                        <Line type="monotone" dataKey="actual" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} connectNulls name="Actual" />
-                      </LineChart>
-                    </ResponsiveContainer>
-
-                    <div className="space-y-4">
-                      <h3 className="text-sm font-semibold">Tasks</h3>
-                      {(() => {
-                        const clientTasks = (tasks || []).filter((t: any) => t.client_visible === true);
-                        if (clientTasks.length === 0) {
-                          return <p className="text-sm text-muted-foreground">No client-visible tasks are available for this project.</p>;
-                        }
-                        return (
-                          <table className="w-full">
-                            <thead>
-                              <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
-                                <th className="px-4 py-2 text-left">TASK</th>
-                                <th className="px-4 py-2 text-left">ASSIGNED TO</th>
-                                <th className="px-4 py-2 text-left">PRIORITY</th>
-                                <th className="px-4 py-2 text-left">STATUS</th>
-                                <th className="px-4 py-2 text-left">DUE DATE</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {clientTasks.map((t: any) => (
-                                <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                                  <td className="px-4 py-3">
-                                    <div className="font-semibold text-[15px] text-[#111827] truncate">{t.title}</div>
-                                    <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
-                                  </td>
-                                  <td className="px-4 py-3">
-                                    <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        );
-                      })()}
-                    </div>
-
-                  </>
-                );
-              })()}
-            </TabsContent>
+                    );
+                  }
+        return (
+          <table className="w-full">
+            <thead>
+              <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                <th className="px-4 py-2 text-left">TASK</th>
+                <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                <th className="px-4 py-2 text-left">PRIORITY</th>
+                <th className="px-4 py-2 text-left">STATUS</th>
+                <th className="px-4 py-2 text-left">DUE DATE</th>
+              </tr>
+            </thead>
+            <tbody>
+              {clientTasks.map((t: any) => (
+                <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                  <td className="px-4 py-3 break-words">
+                    <div className="font-semibold text-[15px] text-[#111827] break-words">{t.title}</div>
+                    <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                  </td>
+                  <td className="px-4 py-3 break-words">
+                    <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                  </td>
+                  <td className="px-4 py-3 break-words">
+                    <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                  </td>
+                  <td className="px-4 py-3 break-words">
+                    <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                  </td>
+                  <td className="px-4 py-3 break-words">
+                    <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        );
+      })()}
+    </div>
+            </TabsContent >
             <TabsContent value="blockers" className="space-y-4">
               <h2 className="text-lg font-semibold">Blockers</h2>
               {projectBlockers.length === 0 ? (
@@ -3510,146 +3417,103 @@ const { data: resolvedId } = useQuery({
               )}
             </TabsContent>
           </>
-        )}
+        )
+}
 
-        {/* ═══ PLANNING TAB — Phases · Sprints ═══ */}
-        <TabsContent value="planning">
-          <Tabs value={planningSubTab} onValueChange={setPlanningSubTab} className="mt-0">
-            <TabsList className="mb-6 border-b border-[#E5E7EB] bg-transparent h-auto p-0 gap-0">
-              <TabsTrigger value="phases" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#EA580C] data-[state=active]:bg-transparent data-[state=active]:shadow-none text-[13px] font-medium text-[#6B7280] data-[state=active]:text-[#111827] py-2.5 px-4">
-                <span className="flex items-center gap-1.5"><CalendarIcon className="h-4 w-4" /> Phases</span>
-              </TabsTrigger>
-              <TabsTrigger value="sprints" onClick={() => setSelectedPhaseForSprints(null)} className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#EA580C] data-[state=active]:bg-transparent data-[state=active]:shadow-none text-[13px] font-medium text-[#6B7280] data-[state=active]:text-[#111827] py-2.5 px-4">
-                <span className="flex items-center gap-1.5"><Zap className="h-4 w-4" /> Sprints ({sprints.length})</span>
-              </TabsTrigger>
-            </TabsList>
+{/* ═══ PLANNING TAB — Phases · Sprints ═══ */ }
+<TabsContent value="planning">
+  <Tabs value={planningSubTab} onValueChange={setPlanningSubTab} className="mt-0">
+    <TabsList className="mb-6 border-b border-[#E5E7EB] bg-transparent h-auto p-0 gap-0">
+      <TabsTrigger value="phases" className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#EA580C] data-[state=active]:bg-transparent data-[state=active]:shadow-none text-[13px] font-medium text-[#6B7280] data-[state=active]:text-[#111827] py-2.5 px-4">
+        <span className="flex items-center gap-1.5"><CalendarIcon className="h-4 w-4" /> Phases</span>
+      </TabsTrigger>
+      <TabsTrigger value="sprints" onClick={() => setSelectedPhaseForSprints(null)} className="rounded-none border-b-2 border-transparent data-[state=active]:border-[#EA580C] data-[state=active]:bg-transparent data-[state=active]:shadow-none text-[13px] font-medium text-[#6B7280] data-[state=active]:text-[#111827] py-2.5 px-4">
+        <span className="flex items-center gap-1.5"><Zap className="h-4 w-4" /> Sprints ({sprints.length})</span>
+      </TabsTrigger>
+    </TabsList>
 
-            {/* ── Phases Sub-tab ── */}
-            <TabsContent value="phases">
-              {isAdmin && (
-                <>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-[22px] font-bold text-[#111827]">Phases</h2>
-              <button onClick={() => setAddPhaseOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-[#EA580C] text-white text-[13px] font-medium rounded-lg hover:bg-[#C2410C] transition-colors">
-                <Plus className="h-4 w-4" />
-                Add Phase
-              </button>
-            </div>
-            {phases.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No phases yet.</p>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {phases.map((p: any) => {
-                  const sprintCount = (sprints || []).filter((s: any) => s.phase_id === p.id).length;
-                  const pct = phaseProgress[p.id] || 0;
-                  return (
-                    <div key={p.id} onClick={() => { setSelectedPhaseForSprints(p.id); setPlanningSubTab("sprints"); }} className="border border-[#E5E7EB] rounded-2xl p-5 hover:shadow-sm transition-shadow cursor-pointer">
-                      <h3 className="font-bold text-[16px] text-[#111827]">{p.title}</h3>
-                      <p className="text-[13px] text-[#9CA3AF] mt-1">{sprintCount} sprint{sprintCount !== 1 ? "s" : ""}</p>
-                      <div className="w-full h-2 bg-[#F3F4F6] rounded-full overflow-hidden mt-4">
-                        <div className="h-full bg-[#EA580C] rounded-full transition-all" style={{ width: `${pct}%` }} />
-                      </div>
-                      <p className="text-[13px] text-[#374151] mt-2">{pct}% complete</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-                </>
-              )}
-            </TabsContent>
-
-            {/* ── Sprints Sub-tab ── */}
-            <TabsContent value="sprints" className="space-y-4">
+    {/* ── Phases Sub-tab ── */}
+    <TabsContent value="phases">
+      {isAdmin && (
+        <>
           <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <h2 className="text-[22px] font-bold text-[#111827]">Sprints</h2>
-              {selectedPhaseForSprints && (
-                <button onClick={() => setSelectedPhaseForSprints(null)} className="text-[12px] text-[#EA580C] hover:text-[#C2410C] font-medium flex items-center gap-1">
-                  <X className="h-3.5 w-3.5" /> Clear filter
-                </button>
-              )}
-            </div>
-            {isAdmin && (
-              <button onClick={() => setAddSprintOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-[#EA580C] text-white text-[13px] font-medium rounded-lg hover:bg-[#C2410C] transition-colors">
-                <Plus className="h-4 w-4" /> Add Sprint
-              </button>
-            )}
+            <h2 className="text-[22px] font-bold text-[#111827]">Phases</h2>
+            <button onClick={() => setAddPhaseOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-[#EA580C] text-white text-[13px] font-medium rounded-lg hover:bg-[#C2410C] transition-colors">
+              <Plus className="h-4 w-4" />
+              Add Phase
+            </button>
           </div>
-          {sprints.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No sprints yet.</p>
+          {phases.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No phases yet.</p>
           ) : (
-            <div className="space-y-8">
-              {(phases || [])
-                .filter((p: any) => {
-                  if (selectedPhaseForSprints) return p.id === selectedPhaseForSprints;
-                  return sprints.some((s: any) => s.phase_id === p.id);
-                })
-                .map((phase: any) => {
-                  const phaseSprints = sprints.filter((s: any) => s.phase_id === phase.id);
-                  return (
-                    <div key={phase.id}>
-                      <div className="flex items-center gap-2 mb-4">
-                        <h4 className="font-bold text-[15px] text-[#111827]">{phase.title}</h4>
-                        <span className="text-[12px] text-[#6B7280] bg-[#F3F4F6] px-2 py-0.5 rounded">{phaseSprints.length} sprint{phaseSprints.length !== 1 ? "s" : ""}</span>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        {phaseSprints.map((s: any) => {
-                          const sprintTasksList = (tasks || []).filter((t: any) => t.sprint_id === s.id);
-                          const doneStatusIds = new Set((workflowStatuses || []).filter((st: any) => st.category === "done").map((st: any) => st.id));
-                          const sprintDone = sprintTasksList.filter((t: any) => doneStatusIds.has(t.status_id)).length;
-                          const pct = sprintTasksList.length > 0 ? Math.round((sprintDone / sprintTasksList.length) * 100) : 0;
-                          const statusLabel = s.status === "active" ? "active" : s.status === "completed" ? "completed" : "planned";
-                          return (
-                            <div key={s.id} className="border border-[#E5E7EB] rounded-2xl p-5 hover:shadow-sm transition-shadow w-[420px]">
-                              <div className="flex items-center justify-between mb-3">
-                                <h5 className="font-bold text-[15px] text-[#111827]">{s.name}</h5>
-                                <span className={`text-[12px] font-medium px-3 py-1 rounded-full ${s.status === "active" ? "bg-green-100 text-green-700" : s.status === "completed" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
-                                  {statusLabel}
-                                </span>
-                              </div>
-                              <div className="flex items-center gap-1.5 text-[13px] text-[#6B7280] mb-3">
-                                <CalendarIcon className="h-3.5 w-3.5" />
-                                {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
-                              </div>
-                              <div className="w-full h-2 bg-[#F3F4F6] rounded-full overflow-hidden mb-3">
-                                <div className="h-full bg-[#EA580C] rounded-full transition-all" style={{ width: `${pct}%` }} />
-                              </div>
-                              <div className="flex items-center justify-between">
-                                <span className="text-[13px] text-[#374151]">{sprintTasksList.length} task{sprintTasksList.length !== 1 ? "s" : ""}</span>
-                                {isAdmin && (
-                                  <div className="flex items-center gap-2">
-                                    <button onClick={() => openEditSprint(s)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="Edit Sprint">
-                                      <Pencil className="h-[15px] w-[15px] text-[#EA580C]" />
-                                    </button>
-                                    <button onClick={() => deleteSprint(s.id)} className="w-8 h-8 rounded-full bg-[#FEF2F2] flex items-center justify-center hover:bg-[#FEE2E2] transition-colors" title="Delete Sprint">
-                                      <Trash2 className="h-[15px] w-[15px] text-[#DC2626]" />
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {phases.map((p: any) => {
+                const sprintCount = (sprints || []).filter((s: any) => s.phase_id === p.id).length;
+                const pct = phaseProgress[p.id] || 0;
+                return (
+                  <div key={p.id} onClick={() => { setSelectedPhaseForSprints(p.id); setPlanningSubTab("sprints"); }} className="border border-[#E5E7EB] rounded-2xl p-5 hover:shadow-sm transition-shadow cursor-pointer">
+                    <h3 className="font-bold text-[16px] text-[#111827]">{p.title}</h3>
+                    <p className="text-[13px] text-[#9CA3AF] mt-1">{sprintCount} sprint{sprintCount !== 1 ? "s" : ""}</p>
+                    <div className="w-full h-2 bg-[#F3F4F6] rounded-full overflow-hidden mt-4">
+                      <div className="h-full bg-[#EA580C] rounded-full transition-all" style={{ width: `${pct}%` }} />
                     </div>
-                  );
-                })}
-              {sprints.some((s: any) => !s.phase_id) && (
-                <div>
-                  <h4 className="font-bold text-[15px] text-[#111827] mb-4">Unassigned</h4>
+                    <p className="text-[13px] text-[#374151] mt-2">{pct}% complete</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+    </TabsContent>
+
+    {/* ── Sprints Sub-tab ── */}
+    <TabsContent value="sprints" className="space-y-4">
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <h2 className="text-[22px] font-bold text-[#111827]">Sprints</h2>
+          {selectedPhaseForSprints && (
+            <button onClick={() => setSelectedPhaseForSprints(null)} className="text-[12px] text-[#EA580C] hover:text-[#C2410C] font-medium flex items-center gap-1">
+              <X className="h-3.5 w-3.5" /> Clear filter
+            </button>
+          )}
+        </div>
+        {isAdmin && (
+          <button onClick={() => setAddSprintOpen(true)} className="flex items-center gap-2 px-5 py-2.5 bg-[#EA580C] text-white text-[13px] font-medium rounded-lg hover:bg-[#C2410C] transition-colors">
+            <Plus className="h-4 w-4" /> Add Sprint
+          </button>
+        )}
+      </div>
+      {sprints.length === 0 ? (
+        <p className="text-sm text-muted-foreground">No sprints yet.</p>
+      ) : (
+        <div className="space-y-8">
+          {(phases || [])
+            .filter((p: any) => {
+              if (selectedPhaseForSprints) return p.id === selectedPhaseForSprints;
+              return sprints.some((s: any) => s.phase_id === p.id);
+            })
+            .map((phase: any) => {
+              const phaseSprints = sprints.filter((s: any) => s.phase_id === phase.id);
+              return (
+                <div key={phase.id}>
+                  <div className="flex items-center gap-2 mb-4">
+                    <h4 className="font-bold text-[15px] text-[#111827]">{phase.title}</h4>
+                    <span className="text-[12px] text-[#6B7280] bg-[#F3F4F6] px-2 py-0.5 rounded">{phaseSprints.length} sprint{phaseSprints.length !== 1 ? "s" : ""}</span>
+                  </div>
                   <div className="flex flex-wrap gap-3">
-                    {sprints.filter((s: any) => !s.phase_id).map((s: any) => {
+                    {phaseSprints.map((s: any) => {
                       const sprintTasksList = (tasks || []).filter((t: any) => t.sprint_id === s.id);
                       const doneStatusIds = new Set((workflowStatuses || []).filter((st: any) => st.category === "done").map((st: any) => st.id));
                       const sprintDone = sprintTasksList.filter((t: any) => doneStatusIds.has(t.status_id)).length;
                       const pct = sprintTasksList.length > 0 ? Math.round((sprintDone / sprintTasksList.length) * 100) : 0;
+                      const statusLabel = s.status === "active" ? "active" : s.status === "completed" ? "completed" : "planned";
                       return (
                         <div key={s.id} className="border border-[#E5E7EB] rounded-2xl p-5 hover:shadow-sm transition-shadow w-[420px]">
                           <div className="flex items-center justify-between mb-3">
                             <h5 className="font-bold text-[15px] text-[#111827]">{s.name}</h5>
                             <span className={`text-[12px] font-medium px-3 py-1 rounded-full ${s.status === "active" ? "bg-green-100 text-green-700" : s.status === "completed" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
-                              {s.status}
+                              {statusLabel}
                             </span>
                           </div>
                           <div className="flex items-center gap-1.5 text-[13px] text-[#6B7280] mb-3">
@@ -3677,369 +3541,1213 @@ const { data: resolvedId } = useQuery({
                     })}
                   </div>
                 </div>
-              )}
-            </div>
-          )}
-        </TabsContent>
-          </Tabs>
-        </TabsContent>
-
-        {/* ═══ PEOPLE TAB — Team · Client Members ═══ */}
-        <TabsContent value="people">
-          <PeopleTabInner />
-
-        </TabsContent>
-
-        {/* ═══ ACTIVITY TAB — Logs ═══ */}
-        {isAdmin && (
-          <TabsContent value="activity">
-            <Card className="p-0 overflow-hidden">
-              <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b bg-muted/30">
-                <div className="flex items-center gap-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Filter by Date</span>
-                    <Input
-                      type="date"
-                      value={logFilterDate}
-                      onChange={(e) => setLogFilterDate(e.target.value)}
-                      className="h-9 w-[180px] bg-background"
-                    />
-                  </div>
-                  <div className="pt-5">
-                    <span className="text-sm font-medium">
-                      {(logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).length} logs found
-                    </span>
-                  </div>
-                </div>
-                <Button variant="outline" size="sm" onClick={() => exportCSV(
-                  (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).map((l) => ({ Date: l.log_date, Employee: (l.users as any)?.full_name, Category: l.category, Hours: l.hours, Description: l.description })),
-                  `${project.name}-logs-${logFilterDate || "all"}.csv`
-                )}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
-              </div>
-
-              <div>
-                {(() => {
-                  const filtered = (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate);
-
-                  if (filtered.length === 0) {
-                    return <div className="py-12 text-center text-muted-foreground">No logs found for this date</div>;
-                  }
-
-                  return (
-                      <>
-                        <TableHeader gridCols="1fr 112px 80px 1fr">
-                          <span>EMPLOYEE</span>
-                          <span>DATE</span>
-                          <span>HOURS</span>
-                          <span>DESCRIPTION</span>
-                        </TableHeader>
-                        {filtered.map((log: any) => (
-                          <DataRow key={log.id} gridCols="1fr 112px 80px 1fr">
-                            <div>
-                              <RowPrimary>{(log.users as any)?.full_name || "Unknown"}</RowPrimary>
-                              <RowSecondary>{log.category}</RowSecondary>
-                            </div>
-                            <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                            <RowDataItem label="HOURS">{formatHours(Number(log.hours))}</RowDataItem>
-                            <RowDataItem label="DESCRIPTION">
-                              <p className="truncate">{log.description || "—"}</p>
-                            </RowDataItem>
-                          </DataRow>
-                        ))}
-                      </>
-                    );
-                })()}
-              </div>
-            </Card>
-          </TabsContent>
-        )}
-
-        {/* ═══ INSIGHTS TAB — Stats & Charts ═══ */}
-        <TabsContent value="stats" className="space-y-6">
-          {/* Health Summary */}
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Project Health</h3>
-            {latestHealth ? (
-              <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
-                <div>
-                  <span className="text-muted-foreground block text-xs">Status</span>
-                  <Badge className={
-                    latestHealth.health_status === "on_track" ? "bg-green-100 text-green-800 mt-1" :
-                    latestHealth.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800 mt-1" :
-                    "bg-red-100 text-red-800 mt-1"
-                  }>
-                    {latestHealth.health_status.replace(/_/g, " ")}
-                  </Badge>
-                </div>
-                <div><span className="text-muted-foreground block text-xs">Planned</span><span className="font-medium mt-1 block">{Number(latestHealth.planned_hours || 0).toFixed(1)}h</span></div>
-                <div><span className="text-muted-foreground block text-xs">Logged</span><span className="font-medium mt-1 block">{Number(latestHealth.logged_hours || 0).toFixed(1)}h</span></div>
-                <div><span className="text-muted-foreground block text-xs">Tasks</span><span className="font-medium mt-1 block">{latestHealth.tasks_complete}/{latestHealth.tasks_total}</span></div>
-                <div><span className="text-muted-foreground block text-xs">Overdue</span><span className="font-medium mt-1 block">{latestHealth.tasks_overdue}</span></div>
-                <div><span className="text-muted-foreground block text-xs">Blockers</span><span className="font-medium mt-1 block">{latestHealth.open_blockers}</span></div>
-              </div>
-            ) : (
-              <p className="text-xs text-muted-foreground">Health data not yet available. Run the health compute job.</p>
-            )}
-          </Card>
-
-          {/* Burndown (stats version) */}
-          {(() => {
-            const scopeTasks = burndownScope === "project"
-              ? (tasks || [])
-              : (tasks || []).filter((t: any) => t.phase_id === burndownScope);
-            const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
-            const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
-            const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
-            const logged = scopeTasks.reduce((s: number, t: any) => {
-              const taskLogs = (logs || []).filter((l: any) => l.task_id === t.id);
-              return s + taskLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
-            }, 0);
-            const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
-            const endDate = scopePhase?.due_date || project?.end_date;
-            const startDate = project?.start_date;
-            const remaining = Math.max(0, totalEst - logged);
-
-            if (estimated.length === 0 || !endDate || !startDate) {
-              return (
-                <BurndownChart
-                  totalEst={0}
-                  loggedHrs={0}
-                  remaining={0}
-                  unestimatedCount={unestimated.length}
-                  burndownData={[]}
-                  totalEstimatedHours={0}
-                  burndownScope={burndownScope}
-                  onScopeChange={setBurndownScope}
-                  phases={phases}
-                  emptyMessage="Burndown requires estimated tasks and project dates."
-                />
               );
-            }
-
-            const bd = [
-              { name: "Start", actual: totalEst },
-              { name: "Now", actual: remaining, isNow: true },
-              { name: "Due", actual: null },
-            ];
-
-            return (
-              <BurndownChart
-                totalEst={totalEst}
-                loggedHrs={logged}
-                remaining={remaining}
-                unestimatedCount={unestimated.length}
-                burndownData={bd}
-                totalEstimatedHours={totalEst}
-                burndownScope={burndownScope}
-                onScopeChange={setBurndownScope}
-                phases={phases}
-                emptyMessage="Burndown requires estimated tasks and project dates."
-              />
-            );
-          })()}
-
-          {/* Hours by Team Member */}
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Hours by Team Member</h3>
-            {hoursByMember.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No logged hours yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={250}>
-                <BarChart data={hoursByMember}>
-                  <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="hours" fill="#60a5fa" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-
-          {/* Hours by Category */}
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Hours by Category</h3>
-            {categoryBreakdown.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No logged hours yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={250}>
-                <PieChart>
-                  <Pie data={categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
-                    {categoryBreakdown.map((_: any, i: number) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-
-          {/* Weekly Hours Trend */}
-          <Card className="p-4">
-            <h3 className="text-sm font-semibold mb-3">Weekly Hours Trend</h3>
-            {weeklyLogs.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No logged hours yet.</p>
-            ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <LineChart data={weeklyLogs}>
-                  <XAxis dataKey="week" tick={{ fontSize: 10 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12 }} />
-                  <Line type="monotone" dataKey="hours" stroke="#14b8a6" strokeWidth={2} dot={{ r: 3 }} name="Hours" />
-                </LineChart>
-              </ResponsiveContainer>
-            )}
-          </Card>
-
-          {/* Admin-only reporting sections */}
-          {isAdmin && (
-            <>
-              {/* Overdue Tasks */}
-              <Card className="p-4">
-                <h3 className="text-sm font-semibold mb-3">Overdue Tasks</h3>
-                {(() => {
-                  const overdue = (tasks || []).filter((t: any) => {
-                    if (!t.due_date) return false;
-                    const ws = workflowStatuses?.find((s: any) => s.id === t.status_id);
-                    return new Date(t.due_date) < new Date() && ws?.category !== "done";
-                  });
-                  if (overdue.length === 0) return <p className="text-xs text-muted-foreground">No overdue tasks.</p>;
+            })}
+          {sprints.some((s: any) => !s.phase_id) && (
+            <div>
+              <h4 className="font-bold text-[15px] text-[#111827] mb-4">Unassigned</h4>
+              <div className="flex flex-wrap gap-3">
+                {sprints.filter((s: any) => !s.phase_id).map((s: any) => {
+                  const sprintTasksList = (tasks || []).filter((t: any) => t.sprint_id === s.id);
+                  const doneStatusIds = new Set((workflowStatuses || []).filter((st: any) => st.category === "done").map((st: any) => st.id));
+                  const sprintDone = sprintTasksList.filter((t: any) => doneStatusIds.has(t.status_id)).length;
+                  const pct = sprintTasksList.length > 0 ? Math.round((sprintDone / sprintTasksList.length) * 100) : 0;
                   return (
-                    <div className="space-y-2 max-h-48 overflow-y-auto">
-                      {overdue.map((t: any) => (
-                        <div key={t.id} className="flex items-center justify-between bg-red-50 rounded-md p-2.5">
-                          <div className="min-w-0">
-                            <span className="text-sm font-medium">{t.title}</span>
-                            <span className="text-xs text-muted-foreground ml-2">
-                              Due {format(new Date(t.due_date + "T00:00:00"), "MMM d")}
-                              {t.estimated_hours && ` · ${t.estimated_hours}h est.`}
-                            </span>
+                    <div key={s.id} className="border border-[#E5E7EB] rounded-2xl p-5 hover:shadow-sm transition-shadow w-[420px]">
+                      <div className="flex items-center justify-between mb-3">
+                        <h5 className="font-bold text-[15px] text-[#111827]">{s.name}</h5>
+                        <span className={`text-[12px] font-medium px-3 py-1 rounded-full ${s.status === "active" ? "bg-green-100 text-green-700" : s.status === "completed" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}>
+                          {s.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-[13px] text-[#6B7280] mb-3">
+                        <CalendarIcon className="h-3.5 w-3.5" />
+                        {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                      </div>
+                      <div className="w-full h-2 bg-[#F3F4F6] rounded-full overflow-hidden mb-3">
+                        <div className="h-full bg-[#EA580C] rounded-full transition-all" style={{ width: `${pct}%` }} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[13px] text-[#374151]">{sprintTasksList.length} task{sprintTasksList.length !== 1 ? "s" : ""}</span>
+                        {isAdmin && (
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => openEditSprint(s)} className="w-8 h-8 rounded-full bg-[#FFF7ED] flex items-center justify-center hover:bg-[#FFEDD5] transition-colors" title="Edit Sprint">
+                              <Pencil className="h-[15px] w-[15px] text-[#EA580C]" />
+                            </button>
+                            <button onClick={() => deleteSprint(s.id)} className="w-8 h-8 rounded-full bg-[#FEF2F2] flex items-center justify-center hover:bg-[#FEE2E2] transition-colors" title="Delete Sprint">
+                              <Trash2 className="h-[15px] w-[15px] text-[#DC2626]" />
+                            </button>
                           </div>
-                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                        </div>
-                      ))}
+                        )}
+                      </div>
                     </div>
                   );
-                })()}
-              </Card>
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </TabsContent>
+  </Tabs>
+</TabsContent>
 
-              {/* Blocker Stats */}
-              <Card className="p-4">
-                <h3 className="text-sm font-semibold mb-3">Blocker Summary</h3>
-                {projectBlockers.length === 0 ? (
-                  <p className="text-xs text-muted-foreground">No blockers reported.</p>
-                ) : (() => {
-                  const openBlockers = projectBlockers.filter((b: any) => b.status === "open");
-                  const resolvedBlockers = projectBlockers.filter((b: any) => b.status === "resolved");
-                  const avgResolutionDays = resolvedBlockers.length > 0
-                    ? resolvedBlockers.reduce((sum: number, b: any) => {
-                        if (!b.resolved_at || !b.raised_at) return sum;
-                        return sum + (new Date(b.resolved_at).getTime() - new Date(b.raised_at).getTime()) / 86400000;
-                      }, 0) / resolvedBlockers.length
-                    : null;
-                  const blockersByMonth = Object.entries(
-                    projectBlockers.reduce((acc: Record<string, number>, b: any) => {
-                      const month = format(new Date(b.raised_at), "MMM yyyy");
-                      acc[month] = (acc[month] || 0) + 1;
-                      return acc;
-                    }, {})
-                  ).sort(([a], [b]) => a.localeCompare(b)).map(([month, count]) => ({ month, count }));
-                  return (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-6 text-sm">
-                        <div><span className="text-muted-foreground text-xs block">Open</span><span className="font-medium">{openBlockers.length}</span></div>
-                        <div><span className="text-muted-foreground text-xs block">Resolved</span><span className="font-medium">{resolvedBlockers.length}</span></div>
-                        <div><span className="text-muted-foreground text-xs block">Avg resolution</span><span className="font-medium">{avgResolutionDays !== null ? `${avgResolutionDays.toFixed(1)}d` : "—"}</span></div>
+{/* ═══ PEOPLE TAB — Team · Client Members ═══ */ }
+<TabsContent value="people">
+  <PeopleTabInner />
+
+</TabsContent>
+
+{/* ═══ ACTIVITY TAB — Logs ═══ */ }
+{
+  isAdmin && (
+    <TabsContent value="activity">
+      <Card className="p-0 overflow-hidden">
+        <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b bg-muted/30">
+          <div className="flex items-center gap-4">
+            <div className="space-y-1">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Filter by Date</span>
+              <Input
+                type="date"
+                value={logFilterDate}
+                onChange={(e) => setLogFilterDate(e.target.value)}
+                className="h-9 w-[180px] bg-background"
+              />
+            </div>
+            <div className="pt-5">
+              <span className="text-sm font-medium">
+                {(logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).length} logs found
+              </span>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => exportCSV(
+            (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).map((l) => ({ Date: l.log_date, Employee: (l.users as any)?.full_name, Category: l.category, Hours: l.hours, Description: l.description })),
+            `${project.name}-logs-${logFilterDate || "all"}.csv`
+          )}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+        </div>
+
+        <div>
+          {(() => {
+            const filtered = (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate);
+
+            if (filtered.length === 0) {
+              return <div className="py-12 text-center text-muted-foreground">No logs found for this date</div>;
+            }
+
+            return (
+              <>
+                <TableHeader gridCols="1fr 112px 80px 1fr">
+                  <span>EMPLOYEE</span>
+                  <span>DATE</span>
+                  <span>HOURS</span>
+                  <span>DESCRIPTION</span>
+                </TableHeader>
+                {filtered.map((log: any) => (
+                  <DataRow key={log.id} gridCols="1fr 112px 80px 1fr">
+                    <div>
+                      <RowPrimary>{(log.users as any)?.full_name || "Unknown"}</RowPrimary>
+                      <RowSecondary>{log.category}</RowSecondary>
+                    </div>
+                    <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                    <RowDataItem label="HOURS">{formatHours(Number(log.hours))}</RowDataItem>
+                    <RowDataItem label="DESCRIPTION">
+                      <p className="truncate">{log.description || "—"}</p>
+                    </RowDataItem>
+                  </DataRow>
+                ))}
+              </>
+            );
+          })()}
+        </div>
+      </Card>
+    </TabsContent>
+  )
+}
+
+{/* ═══ INSIGHTS TAB — Stats & Charts ═══ */ }
+<TabsContent value="stats" className="space-y-6">
+  {/* Health Summary */}
+  <Card className="p-4">
+    <h3 className="text-sm font-semibold mb-3">Project Health</h3>
+    {latestHealth ? (
+      <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
+        <div>
+          <span className="text-muted-foreground block text-xs">Status</span>
+          <Badge className={
+            latestHealth.health_status === "on_track" ? "bg-green-100 text-green-800 mt-1" :
+              latestHealth.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800 mt-1" :
+                "bg-red-100 text-red-800 mt-1"
+          }>
+            {latestHealth.health_status.replace(/_/g, " ")}
+          </Badge>
+        </div>
+        <div><span className="text-muted-foreground block text-xs">Planned</span><span className="font-medium mt-1 block">{Number(latestHealth.planned_hours || 0).toFixed(1)}h</span></div>
+        <div><span className="text-muted-foreground block text-xs">Logged</span><span className="font-medium mt-1 block">{Number(latestHealth.logged_hours || 0).toFixed(1)}h</span></div>
+        <div><span className="text-muted-foreground block text-xs">Tasks</span><span className="font-medium mt-1 block">{latestHealth.tasks_complete}/{latestHealth.tasks_total}</span></div>
+        <div><span className="text-muted-foreground block text-xs">Overdue</span><span className="font-medium mt-1 block">{latestHealth.tasks_overdue}</span></div>
+        <div><span className="text-muted-foreground block text-xs">Blockers</span><span className="font-medium mt-1 block">{latestHealth.open_blockers}</span></div>
+      </div>
+    ) : (
+      <p className="text-xs text-muted-foreground">Health data not yet available. Run the health compute job.</p>
+    )}
+  </Card>
+
+  {/* Burndown (stats version) */}
+  {(() => {
+    const scopeTasks = burndownScope === "project"
+      ? (tasks || [])
+      : (tasks || []).filter((t: any) => t.phase_id === burndownScope);
+    const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
+    const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
+    const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
+    const logged = scopeTasks.reduce((s: number, t: any) => {
+      const taskLogs = (logs || []).filter((l: any) => l.task_id === t.id);
+      return s + taskLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
+    }, 0);
+    const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
+    const endDate = scopePhase?.due_date || project?.end_date;
+    const startDate = project?.start_date;
+    const remaining = Math.max(0, totalEst - logged);
+
+    if (estimated.length === 0 || !endDate || !startDate) {
+      return (
+        <BurndownChart
+          totalEst={0}
+          loggedHrs={0}
+          remaining={0}
+          unestimatedCount={unestimated.length}
+          burndownData={[]}
+          totalEstimatedHours={0}
+          burndownScope={burndownScope}
+          onScopeChange={setBurndownScope}
+          phases={phases}
+          emptyMessage="Burndown requires estimated tasks and project dates."
+        />
+      );
+    }
+
+    const bd = [
+      { name: "Start", actual: totalEst },
+      { name: "Now", actual: remaining, isNow: true },
+      { name: "Due", actual: null },
+    ];
+
+    return (
+      <BurndownChart
+        totalEst={totalEst}
+        loggedHrs={logged}
+        remaining={remaining}
+        unestimatedCount={unestimated.length}
+        burndownData={bd}
+        totalEstimatedHours={totalEst}
+        burndownScope={burndownScope}
+        onScopeChange={setBurndownScope}
+        phases={phases}
+        emptyMessage="Burndown requires estimated tasks and project dates."
+      />
+    );
+  })()}
+
+  {/* Hours by Team Member */}
+  <Card className="p-4">
+    <h3 className="text-sm font-semibold mb-3">Hours by Team Member</h3>
+    {hoursByMember.length === 0 ? (
+      <p className="text-xs text-muted-foreground">No logged hours yet.</p>
+    ) : (
+      <ResponsiveContainer width="100%" height={250}>
+        <BarChart data={hoursByMember}>
+          <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip contentStyle={{ fontSize: 12 }} />
+          <Bar dataKey="hours" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    )}
+  </Card>
+
+  {/* Hours by Category */}
+  <Card className="p-4">
+    <h3 className="text-sm font-semibold mb-3">Hours by Category</h3>
+    {categoryBreakdown.length === 0 ? (
+      <p className="text-xs text-muted-foreground">No logged hours yet.</p>
+    ) : (
+      <ResponsiveContainer width="100%" height={250}>
+        <PieChart>
+          <Pie data={categoryBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+            {categoryBreakdown.map((_: any, i: number) => (
+              <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+            ))}
+          </Pie>
+          <Tooltip contentStyle={{ fontSize: 12 }} />
+        </PieChart>
+      </ResponsiveContainer>
+    )}
+  </Card>
+
+  {/* Weekly Hours Trend */}
+  <Card className="p-4">
+    <h3 className="text-sm font-semibold mb-3">Weekly Hours Trend</h3>
+    {weeklyLogs.length === 0 ? (
+      <p className="text-xs text-muted-foreground">No logged hours yet.</p>
+    ) : (
+      <ResponsiveContainer width="100%" height={200}>
+        <LineChart data={weeklyLogs}>
+          <XAxis dataKey="week" tick={{ fontSize: 10 }} />
+          <YAxis tick={{ fontSize: 11 }} />
+          <Tooltip contentStyle={{ fontSize: 12 }} />
+          <Line type="monotone" dataKey="hours" stroke="#14b8a6" strokeWidth={2} dot={{ r: 3 }} name="Hours" />
+        </LineChart>
+      </ResponsiveContainer>
+    )}
+  </Card>
+
+  {/* Admin-only reporting sections */}
+  {isAdmin && (
+    <>
+      {/* Overdue Tasks */}
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold mb-3">Overdue Tasks</h3>
+        {(() => {
+          const overdue = (tasks || []).filter((t: any) => {
+            if (!t.due_date) return false;
+            const ws = workflowStatuses?.find((s: any) => s.id === t.status_id);
+            return new Date(t.due_date) < new Date() && ws?.category !== "done";
+          });
+          if (overdue.length === 0) return <p className="text-xs text-muted-foreground">No overdue tasks.</p>;
+          return (
+            <div className="space-y-2 max-h-48 overflow-y-auto">
+              {overdue.map((t: any) => (
+                <div key={t.id} className="flex items-center justify-between bg-red-50 rounded-md p-2.5">
+                  <div className="min-w-0">
+                    <span className="text-sm font-medium">{t.title}</span>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      Due {format(new Date(t.due_date + "T00:00:00"), "MMM d")}
+                      {t.estimated_hours && ` · ${t.estimated_hours}h est.`}
+                    </span>
+                  </div>
+                  <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+      </Card>
+
+      {/* Blocker Stats */}
+      <Card className="p-4">
+        <h3 className="text-sm font-semibold mb-3">Blocker Summary</h3>
+        {projectBlockers.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No blockers reported.</p>
+        ) : (() => {
+          const openBlockers = projectBlockers.filter((b: any) => b.status === "open");
+          const resolvedBlockers = projectBlockers.filter((b: any) => b.status === "resolved");
+          const avgResolutionDays = resolvedBlockers.length > 0
+            ? resolvedBlockers.reduce((sum: number, b: any) => {
+              if (!b.resolved_at || !b.raised_at) return sum;
+              return sum + (new Date(b.resolved_at).getTime() - new Date(b.raised_at).getTime()) / 86400000;
+            }, 0) / resolvedBlockers.length
+            : null;
+          const blockersByMonth = Object.entries(
+            projectBlockers.reduce((acc: Record<string, number>, b: any) => {
+              const month = format(new Date(b.raised_at), "MMM yyyy");
+              acc[month] = (acc[month] || 0) + 1;
+              return acc;
+            }, {})
+          ).sort(([a], [b]) => a.localeCompare(b)).map(([month, count]) => ({ month, count }));
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-6 text-sm">
+                <div><span className="text-muted-foreground text-xs block">Open</span><span className="font-medium">{openBlockers.length}</span></div>
+                <div><span className="text-muted-foreground text-xs block">Resolved</span><span className="font-medium">{resolvedBlockers.length}</span></div>
+                <div><span className="text-muted-foreground text-xs block">Avg resolution</span><span className="font-medium">{avgResolutionDays !== null ? `${avgResolutionDays.toFixed(1)}d` : "—"}</span></div>
+              </div>
+              {blockersByMonth.length > 1 && (
+                <ResponsiveContainer width="100%" height={150}>
+                  <BarChart data={blockersByMonth}>
+                    <XAxis dataKey="month" tick={{ fontSize: 10 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip contentStyle={{ fontSize: 12 }} />
+                    <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          );
+        })()}
+      </Card>
+
+      {/* Health Trend */}
+      {healthTrend.length > 1 && (
+        <Card className="p-4">
+          <h3 className="text-sm font-semibold mb-3">Health Trend</h3>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {healthTrend.map((s: any) => (
+              <Badge key={s.snapshot_date} className={
+                s.health_status === "on_track" ? "bg-green-100 text-green-800" :
+                  s.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800" :
+                    "bg-red-100 text-red-800"
+              }>
+                {format(new Date(s.snapshot_date + "T00:00:00"), "MMM d")}
+              </Badge>
+            ))}
+          </div>
+          <ResponsiveContainer width="100%" height={150}>
+            <LineChart data={healthTrend.map((s: any) => ({
+              date: format(new Date(s.snapshot_date + "T00:00:00"), "MMM d"),
+              score: s.health_status === "on_track" ? 3 : s.health_status === "at_risk" ? 2 : 1,
+            }))}>
+              <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+              <YAxis tick={{ fontSize: 11 }} domain={[0, 4]} ticks={[1, 2, 3]} tickFormatter={(v) => v === 3 ? "On Track" : v === 2 ? "At Risk" : "Delayed"} />
+              <Tooltip contentStyle={{ fontSize: 12 }} />
+              <Line type="monotone" dataKey="score" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4 }} name="Health" />
+            </LineChart>
+          </ResponsiveContainer>
+        </Card>
+      )}
+    </>
+  )}
+</TabsContent>
+
+{/* ═══ AUTOMATION TAB — Rules ═══ */ }
+{
+  isAdmin && (
+    <TabsContent value="logs">
+        <Card className="p-0 overflow-hidden">
+          <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b bg-muted/30">
+            <div className="flex items-center gap-4">
+              <div className="space-y-1">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Filter by Date</span>
+                <Input
+                  type="date"
+                  value={logFilterDate}
+                  onChange={(e) => setLogFilterDate(e.target.value)}
+                  className="h-9 w-[180px] bg-background"
+                />
+              </div>
+              <div className="pt-5">
+                <span className="text-sm font-medium">
+                  {(logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).length} logs found
+                </span>
+              </div>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => exportCSV(
+              (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate).map((l) => ({ Date: l.log_date, Employee: (l.users as any)?.full_name, Category: l.category, Hours: l.hours, Description: l.description })),
+              `${project.name}-logs-${logFilterDate || "all"}.csv`
+            )}><Download className="h-4 w-4 mr-1" />Export CSV</Button>
+          </div>
+
+          <div>
+            {(() => {
+              const filtered = (logs || []).filter(l => !logFilterDate || l.log_date === logFilterDate);
+
+              if (filtered.length === 0) {
+                return <div className="py-12 text-center text-muted-foreground">No logs found for this date</div>;
+              }
+
+              return (
+                <>
+                  <TableHeader gridCols="1fr 112px 80px 1fr">
+                    <span>EMPLOYEE</span>
+                    <span>DATE</span>
+                    <span>HOURS</span>
+                    <span>DESCRIPTION</span>
+                  </TableHeader>
+                  {filtered.map((log: any) => (
+                    <DataRow key={log.id} gridCols="1fr 112px 80px 1fr">
+                      <div>
+                        <RowPrimary>{(log.users as any)?.full_name || "Unknown"}</RowPrimary>
+                        <RowSecondary>{log.category}</RowSecondary>
                       </div>
-                      {blockersByMonth.length > 1 && (
-                        <ResponsiveContainer width="100%" height={150}>
-                          <BarChart data={blockersByMonth}>
-                            <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                            <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-                            <Tooltip contentStyle={{ fontSize: 12 }} />
-                            <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                          </BarChart>
-                        </ResponsiveContainer>
+                      <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
+                      <RowDataItem label="HOURS">{formatHours(Number(log.hours))}</RowDataItem>
+                      <RowDataItem label="DESCRIPTION">
+                        <p className="truncate">{log.description || "—"}</p>
+                      </RowDataItem>
+                    </DataRow>
+                  ))}
+                </>
+              );
+            })()}
+          </div>
+        </Card>
+      </TabsContent>
+        )}
+
+      {/* TASKS — employees only (clients have their own view above) */}
+      {!isAdmin && !isClient && (
+        <TabsContent value="tasks" className="space-y-4">
+          <h2 className="text-lg font-semibold">My Tasks</h2>
+          {(() => {
+            const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id);
+            if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
+            return (
+              <TooltipProvider>
+                <table className="w-full">
+                  <thead>
+                    <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                      <th className="px-4 py-2 text-left">TASK</th>
+                      <th className="px-4 py-2 text-left">STATUS</th>
+                      <th className="px-4 py-2 text-left">EST. HOURS</th>
+                      <th className="px-4 py-2 text-left">PRIORITY</th>
+                      <th className="px-4 py-2 text-left">DUE DATE</th>
+                      <th className="px-4 py-2 text-right">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myTasks.map((t: any) => (
+                      <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                        <td className="px-4 py-3 break-words">
+                          <div className="flex items-center gap-2">
+                            <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status_id && doneStatusIds.has(t.status_id) ? " line-through text-muted-foreground" : "")}>
+                              {t.title}
+                              {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                              {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                              {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                          <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                          <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                          <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words text-right">
+                          <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                            <Info className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </TooltipProvider>
+            );
+          })()}
+        </TabsContent>
+      )}
+
+      {/* ACTION ITEMS — employees only */}
+      {!isAdmin && !isClient && (
+        <TabsContent value="action-items" className="space-y-4">
+          <h2 className="text-lg font-semibold">My Action Items</h2>
+          {(() => {
+            const myActionItems = actionItems.filter((a: any) => a.assigned_to === profile?.id);
+            if (myActionItems.length === 0) {
+              return (
+                <div className="flex flex-col items-center justify-center py-12 text-center">
+                  <CheckCircle2 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+                  <p className="text-sm text-muted-foreground">No action items assigned to you yet.</p>
+                  <p className="text-xs text-muted-foreground mt-1">Action items linked to your tasks will appear here.</p>
+                </div>
+              );
+            }
+            return (
+              <div>
+                <TableHeader gridCols="1fr 140px 140px 100px 80px 120px 80px">
+                  <span>TITLE</span>
+                  <span>RELATED BLOCKER</span>
+                  <span>RELATED TASK</span>
+                  <span>STATUS</span>
+                  <span>PRIORITY</span>
+                  <span>REQUESTED BY</span>
+                  <span className="text-right">ACTIONS</span>
+                </TableHeader>
+                {myActionItems.map((a: any) => {
+                  const isExpanded = expandedActionItemId === a.id;
+                  const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
+                  return (
+                    <div key={a.id}>
+                      <DataRow gridCols="1fr 140px 140px 100px 80px 120px 80px">
+                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
+                          {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                          <div>
+                            <RowPrimary>{a.title}</RowPrimary>
+                            {a.description && <RowSecondary>{truncateWords(a.description, 6)}</RowSecondary>}
+                          </div>
+                        </div>
+                        <RowDataItem label="RELATED BLOCKER">{a.blockers?.description || a.blockers?.title || "—"}</RowDataItem>
+                        <RowDataItem label="RELATED TASK">{linkedTask?.title || "—"}</RowDataItem>
+                        <RowBadgeItem label="STATUS">
+                          <Badge className={
+                            a.status === "completed" ? "bg-green-100 text-green-800" :
+                              a.status === "waived" ? "bg-gray-100 text-gray-800" :
+                                "bg-yellow-100 text-yellow-800"
+                          }>{a.status}</Badge>
+                        </RowBadgeItem>
+                        <RowBadgeItem label="PRIORITY">
+                          <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge>
+                        </RowBadgeItem>
+                        <RowDataItem label="REQUESTED BY">{a.requested_by_user?.full_name || "—"}</RowDataItem>
+                        <RowActions className="justify-self-end">
+                          {a.status === "pending" && (
+                            <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
+                              <CheckCircle2 className="h-4 w-4 text-green-600" />
+                            </button>
+                          )}
+                        </RowActions>
+                      </DataRow>
+                      {isExpanded && (
+                        <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
+                          {a.description && (
+                            <div className="text-sm text-muted-foreground">{a.description}</div>
+                          )}
+                          <div className="flex flex-wrap gap-3 text-sm">
+                            {a.due_date && <span className="text-muted-foreground">Due: <span className="text-foreground font-medium">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span></span>}
+                            {a.completed_at && <span className="text-muted-foreground">Completed: <span className="text-foreground font-medium">{format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a")}</span></span>}
+                          </div>
+                          {a.status === "completed" && a.resolver && (
+                            <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
+                              Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
+                            </div>
+                          )}
+                          <div className="space-y-2 max-h-64 overflow-y-auto">
+                            {actionItemMessages.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No messages yet.</p>
+                            ) : (
+                              actionItemMessages.map((m: any) => (
+                                <div key={m.id} className="flex gap-2 bg-white rounded-md p-2.5 border border-[#e5e7eb]">
+                                  <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                                    <AvatarImage src={getAvatarUrl(m.sender?.full_name)} />
+                                    <AvatarFallback className="text-[10px]">{m.sender?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                                  </Avatar>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-xs font-semibold">{m.sender?.full_name || "Unknown"}</span>
+                                      <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "employee"}</Badge>
+                                      <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
+                                    </div>
+                                    <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                          {a.status === "pending" && (
+                            <div className="flex gap-2">
+                              <Textarea value={newActionItemMessage} onChange={(e) => setNewActionItemMessage(e.target.value)} placeholder="Type a reply..." className="min-h-[60px] text-sm" />
+                              <Button size="sm" className="rounded-button shrink-0" disabled={!newActionItemMessage.trim()} onClick={() => sendActionItemMessage(a.id)}>
+                                <Send className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
                   );
-                })()}
-              </Card>
+                })}
+              </div>
+            );
+          })()}
+        </TabsContent>
+      )}
 
-              {/* Health Trend */}
-              {healthTrend.length > 1 && (
-                <Card className="p-4">
-                  <h3 className="text-sm font-semibold mb-3">Health Trend</h3>
-                  <div className="flex flex-wrap gap-2 mb-3">
-                    {healthTrend.map((s: any) => (
-                      <Badge key={s.snapshot_date} className={
-                        s.health_status === "on_track" ? "bg-green-100 text-green-800" :
-                        s.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800" :
-                        "bg-red-100 text-red-800"
-                      }>
-                        {format(new Date(s.snapshot_date + "T00:00:00"), "MMM d")}
-                      </Badge>
-                    ))}
+      {/* TASKS — admin only */}
+      {isAdmin && (
+        <TabsContent value="tasks" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Tasks</h2>
+            <div className="flex gap-2">
+              <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {(workflowStatuses || []).map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button"><Upload className="h-4 w-4 mr-1" />Bulk Add Tasks</Button>
+              <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
+            </div>
+          </div>
+
+          {(() => {
+            const filteredTasks = (tasks || []).filter(
+              (t: any) => taskStatusFilter === "all" || t.status_id === taskStatusFilter
+            );
+            return filteredTasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No tasks yet.</p>
+            ) : (
+              <>
+                {selectedTaskIds.size > 0 && (
+                  <div className="flex items-center gap-3 bg-muted rounded-md px-4 py-2 mb-2">
+                    <span className="text-sm font-medium">{selectedTaskIds.size} selected</span>
+                    <Button variant="destructive" size="sm" onClick={() => setBulkTaskDeleteOpen(true)} className="rounded-button"><Trash2 className="h-4 w-4 mr-1" />Delete Selected</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedTaskIds(new Set())}>Clear</Button>
                   </div>
-                  <ResponsiveContainer width="100%" height={150}>
-                    <LineChart data={healthTrend.map((s: any) => ({
-                      date: format(new Date(s.snapshot_date + "T00:00:00"), "MMM d"),
-                      score: s.health_status === "on_track" ? 3 : s.health_status === "at_risk" ? 2 : 1,
-                    }))}>
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 11 }} domain={[0, 4]} ticks={[1, 2, 3]} tickFormatter={(v) => v === 3 ? "On Track" : v === 2 ? "At Risk" : "Delayed"} />
-                      <Tooltip contentStyle={{ fontSize: 12 }} />
-                      <Line type="monotone" dataKey="score" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 4 }} name="Health" />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </Card>
-              )}
-            </>
+                )}
+                <table className="w-full">
+                  <thead>
+                    <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                      <th className="px-4 py-2 text-left w-10">
+                        <input type="checkbox" className="rounded" checked={selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0} onChange={(e) => { if (e.target.checked) setSelectedTaskIds(new Set(filteredTasks.map((t: any) => t.id))); else setSelectedTaskIds(new Set()); }} />
+                      </th>
+                      <th className="px-4 py-2 text-left">TASK</th>
+                      <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                      <th className="px-4 py-2 text-left">PRIORITY</th>
+                      <th className="px-4 py-2 text-left">STATUS</th>
+                      <th className="px-4 py-2 text-left">EST. HOURS</th>
+                      <th className="px-4 py-2 text-left">DUE DATE</th>
+                      <th className="px-4 py-2 text-left">FLAGGED</th>
+                      <th className="px-4 py-2 text-left">VISIBLE</th>
+                      <th className="px-4 py-2 text-right">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredTasks.map((t: any) => (
+                      <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                        <td className="px-4 py-3 break-words">
+                          <input type="checkbox" className="rounded" checked={selectedTaskIds.has(t.id)} onChange={(e) => { const next = new Set(selectedTaskIds); if (e.target.checked) next.add(t.id); else next.delete(t.id); setSelectedTaskIds(next); }} />
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="font-semibold text-[15px] text-[#111827] break-words">
+                            {t.title}
+                            {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                            {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                            {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
+                          </div>
+                          <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">ASSIGNED TO</div>
+                          <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                          <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                          <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                          <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">FLAGGED</div>
+                          {t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">VISIBLE</div>
+                          {t.client_visible !== false ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                        </td>
+                        <td className="px-4 py-3 break-words text-right flex gap-2">
+                          <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                            <Info className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => openEditTask(t)} className={editButtonClass} title="Edit Task">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          {profile?.role === "admin" && (
+                            <button onClick={() => setDeleteTaskConfirmId(t.id)} className={editButtonClass} title="Delete Task">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            );
+          })()}
+        </TabsContent>
+      )}
+
+      {/* PHASES — admin only */}
+      {isAdmin && (
+        <TabsContent value="phases">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold">Phases</h3>
+            <Button size="sm" className="rounded-button bg-primary text-black hover:bg-black hover:text-white active:bg-black" onClick={() => setAddPhaseOpen(true)}>Add Phase</Button>
+          </div>
+          {phases.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No phases yet.</p>
+          ) : (
+            <div>
+              <TableHeader gridCols="1fr 112px 192px 80px">
+                <span>PHASE</span>
+                <span>DUE DATE</span>
+                <span>PROGRESS</span>
+                <span className="text-right">ACTIONS</span>
+              </TableHeader>
+              {phases.map((p: any) => (
+                <DataRow key={p.id} onClick={() => openPhaseTasks(p)} gridCols="1fr 112px 192px 80px">
+                  <div>
+                    <RowPrimary className="whitespace-normal break-words">{p.title}</RowPrimary>
+                    <RowSecondary>{(sprints || []).filter((s: any) => s.phase_id === p.id).length} sprints</RowSecondary>
+                  </div>
+                  <RowDataItem label="DUE DATE">{p.due_date ? format(new Date(p.due_date), "MMM d, yyyy") : "—"}</RowDataItem>
+                  <RowDataItem label="PROGRESS">
+                    <div className="flex items-center gap-2">
+                      <div className="w-20 bg-muted rounded-full h-2">
+                        <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${phaseProgress[p.id]}%` }} />
+                      </div>
+                      <span className="text-[11px] text-[#6b7280]">{phaseProgress[p.id]}%</span>
+                    </div>
+                  </RowDataItem>
+                  <RowActions className="justify-self-end">
+                    <button onClick={(e) => { e.stopPropagation(); navigate(`/projects/${slug}/phases/${p.id}`); }} className={editButtonClass} title="Edit Phase">
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                    <button onClick={(e) => { e.stopPropagation(); setConfirmPhaseDelId(p.id); }} className={editButtonClass} title="Delete Phase">
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </button>
+                  </RowActions>
+                </DataRow>
+              ))}
+            </div>
           )}
         </TabsContent>
+      )}
 
-        {/* ═══ AUTOMATION TAB — Rules ═══ */}
-        {isAdmin && (
-          <TabsContent value="automation" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg font-semibold">Automation Rules</h3>
-              <Button onClick={openAddRule}><Plus className="h-4 w-4" /> Add Rule</Button>
-            </div>
-            {automationRules.length === 0 ? (
-              <p className="text-sm text-muted-foreground">No automation rules yet. Create rules to automate project workflows.</p>
-            ) : (
-              <div className="space-y-3">
-                {automationRules.map((rule: any) => (
-                  <Card key={rule.id} className="p-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <h4 className="text-sm font-semibold">{rule.name}</h4>
-                          <Badge variant="outline">{rule.trigger_type.replace(/_/g, " ")}</Badge>
-                          <Badge variant={rule.status === "enabled" ? "default" : "secondary"}>{rule.status}</Badge>
-                        </div>
-                        {rule.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{rule.description}</p>}
-                        <p className="text-xs text-muted-foreground mt-1">Priority: {rule.priority} &middot; {rule.allow_triggering_other_rules ? "Chainable" : "No chaining"}</p>
-                      </div>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <Switch checked={rule.status === "enabled"} onCheckedChange={(c) => toggleRuleStatus(rule.id, c)} />
-                        <Button variant="ghost" size="icon" onClick={() => openEditRule(rule)} title="Edit">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => setDeleteRuleConfirmId(rule.id)} title="Delete">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
+      {/* SPRINTS — all project members */}
+      <TabsContent value="sprints" className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold">Sprints</h3>
+          {isAdmin && (
+            <Button size="sm" onClick={() => setAddSprintOpen(true)} className="rounded-button bg-primary text-black hover:bg-black hover:text-white active:bg-black">
+              <Plus className="h-4 w-4 mr-1" /> Add Sprint
+            </Button>
+          )}
+        </div>
+        {sprints.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No sprints yet.</p>
+        ) : isAdmin ? (
+          <div className="space-y-6">
+            {(phases || [])
+              .filter((p: any) => sprints.some((s: any) => s.phase_id === p.id))
+              .map((phase: any) => {
+                const phaseSprints = sprints.filter((s: any) => s.phase_id === phase.id);
+                return (
+                  <div key={phase.id}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-semibold text-sm">{phase.title}</h4>
+                      <Badge variant="outline" className="text-[10px]">{phaseSprints.length} sprint{phaseSprints.length !== 1 ? "s" : ""}</Badge>
                     </div>
-                  </Card>
-                ))}
+                    <div>
+                      <TableHeader gridCols="1fr 112px 96px 96px 80px 80px">
+                        <span>SPRINT</span>
+                        <span>DATES</span>
+                        <span>STATUS</span>
+                        <span>TASKS</span>
+                        <span>PROGRESS</span>
+                        <span className="text-right">ACTIONS</span>
+                      </TableHeader>
+                      {phaseSprints.map((s: any) => (
+                        <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
+                          <div>
+                            <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
+                            <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                          </div>
+                          <RowDataItem label="DATES">
+                            {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                          </RowDataItem>
+                          <RowBadgeItem label="STATUS">
+                            <Badge className={
+                              s.status === "active" ? "bg-green-100 text-green-800" :
+                                s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                                  "bg-gray-100 text-gray-800"
+                            }>{s.status}</Badge>
+                          </RowBadgeItem>
+                          <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                          <RowDataItem label="PROGRESS">
+                            <div className="flex items-center gap-2">
+                              <div className="w-16 bg-muted rounded-full h-2">
+                                <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${sprintProgress[s.id]}%` }} />
+                              </div>
+                              <span className="text-[11px] text-[#6b7280]">{sprintProgress[s.id]}%</span>
+                            </div>
+                          </RowDataItem>
+                          <RowActions className="justify-self-end">
+                            {isAdmin && (
+                              <button onClick={(e) => { e.stopPropagation(); openEditSprint(s); }} className={editButtonClass} title="Edit Sprint">
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button onClick={(e) => { e.stopPropagation(); deleteSprint(s.id); }} className={editButtonClass} title="Delete Sprint">
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </button>
+                            )}
+                          </RowActions>
+                        </DataRow>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            {sprints.some((s: any) => !s.phase_id) && (
+              <div>
+                <h4 className="font-semibold text-sm mb-2">Unassigned</h4>
+                <div>
+                  <TableHeader gridCols="1fr 112px 96px 96px 80px 80px">
+                    <span>SPRINT</span>
+                    <span>DATES</span>
+                    <span>STATUS</span>
+                    <span>TASKS</span>
+                    <span>PROGRESS</span>
+                    <span className="text-right">ACTIONS</span>
+                  </TableHeader>
+                  {sprints.filter((s: any) => !s.phase_id).map((s: any) => (
+                    <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
+                      <div>
+                        <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
+                        <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                      </div>
+                      <RowDataItem label="DATES">
+                        {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                      </RowDataItem>
+                      <RowBadgeItem label="STATUS">
+                        <Badge className={
+                          s.status === "active" ? "bg-green-100 text-green-800" :
+                            s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                              "bg-gray-100 text-gray-800"
+                        }>{s.status}</Badge>
+                      </RowBadgeItem>
+                      <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                      <RowDataItem label="PROGRESS">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-muted rounded-full h-2">
+                            <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${sprintProgress[s.id]}%` }} />
+                          </div>
+                          <span className="text-[11px] text-[#6b7280]">{sprintProgress[s.id]}%</span>
+                        </div>
+                      </RowDataItem>
+                      <RowActions className="justify-self-end">
+                        {isAdmin && (
+                          <button onClick={(e) => { e.stopPropagation(); openEditSprint(s); }} className={editButtonClass} title="Edit Sprint">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                        )}
+                        {isAdmin && (
+                          <button onClick={(e) => { e.stopPropagation(); deleteSprint(s.id); }} className={editButtonClass} title="Delete Sprint">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </button>
+                        )}
+                      </RowActions>
+                    </DataRow>
+                  ))}
+                </div>
               </div>
             )}
-          </TabsContent>
+          </div>
+        ) : (
+          <div>
+            <TableHeader gridCols="1fr 112px 96px 96px 80px 80px">
+              <span>SPRINT</span>
+              <span>DATES</span>
+              <span>STATUS</span>
+              <span>TASKS</span>
+              <span>PROGRESS</span>
+            </TableHeader>
+            {sprints.map((s: any) => (
+              <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
+                <div>
+                  <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
+                  <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                </div>
+                <RowDataItem label="DATES">
+                  {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                </RowDataItem>
+                <RowBadgeItem label="STATUS">
+                  <Badge className={
+                    s.status === "active" ? "bg-green-100 text-green-800" :
+                      s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                        "bg-gray-100 text-gray-800"
+                  }>{s.status}</Badge>
+                </RowBadgeItem>
+                <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                <RowDataItem label="PROGRESS">
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 bg-muted rounded-full h-2">
+                      <div className="bg-primary h-2 rounded-full transition-all" style={{ width: `${sprintProgress[s.id]}%` }} />
+                    </div>
+                    <span className="text-[11px] text-[#6b7280]">{sprintProgress[s.id]}%</span>
+                  </div>
+                </RowDataItem>
+              </DataRow>
+            ))}
+          </div>
         )}
-      </Tabs>
+      </TabsContent>
 
-      {/* Automation Rule Dialog */}
+      {/* KANBAN BOARD — all project members */}
+      <TabsContent value="kanban" className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold">Kanban Board</h2>
+          <div className="flex gap-2">
+            <Select value={kanbanSprintFilter} onValueChange={setKanbanSprintFilter}>
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue placeholder="All Sprints" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Sprints</SelectItem>
+                <SelectItem value="__backlog__">Backlog</SelectItem>
+                {sprints.map((s: any) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={kanbanPriorityFilter} onValueChange={setKanbanPriorityFilter}>
+              <SelectTrigger className="w-[140px] h-9">
+                <SelectValue placeholder="All Priorities" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Priorities</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="low">Low</SelectItem>
+              </SelectContent>
+            </Select>
+            {isAdmin && (
+              <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button">
+                <Plus className="h-4 w-4 mr-1" />Add Task
+              </Button>
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-4 overflow-x-auto pb-4" style={{ minHeight: "500px" }}>
+          {(workflowStatuses || []).filter((s: any) => s.name.toLowerCase() !== "backlog").map((status: any) => {
+            const tasksInColumn = (tasks || []).filter((t: any) => {
+              const statusMatch = t.status === status.name;
+              const sprintMatch = kanbanSprintFilter === "all"
+                || (kanbanSprintFilter === "__backlog__" ? !t.sprint_id : t.sprint_id === kanbanSprintFilter);
+              const priorityMatch = kanbanPriorityFilter === "all" || t.priority === kanbanPriorityFilter;
+              return statusMatch && sprintMatch && priorityMatch;
+            });
+
+            return (
+              <div key={status.id} className="flex-shrink-0 w-72 bg-muted/30 rounded-lg border flex flex-col">
+                <div className="p-3 border-b flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2.5 h-2.5 rounded-full ${(status.color || "bg-gray-400").split(" ")[0] || "bg-gray-400"}`} />
+                    <span className="font-semibold text-sm capitalize">{status.name.replace(/_/g, " ")}</span>
+                  </div>
+                  <Badge variant="secondary" className="text-xs">{tasksInColumn.length}</Badge>
+                </div>
+                <div className="p-2 space-y-2 flex-1 overflow-y-auto" style={{ maxHeight: "calc(100vh - 360px)" }}>
+                  {tasksInColumn.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-8">No tasks</p>
+                  ) : (
+                    tasksInColumn.map((t: any) => (
+                      <div
+                        key={t.id}
+                        className="bg-white rounded-md p-3 border cursor-pointer hover:shadow-md transition-shadow"
+                        onClick={() => setViewTaskData(t)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="text-sm font-medium leading-tight line-clamp-2">{t.title}</span>
+                          <Badge className={`shrink-0 ${PRIORITY_COLORS[t.priority] || ""}`}>{t.priority}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          {(t as any).users?.full_name && (
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={getAvatarUrl((t as any).users?.full_name)} />
+                              <AvatarFallback className="text-[8px]">{(t as any).users?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                            </Avatar>
+                          )}
+                          {(t as any).users?.full_name && (
+                            <span className="text-xs text-muted-foreground truncate">{(t as any).users?.full_name}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          {t.due_date && (
+                            <span className="text-xs text-muted-foreground">Due {format(new Date(t.due_date + "T00:00:00"), "MMM d")}</span>
+                          )}
+                          {t.sprint_id && (() => {
+                            const s = sprints.find((sp: any) => sp.id === t.sprint_id);
+                            return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null;
+                          })()}
+                          {t.is_flagged && <Flag className="h-3 w-3 text-red-500 shrink-0" />}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </TabsContent>
+
+      {isAdmin && (
+        <TabsContent value="action-items" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Action Items</h3>
+          </div>
+          {actionItems.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No action items yet.</p>
+          ) : (
+            <div>
+              <TableHeader gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
+                <span>TITLE</span>
+                <span>PRIORITY</span>
+                <span>STATUS</span>
+                <span>DUE DATE</span>
+                <span>REQUESTED</span>
+                <span>VISIBLE</span>
+                <span>BLOCKER</span>
+                <span>RELATED TASK</span>
+                <span>ASSIGNED</span>
+                <span className="text-right">ACTIONS</span>
+              </TableHeader>
+              {actionItems.map((a: any) => {
+                const isExpanded = expandedActionItemId === a.id;
+                return (
+                  <div key={a.id}>
+                    <DataRow gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
+                      <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
+                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <div>
+                          <RowPrimary>{a.title}</RowPrimary>
+                          {a.description && <RowSecondary>{a.description}</RowSecondary>}
+                        </div>
+                      </div>
+                      <RowBadgeItem label="PRIORITY">
+                        <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge>
+                      </RowBadgeItem>
+                      <RowBadgeItem label="STATUS">
+                        <Badge className={
+                          a.status === "completed" ? "bg-green-100 text-green-800" :
+                            a.status === "waived" ? "bg-gray-100 text-gray-800" :
+                              "bg-yellow-100 text-yellow-800"
+                        }>{a.status}</Badge>
+                      </RowBadgeItem>
+                      <RowDataItem label="DUE DATE">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
+                      <RowDataItem label="REQUESTED">{a.requested_by_user?.full_name || "—"}</RowDataItem>
+                      <RowBadgeItem label="VISIBLE">
+                        {a.visible_to_client ? <Badge className="bg-blue-100 text-blue-800">Client</Badge> : <span className="text-muted-foreground">—</span>}
+                      </RowBadgeItem>
+                      <RowBadgeItem label="BLOCKER">
+                        {a.blockers ? (
+                          <Badge className={a.blockers.status === "resolved" ? "bg-green-100 text-green-800" : "bg-orange-100 text-orange-800"}>
+                            {a.blockers.status === "resolved" ? "Resolved" : "Active"}
+                          </Badge>
+                        ) : <span className="text-muted-foreground">—</span>}
+                      </RowBadgeItem>
+                      <RowDataItem label="RELATED TASK">{tasks?.find((t: any) => t.id === a.blockers?.task_id)?.title || "—"}</RowDataItem>
+                      <RowDataItem label="ASSIGNED">{a.assigned_to_user?.full_name || "—"}</RowDataItem>
+                      <div style={{ justifySelf: "end" }} className="flex items-center gap-1">
+                        {a.status === "pending" && (
+                          <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          </button>
+                        )}
+                      </div>
+                    </DataRow>
+                    {isExpanded && (
+                      <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
+                        <div className="flex flex-wrap gap-3 text-sm">
+                          <span className="text-muted-foreground">Priority: <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge></span>
+                          {a.blockers && <span className="text-muted-foreground">Blocker: <span className="text-foreground font-medium">{a.blockers.description || a.blockers.title || "—"}</span></span>}
+                          {a.blockers?.task_id && <span className="text-muted-foreground">Task: <span className="text-foreground font-medium">{tasks?.find((t: any) => t.id === a.blockers.task_id)?.title || "—"}</span></span>}
+                          {a.due_date && <span className="text-muted-foreground">Due: <span className="text-foreground font-medium">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span></span>}
+                        </div>
+                        {a.status === "completed" && a.resolver && (
+                          <div className="bg-green-50 border border-green-200 rounded-md px-3 py-2 text-sm text-green-800">
+                            Resolved by {a.resolver.full_name} on {a.completed_at ? format(new Date(a.completed_at), "MMM d, yyyy 'at' h:mm a") : "—"}
+                          </div>
+                        )}
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {actionItemMessages.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No messages yet.</p>
+                          ) : (
+                            actionItemMessages.map((m: any) => (
+                              <div key={m.id} className="flex gap-2 bg-white rounded-md p-2.5 border border-[#e5e7eb]">
+                                <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                                  <AvatarImage src={getAvatarUrl(m.sender?.full_name)} />
+                                  <AvatarFallback className="text-[10px]">{m.sender?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs font-semibold">{m.sender?.full_name || "Unknown"}</span>
+                                    <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "client member"}</Badge>
+                                    <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
+                                  </div>
+                                  <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </div>
+                        {a.status === "pending" && (
+                          <div className="flex gap-2">
+                            <Textarea value={newActionItemMessage} onChange={(e) => setNewActionItemMessage(e.target.value)} placeholder="Type a reply..." className="min-h-[60px] text-sm" />
+                            <Button size="sm" className="rounded-button shrink-0" disabled={!newActionItemMessage.trim()} onClick={() => sendActionItemMessage(a.id)}>
+                              <Send className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </TabsContent>
+      )}
+      {isAdmin && (
+        <TabsContent value="automation-rules" className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Automation Rules</h3>
+            <Button onClick={openAddRule}><Plus className="h-4 w-4" /> Add Rule</Button>
+          </div>
+          {automationRules.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No automation rules yet. Create rules to automate project workflows.</p>
+          ) : (
+            <div className="space-y-3">
+              {automationRules.map((rule: any) => (
+                <Card key={rule.id} className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-sm font-semibold">{rule.name}</h4>
+                        <Badge variant="outline">{rule.trigger_type.replace(/_/g, " ")}</Badge>
+                        <Badge variant={rule.status === "enabled" ? "default" : "secondary"}>{rule.status}</Badge>
+                      </div>
+                      {rule.description && <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{rule.description}</p>}
+                      <p className="text-xs text-muted-foreground mt-1">Priority: {rule.priority} &middot; {rule.allow_triggering_other_rules ? "Chainable" : "No chaining"}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Switch checked={rule.status === "enabled"} onCheckedChange={(c) => toggleRuleStatus(rule.id, c)} />
+                      <Button variant="ghost" size="icon" onClick={() => openEditRule(rule)} title="Edit">
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteRuleConfirmId(rule.id)} title="Delete">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+      )}
+    </Tabs>
+
+      {/* Automation Rule Dialog */ }
       <Dialog open={automationRulesOpen} onOpenChange={(o) => { if (!o) { resetRuleForm(); } setAutomationRulesOpen(o); }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editRuleId ? "Edit Automation Rule" : "Add Automation Rule"}</DialogTitle></DialogHeader>
@@ -4335,895 +5043,1038 @@ const { data: resolvedId } = useQuery({
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Add Task Dialog */}
-      <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Task</DialogTitle></DialogHeader>
-          <form onSubmit={handleCreateTask} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Title *</label>
-              <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
-              <Textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Priority *</label>
-              <Select value={taskPriority} onValueChange={setTaskPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Estimated Time (hours)</label>
-              <Input type="number" step="0.1" min="0" value={taskEstimatedHours} onChange={(e) => setTaskEstimatedHours(e.target.value)} placeholder="e.g. 1.5" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Due Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !taskDueDate && "text-muted-foreground")}>
-                    {taskDueDate ? format(new Date(taskDueDate + "T00:00:00"), "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={taskDueDate ? new Date(taskDueDate + "T00:00:00") : undefined} onSelect={(d) => setTaskDueDate(d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
-                </PopoverContent>
-              </Popover>
-              {taskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setTaskDueDate("")}>Clear</button>}
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="task-client-visible" checked={taskClientVisible} onCheckedChange={(v) => setTaskClientVisible(v === true)} />
-              <label htmlFor="task-client-visible" className="text-sm font-medium cursor-pointer">Visible to client</label>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Assign To</label>
-              <Select value={taskAssignedTo} onValueChange={setTaskAssignedTo}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                <SelectContent>
-                  {members?.map((m: any) => (
-                    <SelectItem key={m.user_id} value={m.user_id}>
-                      {(m as any).users?.full_name || "Unknown"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Sprint</label>
-              <Select value={taskSprintId || "__backlog__"} onValueChange={(v) => setTaskSprintId(v === "__backlog__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__backlog__">Backlog</SelectItem>
-                  {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.status})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAddTaskOpen(false)}>Cancel</Button>
-              <Button type="submit">Create Task</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Bulk Add Tasks Dialog */}
-      <Dialog open={bulkTaskOpen} onOpenChange={(open) => { if (!uploading) setBulkTaskOpen(open); }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader><DialogTitle>Bulk Add Tasks</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <Card className="p-4 space-y-2">
-              <p className="text-sm font-medium">CSV Format</p>
-              <p className="text-xs text-muted-foreground">Your CSV must have these column headers on the first row:</p>
-              <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority,estimated_hours,due_date,client_visible</div>
-              <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
-                <li><strong>title</strong> — required</li>
-                <li><strong>description</strong> — optional</li>
-                <li><strong>priority</strong> — must be one of: high, medium, low (case-insensitive, defaults to medium)</li>
-                <li><strong>estimated_hours</strong> — optional decimal number (e.g. 1, 1.5, 2.25)</li>
-                <li><strong>due_date</strong> — optional date (YYYY-MM-DD)</li>
-                <li><strong>client_visible</strong> — optional, true/false/yes/no (defaults to true)</li>
-              </ul>
-              <p className="text-xs text-muted-foreground pt-1">All uploaded tasks will have status <strong>Unlinked</strong> and be assigned to this project.</p>
-            </Card>
-
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Upload CSV</label>
-              <Input type="file" accept=".csv" onChange={handleCSVUpload} className="h-9" />
-              {csvFileName && <p className="text-xs text-muted-foreground">File: {csvFileName}</p>}
-            </div>
-
-            {csvRows.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Preview ({csvRows.length} row{csvRows.length !== 1 ? "s" : ""})</p>
-                <div className="max-h-60 overflow-y-auto border rounded-md">
-                  <table className="w-full text-xs">
-                    <thead>
-                      <tr className="bg-muted/50">
-                        <th className="text-left p-2 font-medium">#</th>
-                        <th className="text-left p-2 font-medium">Title</th>
-                        <th className="text-left p-2 font-medium">Description</th>
-                        <th className="text-left p-2 font-medium">Priority</th>
-                        <th className="text-left p-2 font-medium">Est. Hours</th>
-                        <th className="text-left p-2 font-medium">Due Date</th>
-                        <th className="text-left p-2 font-medium">Visible</th>
-                        <th className="text-left p-2 font-medium">Errors</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {csvRows.map((r) => (
-                        <tr key={r.rowNum} className={r.errors.length > 0 ? "bg-red-50" : "border-t"}>
-                          <td className="p-2 text-muted-foreground">{r.rowNum}</td>
-                          <td className={`p-2 font-medium ${!r.title ? "text-red-500" : ""}`}>{r.title || <span className="italic text-red-400">empty</span>}</td>
-                          <td className="p-2 text-muted-foreground">{truncateWords(r.description, 4) || "—"}</td>
-                          <td className="p-2">
-                            <Badge className={PRIORITY_COLORS[r.priority] || ""}>{r.priority}</Badge>
-                          </td>
-                          <td className="p-2 text-muted-foreground">{r.estimated_hours || "—"}</td>
-                          <td className="p-2 text-muted-foreground">{r.due_date || "—"}</td>
-                          <td className="p-2">{r.client_visible && !["false", "no", "0"].includes(r.client_visible) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</td>
-                          <td className="p-2">
-                            {r.errors.length > 0 ? (
-                              <span className="text-red-500 text-[10px]">{r.errors.join("; ")}</span>
-                            ) : (
-                              <span className="text-green-500">OK</span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => { setBulkTaskOpen(false); setCsvRows([]); setCsvFileName(""); }} disabled={uploading}>Cancel</Button>
-            <Button type="button" onClick={handleBulkUpload} disabled={csvRows.length === 0 || uploading}>
-              {uploading ? "Uploading..." : `Confirm Upload${csvRows.length > 0 ? ` (${csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority"))).length} valid)` : ""}`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Task Dialog */}
-      <Dialog open={editTaskOpen} onOpenChange={(open) => {
-        if (!open) setDependencyWarning("");
-        setEditTaskOpen(open);
-      }}>
-        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Task</DialogTitle></DialogHeader>
-          <form onSubmit={handleEditTaskSave} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Title *</label>
-              <Input value={editTaskTitle} onChange={(e) => setEditTaskTitle(e.target.value)} placeholder="Task title" required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
-              <Textarea value={editTaskDescription} onChange={(e) => setEditTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Priority *</label>
-              <Select value={editTaskPriority} onValueChange={setEditTaskPriority}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">High</SelectItem>
-                  <SelectItem value="medium">Medium</SelectItem>
-                  <SelectItem value="low">Low</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Estimated Time (hours)</label>
-              <Input type="number" min="0" step="0.5" value={editTaskEstimatedHours} onChange={(e) => setEditTaskEstimatedHours(e.target.value)} placeholder="e.g. 4" />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Due Date</label>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editTaskDueDate && "text-muted-foreground")}>
-                    {editTaskDueDate ? format(new Date(editTaskDueDate + "T00:00:00"), "PPP") : <span>Pick a date</span>}
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar mode="single" selected={editTaskDueDate ? new Date(editTaskDueDate + "T00:00:00") : undefined} onSelect={(d) => setEditTaskDueDate(d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
-                </PopoverContent>
-              </Popover>
-              {editTaskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setEditTaskDueDate("")}>Clear</button>}
-            </div>
-            <div className="flex items-center gap-2">
-              <Checkbox id="edit-task-client-visible" checked={editTaskClientVisible} onCheckedChange={(v) => setEditTaskClientVisible(v === true)} />
-              <label htmlFor="edit-task-client-visible" className="text-sm font-medium cursor-pointer">Visible to client</label>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Assign To</label>
-              <Select value={editTaskAssignedTo} onValueChange={setEditTaskAssignedTo}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                <SelectContent>
-                  {members?.map((m: any) => (
-                    <SelectItem key={m.user_id} value={m.user_id}>
-                      {(m as any).users?.full_name || "Unknown"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Sprint</label>
-              <Select value={editTaskSprintId || "__backlog__"} onValueChange={(v) => setEditTaskSprintId(v === "__backlog__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__backlog__">Backlog</SelectItem>
-                  {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.status})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            {dependencyWarning && (
-              <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-                <span className="font-medium">⚠ {dependencyWarning}</span>
-              </div>
-            )}
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditTaskOpen(false)}>Cancel</Button>
-              <Button type="submit">Save</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* View Task Details Dialog */}
-      <Dialog open={!!viewTaskData} onOpenChange={(open) => {
-        if (!open) {
-          setViewTaskData(null);
-          setDescExpanded(false);
-          setNewViewComment("");
-          setShowViewAddBlocker(false);
-          setNewViewBlockerDescription("");
-          setNewBlockerVisibility("all");
-          setNewBlockerAssignType("employee");
-          setNewBlockerAssignUserId("");
-          setViewAddDepOpen(false);
-          setViewAddDepTaskId("");
-          setViewAddDepType("finish_to_start");
-        }
-      }}>
-        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {viewTaskData?.title || "Task Details"}
-              {viewTaskData?.is_flagged && <Flag className="h-4 w-4 text-red-500 shrink-0" />}
-            </DialogTitle>
-            {viewTaskData?.description && (
-              <div className="mt-1">
-                <p className="text-sm text-muted-foreground">{descExpanded ? viewTaskData.description : truncateWords(viewTaskData.description, 4)}</p>
-                {viewTaskData.description.split(/\s+/).length > 4 && (
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-foreground" onClick={() => setDescExpanded(!descExpanded)}>
-                    {descExpanded ? "Show less" : "Show more"}
-                  </Button>
-                )}
-              </div>
-            )}
-          </DialogHeader>
-
-          <div className="flex flex-wrap gap-2 mt-2">
-            {viewTaskData?.priority && <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>}
-            {viewTaskData?.status && <Badge className={TASK_STATUS_COLORS[viewTaskData.status] || ""}>{viewTaskData.status.replace(/_/g, " ")}</Badge>}
-            {viewTaskData?.estimated_hours && <span className="text-xs text-muted-foreground">{viewTaskData.estimated_hours}h est.</span>}
-            {viewTaskData?.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d")}</span>}
-            {viewTaskData?.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null; })()}
-          </div>
-
-          <Separator className="my-4" />
-
-          {/* Comments */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Comments</h4>
-            {viewCommentsLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : viewComments.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No comments yet.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {viewComments.map((c: any) => (
-                  <div key={c.id} className="flex gap-2 bg-muted/30 rounded-md p-2.5">
-                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                      <AvatarImage src={getAvatarUrl(c.author?.full_name)} />
-                      <AvatarFallback className="text-[10px]">{c.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}</span>
-                        <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), "MMM d, h:mm a")}</span>
-                      </div>
-                      <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Textarea
-                value={newViewComment}
-                onChange={(e) => setNewViewComment(e.target.value)}
-                placeholder="Add a comment..."
-                rows={2}
-                className="text-sm resize-none"
-              />
-              <Button type="button" size="sm" onClick={addViewComment} disabled={!newViewComment.trim()} className="shrink-0 self-end">Comment</Button>
-            </div>
-          </div>
-
-          <Separator className="my-4" />
-
-          {/* Dependencies */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg> Dependencies</h4>
-            {viewDepsLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : viewDeps.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No dependencies.</p>
-            ) : (
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {viewDeps.map((d: any) => (
-                  <div key={d.id} className="flex items-center justify-between bg-muted/30 rounded-md p-2.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm truncate">{d.depends_on?.title || "Unknown"}</span>
-                      <Badge variant="outline" className="text-[10px]">{d.dependency_type.replace(/_/g, " ")}</Badge>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(viewTaskData?.id); }}
-                      className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors text-muted-foreground hover:text-red-600"
-                      title="Remove dependency"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-            {viewAddDepOpen ? (
-              <div className="space-y-2 border rounded-md p-3">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium">Depends on</label>
-                  <Select value={viewAddDepTaskId} onValueChange={setViewAddDepTaskId}>
-                    <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
-                    <SelectContent>
-                      {(tasks || [])
-                        .filter((t: any) => t.id !== viewTaskData?.id)
-                        .map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            {t.title}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium">Dependency type</label>
-                  <Select value={viewAddDepType} onValueChange={setViewAddDepType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="finish_to_start">Finish → Start</SelectItem>
-                      <SelectItem value="start_to_start">Start → Start</SelectItem>
-                      <SelectItem value="finish_to_finish">Finish → Finish</SelectItem>
-                      <SelectItem value="start_to_finish">Start → Finish</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={addViewDependency} disabled={!viewAddDepTaskId}>Add</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setViewAddDepOpen(false); setViewAddDepTaskId(""); }}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => setViewAddDepOpen(true)} className="w-full">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Dependency
+  {/* Add Task Dialog */ }
+  <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
+    <DialogContent>
+      <DialogHeader><DialogTitle>Add Task</DialogTitle></DialogHeader>
+      <form onSubmit={handleCreateTask} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Title *</label>
+          <Input value={taskTitle} onChange={(e) => setTaskTitle(e.target.value)} placeholder="Task title" required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Description</label>
+          <Textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Priority *</label>
+          <Select value={taskPriority} onValueChange={setTaskPriority}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Estimated Time (hours)</label>
+          <Input type="number" step="0.1" min="0" value={taskEstimatedHours} onChange={(e) => setTaskEstimatedHours(e.target.value)} placeholder="e.g. 1.5" />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Due Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !taskDueDate && "text-muted-foreground")}>
+                {taskDueDate ? format(new Date(taskDueDate + "T00:00:00"), "PPP") : <span>Pick a date</span>}
               </Button>
-            )}
-          </div>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={taskDueDate ? new Date(taskDueDate + "T00:00:00") : undefined} onSelect={(d) => setTaskDueDate(d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
+            </PopoverContent>
+          </Popover>
+          {taskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setTaskDueDate("")}>Clear</button>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox id="task-client-visible" checked={taskClientVisible} onCheckedChange={(v) => setTaskClientVisible(v === true)} />
+          <label htmlFor="task-client-visible" className="text-sm font-medium cursor-pointer">Visible to client</label>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Assign To</label>
+          <Select value={taskAssignedTo} onValueChange={setTaskAssignedTo}>
+            <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+            <SelectContent>
+              {members?.map((m: any) => (
+                <SelectItem key={m.user_id} value={m.user_id}>
+                  {(m as any).users?.full_name || "Unknown"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Sprint</label>
+          <Select value={taskSprintId || "__backlog__"} onValueChange={(v) => setTaskSprintId(v === "__backlog__" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__backlog__">Backlog</SelectItem>
+              {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name} ({s.status})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setAddTaskOpen(false)}>Cancel</Button>
+          <Button type="submit">Create Task</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
 
-          <Separator className="my-4" />
+  {/* Bulk Add Tasks Dialog */ }
+  <Dialog open={bulkTaskOpen} onOpenChange={(open) => { if (!uploading) setBulkTaskOpen(open); }}>
+    <DialogContent className="max-w-2xl">
+      <DialogHeader><DialogTitle>Bulk Add Tasks</DialogTitle></DialogHeader>
+      <div className="space-y-4">
+        <Card className="p-4 space-y-2">
+          <p className="text-sm font-medium">CSV Format</p>
+          <p className="text-xs text-muted-foreground">Your CSV must have these column headers on the first row:</p>
+          <div className="bg-muted rounded p-2 text-xs font-mono">title,description,priority,estimated_hours,due_date,client_visible</div>
+          <ul className="text-xs text-muted-foreground list-disc list-inside space-y-0.5">
+            <li><strong>title</strong> — required</li>
+            <li><strong>description</strong> — optional</li>
+            <li><strong>priority</strong> — must be one of: high, medium, low (case-insensitive, defaults to medium)</li>
+            <li><strong>estimated_hours</strong> — optional decimal number (e.g. 1, 1.5, 2.25)</li>
+            <li><strong>due_date</strong> — optional date (YYYY-MM-DD)</li>
+            <li><strong>client_visible</strong> — optional, true/false/yes/no (defaults to true)</li>
+          </ul>
+          <p className="text-xs text-muted-foreground pt-1">All uploaded tasks will have status <strong>Unlinked</strong> and be assigned to this project.</p>
+        </Card>
 
-          {/* Blockers */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Blockers</h4>
-            {viewBlockersLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : viewBlockers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No blockers reported.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {viewBlockers.map((b: any) => (
-                  <div key={b.id} className="flex items-start justify-between gap-2 bg-muted/30 rounded-md p-2.5">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{b.description}</span>
-                        {b.status === "resolved" ? (
-                          <Badge className="bg-green-100 text-green-700 text-[10px]">Resolved</Badge>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Upload CSV</label>
+          <Input type="file" accept=".csv" onChange={handleCSVUpload} className="h-9" />
+          {csvFileName && <p className="text-xs text-muted-foreground">File: {csvFileName}</p>}
+        </div>
+
+        {csvRows.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Preview ({csvRows.length} row{csvRows.length !== 1 ? "s" : ""})</p>
+            <div className="max-h-60 overflow-y-auto border rounded-md">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="bg-muted/50">
+                    <th className="text-left p-2 font-medium">#</th>
+                    <th className="text-left p-2 font-medium">Title</th>
+                    <th className="text-left p-2 font-medium">Description</th>
+                    <th className="text-left p-2 font-medium">Priority</th>
+                    <th className="text-left p-2 font-medium">Est. Hours</th>
+                    <th className="text-left p-2 font-medium">Due Date</th>
+                    <th className="text-left p-2 font-medium">Visible</th>
+                    <th className="text-left p-2 font-medium">Errors</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {csvRows.map((r) => (
+                    <tr key={r.rowNum} className={r.errors.length > 0 ? "bg-red-50" : "border-t"}>
+                      <td className="p-2 text-muted-foreground">{r.rowNum}</td>
+                      <td className={`p-2 font-medium ${!r.title ? "text-red-500" : ""}`}>{r.title || <span className="italic text-red-400">empty</span>}</td>
+                      <td className="p-2 text-muted-foreground">{truncateWords(r.description, 4) || "—"}</td>
+                      <td className="p-2">
+                        <Badge className={PRIORITY_COLORS[r.priority] || ""}>{r.priority}</Badge>
+                      </td>
+                      <td className="p-2 text-muted-foreground">{r.estimated_hours || "—"}</td>
+                      <td className="p-2 text-muted-foreground">{r.due_date || "—"}</td>
+                      <td className="p-2">{r.client_visible && !["false", "no", "0"].includes(r.client_visible) ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />}</td>
+                      <td className="p-2">
+                        {r.errors.length > 0 ? (
+                          <span className="text-red-500 text-[10px]">{r.errors.join("; ")}</span>
                         ) : (
-                          <Badge className="bg-red-100 text-red-700 text-[10px]">Open</Badge>
+                          <span className="text-green-500">OK</span>
                         )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-muted-foreground">by {b.raiser?.full_name || "Unknown"}</span>
-                        <span className="text-[10px] text-muted-foreground">{format(new Date(b.raised_at), "MMM d")}</span>
-                        {b.status === "resolved" && b.resolver && (
-                          <span className="text-[10px] text-muted-foreground">· resolved by {b.resolver.full_name}</span>
-                        )}
-                      </div>
-                    </div>
-                    {b.status !== "resolved" && (
-                      <Button type="button" size="sm" variant="ghost" onClick={() => resolveBlocker(b.id, viewTaskData?.id)} className="shrink-0 h-7 px-2" title="Resolve">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {showViewAddBlocker ? (
-              <div className="space-y-3 border rounded-md p-3">
-                <Textarea value={newViewBlockerDescription} onChange={(e) => setNewViewBlockerDescription(e.target.value)} placeholder="Describe the blocker..." rows={2} className="text-sm resize-none" />
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Visibility</label>
-                  <Select value={newBlockerVisibility} onValueChange={(v: "all" | "team") => setNewBlockerVisibility(v)}>
-                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">View To All</SelectItem>
-                      <SelectItem value="team">View To Team Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Assign To</label>
-                  <Select value={newBlockerAssignType} onValueChange={(v: "employee" | "client") => { setNewBlockerAssignType(v); setNewBlockerAssignUserId(""); }}>
-                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">{newBlockerAssignType === "employee" ? "Select Employee" : "Select Client Member"}</label>
-                  <Select value={newBlockerAssignUserId} onValueChange={setNewBlockerAssignUserId}>
-                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue placeholder="Choose..." /></SelectTrigger>
-                    <SelectContent>
-                      {(members || [])
-                        .filter((m: any) => {
-                          if (newBlockerAssignType === "employee") return m.users?.role === "employee";
-                           return m.users?.role === "client member" || m.users?.role === "client portal";
-                        })
-                        .map((m: any) => (
-                          <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={addViewBlocker} disabled={!newViewBlockerDescription.trim() || !newBlockerAssignUserId}>Add</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setShowViewAddBlocker(false); setNewViewBlockerDescription(""); setNewBlockerVisibility("all"); setNewBlockerAssignType("employee"); setNewBlockerAssignUserId(""); }}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => setShowViewAddBlocker(true)} className="w-full">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Report Blocker
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </div>
+      <DialogFooter>
+        <Button type="button" variant="outline" onClick={() => { setBulkTaskOpen(false); setCsvRows([]); setCsvFileName(""); }} disabled={uploading}>Cancel</Button>
+        <Button type="button" onClick={handleBulkUpload} disabled={csvRows.length === 0 || uploading}>
+          {uploading ? "Uploading..." : `Confirm Upload${csvRows.length > 0 ? ` (${csvRows.filter((r) => r.errors.length === 0 || r.errors.every((err) => err.startsWith("Invalid priority"))).length} valid)` : ""}`}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
+
+  {/* Edit Task Dialog */ }
+  <Dialog open={editTaskOpen} onOpenChange={(open) => {
+    if (!open) setDependencyWarning("");
+    setEditTaskOpen(open);
+  }}>
+    <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+      <DialogHeader><DialogTitle>Edit Task</DialogTitle></DialogHeader>
+      <form onSubmit={handleEditTaskSave} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Title *</label>
+          <Input value={editTaskTitle} onChange={(e) => setEditTaskTitle(e.target.value)} placeholder="Task title" required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Description</label>
+          <Textarea value={editTaskDescription} onChange={(e) => setEditTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Priority *</label>
+          <Select value={editTaskPriority} onValueChange={setEditTaskPriority}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Estimated Time (hours)</label>
+          <Input type="number" min="0" step="0.5" value={editTaskEstimatedHours} onChange={(e) => setEditTaskEstimatedHours(e.target.value)} placeholder="e.g. 4" />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Due Date</label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className={cn("w-full justify-start text-left font-normal", !editTaskDueDate && "text-muted-foreground")}>
+                {editTaskDueDate ? format(new Date(editTaskDueDate + "T00:00:00"), "PPP") : <span>Pick a date</span>}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar mode="single" selected={editTaskDueDate ? new Date(editTaskDueDate + "T00:00:00") : undefined} onSelect={(d) => setEditTaskDueDate(d ? format(d, "yyyy-MM-dd") : "")} initialFocus />
+            </PopoverContent>
+          </Popover>
+          {editTaskDueDate && <button type="button" className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setEditTaskDueDate("")}>Clear</button>}
+        </div>
+        <div className="flex items-center gap-2">
+          <Checkbox id="edit-task-client-visible" checked={editTaskClientVisible} onCheckedChange={(v) => setEditTaskClientVisible(v === true)} />
+          <label htmlFor="edit-task-client-visible" className="text-sm font-medium cursor-pointer">Visible to client</label>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Assign To</label>
+          <Select value={editTaskAssignedTo} onValueChange={setEditTaskAssignedTo}>
+            <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+            <SelectContent>
+              {members?.map((m: any) => (
+                <SelectItem key={m.user_id} value={m.user_id}>
+                  {(m as any).users?.full_name || "Unknown"}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Sprint</label>
+          <Select value={editTaskSprintId || "__backlog__"} onValueChange={(v) => setEditTaskSprintId(v === "__backlog__" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__backlog__">Backlog</SelectItem>
+              {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
+                <SelectItem key={s.id} value={s.id}>
+                  {s.name} ({s.status})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        {dependencyWarning && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+            <span className="font-medium">⚠ {dependencyWarning}</span>
+          </div>
+        )}
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => setEditTaskOpen(false)}>Cancel</Button>
+          <Button type="submit">Save</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
+
+  {/* View Task Details Dialog */ }
+  <Dialog open={!!viewTaskData} onOpenChange={(open) => {
+    if (!open) {
+      setViewTaskData(null);
+      setDescExpanded(false);
+      setNewViewComment("");
+      setShowViewAddBlocker(false);
+      setNewViewBlockerDescription("");
+      setNewBlockerVisibility("all");
+      setNewBlockerAssignType("employee");
+      setNewBlockerAssignUserId("");
+      setViewAddDepOpen(false);
+      setViewAddDepTaskId("");
+      setViewAddDepType("finish_to_start");
+    }
+  }}>
+    <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogHeader>
+        <DialogTitle className="flex items-center gap-2">
+          {viewTaskData?.title || "Task Details"}
+          {viewTaskData?.is_flagged && <Flag className="h-4 w-4 text-red-500 shrink-0" />}
+        </DialogTitle>
+        {viewTaskData?.description && (
+          <div className="mt-1">
+            <p className="text-sm text-muted-foreground">{descExpanded ? viewTaskData.description : truncateWords(viewTaskData.description, 4)}</p>
+            {viewTaskData.description.split(/\s+/).length > 4 && (
+              <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-foreground" onClick={() => setDescExpanded(!descExpanded)}>
+                {descExpanded ? "Show less" : "Show more"}
               </Button>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
+        )}
+      </DialogHeader>
 
-      {/* Add Member / Resource / Client Sheet */}
-      <Sheet open={addMemberOpen} onOpenChange={setAddMemberOpen}>
-        <SheetContent className="flex flex-col h-full">
-          <SheetHeader>
-            <SheetTitle>
-              {addMemberMode === "client" ? "Add Client Member" : "Add Team Member"}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="space-y-3 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
-            <div className="relative mb-2">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={addMemberMode === "client" ? "Search client users..." : "Search team members..."}
-                value={memberSearch}
-                onChange={(e) => setMemberSearch(e.target.value)}
-                className="pl-9"
-              />
-            </div>
-            {availableEmployees.length === 0 && (
-              <p className="text-sm text-muted-foreground text-center py-4">
-                {memberSearch
-                  ? "No matching users found."
-                  : addMemberMode === "client"
-                  ? "All client users are already on this project."
-                  : "All resources are already on this project."}
-              </p>
-            )}
-            {availableEmployees.map((e) => (
-              <div key={e.id} className={`p-3 rounded-md border cursor-pointer transition-colors ${selectedUsers.includes(e.id) ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`} onClick={() => toggleUser(e.id)}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="font-medium text-sm">{e.full_name}</span>
-                    <span className="text-xs text-muted-foreground block">{e.designation}</span>
-                    {employeeProjects?.[e.id] && employeeProjects[e.id].length > 0 && (
-                      <div className="mt-1.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-black">
-                        <span className="text-[10px] uppercase tracking-wider font-semibold">Active Projects:</span>
-                        {employeeProjects[e.id].map((pName, idx) => (
-                          <span key={idx} className="text-[10px] bg-primary px-1.5 py-0.5 rounded-sm">
-                            {pName}
-                          </span>
-                        ))}
-              </div>
-            )}
+      <div className="flex flex-wrap gap-2 mt-2">
+        {viewTaskData?.priority && <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>}
+        {viewTaskData?.status && <Badge className={TASK_STATUS_COLORS[viewTaskData.status] || ""}>{viewTaskData.status.replace(/_/g, " ")}</Badge>}
+        {viewTaskData?.estimated_hours && <span className="text-xs text-muted-foreground">{viewTaskData.estimated_hours}h est.</span>}
+        {viewTaskData?.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d")}</span>}
+        {viewTaskData?.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null; })()}
+      </div>
+
+      <Separator className="my-4" />
+
+      {/* Comments */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Comments</h4>
+        {viewCommentsLoading ? (
+          <p className="text-xs text-muted-foreground">Loading...</p>
+        ) : viewComments.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No comments yet.</p>
+        ) : (
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {viewComments.map((c: any) => (
+              <div key={c.id} className="flex gap-2 bg-muted/30 rounded-md p-2.5">
+                <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                  <AvatarImage src={getAvatarUrl(c.author?.full_name)} />
+                  <AvatarFallback className="text-[10px]">{c.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                </Avatar>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}</span>
+                    <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), "MMM d, h:mm a")}</span>
                   </div>
-                  {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
+                  <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
                 </div>
-                {selectedUsers.includes(e.id) && (
-                  <div className="mt-2 space-y-2" onClick={(e2) => e2.stopPropagation()}>
-                    <Select value={showOtherRole[e.id] ? "__other__" : roleInputs[e.id] || ""} onValueChange={(v) => {
-                      if (v === "__other__") {
-                        setShowOtherRole({ ...showOtherRole, [e.id]: true });
-                        setRoleInputs({ ...roleInputs, [e.id]: "" });
-                      } else {
-                        setShowOtherRole({ ...showOtherRole, [e.id]: false });
-                        setRoleInputs({ ...roleInputs, [e.id]: v });
-                      }
-                    }}>
-                      <SelectTrigger><SelectValue placeholder="Select role..." /></SelectTrigger>
-                      <SelectContent>
-                        {projectRoles.map((r: any) => (
-                          <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>
-                        ))}
-                        <SelectItem value="__other__">Other…</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {showOtherRole[e.id] && (
-                      <Input placeholder="Enter role name" value={roleInputs[e.id] || ""} onChange={(e2) => setRoleInputs({ ...roleInputs, [e.id]: e2.target.value })} />
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex gap-2">
+          <Textarea
+            value={newViewComment}
+            onChange={(e) => setNewViewComment(e.target.value)}
+            placeholder="Add a comment..."
+            rows={2}
+            className="text-sm resize-none"
+          />
+          <Button type="button" size="sm" onClick={addViewComment} disabled={!newViewComment.trim()} className="shrink-0 self-end">Comment</Button>
+        </div>
+      </div>
+
+      <Separator className="my-4" />
+
+      {/* Dependencies */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg> Dependencies</h4>
+        {viewDepsLoading ? (
+          <p className="text-xs text-muted-foreground">Loading...</p>
+        ) : viewDeps.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No dependencies.</p>
+        ) : (
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {viewDeps.map((d: any) => (
+              <div key={d.id} className="flex items-center justify-between bg-muted/30 rounded-md p-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-sm truncate">{d.depends_on?.title || "Unknown"}</span>
+                  <Badge variant="outline" className="text-[10px]">{d.dependency_type.replace(/_/g, " ")}</Badge>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(viewTaskData?.id); }}
+                  className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors text-muted-foreground hover:text-red-600"
+                  title="Remove dependency"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+        {viewAddDepOpen ? (
+          <div className="space-y-2 border rounded-md p-3">
+            <div className="space-y-2">
+              <label className="text-xs font-medium">Depends on</label>
+              <Select value={viewAddDepTaskId} onValueChange={setViewAddDepTaskId}>
+                <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
+                <SelectContent>
+                  {(tasks || [])
+                    .filter((t: any) => t.id !== viewTaskData?.id)
+                    .map((t: any) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.title}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium">Dependency type</label>
+              <Select value={viewAddDepType} onValueChange={setViewAddDepType}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="finish_to_start">Finish → Start</SelectItem>
+                  <SelectItem value="start_to_start">Start → Start</SelectItem>
+                  <SelectItem value="finish_to_finish">Finish → Finish</SelectItem>
+                  <SelectItem value="start_to_finish">Start → Finish</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" onClick={addViewDependency} disabled={!viewAddDepTaskId}>Add</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => { setViewAddDepOpen(false); setViewAddDepTaskId(""); }}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <Button type="button" variant="outline" size="sm" onClick={() => setViewAddDepOpen(true)} className="w-full">
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Dependency
+          </Button>
+        )}
+      </div>
+
+      <Separator className="my-4" />
+
+      {/* Blockers */}
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Blockers</h4>
+        {viewBlockersLoading ? (
+          <p className="text-xs text-muted-foreground">Loading...</p>
+        ) : viewBlockers.length === 0 ? (
+          <p className="text-xs text-muted-foreground">No blockers reported.</p>
+        ) : (
+          <div className="space-y-2 max-h-48 overflow-y-auto">
+            {viewBlockers.map((b: any) => (
+              <div key={b.id} className="flex items-start justify-between gap-2 bg-muted/30 rounded-md p-2.5">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{b.description}</span>
+                    {b.status === "resolved" ? (
+                      <Badge className="bg-green-100 text-green-700 text-[10px]">Resolved</Badge>
+                    ) : (
+                      <Badge className="bg-red-100 text-red-700 text-[10px]">Open</Badge>
                     )}
                   </div>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] text-muted-foreground">by {b.raiser?.full_name || "Unknown"}</span>
+                    <span className="text-[10px] text-muted-foreground">{format(new Date(b.raised_at), "MMM d")}</span>
+                    {b.status === "resolved" && b.resolver && (
+                      <span className="text-[10px] text-muted-foreground">· resolved by {b.resolver.full_name}</span>
+                    )}
+                  </div>
+                </div>
+                {b.status !== "resolved" && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => resolveBlocker(b.id, viewTaskData?.id)} className="shrink-0 h-7 px-2" title="Resolve">
+                    <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  </Button>
                 )}
               </div>
             ))}
           </div>
-          <SheetFooter className="mt-4 pt-4 border-t shrink-0">
-            <Button onClick={addMembers} disabled={selectedUsers.length === 0} className="rounded-button w-full">
-              Add {selectedUsers.length} {addMemberMode === "client" ? "Client Member" : "Team Member"}{selectedUsers.length !== 1 ? "s" : ""}
-            </Button>
-          </SheetFooter>
-        </SheetContent>
-      </Sheet>
-
-      {/* Add Phase Dialog */}
-      <Dialog open={addPhaseOpen} onOpenChange={setAddPhaseOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Phase</DialogTitle></DialogHeader>
-          <form onSubmit={handleCreatePhase} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Phase Title *</label>
-              <Input value={phaseTitle} onChange={(e) => setPhaseTitle(e.target.value)} placeholder="e.g. Alpha" required />
+        )}
+        {showViewAddBlocker ? (
+          <div className="space-y-3 border rounded-md p-3">
+            <Textarea value={newViewBlockerDescription} onChange={(e) => setNewViewBlockerDescription(e.target.value)} placeholder="Describe the blocker..." rows={2} className="text-sm resize-none" />
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Visibility</label>
+              <Select value={newBlockerVisibility} onValueChange={(v: "all" | "team") => setNewBlockerVisibility(v)}>
+                <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">View To All</SelectItem>
+                  <SelectItem value="team">View To Team Only</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Due Date</label>
-              <Input type="date" value={phaseDueDate} onChange={(e) => setPhaseDueDate(e.target.value)} />
+            <div className="space-y-1">
+              <label className="text-xs font-medium">Assign To</label>
+              <Select value={newBlockerAssignType} onValueChange={(v: "employee" | "client") => { setNewBlockerAssignType(v); setNewBlockerAssignUserId(""); }}>
+                <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="client">Client</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
-            <Button type="submit" className="rounded-button w-full">Create Phase</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
+            <div className="space-y-1">
+              <label className="text-xs font-medium">{newBlockerAssignType === "employee" ? "Select Employee" : "Select Client Member"}</label>
+              <Select value={newBlockerAssignUserId} onValueChange={setNewBlockerAssignUserId}>
+                <SelectTrigger className="w-full h-8 text-sm"><SelectValue placeholder="Choose..." /></SelectTrigger>
+                <SelectContent>
+                  {(members || [])
+                    .filter((m: any) => {
+                      if (newBlockerAssignType === "employee") return m.users?.role === "employee";
+                      return m.users?.role === "client member" || m.users?.role === "client portal";
+                    })
+                    .map((m: any) => (
+                      <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button type="button" size="sm" onClick={addViewBlocker} disabled={!newViewBlockerDescription.trim() || !newBlockerAssignUserId}>Add</Button>
+              <Button type="button" size="sm" variant="outline" onClick={() => { setShowViewAddBlocker(false); setNewViewBlockerDescription(""); setNewBlockerVisibility("all"); setNewBlockerAssignType("employee"); setNewBlockerAssignUserId(""); }}>Cancel</Button>
+            </div>
+          </div>
+        ) : (
+          <Button type="button" variant="outline" size="sm" onClick={() => setShowViewAddBlocker(true)} className="w-full">
+            <Plus className="h-3.5 w-3.5 mr-1" /> Report Blocker
+          </Button>
+        )}
+      </div>
+    </DialogContent>
+  </Dialog>
 
-      {/* Phase Tasks Dialog */}
-      <Dialog open={phaseTasksOpen} onOpenChange={setPhaseTasksOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{selectedPhase?.title}</DialogTitle></DialogHeader>
-          <Tabs defaultValue="sprints">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="sprints">Sprints</TabsTrigger>
-              <TabsTrigger value="tasks">Tasks</TabsTrigger>
-            </TabsList>
-            <TabsContent value="sprints" className="space-y-2 max-h-80 overflow-y-auto">
-              {(() => {
-                const phaseSprints = (sprints || []).filter((s: any) => s.phase_id === selectedPhase?.id);
-                if (phaseSprints.length === 0) return <p className="text-sm text-muted-foreground py-4">No sprints in this phase.</p>;
-                return phaseSprints.map((s: any) => (
-                  <div key={s.id} className="flex items-center justify-between p-3 border rounded-md">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-sm font-medium">{s.name}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="secondary" className="text-xs">{format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}</Badge>
-                      <Badge className={
-                        s.status === "active" ? "bg-green-100 text-green-800" :
-                        s.status === "completed" ? "bg-blue-100 text-blue-800" :
-                        "bg-gray-100 text-gray-800"
-                      }>{s.status}</Badge>
-                      <Badge variant="secondary" className="text-xs">{sprintTaskCount[s.id] || 0} tasks</Badge>
-                    </div>
+  {/* Add Member / Resource / Client Sheet */ }
+  <Sheet open={addMemberOpen} onOpenChange={setAddMemberOpen}>
+    <SheetContent className="flex flex-col h-full">
+      <SheetHeader>
+        <SheetTitle>
+          {addMemberMode === "client" ? "Add Client Member" : "Add Team Member"}
+        </SheetTitle>
+      </SheetHeader>
+      <div className="space-y-3 mt-4 flex-1 min-h-0 overflow-y-auto pr-1">
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder={addMemberMode === "client" ? "Search client users..." : "Search team members..."}
+            value={memberSearch}
+            onChange={(e) => setMemberSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+        {availableEmployees.length === 0 && (
+          <p className="text-sm text-muted-foreground text-center py-4">
+            {memberSearch
+              ? "No matching users found."
+              : addMemberMode === "client"
+                ? "All client users are already on this project."
+                : "All resources are already on this project."}
+          </p>
+        )}
+        {availableEmployees.map((e) => (
+          <div key={e.id} className={`p-3 rounded-md border cursor-pointer transition-colors ${selectedUsers.includes(e.id) ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`} onClick={() => toggleUser(e.id)}>
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="font-medium text-sm">{e.full_name}</span>
+                <span className="text-xs text-muted-foreground block">{e.designation}</span>
+                {employeeProjects?.[e.id] && employeeProjects[e.id].length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-x-1.5 gap-y-0.5 text-black">
+                    <span className="text-[10px] uppercase tracking-wider font-semibold">Active Projects:</span>
+                    {employeeProjects[e.id].map((pName, idx) => (
+                      <span key={idx} className="text-[10px] bg-primary px-1.5 py-0.5 rounded-sm">
+                        {pName}
+                      </span>
+                    ))}
                   </div>
-                ));
-              })()}
-            </TabsContent>
-            <TabsContent value="tasks" className="space-y-2 max-h-80 overflow-y-auto">
-              {(() => {
-                const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === selectedPhase?.id);
-                if (phaseTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this phase.</p>;
-                return phaseTasks.map((t: any) => (
-                  <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-sm font-medium">{t.title}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
-                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
-                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
-                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                    </div>
-                  </div>
-                ));
-              })()}
-            </TabsContent>
-          </Tabs>
-        </DialogContent>
-      </Dialog>
+                )}
+              </div>
+              {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
+            </div>
+            {selectedUsers.includes(e.id) && (
+              <div className="mt-2 space-y-2" onClick={(e2) => e2.stopPropagation()}>
+                <Select value={showOtherRole[e.id] ? "__other__" : roleInputs[e.id] || ""} onValueChange={(v) => {
+                  if (v === "__other__") {
+                    setShowOtherRole({ ...showOtherRole, [e.id]: true });
+                    setRoleInputs({ ...roleInputs, [e.id]: "" });
+                  } else {
+                    setShowOtherRole({ ...showOtherRole, [e.id]: false });
+                    setRoleInputs({ ...roleInputs, [e.id]: v });
+                  }
+                }}>
+                  <SelectTrigger><SelectValue placeholder="Select role..." /></SelectTrigger>
+                  <SelectContent>
+                    {projectRoles.map((r: any) => (
+                      <SelectItem key={r.id} value={r.name}>{r.name}</SelectItem>
+                    ))}
+                    <SelectItem value="__other__">Other…</SelectItem>
+                  </SelectContent>
+                </Select>
+                {showOtherRole[e.id] && (
+                  <Input placeholder="Enter role name" value={roleInputs[e.id] || ""} onChange={(e2) => setRoleInputs({ ...roleInputs, [e.id]: e2.target.value })} />
+                )}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+      <SheetFooter className="mt-4 pt-4 border-t shrink-0">
+        <Button onClick={addMembers} disabled={selectedUsers.length === 0} className="rounded-button w-full">
+          Add {selectedUsers.length} {addMemberMode === "client" ? "Client Member" : "Team Member"}{selectedUsers.length !== 1 ? "s" : ""}
+        </Button>
+      </SheetFooter>
+    </SheetContent>
+  </Sheet>
 
-      {/* Sprint Tasks Dialog */}
-      <Dialog open={sprintTasksOpen} onOpenChange={setSprintTasksOpen}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{selectedSprint?.name} — Tasks</DialogTitle></DialogHeader>
+  {/* Add Phase Dialog */ }
+  <Dialog open={addPhaseOpen} onOpenChange={setAddPhaseOpen}>
+    <DialogContent>
+      <DialogHeader><DialogTitle>Add Phase</DialogTitle></DialogHeader>
+      <form onSubmit={handleCreatePhase} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Phase Title *</label>
+          <Input value={phaseTitle} onChange={(e) => setPhaseTitle(e.target.value)} placeholder="e.g. Alpha" required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Due Date</label>
+          <Input type="date" value={phaseDueDate} onChange={(e) => setPhaseDueDate(e.target.value)} />
+        </div>
+        <Button type="submit" className="rounded-button w-full">Create Phase</Button>
+      </form>
+    </DialogContent>
+  </Dialog>
+
+  {/* Phase Tasks Dialog */ }
+  <Dialog open={phaseTasksOpen} onOpenChange={setPhaseTasksOpen}>
+    <DialogContent className="max-w-lg">
+      <DialogHeader><DialogTitle>{selectedPhase?.title}</DialogTitle></DialogHeader>
+      <Tabs defaultValue="sprints">
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="sprints">Sprints</TabsTrigger>
+          <TabsTrigger value="tasks">Tasks</TabsTrigger>
+        </TabsList>
+        <TabsContent value="sprints" className="space-y-2 max-h-80 overflow-y-auto">
           {(() => {
-            const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === selectedSprint?.id);
-            if (sprintTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this sprint.</p>;
-            return (
-              <div className="space-y-2 max-h-80 overflow-y-auto">
-                {sprintTasks.map((t: any) => (
-                  <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-sm font-medium">{t.title}</span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
-                      {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
-                      {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
-                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                    </div>
-                  </div>
-                ))}
+            const phaseSprints = (sprints || []).filter((s: any) => s.phase_id === selectedPhase?.id);
+            if (phaseSprints.length === 0) return <p className="text-sm text-muted-foreground py-4">No sprints in this phase.</p>;
+            return phaseSprints.map((s: any) => (
+              <div key={s.id} className="flex items-center justify-between p-3 border rounded-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-medium">{s.name}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge variant="secondary" className="text-xs">{format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}</Badge>
+                  <Badge className={
+                    s.status === "active" ? "bg-green-100 text-green-800" :
+                      s.status === "completed" ? "bg-blue-100 text-blue-800" :
+                        "bg-gray-100 text-gray-800"
+                  }>{s.status}</Badge>
+                  <Badge variant="secondary" className="text-xs">{sprintTaskCount[s.id] || 0} tasks</Badge>
+                </div>
               </div>
-            );
+            ));
           })()}
-        </DialogContent>
-      </Dialog>
-
-      {/* Add Sprint Dialog */}
-      <Dialog open={addSprintOpen} onOpenChange={setAddSprintOpen}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Add Sprint</DialogTitle></DialogHeader>
-          <form onSubmit={createSprint} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Sprint Name *</label>
-              <Input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="e.g. Sprint 1" required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Phase *</label>
-              <Select value={sprintPhaseId} onValueChange={setSprintPhaseId}>
-                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
-                <SelectContent>
-                  {(phases || []).map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Start Date *</label>
-              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">End Date *</label>
-              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required />
-            </div>
-            <Button type="submit" className="rounded-button w-full">Create Sprint</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Edit Sprint Dialog */}
-      <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); } }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Sprint</DialogTitle></DialogHeader>
-          <form onSubmit={handleEditSprintSave} className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Sprint Name *</label>
-              <Input value={editSprintName} onChange={(e) => setEditSprintName(e.target.value)} placeholder="Sprint name" required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Phase *</label>
-              <Select value={editSprintPhaseId} onValueChange={setEditSprintPhaseId}>
-                <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
-                <SelectContent>
-                  {(phases || []).map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Start Date *</label>
-              <Input type="date" value={editSprintStartDate} onChange={(e) => setEditSprintStartDate(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">End Date *</label>
-              <Input type="date" value={editSprintEndDate} onChange={(e) => setEditSprintEndDate(e.target.value)} required />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
-              <Select value={editSprintStatus} onValueChange={setEditSprintStatus}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="planned">Planned</SelectItem>
-                  <SelectItem value="active">Active</SelectItem>
-                  <SelectItem value="completed">Completed</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { setEditSprintOpen(false); setEditSprintId(null); }}>Cancel</Button>
-              <Button type="submit">Save</Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Task Complete Confirmation */}
-      <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Complete task?</AlertDialogTitle>
-            <AlertDialogDescription>Are you sure you want to mark "{completeTargetTitle}" as complete? This cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel onClick={() => { setCompleteConfirmOpen(false); setCompleteTargetId(null); setCompleteTargetTitle(""); }}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmComplete}>Complete Task</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Remove Dependency Confirmation */}
-      <AlertDialog open={!!confirmDepDelId} onOpenChange={(open) => !open && setConfirmDepDelId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove dependency?</AlertDialogTitle>
-            <AlertDialogDescription>This will unlink the dependency between these tasks.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmDepDelId && confirmDepDelTaskId) removeDependency(confirmDepDelId, confirmDepDelTaskId); setConfirmDepDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Remove Member Confirmation */}
-      <AlertDialog open={!!confirmMemberDelId} onOpenChange={(open) => !open && setConfirmMemberDelId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove member?</AlertDialogTitle>
-            <AlertDialogDescription>This will remove them from the project. They can be re-added later.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmMemberDelId && confirmMemberDelUserId) removeMember(confirmMemberDelId, confirmMemberDelUserId); setConfirmMemberDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Completion Warning */}
-      <AlertDialog open={completionWarning} onOpenChange={setCompletionWarning}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Complete this project?</AlertDialogTitle>
-            <AlertDialogDescription>Setting to Completed will lock all log submissions for this project. This action can be reversed by changing the status back.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => doStatusChange(pendingStatus)}>Complete Project</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Delete Phase Confirmation */}
-      <AlertDialog open={!!confirmPhaseDelId} onOpenChange={(open) => !open && setConfirmPhaseDelId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete phase?</AlertDialogTitle>
-            <AlertDialogDescription>This will unlink all tasks from this phase and cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmPhaseDelId) deletePhase(confirmPhaseDelId); setConfirmPhaseDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Project Settings */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Project Settings</DialogTitle>
-          </DialogHeader>
-          {projectSettings ? (
-            <div className="space-y-5">
-              <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-[#111827]">Project Status</h3>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-[#374151]">Status</label>
-                  <Select value={project.status} onValueChange={changeStatus}>
-                    <SelectTrigger className="border-[#E5E7EB] text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
-                  </Select>
+        </TabsContent>
+        <TabsContent value="tasks" className="space-y-2 max-h-80 overflow-y-auto">
+          {(() => {
+            const phaseTasks = (tasks || []).filter((t: any) => t.phase_id === selectedPhase?.id);
+            if (phaseTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this phase.</p>;
+            return phaseTasks.map((t: any) => (
+              <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-medium">{t.title}</span>
                 </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium text-[#374151]">Status Note</label>
-                  <div className="flex gap-2">
-                    <Textarea value={statusNote} onChange={(e) => setStatusNote(e.target.value)} rows={2} className="flex-1 border-[#E5E7EB] text-sm resize-none" />
-                    <Button variant="outline" size="sm" onClick={saveStatusNote} className="self-end border-[#E5E7EB]">Save</Button>
-                  </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                  {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
+                  {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                  <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                 </div>
               </div>
-              <div className="border-t border-[#E5E7EB] pt-4">
-                <h3 className="text-sm font-semibold text-[#111827] mb-3">Automation Settings</h3>
-                <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); saveProjectSettings({ at_risk_variance_percent: Number(fd.get("at_risk_variance_percent")), delayed_variance_percent: Number(fd.get("delayed_variance_percent")), blocker_warning_days: Number(fd.get("blocker_warning_days")), critical_blocker_warning_days: Number(fd.get("critical_blocker_warning_days")), hours_per_day: Number(fd.get("hours_per_day")) }); }} className="space-y-4">
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">At Risk Variance (%)</label>
-                    <Input name="at_risk_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.at_risk_variance_percent} />
-                    <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "at risk"</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Delayed Variance (%)</label>
-                    <Input name="delayed_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.delayed_variance_percent} />
-                    <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "delayed"</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Blocker Warning (days)</label>
-                    <Input name="blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.blocker_warning_days} />
-                    <p className="text-[11px] text-muted-foreground">Open blocker age in days before it contributes to "delayed"</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Critical Blocker Warning (days)</label>
-                    <Input name="critical_blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.critical_blocker_warning_days} />
-                    <p className="text-[11px] text-muted-foreground">Blocker on critical-path task age in days before "delayed"</p>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-sm font-medium">Hours Per Day</label>
-                    <Input name="hours_per_day" type="number" min="1" step="0.5" defaultValue={projectSettings.hours_per_day} />
-                    <p className="text-[11px] text-muted-foreground">Used to convert estimated hours to calendar days for critical path</p>
-                  </div>
-                  <DialogFooter>
-                    <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
-                    <Button type="submit">Save</Button>
-                  </DialogFooter>
-                </form>
+            ));
+          })()}
+        </TabsContent>
+      </Tabs>
+    </DialogContent>
+  </Dialog>
+
+  {/* Sprint Tasks Dialog */ }
+  <Dialog open={sprintTasksOpen} onOpenChange={setSprintTasksOpen}>
+    <DialogContent className="max-w-lg">
+      <DialogHeader><DialogTitle>{selectedSprint?.name} — Tasks</DialogTitle></DialogHeader>
+      {(() => {
+        const sprintTasks = (tasks || []).filter((t: any) => t.sprint_id === selectedSprint?.id);
+        if (sprintTasks.length === 0) return <p className="text-sm text-muted-foreground py-4">No tasks assigned to this sprint.</p>;
+        return (
+          <div className="space-y-2 max-h-80 overflow-y-auto">
+            {sprintTasks.map((t: any) => (
+              <div key={t.id} className="flex items-center justify-between p-3 border rounded-md">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-medium">{t.title}</span>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  <Badge className={TASK_STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge>
+                  {(t as any).users?.full_name && <Badge variant="secondary" className="text-xs">{(t as any).users?.full_name}</Badge>}
+                  {t.estimated_hours && <Badge variant="secondary" className="text-xs">{t.estimated_hours}h</Badge>}
+                  <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+    </DialogContent>
+  </Dialog>
+
+  {/* Add Sprint Dialog */ }
+  <Dialog open={addSprintOpen} onOpenChange={setAddSprintOpen}>
+    <DialogContent>
+      <DialogHeader><DialogTitle>Add Sprint</DialogTitle></DialogHeader>
+      <form onSubmit={createSprint} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Sprint Name *</label>
+          <Input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="e.g. Sprint 1" required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Phase *</label>
+          <Select value={sprintPhaseId} onValueChange={setSprintPhaseId}>
+            <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+            <SelectContent>
+              {(phases || []).map((p: any) => (
+                <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Start Date *</label>
+          <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">End Date *</label>
+          <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required />
+        </div>
+        <Button type="submit" className="rounded-button w-full">Create Sprint</Button>
+      </form>
+    </DialogContent>
+  </Dialog>
+
+  {/* Edit Sprint Dialog */ }
+  <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); } }}>
+    <DialogContent>
+      <DialogHeader><DialogTitle>Edit Sprint</DialogTitle></DialogHeader>
+      <form onSubmit={handleEditSprintSave} className="space-y-4">
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Sprint Name *</label>
+          <Input value={editSprintName} onChange={(e) => setEditSprintName(e.target.value)} placeholder="Sprint name" required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Phase *</label>
+          <Select value={editSprintPhaseId} onValueChange={setEditSprintPhaseId}>
+            <SelectTrigger><SelectValue placeholder="Select phase" /></SelectTrigger>
+            <SelectContent>
+              {(phases || []).map((p: any) => (
+                <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Start Date *</label>
+          <Input type="date" value={editSprintStartDate} onChange={(e) => setEditSprintStartDate(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">End Date *</label>
+          <Input type="date" value={editSprintEndDate} onChange={(e) => setEditSprintEndDate(e.target.value)} required />
+        </div>
+        <div className="space-y-2">
+          <label className="text-sm font-medium">Status</label>
+          <Select value={editSprintStatus} onValueChange={setEditSprintStatus}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="planned">Planned</SelectItem>
+              <SelectItem value="active">Active</SelectItem>
+              <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <DialogFooter>
+          <Button type="button" variant="outline" onClick={() => { setEditSprintOpen(false); setEditSprintId(null); }}>Cancel</Button>
+          <Button type="submit">Save</Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  </Dialog>
+
+  {/* Task Complete Confirmation */ }
+  <AlertDialog open={completeConfirmOpen} onOpenChange={setCompleteConfirmOpen}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Complete task?</AlertDialogTitle>
+        <AlertDialogDescription>Are you sure you want to mark "{completeTargetTitle}" as complete? This cannot be undone.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel onClick={() => { setCompleteConfirmOpen(false); setCompleteTargetId(null); setCompleteTargetTitle(""); }}>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={confirmComplete}>Complete Task</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
+  {/* Remove Dependency Confirmation */ }
+  <AlertDialog open={!!confirmDepDelId} onOpenChange={(open) => !open && setConfirmDepDelId(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Remove dependency?</AlertDialogTitle>
+        <AlertDialogDescription>This will unlink the dependency between these tasks.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => { if (confirmDepDelId && confirmDepDelTaskId) removeDependency(confirmDepDelId, confirmDepDelTaskId); setConfirmDepDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
+  {/* Remove Member Confirmation */ }
+  <AlertDialog open={!!confirmMemberDelId} onOpenChange={(open) => !open && setConfirmMemberDelId(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Remove member?</AlertDialogTitle>
+        <AlertDialogDescription>This will remove them from the project. They can be re-added later.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => { if (confirmMemberDelId && confirmMemberDelUserId) removeMember(confirmMemberDelId, confirmMemberDelUserId); setConfirmMemberDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
+  {/* Completion Warning */ }
+  <AlertDialog open={completionWarning} onOpenChange={setCompletionWarning}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Complete this project?</AlertDialogTitle>
+        <AlertDialogDescription>Setting to Completed will lock all log submissions for this project. This action can be reversed by changing the status back.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => doStatusChange(pendingStatus)}>Complete Project</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
+  {/* Delete Phase Confirmation */ }
+  <AlertDialog open={!!confirmPhaseDelId} onOpenChange={(open) => !open && setConfirmPhaseDelId(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Delete phase?</AlertDialogTitle>
+        <AlertDialogDescription>This will unlink all tasks from this phase and cannot be undone.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => { if (confirmPhaseDelId) deletePhase(confirmPhaseDelId); setConfirmPhaseDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+
+  {/* Project Settings */ }
+  <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Project Settings</DialogTitle>
+      </DialogHeader>
+      {projectSettings ? (
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-[#111827]">Project Status</h3>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[#374151]">Status</label>
+              <Select value={project.status} onValueChange={changeStatus}>
+                <SelectTrigger className="border-[#E5E7EB] text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[#374151]">Status Note</label>
+              <div className="flex gap-2">
+                <Textarea value={statusNote} onChange={(e) => setStatusNote(e.target.value)} rows={2} className="flex-1 border-[#E5E7EB] text-sm resize-none" />
+                <Button variant="outline" size="sm" onClick={saveStatusNote} className="self-end border-[#E5E7EB]">Save</Button>
               </div>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground py-4">Loading settings...</p>
-          )}
-        </DialogContent>
-      </Dialog>
-    </div>
+          </div>
+          <div className="border-t border-[#E5E7EB] pt-4">
+            <h3 className="text-sm font-semibold text-[#111827] mb-3">Automation Settings</h3>
+            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); saveProjectSettings({ at_risk_variance_percent: Number(fd.get("at_risk_variance_percent")), delayed_variance_percent: Number(fd.get("delayed_variance_percent")), blocker_warning_days: Number(fd.get("blocker_warning_days")), critical_blocker_warning_days: Number(fd.get("critical_blocker_warning_days")), hours_per_day: Number(fd.get("hours_per_day")) }); }} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">At Risk Variance (%)</label>
+                <Input name="at_risk_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.at_risk_variance_percent} />
+                <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "at risk"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Delayed Variance (%)</label>
+                <Input name="delayed_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.delayed_variance_percent} />
+                <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Blocker Warning (days)</label>
+                <Input name="blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.blocker_warning_days} />
+                <p className="text-[11px] text-muted-foreground">Open blocker age in days before it contributes to "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Critical Blocker Warning (days)</label>
+                <Input name="critical_blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.critical_blocker_warning_days} />
+                <p className="text-[11px] text-muted-foreground">Blocker on critical-path task age in days before "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Hours Per Day</label>
+                <Input name="hours_per_day" type="number" min="1" step="0.5" defaultValue={projectSettings.hours_per_day} />
+                <p className="text-[11px] text-muted-foreground">Used to convert estimated hours to calendar days for critical path</p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+                <Button type="submit">Save</Button>
+              </DialogFooter>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground py-4">Loading settings...</p>
+      )}
+    </DialogContent>
+  </Dialog>
+    </div >
+  );
+}
+            </DialogFooter >
+          </form >
+        </DialogContent >
+      </Dialog >
+
+  {/* Task Complete Confirmation */ }
+  < AlertDialog open = { completeConfirmOpen } onOpenChange = { setCompleteConfirmOpen } >
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Complete task?</AlertDialogTitle>
+        <AlertDialogDescription>Are you sure you want to mark "{completeTargetTitle}" as complete? This cannot be undone.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel onClick={() => { setCompleteConfirmOpen(false); setCompleteTargetId(null); setCompleteTargetTitle(""); }}>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={confirmComplete}>Complete Task</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+      </AlertDialog >
+
+  {/* Remove Dependency Confirmation */ }
+  < AlertDialog open = {!!confirmDepDelId} onOpenChange = {(open) => !open && setConfirmDepDelId(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Remove dependency?</AlertDialogTitle>
+        <AlertDialogDescription>This will unlink the dependency between these tasks.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => { if (confirmDepDelId && confirmDepDelTaskId) removeDependency(confirmDepDelId, confirmDepDelTaskId); setConfirmDepDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+      </AlertDialog >
+
+  {/* Remove Member Confirmation */ }
+  < AlertDialog open = {!!confirmMemberDelId} onOpenChange = {(open) => !open && setConfirmMemberDelId(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Remove member?</AlertDialogTitle>
+        <AlertDialogDescription>This will remove them from the project. They can be re-added later.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => { if (confirmMemberDelId && confirmMemberDelUserId) removeMember(confirmMemberDelId, confirmMemberDelUserId); setConfirmMemberDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remove</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+      </AlertDialog >
+
+  {/* Completion Warning */ }
+  < AlertDialog open = { completionWarning } onOpenChange = { setCompletionWarning } >
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Complete this project?</AlertDialogTitle>
+        <AlertDialogDescription>Setting to Completed will lock all log submissions for this project. This action can be reversed by changing the status back.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => doStatusChange(pendingStatus)}>Complete Project</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+      </AlertDialog >
+
+  {/* Delete Phase Confirmation */ }
+  < AlertDialog open = {!!confirmPhaseDelId} onOpenChange = {(open) => !open && setConfirmPhaseDelId(null)}>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle>Delete phase?</AlertDialogTitle>
+        <AlertDialogDescription>This will unlink all tasks from this phase and cannot be undone.</AlertDialogDescription>
+      </AlertDialogHeader>
+      <AlertDialogFooter>
+        <AlertDialogCancel>Cancel</AlertDialogCancel>
+        <AlertDialogAction onClick={() => { if (confirmPhaseDelId) deletePhase(confirmPhaseDelId); setConfirmPhaseDelId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+      </AlertDialog >
+
+  {/* Project Settings */ }
+  < Dialog open = { settingsOpen } onOpenChange = { setSettingsOpen } >
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Project Settings</DialogTitle>
+      </DialogHeader>
+      {projectSettings ? (
+        <div className="space-y-5">
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-[#111827]">Project Status</h3>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[#374151]">Status</label>
+              <Select value={project.status} onValueChange={changeStatus}>
+                <SelectTrigger className="border-[#E5E7EB] text-sm"><SelectValue /></SelectTrigger>
+                <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs font-medium text-[#374151]">Status Note</label>
+              <div className="flex gap-2">
+                <Textarea value={statusNote} onChange={(e) => setStatusNote(e.target.value)} rows={2} className="flex-1 border-[#E5E7EB] text-sm resize-none" />
+                <Button variant="outline" size="sm" onClick={saveStatusNote} className="self-end border-[#E5E7EB]">Save</Button>
+              </div>
+            </div>
+          </div>
+          <div className="border-t border-[#E5E7EB] pt-4">
+            <h3 className="text-sm font-semibold text-[#111827] mb-3">Automation Settings</h3>
+            <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); saveProjectSettings({ at_risk_variance_percent: Number(fd.get("at_risk_variance_percent")), delayed_variance_percent: Number(fd.get("delayed_variance_percent")), blocker_warning_days: Number(fd.get("blocker_warning_days")), critical_blocker_warning_days: Number(fd.get("critical_blocker_warning_days")), hours_per_day: Number(fd.get("hours_per_day")) }); }} className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">At Risk Variance (%)</label>
+                <Input name="at_risk_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.at_risk_variance_percent} />
+                <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "at risk"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Delayed Variance (%)</label>
+                <Input name="delayed_variance_percent" type="number" min="0" step="1" defaultValue={projectSettings.delayed_variance_percent} />
+                <p className="text-[11px] text-muted-foreground">Burndown variance % that moves health to "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Blocker Warning (days)</label>
+                <Input name="blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.blocker_warning_days} />
+                <p className="text-[11px] text-muted-foreground">Open blocker age in days before it contributes to "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Critical Blocker Warning (days)</label>
+                <Input name="critical_blocker_warning_days" type="number" min="1" step="1" defaultValue={projectSettings.critical_blocker_warning_days} />
+                <p className="text-[11px] text-muted-foreground">Blocker on critical-path task age in days before "delayed"</p>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium">Hours Per Day</label>
+                <Input name="hours_per_day" type="number" min="1" step="0.5" defaultValue={projectSettings.hours_per_day} />
+                <p className="text-[11px] text-muted-foreground">Used to convert estimated hours to calendar days for critical path</p>
+              </div>
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setSettingsOpen(false)}>Cancel</Button>
+                <Button type="submit">Save</Button>
+              </DialogFooter>
+            </form>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-muted-foreground py-4">Loading settings...</p>
+      )}
+    </DialogContent>
+      </Dialog >
+    </div >
   );
 }

@@ -53,7 +53,7 @@ const adminSchema = z.object({
 const clientEditSchema = z.object({
   full_name: z.string().min(3, "Name must be between 3 and 60 characters").max(60).regex(/^[a-zA-Z\s.'-]+$/, "Name must contain only letters"),
   email: z.string().email("Please enter a valid email address").refine((v) => !/\s/.test(v), "No spaces allowed"),
-  project_id: z.string().optional(),
+  project_ids: z.array(z.string()).optional(),
 });
 
 export default function EmployeeProfilePage() {
@@ -175,17 +175,16 @@ export default function EmployeeProfilePage() {
     enabled: !!employee && (employee.role === "client member" || employee.role === "client portal"),
   });
 
-  // Client Member edit: current project membership
-  const { data: clientProjectId } = useQuery({
-    queryKey: ["client-member-project", id],
+  // Client Member edit: current project memberships
+  const { data: clientProjectIds = [] } = useQuery({
+    queryKey: ["client-member-projects", id],
     queryFn: async () => {
       const { data } = await supabase
         .from("project_members")
         .select("project_id")
         .eq("user_id", id!)
-        .is("removed_at", null)
-        .maybeSingle();
-      return data?.project_id || "";
+        .is("removed_at", null);
+      return (data || []).map((m: any) => m.project_id as string);
     },
     enabled: !!id && !!employee && (employee.role === "client member" || employee.role === "client portal"),
   });
@@ -194,7 +193,7 @@ export default function EmployeeProfilePage() {
 
   const clientEditForm = useForm<z.infer<typeof clientEditSchema>>({
     resolver: zodResolver(clientEditSchema),
-    defaultValues: { full_name: "", email: "", project_id: "" },
+    defaultValues: { full_name: "", email: "", project_ids: [] },
   });
 
   useEffect(() => {
@@ -202,10 +201,10 @@ export default function EmployeeProfilePage() {
       clientEditForm.reset({
         full_name: employee.full_name || "",
         email: employee.email || "",
-        project_id: clientProjectId || "",
+        project_ids: clientProjectIds || [],
       });
     }
-  }, [employee, clientProjectId, isClientMember, clientEditForm]);
+  }, [employee, clientProjectIds, isClientMember, clientEditForm]);
 
   const clientEditOnSubmit = async (data: z.infer<typeof clientEditSchema>) => {
     if (!employee) return;
@@ -230,46 +229,60 @@ export default function EmployeeProfilePage() {
         await supabase.from("users").update({ avatar_url: path }).eq("id", employee.id);
       }
 
-      // Handle project assignment
-      const currentProjectId = clientProjectId || "";
-      const newProjectId = data.project_id || "";
+      // Handle project assignment (multi-select)
+      const currentIds = clientProjectIds || [];
+      const newIds = data.project_ids || [];
 
-      if (newProjectId && newProjectId !== currentProjectId) {
-        // Remove from current project if assigned
-        if (currentProjectId) {
-          await supabase.from("project_members").update({ removed_at: new Date().toISOString() } as any)
-            .eq("user_id", employee.id).eq("project_id", currentProjectId).is("removed_at", null);
-        }
-        // Add to new project
+      const toRemove = currentIds.filter((pId) => !newIds.includes(pId));
+      const toAdd = newIds.filter((pId) => !currentIds.includes(pId));
+
+      if (toRemove.length > 0) {
+        await supabase
+          .from("project_members")
+          .update({ removed_at: new Date().toISOString() } as any)
+          .eq("user_id", employee.id)
+          .in("project_id", toRemove)
+          .is("removed_at", null);
+      }
+
+      for (const newProjectId of toAdd) {
         let roleId: string | null = null;
         const { data: existingRole } = await supabase
-          .from("project_roles").select("id").eq("project_id", newProjectId).eq("name", "Client").maybeSingle();
+          .from("project_roles")
+          .select("id")
+          .eq("project_id", newProjectId)
+          .eq("name", "Client")
+          .maybeSingle();
+
         if (existingRole) {
           roleId = existingRole.id;
         } else {
           const { data: newRole } = await supabase
-            .from("project_roles").insert({ project_id: newProjectId, name: "Client" }).select("id").single();
+            .from("project_roles")
+            .insert({ project_id: newProjectId, name: "Client" })
+            .select("id")
+            .single();
           roleId = newRole?.id || null;
         }
-        if (roleId) {
-          await supabase.from("project_members").insert({
-            project_id: newProjectId, user_id: employee.id, project_role_id: roleId,
-          });
-        }
-      } else if (!newProjectId && currentProjectId) {
-        // Remove from current project
-        await supabase.from("project_members").update({ removed_at: new Date().toISOString() } as any)
-          .eq("user_id", employee.id).eq("project_id", currentProjectId).is("removed_at", null);
+
+        await supabase.from("project_members").insert({
+          project_id: newProjectId,
+          user_id: employee.id,
+          project_role_id: roleId,
+        });
       }
 
       await supabase.from("audit_logs").insert({
-        actor_id: myProfile?.id, action: "user.updated", target_entity: "users", target_id: employee.id,
+        actor_id: myProfile?.id,
+        action: "user.updated",
+        target_entity: "users",
+        target_id: employee.id,
       });
 
       toast.success("Client Member profile updated");
       queryClient.invalidateQueries({ queryKey: ["employee", id] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
-      queryClient.invalidateQueries({ queryKey: ["client-member-project", id] });
+      queryClient.invalidateQueries({ queryKey: ["client-member-projects", id] });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -863,25 +876,59 @@ export default function EmployeeProfilePage() {
                 </FormItem>
               )} />
 
-              <FormField control={clientEditForm.control} name="project_id" render={({ field }) => (
+              <FormField control={clientEditForm.control} name="project_ids" render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Assign to Project <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a project..." />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {clientProjects.map((p: any) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                      {clientProjects.length === 0 && (
-                        <div className="px-3 py-2 text-sm text-muted-foreground">No active projects found</div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium">
+                        Assign to Projects <span className="text-muted-foreground text-xs">(optional)</span>
+                      </label>
+                      {clientProjects.length > 0 && (
+                        <div className="flex items-center gap-2 text-xs">
+                          <button type="button" onClick={() => field.onChange(clientProjects.map((p: any) => p.id))} className="text-blue-600 hover:underline">Select All</button>
+                          <span className="text-gray-300">|</span>
+                          <button type="button" onClick={() => field.onChange([])} className="text-gray-500 hover:underline">Clear</button>
+                        </div>
                       )}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">The client member will be added as a member to this project.</p>
+                    </div>
+                    <div className="border rounded-md p-3 max-h-48 overflow-y-auto space-y-2 bg-background">
+                      {clientProjects.length === 0 ? (
+                        <p className="text-xs text-muted-foreground py-2 text-center">No active projects found</p>
+                      ) : (
+                        clientProjects.map((p: any) => {
+                          const selected = (field.value || []).includes(p.id);
+                          return (
+                            <label
+                              key={p.id}
+                              className={`flex items-center gap-2.5 p-2 rounded cursor-pointer transition-colors text-sm ${
+                                selected ? "bg-blue-50/70 text-blue-900 font-medium" : "hover:bg-muted/50 text-foreground"
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selected}
+                                onChange={() => {
+                                  const current = field.value || [];
+                                  if (selected) {
+                                    field.onChange(current.filter((id: string) => id !== p.id));
+                                  } else {
+                                    field.onChange([...current, p.id]);
+                                  }
+                                }}
+                                className="h-4 w-4 rounded border-gray-300 accent-blue-600 cursor-pointer"
+                              />
+                              <span className="truncate">{p.name}</span>
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      {(field.value || []).length === 0
+                        ? "No projects assigned."
+                        : `Assigned to ${(field.value || []).length} project${(field.value || []).length > 1 ? "s" : ""}.`}
+                    </p>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )} />

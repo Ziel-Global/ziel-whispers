@@ -78,13 +78,14 @@ export default function ProjectsPage() {
     let list = projects;
     if (!isAdmin && myMemberships) {
       const myProjectIds = new Set(myMemberships.map((m) => m.project_id));
-      list = list.filter((p) => myProjectIds.has(p.id));
+      const userClientId = (profile as any)?.client_id;
+      list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
     }
     if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
     if (clientFilter !== "all") list = list.filter((p) => p.client_id === clientFilter);
     if (search) list = list.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     return list;
-  }, [projects, search, statusFilter, clientFilter, isAdmin, myMemberships]);
+  }, [projects, search, statusFilter, clientFilter, isAdmin, myMemberships, profile]);
 
   const getMemberRole = (projectId: string) => {
     const m = myMemberships?.find((m) => m.project_id === projectId);

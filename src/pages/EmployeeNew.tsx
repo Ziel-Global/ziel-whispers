@@ -42,14 +42,15 @@ const clientSchema = z.object({
   full_name: z.string().min(3, "Name must be between 3 and 60 characters").max(60).regex(/^[a-zA-Z\s.'-]+$/, "Name must contain only letters"),
   email: z.string().email("Please enter a valid email address").refine((v) => !/\s/.test(v), "No spaces allowed"),
   password: z.string().min(8, "Min 8 characters").regex(/[0-9]/, "Must contain a number").regex(/[^a-zA-Z0-9]/, "Must contain a special character"),
-  project_id: z.string().optional(),
+  project_ids: z.array(z.string()).optional(),
   client_id: z.string().optional(),
+
 });
 
 type StaffFormData = z.infer<typeof staffSchema>;
 type ClientFormData = z.infer<typeof clientSchema>;
 
-type RoleType = "admin" | "manager" | "employee" | "client" | "client member" | "client portal";
+type RoleType = "admin" | "manager" | "employee" | "client" | "client member";
 
 // ─── Step 1: Role Picker (Dropdown style) ─────────────────────────────────────
 function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
@@ -71,7 +72,7 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
             <SelectTrigger>
               <SelectValue placeholder="Select a role…" />
             </SelectTrigger>
-            <SelectContent> 
+            <SelectContent>
               <SelectItem value="admin">Admin</SelectItem>
               <SelectItem value="manager">Manager</SelectItem>
               <SelectItem value="employee">Employee</SelectItem>
@@ -294,7 +295,7 @@ function ClientForm({ onBack }: { onBack: () => void }) {
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
-    defaultValues: { full_name: "", email: "", password: "", project_id: "" },
+    defaultValues: { full_name: "", email: "", password: "", project_ids: [] },
   });
 
   const onSubmit = async (data: ClientFormData) => {
@@ -316,41 +317,43 @@ function ClientForm({ onBack }: { onBack: () => void }) {
       const res = result as { ok?: boolean; user_id?: string; error?: string };
       if (!res.ok) { toast.error(res.error || "Failed to create client"); setSubmitting(false); return; }
 
-      // If a project was selected, add the client as a project member
-      if (data.project_id && res.user_id) {
-        // Get or create a "Client" role for this project
-        let roleId: string | null = null;
-        const { data: existingRole } = await supabase
-          .from("project_roles")
-          .select("id")
-          .eq("project_id", data.project_id)
-          .eq("name", "Client")
-          .maybeSingle();
-
-        if (existingRole) {
-          roleId = existingRole.id;
-        } else {
-          const { data: newRole } = await supabase
+      // Process all selected projects
+      const selectedProjectIds = data.project_ids || [];
+      if (selectedProjectIds.length > 0 && res.user_id) {
+        for (const projectId of selectedProjectIds) {
+          let roleId: string | null = null;
+          const { data: existingRole } = await supabase
             .from("project_roles")
-            .insert({ project_id: data.project_id, name: "Client" })
             .select("id")
-            .single();
-          roleId = newRole?.id || null;
+            .eq("project_id", projectId)
+            .eq("name", "Client")
+            .maybeSingle();
+
+          if (existingRole) {
+            roleId = existingRole.id;
+          } else {
+            const { data: newRole } = await supabase
+              .from("project_roles")
+              .insert({ project_id: projectId, name: "Client" })
+              .select("id")
+              .single();
+            roleId = newRole?.id || null;
+          }
+
+          await supabase.from("project_members").insert({
+            project_id: projectId,
+            user_id: res.user_id,
+            project_role_id: roleId,
+          });
+
+          await supabase.from("audit_logs").insert({
+            actor_id: profile?.id,
+            action: "project.member_added",
+            target_entity: "project_members",
+            target_id: projectId,
+            metadata: { user_id: res.user_id, via: "client_creation" },
+          });
         }
-
-        await supabase.from("project_members").insert({
-          project_id: data.project_id,
-          user_id: res.user_id,
-          project_role_id: roleId,
-        });
-
-        await supabase.from("audit_logs").insert({
-          actor_id: profile?.id,
-          action: "project.member_added",
-          target_entity: "project_members",
-          target_id: data.project_id,
-          metadata: { user_id: res.user_id, via: "client_creation" },
-        });
       }
 
       toast.success("Client created successfully. A welcome email with password setup link has been sent.");
@@ -370,7 +373,6 @@ function ClientForm({ onBack }: { onBack: () => void }) {
       </div>
 
       <Card className="p-6">
-        {/* Info banner */}
         <div className="mb-6 p-4 rounded-lg bg-muted border border-border text-sm text-foreground">
           <p className="font-semibold mb-1">📧 Welcome Email</p>
           <p className="text-muted-foreground">The client will automatically receive a branded welcome email with a link to set their password and access the portal.</p>
@@ -405,25 +407,13 @@ function ClientForm({ onBack }: { onBack: () => void }) {
               </FormItem>
             )} />
 
-            <FormField control={form.control} name="project_id" render={({ field }) => (
+            <FormField control={form.control} name="project_ids" render={({ field }) => (
               <FormItem>
-                <FormLabel>Assign to Project <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a project…" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {projects.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                    {projects.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">No active projects found</div>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">The client will be added as a member to this project immediately.</p>
+                <MultiProjectSelector
+                  projects={projects}
+                  selectedIds={field.value || []}
+                  onChange={field.onChange}
+                />
                 <FormMessage />
               </FormItem>
             )} />
@@ -473,7 +463,7 @@ function ClientMemberForm({ onBack, portalMode }: { onBack: () => void; portalMo
 
   const form = useForm<ClientFormData>({
     resolver: zodResolver(clientSchema),
-    defaultValues: { full_name: "", email: "", password: "", project_id: "" },
+    defaultValues: { full_name: "", email: "", password: "", project_ids: [] },
   });
 
   const onSubmit = async (data: ClientFormData) => {
@@ -496,40 +486,43 @@ function ClientMemberForm({ onBack, portalMode }: { onBack: () => void; portalMo
       const res = result as { ok?: boolean; user_id?: string; error?: string };
       if (!res.ok) { toast.error(res.error || (portalMode ? "Failed to create client portal user" : "Failed to create client member")); setSubmitting(false); return; }
 
-      // If a project was selected, add the client member as a project member
-      if (data.project_id && res.user_id) {
-        let roleId: string | null = null;
-        const { data: existingRole } = await supabase
-          .from("project_roles")
-          .select("id")
-          .eq("project_id", data.project_id)
-          .eq("name", "Client")
-          .maybeSingle();
-
-        if (existingRole) {
-          roleId = existingRole.id;
-        } else {
-          const { data: newRole } = await supabase
+      // Process all selected projects
+      const selectedProjectIds = data.project_ids || [];
+      if (selectedProjectIds.length > 0 && res.user_id) {
+        for (const projectId of selectedProjectIds) {
+          let roleId: string | null = null;
+          const { data: existingRole } = await supabase
             .from("project_roles")
-            .insert({ project_id: data.project_id, name: "Client" })
             .select("id")
-            .single();
-          roleId = newRole?.id || null;
+            .eq("project_id", projectId)
+            .eq("name", "Client")
+            .maybeSingle();
+
+          if (existingRole) {
+            roleId = existingRole.id;
+          } else {
+            const { data: newRole } = await supabase
+              .from("project_roles")
+              .insert({ project_id: projectId, name: "Client" })
+              .select("id")
+              .single();
+            roleId = newRole?.id || null;
+          }
+
+          await supabase.from("project_members").insert({
+            project_id: projectId,
+            user_id: res.user_id,
+            project_role_id: roleId,
+          });
+
+          await supabase.from("audit_logs").insert({
+            actor_id: profile?.id,
+            action: "project.member_added",
+            target_entity: "project_members",
+            target_id: projectId,
+            metadata: { user_id: res.user_id, via: "client_member_creation" },
+          });
         }
-
-        await supabase.from("project_members").insert({
-          project_id: data.project_id,
-          user_id: res.user_id,
-          project_role_id: roleId,
-        });
-
-        await supabase.from("audit_logs").insert({
-          actor_id: profile?.id,
-          action: "project.member_added",
-          target_entity: "project_members",
-          target_id: data.project_id,
-          metadata: { user_id: res.user_id, via: "client_member_creation" },
-        });
       }
 
       toast.success(portalMode ? "Client Portal user created successfully. A welcome email with password setup link has been sent." : "Client Member created successfully. A welcome email with password setup link has been sent.");
@@ -606,25 +599,13 @@ function ClientMemberForm({ onBack, portalMode }: { onBack: () => void; portalMo
               </FormItem>
             )} />
 
-            <FormField control={form.control} name="project_id" render={({ field }) => (
+            <FormField control={form.control} name="project_ids" render={({ field }) => (
               <FormItem>
-                <FormLabel>Assign to Project <span className="text-muted-foreground text-xs">(optional)</span></FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a project…" />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {projects.map((p: any) => (
-                      <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                    ))}
-                    {projects.length === 0 && (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">No active projects found</div>
-                    )}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">The client member will be added as a member to this project immediately.</p>
+                <MultiProjectSelector
+                  projects={projects}
+                  selectedIds={field.value || []}
+                  onChange={field.onChange}
+                />
                 <FormMessage />
               </FormItem>
             )} />

@@ -8,7 +8,8 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout() {
   const { profile } = useAuth();
-  const showMissingLog = profile?.role === "employee" || profile?.role === "manager";
+  const showMissingLog =
+    profile?.role === "employee" || profile?.role === "manager";
 
   return (
     <SidebarProvider>

@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { setupTestEnvironment, teardownTestEnvironment, TestContext } from "./setup/testContext";
+import {
+  setupTestEnvironment,
+  teardownTestEnvironment,
+  TestContext,
+} from "./setup/testContext";
 import { USER_DEV_SAAD, STATUS_QA_REVIEW } from "./setup/constants";
 import { dbQuery } from "./helpers/dbClient";
 import { reporter } from "./helpers/reporter";
@@ -49,7 +53,7 @@ describe("Section 10: Admin & Permission Checks (Test 10.1)", () => {
 
       // Verify: other project has zero automation rules
       const rulesInOtherProject = await dbQuery<{ cnt: string }>(
-        `SELECT COUNT(*) AS cnt FROM automation_rules WHERE project_id = '${otherProjectId}';`
+        `SELECT COUNT(*) AS cnt FROM automation_rules WHERE project_id = '${otherProjectId}';`,
       );
       expect(parseInt(rulesInOtherProject[0]?.cnt ?? "0")).toBe(0);
 
@@ -58,7 +62,7 @@ describe("Section 10: Admin & Permission Checks (Test 10.1)", () => {
 
         // Count rule runs for task in other project
         const runs = await dbQuery<{ cnt: string }>(
-          `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${otherTaskId}';`
+          `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${otherTaskId}';`,
         );
 
         // Since other project has no rules, no rule_runs should exist for this task
@@ -82,7 +86,7 @@ describe("Section 10: Admin & Permission Checks (Test 10.1)", () => {
     // Verify Task A was never touched during all test operations
     const protectedTaskId = "2863a41f-609b-4bcc-a778-d316cd7f46dc";
     const rows = await dbQuery<{ id: string }>(
-      `SELECT id FROM tasks WHERE id = '${protectedTaskId}';`
+      `SELECT id FROM tasks WHERE id = '${protectedTaskId}';`,
     );
 
     expect(rows.length).toBe(1);
@@ -92,7 +96,8 @@ describe("Section 10: Admin & Permission Checks (Test 10.1)", () => {
       testId: "10.2",
       testName: "Protected Task (Task A) Integrity Check",
       status: "PASS",
-      notes: "Task A - Setup CI/CD Pipeline (2863a41f) was not modified or deleted by any test operation",
+      notes:
+        "Task A - Setup CI/CD Pipeline (2863a41f) was not modified or deleted by any test operation",
     });
   }, 30000);
 });

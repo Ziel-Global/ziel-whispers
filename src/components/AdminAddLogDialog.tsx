@@ -6,9 +6,28 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -16,7 +35,22 @@ import { Plus } from "lucide-react";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 import { MISC_PROJECT_ID } from "@/lib/utils";
 
-const CATEGORIES = ["development", "meeting", "bug_fix", "code_review", "deployment", "documentation", "testing", "marketing", "seo", "research", "posting", "designing", "outbound_calls", "other"];
+const CATEGORIES = [
+  "development",
+  "meeting",
+  "bug_fix",
+  "code_review",
+  "deployment",
+  "documentation",
+  "testing",
+  "marketing",
+  "seo",
+  "research",
+  "posting",
+  "designing",
+  "outbound_calls",
+  "other",
+];
 
 const schema = z.object({
   user_id: z.string().min(1, "Please select an employee"),
@@ -73,7 +107,9 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
     setSubmitting(true);
     try {
       // Validate that the project is assigned to the employee (skip for Miscellaneous)
-      const isAssigned = userProjects.some((p: any) => p.id === data.project_id);
+      const isAssigned = userProjects.some(
+        (p: any) => p.id === data.project_id,
+      );
       if (!isAssigned && data.project_id !== MISC_PROJECT_ID) {
         toast.error("This project is not assigned to the selected employee");
         setSubmitting(false);
@@ -81,7 +117,7 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
       }
 
       // Find if employee is overtime enabled
-      const emp = employees.find(e => e.id === data.user_id);
+      const emp = employees.find((e) => e.id === data.user_id);
       const isOvertimeEnabled = emp?.overtime_enabled === true;
 
       // Calculate if it's overtime (simplistic logic: if enabled, we might need to check total hours. The requirement says:
@@ -97,7 +133,10 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
           .select("hours")
           .eq("user_id", data.user_id)
           .eq("log_date", data.log_date);
-        const existingTotal = (existingLogs || []).reduce((sum, l) => sum + Number(l.hours), 0);
+        const existingTotal = (existingLogs || []).reduce(
+          (sum, l) => sum + Number(l.hours),
+          0,
+        );
         if (existingTotal + data.hours > 8) {
           isOvertime = true;
         }
@@ -105,7 +144,8 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
 
       const { error } = await supabase.from("daily_logs").insert({
         user_id: data.user_id,
-        project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
+        project_id:
+          data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
         category: data.category,
         hours: data.hours,
         description: data.description || "",
@@ -121,7 +161,11 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
         action: "log.admin_added",
         target_entity: "daily_logs",
         target_id: data.user_id,
-        metadata: { log_date: data.log_date, hours: data.hours, added_for_user: data.user_id }
+        metadata: {
+          log_date: data.log_date,
+          hours: data.hours,
+          added_for_user: data.user_id,
+        },
       });
 
       toast.success("Log added successfully");
@@ -143,9 +187,17 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
   };
 
   return (
-    <Dialog open={open} onOpenChange={(val) => { setOpen(val); if (!val) form.reset(); }}>
+    <Dialog
+      open={open}
+      onOpenChange={(val) => {
+        setOpen(val);
+        if (!val) form.reset();
+      }}
+    >
       <DialogTrigger asChild>
-        <Button><Plus className="w-4 h-4 mr-2" /> Add Log</Button>
+        <Button>
+          <Plus className="w-4 h-4 mr-2" /> Add Log
+        </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
@@ -153,95 +205,171 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField control={form.control} name="user_id" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Employee</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Select employee" /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    {employees.map((e) => (
-                      <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
-            
-            <FormField control={form.control} name="log_date" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Date</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} max={getPKTDateString()} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
-
-            <div className="grid grid-cols-2 gap-4">
-              <FormField control={form.control} name="project_id" render={({ field }) => (
+            <FormField
+              control={form.control}
+              name="user_id"
+              render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Project</FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={!selectedUserId}>
-                    <FormControl><SelectTrigger><SelectValue placeholder={!selectedUserId ? "Select employee first" : (loadingProjects ? "Loading..." : "Project")} /></SelectTrigger></FormControl>
-                    <SelectContent>
-                      {userProjects.length > 0 ? (
-                        <>
-                          {userProjects.map((p: any) => (
-                            <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                          ))}
-                          <SelectItem value={MISC_PROJECT_ID}>Miscellaneous</SelectItem>
-                        </>
-                      ) : (
-                        <div className="p-2 text-xs text-muted-foreground text-center">
-                          {selectedUserId ? "No projects assigned to this employee" : "Please select an employee"}
-                        </div>
-                      )}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )} />
-
-              <FormField control={form.control} name="category" render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
+                  <FormLabel>Employee</FormLabel>
                   <Select onValueChange={field.onChange} value={field.value}>
-                    <FormControl><SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger></FormControl>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select employee" />
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
-                      {CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase())}</SelectItem>
+                      {employees.map((e) => (
+                        <SelectItem key={e.id} value={e.id}>
+                          {e.full_name}
+                        </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
-              )} />
+              )}
+            />
+
+            <FormField
+              control={form.control}
+              name="log_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} max={getPKTDateString()} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="project_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Project</FormLabel>
+                    <Select
+                      onValueChange={field.onChange}
+                      value={field.value}
+                      disabled={!selectedUserId}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue
+                            placeholder={
+                              !selectedUserId
+                                ? "Select employee first"
+                                : loadingProjects
+                                  ? "Loading..."
+                                  : "Project"
+                            }
+                          />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {userProjects.length > 0 ? (
+                          <>
+                            {userProjects.map((p: any) => (
+                              <SelectItem key={p.id} value={p.id}>
+                                {p.name}
+                              </SelectItem>
+                            ))}
+                            <SelectItem value={MISC_PROJECT_ID}>
+                              Miscellaneous
+                            </SelectItem>
+                          </>
+                        ) : (
+                          <div className="p-2 text-xs text-muted-foreground text-center">
+                            {selectedUserId
+                              ? "No projects assigned to this employee"
+                              : "Please select an employee"}
+                          </div>
+                        )}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="category"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Category</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {CATEGORIES.map((c) => (
+                          <SelectItem key={c} value={c}>
+                            {c
+                              .replace(/_/g, " ")
+                              .replace(/\b\w/g, (l) => l.toUpperCase())}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
-            <FormField control={form.control} name="hours" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Hours</FormLabel>
-                <FormControl>
-                  <Input type="number" step="0.25" min="0.25" max="24" {...field} onChange={e => field.onChange(Number(e.target.value))} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <FormField
+              control={form.control}
+              name="hours"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Hours</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      step="0.25"
+                      min="0.25"
+                      max="24"
+                      {...field}
+                      onChange={(e) => field.onChange(Number(e.target.value))}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-            <FormField control={form.control} name="description" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Description (Optional)</FormLabel>
-                <FormControl>
-                  <Textarea rows={3} className="resize-none" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <FormField
+              control={form.control}
+              name="description"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Description (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea rows={3} className="resize-none" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="flex justify-end pt-4">
-              <Button type="button" variant="outline" onClick={() => setOpen(false)} className="mr-2">Cancel</Button>
-              <Button type="submit" disabled={submitting}>{submitting ? "Saving..." : "Save Log"}</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+                className="mr-2"
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={submitting}>
+                {submitting ? "Saving..." : "Save Log"}
+              </Button>
             </div>
           </form>
         </Form>

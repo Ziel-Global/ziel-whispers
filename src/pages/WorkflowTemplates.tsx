@@ -7,17 +7,38 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
-  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Pencil } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  GripVertical,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
+} from "lucide-react";
 
 type Template = {
   id: string;
@@ -65,7 +86,9 @@ const COLOR_OPTIONS = [
 export default function WorkflowTemplatesPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    null,
+  );
 
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
@@ -80,8 +103,12 @@ export default function WorkflowTemplatesPage() {
   const [statusInitial, setStatusInitial] = useState(false);
 
   const [deletingStatusId, setDeletingStatusId] = useState<string | null>(null);
-  const [confirmDelTemplateId, setConfirmDelTemplateId] = useState<string | null>(null);
-  const [confirmDelStatusId, setConfirmDelStatusId] = useState<string | null>(null);
+  const [confirmDelTemplateId, setConfirmDelTemplateId] = useState<
+    string | null
+  >(null);
+  const [confirmDelStatusId, setConfirmDelStatusId] = useState<string | null>(
+    null,
+  );
 
   const [rulesExpanded, setRulesExpanded] = useState(false);
   const [hoveredStatusId, setHoveredStatusId] = useState<string | null>(null);
@@ -91,7 +118,10 @@ export default function WorkflowTemplatesPage() {
   const { data: templates, isLoading } = useQuery({
     queryKey: ["workflow-templates"],
     queryFn: async () => {
-      const { data } = await supabase.from("workflow_templates").select("*").order("name");
+      const { data } = await supabase
+        .from("workflow_templates")
+        .select("*")
+        .order("name");
       return (data || []) as Template[];
     },
   });
@@ -99,7 +129,10 @@ export default function WorkflowTemplatesPage() {
   const { data: statusesMap } = useQuery({
     queryKey: ["workflow-statuses"],
     queryFn: async () => {
-      const { data } = await supabase.from("workflow_statuses").select("*").order("sort_order");
+      const { data } = await supabase
+        .from("workflow_statuses")
+        .select("*")
+        .order("sort_order");
       const map: Record<string, WorkflowStatus[]> = {};
       (data || []).forEach((s) => {
         const ws = s as WorkflowStatus;
@@ -124,9 +157,15 @@ export default function WorkflowTemplatesPage() {
     },
   });
 
-  const expandedStatuses = selectedTemplateId ? (statusesMap?.[selectedTemplateId] || []) : [];
-  const expandedTransitions = selectedTemplateId ? (transitionsMap?.[selectedTemplateId] || []) : [];
-  const selectedTemplate = (templates || []).find((t) => t.id === selectedTemplateId);
+  const expandedStatuses = selectedTemplateId
+    ? statusesMap?.[selectedTemplateId] || []
+    : [];
+  const expandedTransitions = selectedTemplateId
+    ? transitionsMap?.[selectedTemplateId] || []
+    : [];
+  const selectedTemplate = (templates || []).find(
+    (t) => t.id === selectedTemplateId,
+  );
 
   function getCategoryBg(category: string) {
     if (category === "in_progress") return "#F59E0B";
@@ -148,11 +187,17 @@ export default function WorkflowTemplatesPage() {
   }
 
   async function saveTemplate() {
-    if (!templateName.trim()) { toast.error("Name is required"); return; }
+    if (!templateName.trim()) {
+      toast.error("Name is required");
+      return;
+    }
     if (editTemplateId) {
       const { error } = await supabase
         .from("workflow_templates")
-        .update({ name: templateName.trim(), description: templateDesc.trim() || null })
+        .update({
+          name: templateName.trim(),
+          description: templateDesc.trim() || null,
+        })
         .eq("id", editTemplateId);
       if (error) {
         toast.error(`Could not save template: ${error.message}`);
@@ -161,7 +206,11 @@ export default function WorkflowTemplatesPage() {
     } else {
       const { data: newT, error } = await supabase
         .from("workflow_templates")
-        .insert({ name: templateName.trim(), description: templateDesc.trim() || null, created_by: profile?.id })
+        .insert({
+          name: templateName.trim(),
+          description: templateDesc.trim() || null,
+          created_by: profile?.id,
+        })
         .select("id")
         .single();
       if (error) {
@@ -194,8 +243,14 @@ export default function WorkflowTemplatesPage() {
   }
 
   async function renameTemplate() {
-    if (!renameValue.trim() || !selectedTemplateId) { toast.error("Name is required"); return; }
-    await supabase.from("workflow_templates").update({ name: renameValue.trim() }).eq("id", selectedTemplateId);
+    if (!renameValue.trim() || !selectedTemplateId) {
+      toast.error("Name is required");
+      return;
+    }
+    await supabase
+      .from("workflow_templates")
+      .update({ name: renameValue.trim() })
+      .eq("id", selectedTemplateId);
     queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
     setRenameDialogOpen(false);
     toast.success("Template renamed");
@@ -220,14 +275,33 @@ export default function WorkflowTemplatesPage() {
   }
 
   async function saveStatus() {
-    if (!statusName.trim() || !selectedTemplateId) { toast.error("Name is required"); return; }
-    const maxOrder = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
+    if (!statusName.trim() || !selectedTemplateId) {
+      toast.error("Name is required");
+      return;
+    }
+    const maxOrder = expandedStatuses.reduce(
+      (max, s) => Math.max(max, s.sort_order),
+      0,
+    );
     if (editStatusId) {
-      const update: Partial<WorkflowStatus> = { name: statusName.trim(), category: statusCategory, color: statusColor, is_initial: statusInitial };
-      await supabase.from("workflow_statuses").update(update).eq("id", editStatusId);
+      const update: Partial<WorkflowStatus> = {
+        name: statusName.trim(),
+        category: statusCategory,
+        color: statusColor,
+        is_initial: statusInitial,
+      };
+      await supabase
+        .from("workflow_statuses")
+        .update(update)
+        .eq("id", editStatusId);
     } else {
       await supabase.from("workflow_statuses").insert({
-        workflow_template_id: selectedTemplateId, name: statusName.trim(), category: statusCategory, color: statusColor, sort_order: maxOrder + 1, is_initial: statusInitial,
+        workflow_template_id: selectedTemplateId,
+        name: statusName.trim(),
+        category: statusCategory,
+        color: statusColor,
+        sort_order: maxOrder + 1,
+        is_initial: statusInitial,
       });
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-statuses"] });
@@ -246,17 +320,28 @@ export default function WorkflowTemplatesPage() {
 
   async function toggleTransition(fromId: string, toId: string) {
     if (!selectedTemplateId) return;
-    const existing = expandedTransitions.find((t) => t.from_status_id === fromId && t.to_status_id === toId);
+    const existing = expandedTransitions.find(
+      (t) => t.from_status_id === fromId && t.to_status_id === toId,
+    );
     if (existing) {
-      await supabase.from("workflow_transitions").delete().eq("id", existing.id);
+      await supabase
+        .from("workflow_transitions")
+        .delete()
+        .eq("id", existing.id);
     } else {
-      await supabase.from("workflow_transitions").insert({ workflow_template_id: selectedTemplateId, from_status_id: fromId, to_status_id: toId });
+      await supabase.from("workflow_transitions").insert({
+        workflow_template_id: selectedTemplateId,
+        from_status_id: fromId,
+        to_status_id: toId,
+      });
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-transitions"] });
   }
 
   function isTransitionConnected(fromId: string, toId: string) {
-    return expandedTransitions.some((t) => t.from_status_id === fromId && t.to_status_id === toId);
+    return expandedTransitions.some(
+      (t) => t.from_status_id === fromId && t.to_status_id === toId,
+    );
   }
 
   return (
@@ -264,12 +349,27 @@ export default function WorkflowTemplatesPage() {
       {/* Page Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#09090B" }}>Workflow Templates</h1>
-          <p style={{ fontSize: "14px", color: "#71717A", marginTop: "4px" }}>Create and manage reusable workflow templates with a cleaner, builder-focused layout.</p>
+          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#09090B" }}>
+            Workflow Templates
+          </h1>
+          <p style={{ fontSize: "14px", color: "#71717A", marginTop: "4px" }}>
+            Create and manage reusable workflow templates with a cleaner,
+            builder-focused layout.
+          </p>
         </div>
         <button
           onClick={openNewTemplate}
-          style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", height: "38px", cursor: "pointer", border: "none" }}
+          style={{
+            backgroundColor: "#EC6824",
+            color: "#fff",
+            fontWeight: 600,
+            fontSize: "14px",
+            padding: "8px 16px",
+            borderRadius: "8px",
+            height: "38px",
+            cursor: "pointer",
+            border: "none",
+          }}
         >
           New Template
         </button>
@@ -278,22 +378,47 @@ export default function WorkflowTemplatesPage() {
       {/* Template Selector */}
       <div className="flex items-center gap-4">
         <div className="relative" style={{ flex: 1, maxWidth: "360px" }}>
-          <div className="absolute left-3 top-1/2 -translate-y-1/2" style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#EC6824" }} />
+          <div
+            className="absolute left-3 top-1/2 -translate-y-1/2"
+            style={{
+              width: "8px",
+              height: "8px",
+              borderRadius: "50%",
+              backgroundColor: "#EC6824",
+            }}
+          />
           <Select
             value={selectedTemplateId || ""}
-            onValueChange={(v) => { setSelectedTemplateId(v); setRulesExpanded(false); setHoveredStatusId(null); }}
+            onValueChange={(v) => {
+              setSelectedTemplateId(v);
+              setRulesExpanded(false);
+              setHoveredStatusId(null);
+            }}
           >
-            <SelectTrigger style={{ paddingLeft: "28px", height: "42px", borderColor: "#E4E4E7", borderRadius: "8px", outline: "none", boxShadow: "none" }}>
+            <SelectTrigger
+              style={{
+                paddingLeft: "28px",
+                height: "42px",
+                borderColor: "#E4E4E7",
+                borderRadius: "8px",
+                outline: "none",
+                boxShadow: "none",
+              }}
+            >
               <SelectValue placeholder="Select a workflow template" />
             </SelectTrigger>
             <SelectContent>
               {(templates || []).map((t) => (
-                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-        <p style={{ fontSize: "13px", color: "#71717A" }}>Choose which workflow you want to edit</p>
+        <p style={{ fontSize: "13px", color: "#71717A" }}>
+          Choose which workflow you want to edit
+        </p>
       </div>
 
       {isLoading && (
@@ -305,24 +430,57 @@ export default function WorkflowTemplatesPage() {
 
       {/* Selected Template */}
       {selectedTemplate && !isLoading && (
-        <div style={{ border: "1px solid #E4E4E7", borderRadius: "12px", padding: "20px", backgroundColor: "#fff" }}>
+        <div
+          style={{
+            border: "1px solid #E4E4E7",
+            borderRadius: "12px",
+            padding: "20px",
+            backgroundColor: "#fff",
+          }}
+        >
           <div className="flex items-center justify-between">
             <div>
-              <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#09090B" }}>{selectedTemplate.name}</h2>
-              <p style={{ fontSize: "13px", color: "#71717A", marginTop: "4px" }}>
-                Workflow template &bull; Updated {new Date(selectedTemplate.created_at).toLocaleDateString()} &bull; {expandedStatuses.length} statuses
+              <h2
+                style={{ fontSize: "20px", fontWeight: 700, color: "#09090B" }}
+              >
+                {selectedTemplate.name}
+              </h2>
+              <p
+                style={{ fontSize: "13px", color: "#71717A", marginTop: "4px" }}
+              >
+                Workflow template &bull; Updated{" "}
+                {new Date(selectedTemplate.created_at).toLocaleDateString()}{" "}
+                &bull; {expandedStatuses.length} statuses
               </p>
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => { setRenameValue(selectedTemplate.name); setRenameDialogOpen(true); }}
-                style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
+                onClick={() => {
+                  setRenameValue(selectedTemplate.name);
+                  setRenameDialogOpen(true);
+                }}
+                style={{
+                  border: "1px solid #E4E4E7",
+                  borderRadius: "8px",
+                  padding: "6px 12px",
+                  fontSize: "13px",
+                  fontWeight: 500,
+                  color: "#3F3F46",
+                  backgroundColor: "#fff",
+                  cursor: "pointer",
+                }}
               >
                 Rename
               </button>
               <button
                 onClick={() => setConfirmDelTemplateId(selectedTemplate.id)}
-                style={{ backgroundColor: "#DC2626", borderRadius: "8px", padding: "6px 10px", cursor: "pointer", border: "none" }}
+                style={{
+                  backgroundColor: "#DC2626",
+                  borderRadius: "8px",
+                  padding: "6px 10px",
+                  cursor: "pointer",
+                  border: "none",
+                }}
               >
                 <Trash2 className="h-4 w-4 text-white" />
               </button>
@@ -334,36 +492,97 @@ export default function WorkflowTemplatesPage() {
             <div style={{ marginTop: "24px" }}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#09090B" }}>Workflow Path</h3>
-                  <span style={{ backgroundColor: "#16A34A", color: "#fff", fontSize: "11px", fontWeight: 600, padding: "2px 10px", borderRadius: "9999px" }}>Live preview</span>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: 600,
+                      color: "#09090B",
+                    }}
+                  >
+                    Workflow Path
+                  </h3>
+                  <span
+                    style={{
+                      backgroundColor: "#16A34A",
+                      color: "#fff",
+                      fontSize: "11px",
+                      fontWeight: 600,
+                      padding: "2px 10px",
+                      borderRadius: "9999px",
+                    }}
+                  >
+                    Live preview
+                  </span>
                 </div>
                 <button
                   onClick={openNewStatus}
-                  style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "13px", padding: "6px 14px", borderRadius: "8px", height: "36px", cursor: "pointer", border: "none" }}
+                  style={{
+                    backgroundColor: "#EC6824",
+                    color: "#fff",
+                    fontWeight: 600,
+                    fontSize: "13px",
+                    padding: "6px 14px",
+                    borderRadius: "8px",
+                    height: "36px",
+                    cursor: "pointer",
+                    border: "none",
+                  }}
                 >
                   Add Status
                 </button>
               </div>
-              <p style={{ fontSize: "13px", color: "#71717A", marginTop: "4px" }}>Keep the default path easy to follow. You can change the order anytime.</p>
+              <p
+                style={{ fontSize: "13px", color: "#71717A", marginTop: "4px" }}
+              >
+                Keep the default path easy to follow. You can change the order
+                anytime.
+              </p>
 
-              <div style={{ marginTop: "16px", border: "1px solid #E4E4E7", borderRadius: "12px", padding: "24px 20px", backgroundColor: "#FAFAFA", minHeight: "180px" }}>
-                <div style={{ fontSize: "12px", color: "#A1A1AA", marginBottom: "16px" }}>
-                  &mdash; &#8594; Transition &nbsp;|&nbsp; Hover a stage to focus only its incoming and outgoing transitions
+              <div
+                style={{
+                  marginTop: "16px",
+                  border: "1px solid #E4E4E7",
+                  borderRadius: "12px",
+                  padding: "24px 20px",
+                  backgroundColor: "#FAFAFA",
+                  minHeight: "180px",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#A1A1AA",
+                    marginBottom: "16px",
+                  }}
+                >
+                  &mdash; &#8594; Transition &nbsp;|&nbsp; Hover a stage to
+                  focus only its incoming and outgoing transitions
                 </div>
 
-                <div className="flex items-center" style={{ gap: "16px", overflowX: "auto", padding: "20px 0" }}>
+                <div
+                  className="flex items-center"
+                  style={{ gap: "16px", overflowX: "auto", padding: "20px 0" }}
+                >
                   {expandedStatuses.map((s, idx) => {
                     const isHovered = hoveredStatusId === s.id;
                     const isConnected = hoveredStatusId
-                      ? expandedTransitions.some((t) =>
-                        (t.from_status_id === hoveredStatusId && t.to_status_id === s.id) ||
-                        (t.to_status_id === hoveredStatusId && t.from_status_id === s.id)
-                      )
+                      ? expandedTransitions.some(
+                          (t) =>
+                            (t.from_status_id === hoveredStatusId &&
+                              t.to_status_id === s.id) ||
+                            (t.to_status_id === hoveredStatusId &&
+                              t.from_status_id === s.id),
+                        )
                       : false;
-                    const shouldDim = hoveredStatusId !== null && !isHovered && !isConnected;
+                    const shouldDim =
+                      hoveredStatusId !== null && !isHovered && !isConnected;
 
                     return (
-                      <div key={s.id} className="flex items-center" style={{ gap: "16px" }}>
+                      <div
+                        key={s.id}
+                        className="flex items-center"
+                        style={{ gap: "16px" }}
+                      >
                         <div
                           onMouseEnter={() => setHoveredStatusId(s.id)}
                           onMouseLeave={() => setHoveredStatusId(null)}
@@ -379,22 +598,76 @@ export default function WorkflowTemplatesPage() {
                             flexShrink: 0,
                           }}
                         >
-                          <div className="flex items-center gap-2" style={{ marginBottom: "8px" }}>
-                            <span style={{
-                              width: "28px", height: "28px", borderRadius: "50%",
-                              backgroundColor: getCategoryBg(s.category), color: "#fff",
-                              display: "flex", alignItems: "center", justifyContent: "center",
-                              fontSize: "13px", fontWeight: 700, flexShrink: 0,
-                            }}>{idx + 1}</span>
-                            <span style={{ fontSize: "11px", color: getCategoryBg(s.category), fontWeight: 500 }}>{getCategoryLabel(s.category)}</span>
+                          <div
+                            className="flex items-center gap-2"
+                            style={{ marginBottom: "8px" }}
+                          >
+                            <span
+                              style={{
+                                width: "28px",
+                                height: "28px",
+                                borderRadius: "50%",
+                                backgroundColor: getCategoryBg(s.category),
+                                color: "#fff",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "13px",
+                                fontWeight: 700,
+                                flexShrink: 0,
+                              }}
+                            >
+                              {idx + 1}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: "11px",
+                                color: getCategoryBg(s.category),
+                                fontWeight: 500,
+                              }}
+                            >
+                              {getCategoryLabel(s.category)}
+                            </span>
                           </div>
-                          <div style={{ fontSize: "14px", fontWeight: 600, color: "#09090B" }}>{s.name}</div>
-                          <div style={{ fontSize: "11px", color: "#A1A1AA", marginTop: "4px" }}>Stage</div>
+                          <div
+                            style={{
+                              fontSize: "14px",
+                              fontWeight: 600,
+                              color: "#09090B",
+                            }}
+                          >
+                            {s.name}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "#A1A1AA",
+                              marginTop: "4px",
+                            }}
+                          >
+                            Stage
+                          </div>
                         </div>
                         {idx < expandedStatuses.length - 1 && (
-                          <div style={{ display: "flex", alignItems: "center", minWidth: "48px", flexShrink: 0 }}>
-                            <div style={{ flex: 1, borderTop: "2px dashed #D4D4D8" }} />
-                            <span style={{ color: "#A1A1AA", fontSize: "16px" }}>&#8594;</span>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              minWidth: "48px",
+                              flexShrink: 0,
+                            }}
+                          >
+                            <div
+                              style={{
+                                flex: 1,
+                                borderTop: "2px dashed #D4D4D8",
+                              }}
+                            />
+                            <span
+                              style={{ color: "#A1A1AA", fontSize: "16px" }}
+                            >
+                              &#8594;
+                            </span>
                           </div>
                         )}
                       </div>
@@ -408,11 +681,42 @@ export default function WorkflowTemplatesPage() {
           {/* Statuses Table */}
           {expandedStatuses.length > 0 && (
             <div style={{ marginTop: "24px" }}>
-              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#09090B" }}>Statuses</h3>
-              <p style={{ fontSize: "13px", color: "#71717A", marginTop: "4px", marginBottom: "16px" }}>Manage the workflow statuses in one simple list.</p>
+              <h3
+                style={{ fontSize: "16px", fontWeight: 600, color: "#09090B" }}
+              >
+                Statuses
+              </h3>
+              <p
+                style={{
+                  fontSize: "13px",
+                  color: "#71717A",
+                  marginTop: "4px",
+                  marginBottom: "16px",
+                }}
+              >
+                Manage the workflow statuses in one simple list.
+              </p>
 
-              <div style={{ border: "1px solid #E4E4E7", borderRadius: "12px", overflow: "hidden" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "40px 1fr 140px 80px 60px 100px", padding: "10px 16px", backgroundColor: "#F9FAFB", borderBottom: "1px solid #E4E4E7", fontSize: "12px", fontWeight: 600, color: "#71717A", letterSpacing: "0.05em" }}>
+              <div
+                style={{
+                  border: "1px solid #E4E4E7",
+                  borderRadius: "12px",
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "40px 1fr 140px 80px 60px 100px",
+                    padding: "10px 16px",
+                    backgroundColor: "#F9FAFB",
+                    borderBottom: "1px solid #E4E4E7",
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    color: "#71717A",
+                    letterSpacing: "0.05em",
+                  }}
+                >
                   <span></span>
                   <span>STATUS</span>
                   <span>SYSTEM STATE</span>
@@ -421,25 +725,92 @@ export default function WorkflowTemplatesPage() {
                   <span>ACTIONS</span>
                 </div>
                 {expandedStatuses.map((s) => (
-                  <div key={s.id} style={{ display: "grid", gridTemplateColumns: "40px 1fr 140px 80px 60px 100px", padding: "12px 16px", borderBottom: "1px solid #F4F4F5", alignItems: "center" }}>
-                    <span style={{ color: "#A1A1AA", cursor: "grab" }}><GripVertical className="h-4 w-4" /></span>
+                  <div
+                    key={s.id}
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "40px 1fr 140px 80px 60px 100px",
+                      padding: "12px 16px",
+                      borderBottom: "1px solid #F4F4F5",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span style={{ color: "#A1A1AA", cursor: "grab" }}>
+                      <GripVertical className="h-4 w-4" />
+                    </span>
                     <div className="flex items-center gap-2">
-                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: getCategoryBg(s.category), display: "inline-block", flexShrink: 0 }} />
-                      <span style={{ fontSize: "14px", fontWeight: 600, color: "#09090B" }}>{s.name}</span>
+                      <span
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          backgroundColor: getCategoryBg(s.category),
+                          display: "inline-block",
+                          flexShrink: 0,
+                        }}
+                      />
+                      <span
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 600,
+                          color: "#09090B",
+                        }}
+                      >
+                        {s.name}
+                      </span>
                     </div>
-                    <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: "9999px", fontSize: "12px", fontWeight: 500, color: "#fff", backgroundColor: getCategoryBg(s.category), width: "fit-content" }}>
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "2px 10px",
+                        borderRadius: "9999px",
+                        fontSize: "12px",
+                        fontWeight: 500,
+                        color: "#fff",
+                        backgroundColor: getCategoryBg(s.category),
+                        width: "fit-content",
+                      }}
+                    >
                       {getCategoryLabel(s.category)}
                     </span>
-                    <span style={{ fontSize: "13px", fontWeight: 600, color: s.is_initial ? "#16A34A" : "#A1A1AA" }}>{s.is_initial ? "Yes" : "No"}</span>
-                    <span style={{ fontSize: "13px", color: "#71717A" }}>{s.sort_order}</span>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: s.is_initial ? "#16A34A" : "#A1A1AA",
+                      }}
+                    >
+                      {s.is_initial ? "Yes" : "No"}
+                    </span>
+                    <span style={{ fontSize: "13px", color: "#71717A" }}>
+                      {s.sort_order}
+                    </span>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => openEditStatus(s)} style={{ color: "#3B82F6", fontSize: "13px", fontWeight: 500, cursor: "pointer", background: "none", border: "none", padding: 0 }}>
+                      <button
+                        onClick={() => openEditStatus(s)}
+                        style={{
+                          color: "#3B82F6",
+                          fontSize: "13px",
+                          fontWeight: 500,
+                          cursor: "pointer",
+                          background: "none",
+                          border: "none",
+                          padding: 0,
+                        }}
+                      >
                         Edit
                       </button>
                       <button
                         onClick={() => setConfirmDelStatusId(s.id)}
                         disabled={deletingStatusId === s.id}
-                        style={{ backgroundColor: "#DC2626", borderRadius: "6px", padding: "4px 6px", cursor: "pointer", border: "none", opacity: deletingStatusId === s.id ? 0.5 : 1 }}
+                        style={{
+                          backgroundColor: "#DC2626",
+                          borderRadius: "6px",
+                          padding: "4px 6px",
+                          cursor: "pointer",
+                          border: "none",
+                          opacity: deletingStatusId === s.id ? 0.5 : 1,
+                        }}
                         title="Delete status"
                       >
                         <Trash2 className="h-3.5 w-3.5 text-white" />
@@ -453,29 +824,102 @@ export default function WorkflowTemplatesPage() {
 
           {/* Advanced Transition Rules */}
           {expandedStatuses.length > 1 && (
-            <div style={{ marginTop: "24px", border: "1px solid #E4E4E7", borderRadius: "12px", overflow: "hidden" }}>
+            <div
+              style={{
+                marginTop: "24px",
+                border: "1px solid #E4E4E7",
+                borderRadius: "12px",
+                overflow: "hidden",
+              }}
+            >
               <button
                 onClick={() => setRulesExpanded(!rulesExpanded)}
                 className="flex items-center justify-between w-full"
-                style={{ padding: "16px 20px", backgroundColor: "#fff", border: "none", cursor: "pointer", textAlign: "left" }}
+                style={{
+                  padding: "16px 20px",
+                  backgroundColor: "#fff",
+                  border: "none",
+                  cursor: "pointer",
+                  textAlign: "left",
+                }}
               >
                 <div>
-                  <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#09090B" }}>Advanced Transition Rules</h3>
-                  <p style={{ fontSize: "13px", color: "#71717A", marginTop: "2px" }}>Open only when you need custom movement rules between statuses.</p>
+                  <h3
+                    style={{
+                      fontSize: "16px",
+                      fontWeight: 600,
+                      color: "#09090B",
+                    }}
+                  >
+                    Advanced Transition Rules
+                  </h3>
+                  <p
+                    style={{
+                      fontSize: "13px",
+                      color: "#71717A",
+                      marginTop: "2px",
+                    }}
+                  >
+                    Open only when you need custom movement rules between
+                    statuses.
+                  </p>
                 </div>
-                {rulesExpanded ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
+                {rulesExpanded ? (
+                  <ChevronUp className="h-5 w-5 text-gray-400" />
+                ) : (
+                  <ChevronDown className="h-5 w-5 text-gray-400" />
+                )}
               </button>
 
               {rulesExpanded && (
                 <div style={{ padding: "0 20px 20px" }}>
                   <div style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                    <table
+                      style={{
+                        width: "100%",
+                        borderCollapse: "collapse",
+                        fontSize: "13px",
+                      }}
+                    >
                       <thead>
                         <tr>
-                          <th style={{ padding: "10px 12px", border: "1px solid #E4E4E7", textAlign: "left", fontWeight: 500, color: "#71717A", backgroundColor: "#F9FAFB" }}>From / To &rarr;</th>
+                          <th
+                            style={{
+                              padding: "10px 12px",
+                              border: "1px solid #E4E4E7",
+                              textAlign: "left",
+                              fontWeight: 500,
+                              color: "#71717A",
+                              backgroundColor: "#F9FAFB",
+                            }}
+                          >
+                            From / To &rarr;
+                          </th>
                           {expandedStatuses.map((s) => (
-                            <th key={s.id} style={{ padding: "10px 12px", border: "1px solid #E4E4E7", textAlign: "center", fontWeight: 500, color: "#71717A", backgroundColor: "#F9FAFB" }}>
-                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "9999px", fontSize: "11px", fontWeight: 500, color: "#fff", backgroundColor: getCategoryBg(s.category) }}>{s.name}</span>
+                            <th
+                              key={s.id}
+                              style={{
+                                padding: "10px 12px",
+                                border: "1px solid #E4E4E7",
+                                textAlign: "center",
+                                fontWeight: 500,
+                                color: "#71717A",
+                                backgroundColor: "#F9FAFB",
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  padding: "2px 8px",
+                                  borderRadius: "9999px",
+                                  fontSize: "11px",
+                                  fontWeight: 500,
+                                  color: "#fff",
+                                  backgroundColor: getCategoryBg(s.category),
+                                }}
+                              >
+                                {s.name}
+                              </span>
                             </th>
                           ))}
                         </tr>
@@ -483,19 +927,56 @@ export default function WorkflowTemplatesPage() {
                       <tbody>
                         {expandedStatuses.map((from) => (
                           <tr key={from.id}>
-                            <td style={{ padding: "10px 12px", border: "1px solid #E4E4E7", fontWeight: 500 }}>
-                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "9999px", fontSize: "11px", fontWeight: 500, color: "#fff", backgroundColor: getCategoryBg(from.category) }}>{from.name}</span>
+                            <td
+                              style={{
+                                padding: "10px 12px",
+                                border: "1px solid #E4E4E7",
+                                fontWeight: 500,
+                              }}
+                            >
+                              <span
+                                style={{
+                                  display: "inline-block",
+                                  padding: "2px 8px",
+                                  borderRadius: "9999px",
+                                  fontSize: "11px",
+                                  fontWeight: 500,
+                                  color: "#fff",
+                                  backgroundColor: getCategoryBg(from.category),
+                                }}
+                              >
+                                {from.name}
+                              </span>
                             </td>
                             {expandedStatuses.map((to) => (
-                              <td key={to.id} style={{ padding: "10px 12px", border: "1px solid #E4E4E7", textAlign: "center" }}>
+                              <td
+                                key={to.id}
+                                style={{
+                                  padding: "10px 12px",
+                                  border: "1px solid #E4E4E7",
+                                  textAlign: "center",
+                                }}
+                              >
                                 {from.id === to.id ? (
-                                  <span style={{ color: "#D4D4D8" }}>&mdash;</span>
+                                  <span style={{ color: "#D4D4D8" }}>
+                                    &mdash;
+                                  </span>
                                 ) : (
                                   <input
                                     type="checkbox"
-                                    checked={isTransitionConnected(from.id, to.id)}
-                                    onChange={() => toggleTransition(from.id, to.id)}
-                                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#EC6824" }}
+                                    checked={isTransitionConnected(
+                                      from.id,
+                                      to.id,
+                                    )}
+                                    onChange={() =>
+                                      toggleTransition(from.id, to.id)
+                                    }
+                                    style={{
+                                      width: "16px",
+                                      height: "16px",
+                                      cursor: "pointer",
+                                      accentColor: "#EC6824",
+                                    }}
                                   />
                                 )}
                               </td>
@@ -513,18 +994,57 @@ export default function WorkflowTemplatesPage() {
       )}
 
       {/* Sticky Footer */}
-      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTop: "1px solid #E4E4E7", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 50 }}>
-        <p style={{ fontSize: "13px", color: "#71717A" }}>The layout is tightened so the page feels more compact and builder-focused.</p>
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          backgroundColor: "#fff",
+          borderTop: "1px solid #E4E4E7",
+          padding: "16px 24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          zIndex: 50,
+        }}
+      >
+        <p style={{ fontSize: "13px", color: "#71717A" }}>
+          The layout is tightened so the page feels more compact and
+          builder-focused.
+        </p>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => { setSelectedTemplateId(null); setRulesExpanded(false); setHoveredStatusId(null); }}
-            style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
+            onClick={() => {
+              setSelectedTemplateId(null);
+              setRulesExpanded(false);
+              setHoveredStatusId(null);
+            }}
+            style={{
+              border: "1px solid #E4E4E7",
+              borderRadius: "8px",
+              padding: "8px 16px",
+              fontSize: "14px",
+              fontWeight: 500,
+              color: "#3F3F46",
+              backgroundColor: "#fff",
+              cursor: "pointer",
+            }}
           >
             Cancel
           </button>
           <button
             onClick={() => toast.success("Changes saved")}
-            style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
+            style={{
+              backgroundColor: "#EC6824",
+              color: "#fff",
+              fontWeight: 600,
+              fontSize: "14px",
+              padding: "8px 16px",
+              borderRadius: "8px",
+              cursor: "pointer",
+              border: "none",
+            }}
           >
             Save Changes
           </button>
@@ -534,26 +1054,60 @@ export default function WorkflowTemplatesPage() {
       {/* Template Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editTemplateId ? "Edit Template" : "New Template"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              {editTemplateId ? "Edit Template" : "New Template"}
+            </DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Name</Label>
-              <Input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="e.g. Standard" />
+              <Input
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="e.g. Standard"
+              />
             </div>
             <div>
               <Label>Description</Label>
-              <Textarea value={templateDesc} onChange={(e) => setTemplateDesc(e.target.value)} placeholder="Optional description" />
+              <Textarea
+                value={templateDesc}
+                onChange={(e) => setTemplateDesc(e.target.value)}
+                placeholder="Optional description"
+              />
             </div>
           </div>
           <DialogFooter>
             <button
               onClick={() => setTemplateDialogOpen(false)}
-              style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
-            >Cancel</button>
+              style={{
+                border: "1px solid #E4E4E7",
+                borderRadius: "8px",
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                color: "#3F3F46",
+                backgroundColor: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
             <button
               onClick={saveTemplate}
-              style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
-            >Save</button>
+              style={{
+                backgroundColor: "#EC6824",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "14px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                border: "none",
+              }}
+            >
+              Save
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -561,20 +1115,48 @@ export default function WorkflowTemplatesPage() {
       {/* Rename Dialog */}
       <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Rename Template</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Rename Template</DialogTitle>
+          </DialogHeader>
           <div>
             <Label>Name</Label>
-            <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Template name" />
+            <Input
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              placeholder="Template name"
+            />
           </div>
           <DialogFooter>
             <button
               onClick={() => setRenameDialogOpen(false)}
-              style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
-            >Cancel</button>
+              style={{
+                border: "1px solid #E4E4E7",
+                borderRadius: "8px",
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                color: "#3F3F46",
+                backgroundColor: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
             <button
               onClick={renameTemplate}
-              style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
-            >Save</button>
+              style={{
+                backgroundColor: "#EC6824",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "14px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                border: "none",
+              }}
+            >
+              Save
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -582,19 +1164,31 @@ export default function WorkflowTemplatesPage() {
       {/* Status Dialog */}
       <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>{editStatusId ? "Edit Status" : "New Status"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>
+              {editStatusId ? "Edit Status" : "New Status"}
+            </DialogTitle>
+          </DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Name</Label>
-              <Input value={statusName} onChange={(e) => setStatusName(e.target.value)} placeholder="e.g. in_review" />
+              <Input
+                value={statusName}
+                onChange={(e) => setStatusName(e.target.value)}
+                placeholder="e.g. in_review"
+              />
             </div>
             <div>
               <Label>Category</Label>
               <Select value={statusCategory} onValueChange={setStatusCategory}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {CATEGORY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -602,71 +1196,130 @@ export default function WorkflowTemplatesPage() {
             <div>
               <Label>Color</Label>
               <Select value={statusColor} onValueChange={setStatusColor}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   {COLOR_OPTIONS.map((o) => (
                     <SelectItem key={o.value} value={o.value}>
-                      <span className={`inline-block w-3 h-3 rounded-full mr-2 align-middle ${o.value.split(" ")[0]}`} />
+                      <span
+                        className={`inline-block w-3 h-3 rounded-full mr-2 align-middle ${o.value.split(" ")[0]}`}
+                      />
                       {o.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
               <div className="mt-2">
-                <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${statusColor}`}>Preview</span>
+                <span
+                  className={`inline-block px-3 py-1 rounded text-sm font-medium ${statusColor}`}
+                >
+                  Preview
+                </span>
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" checked={statusInitial} onChange={(e) => setStatusInitial(e.target.checked)} style={{ accentColor: "#EC6824" }} />
-              <Label className="cursor-pointer">Initial status (default for new tasks)</Label>
+              <input
+                type="checkbox"
+                checked={statusInitial}
+                onChange={(e) => setStatusInitial(e.target.checked)}
+                style={{ accentColor: "#EC6824" }}
+              />
+              <Label className="cursor-pointer">
+                Initial status (default for new tasks)
+              </Label>
             </div>
           </div>
           <DialogFooter>
             <button
               onClick={() => setStatusDialogOpen(false)}
-              style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
-            >Cancel</button>
+              style={{
+                border: "1px solid #E4E4E7",
+                borderRadius: "8px",
+                padding: "8px 16px",
+                fontSize: "14px",
+                fontWeight: 500,
+                color: "#3F3F46",
+                backgroundColor: "#fff",
+                cursor: "pointer",
+              }}
+            >
+              Cancel
+            </button>
             <button
               onClick={saveStatus}
-              style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
-            >Save</button>
+              style={{
+                backgroundColor: "#EC6824",
+                color: "#fff",
+                fontWeight: 600,
+                fontSize: "14px",
+                padding: "8px 16px",
+                borderRadius: "8px",
+                cursor: "pointer",
+                border: "none",
+              }}
+            >
+              Save
+            </button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Delete Template Confirmation */}
-      <AlertDialog open={!!confirmDelTemplateId} onOpenChange={(open) => !open && setConfirmDelTemplateId(null)}>
+      <AlertDialog
+        open={!!confirmDelTemplateId}
+        onOpenChange={(open) => !open && setConfirmDelTemplateId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete workflow template?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete this template and all its statuses and transitions. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This will permanently delete this template and all its statuses
+              and transitions. This cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmDelTemplateId) deleteTemplate(confirmDelTemplateId); setConfirmDelTemplateId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmDelTemplateId) deleteTemplate(confirmDelTemplateId);
+                setConfirmDelTemplateId(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       {/* Delete Status Confirmation */}
-      <AlertDialog open={!!confirmDelStatusId} onOpenChange={(open) => !open && setConfirmDelStatusId(null)}>
+      <AlertDialog
+        open={!!confirmDelStatusId}
+        onOpenChange={(open) => !open && setConfirmDelStatusId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete status?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete this status and all its transitions. Tasks using this status may need to be updated.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This will permanently delete this status and all its transitions.
+              Tasks using this status may need to be updated.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmDelStatusId) deleteStatus(confirmDelStatusId); setConfirmDelStatusId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmDelStatusId) deleteStatus(confirmDelStatusId);
+                setConfirmDelStatusId(null);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
     </div>
-  );
-}
-          </AlertDialogFooter >
-        </AlertDialogContent >
-      </AlertDialog >
-    </div >
   );
 }

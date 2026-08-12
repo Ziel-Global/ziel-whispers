@@ -8,12 +8,42 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { getAvatarUrl } from "@/lib/utils";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Download, Search, Shield, FileText, MoreHorizontal, Eye } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Download,
+  Search,
+  Shield,
+  FileText,
+  MoreHorizontal,
+  Eye,
+} from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 
 const ACTION_LABELS: Record<string, string> = {
@@ -36,7 +66,7 @@ const ACTION_LABELS: Record<string, string> = {
   "log.locked": "Log Locked",
   "attendance.clocked_in": "Clocked In",
   "attendance.clocked_out": "Clocked Out",
-  "attendance.clock_in": "Clocked In",   // legacy key alias
+  "attendance.clock_in": "Clocked In", // legacy key alias
   "attendance.clock_out": "Clocked Out", // legacy key alias
   "attendance.edited": "Attendance Edited",
   "leave.requested": "Leave Requested",
@@ -59,10 +89,13 @@ const ACTION_LABELS: Record<string, string> = {
   "wfh.deleted": "Work From Home Deleted",
 };
 
-const formatMetadata = (metadata: any, userMap?: Record<string, string>): string => {
+const formatMetadata = (
+  metadata: any,
+  userMap?: Record<string, string>,
+): string => {
   if (!metadata) return "—";
   if (typeof metadata === "string") return metadata;
-  
+
   const resolveValue = (val: any) => {
     if (typeof val === "string" && userMap && userMap[val]) return userMap[val];
     return typeof val === "object" ? JSON.stringify(val) : String(val);
@@ -75,13 +108,15 @@ const formatMetadata = (metadata: any, userMap?: Record<string, string>): string
   if (typeof metadata === "object") {
     return Object.entries(metadata)
       .map(([key, value]) => {
-        const formattedKey = key.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+        const formattedKey = key
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (l) => l.toUpperCase());
         const formattedValue = resolveValue(value);
         return `${formattedKey}: ${formattedValue}`;
       })
       .join(" | ");
   }
-  
+
   return JSON.stringify(metadata);
 };
 
@@ -99,7 +134,7 @@ export default function AuditLogPage() {
     queryFn: async () => {
       const { data } = await supabase.from("users").select("id, full_name");
       const map: Record<string, string> = {};
-      data?.forEach(u => map[u.id] = u.full_name);
+      data?.forEach((u) => (map[u.id] = u.full_name));
       return map;
     },
   });
@@ -109,14 +144,19 @@ export default function AuditLogPage() {
     queryFn: async () => {
       let q = supabase
         .from("audit_logs")
-        .select("*, users:actor_id(full_name, avatar_url, designation, department, role)")
+        .select(
+          "*, users:actor_id(full_name, avatar_url, designation, department, role)",
+        )
         .order("created_at", { ascending: false });
 
       if (actionFilter !== "all") {
         q = q.eq("action", actionFilter);
       }
 
-      const { data, error } = await q.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      const { data, error } = await q.range(
+        page * PAGE_SIZE,
+        (page + 1) * PAGE_SIZE - 1,
+      );
       if (error) throw error;
       return data || [];
     },
@@ -128,7 +168,12 @@ export default function AuditLogPage() {
       const q = search.toLowerCase();
       const actorName = ((l as any).users?.full_name || "System").toLowerCase();
       const actionLabel = (ACTION_LABELS[l.action] || l.action).toLowerCase();
-      return !q || actorName.includes(q) || actionLabel.includes(q) || l.action.includes(q);
+      return (
+        !q ||
+        actorName.includes(q) ||
+        actionLabel.includes(q) ||
+        l.action.includes(q)
+      );
     });
   }, [logs, search]);
 
@@ -146,9 +191,19 @@ export default function AuditLogPage() {
     }));
     if (!rows.length) return;
     const keys = Object.keys(rows[0]);
-    const csv = [keys.join(","), ...rows.map((r) => keys.map((k) => `"${String((r as any)[k]).replace(/"/g, '""')}"`).join(","))].join("\n");
+    const csv = [
+      keys.join(","),
+      ...rows.map((r) =>
+        keys
+          .map((k) => `"${String((r as any)[k]).replace(/"/g, '""')}"`)
+          .join(","),
+      ),
+    ].join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
-    const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "audit-logs.csv"; a.click();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "audit-logs.csv";
+    a.click();
   };
 
   return (
@@ -156,23 +211,37 @@ export default function AuditLogPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Audit Log</h1>
-          <p className="text-muted-foreground mt-1">Immutable record of all system events</p>
+          <p className="text-muted-foreground mt-1">
+            Immutable record of all system events
+          </p>
         </div>
         <Button variant="outline" size="sm" onClick={exportCSV}>
-          <Download className="h-4 w-4 mr-1" />Export CSV
+          <Download className="h-4 w-4 mr-1" />
+          Export CSV
         </Button>
       </div>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search by actor or action…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input
+            placeholder="Search by actor or action…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
         </div>
         <Select value={actionFilter} onValueChange={setActionFilter}>
-          <SelectTrigger className="w-[200px]"><SelectValue placeholder="All Actions" /></SelectTrigger>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="All Actions" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Actions</SelectItem>
-            {actionTypes.map((a) => <SelectItem key={a} value={a}>{ACTION_LABELS[a] || a}</SelectItem>)}
+            {actionTypes.map((a) => (
+              <SelectItem key={a} value={a}>
+                {ACTION_LABELS[a] || a}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -194,7 +263,9 @@ export default function AuditLogPage() {
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
                   {Array.from({ length: 6 }).map((_, j) => (
-                    <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>
+                    <TableCell key={j}>
+                      <Skeleton className="h-4 w-full" />
+                    </TableCell>
                   ))}
                 </TableRow>
               ))
@@ -203,7 +274,9 @@ export default function AuditLogPage() {
                 <TableCell colSpan={6} className="text-center py-12">
                   <Shield className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
                   <p className="font-medium">No audit logs found</p>
-                  <p className="text-sm text-muted-foreground">System events will appear here</p>
+                  <p className="text-sm text-muted-foreground">
+                    System events will appear here
+                  </p>
                 </TableCell>
               </TableRow>
             ) : (
@@ -211,15 +284,23 @@ export default function AuditLogPage() {
                 <TableRow key={l.id}>
                   <TableCell className="text-sm whitespace-nowrap">
                     <div>{format(new Date(l.created_at), "MMM d, yyyy")}</div>
-                    <div className="text-xs text-muted-foreground">{format(new Date(l.created_at), "h:mm:ss a")}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {format(new Date(l.created_at), "h:mm:ss a")}
+                    </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Avatar className="h-6 w-6">
-                        <AvatarImage src={getAvatarUrl((l as any).users?.avatar_url)} />
-                        <AvatarFallback className="text-[10px]">{((l as any).users?.full_name || "S")[0]}</AvatarFallback>
+                        <AvatarImage
+                          src={getAvatarUrl((l as any).users?.avatar_url)}
+                        />
+                        <AvatarFallback className="text-[10px]">
+                          {((l as any).users?.full_name || "S")[0]}
+                        </AvatarFallback>
                       </Avatar>
-                      <span className="text-sm font-medium">{(l as any).users?.full_name || "System"}</span>
+                      <span className="text-sm font-medium">
+                        {(l as any).users?.full_name || "System"}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -227,8 +308,13 @@ export default function AuditLogPage() {
                       {ACTION_LABELS[l.action] || l.action}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{l.target_entity || "—"}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate" title={formatMetadata(l.metadata, userNamesMap)}>
+                  <TableCell className="text-sm text-muted-foreground">
+                    {l.target_entity || "—"}
+                  </TableCell>
+                  <TableCell
+                    className="text-xs text-muted-foreground max-w-[200px] truncate"
+                    title={formatMetadata(l.metadata, userNamesMap)}
+                  >
                     {formatMetadata(l.metadata, userNamesMap)}
                   </TableCell>
                   <TableCell className="text-right">
@@ -253,73 +339,139 @@ export default function AuditLogPage() {
       </Card>
 
       <div className="flex justify-center gap-2">
-        {page > 0 && <Button variant="outline" size="sm" onClick={() => setPage(page - 1)}>Previous</Button>}
-        {logs && logs.length === PAGE_SIZE && <Button variant="outline" size="sm" onClick={() => setPage(page + 1)}>Next</Button>}
+        {page > 0 && (
+          <Button variant="outline" size="sm" onClick={() => setPage(page - 1)}>
+            Previous
+          </Button>
+        )}
+        {logs && logs.length === PAGE_SIZE && (
+          <Button variant="outline" size="sm" onClick={() => setPage(page + 1)}>
+            Next
+          </Button>
+        )}
       </div>
 
-      <Dialog open={!!selectedLog} onOpenChange={(open) => !open && setSelectedLog(null)}>
+      <Dialog
+        open={!!selectedLog}
+        onOpenChange={(open) => !open && setSelectedLog(null)}
+      >
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Audit Log Details</DialogTitle>
           </DialogHeader>
           <div className="py-4 space-y-6">
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">Actor Information</h3>
+              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">
+                Actor Information
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Full Name</p>
-                  <p className="text-sm">{selectedLog?.users?.full_name || "System"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Full Name
+                  </p>
+                  <p className="text-sm">
+                    {selectedLog?.users?.full_name || "System"}
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Designation</p>
-                  <p className="text-sm">{selectedLog?.users?.designation || "—"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Designation
+                  </p>
+                  <p className="text-sm">
+                    {selectedLog?.users?.designation || "—"}
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Department</p>
-                  <p className="text-sm">{selectedLog?.users?.department || "—"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Department
+                  </p>
+                  <p className="text-sm">
+                    {selectedLog?.users?.department || "—"}
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Role</p>
-                  <Badge variant="outline" className="capitalize text-[10px] h-5">{selectedLog?.users?.role || "—"}</Badge>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Role
+                  </p>
+                  <Badge
+                    variant="outline"
+                    className="capitalize text-[10px] h-5"
+                  >
+                    {selectedLog?.users?.role || "—"}
+                  </Badge>
                 </div>
               </div>
             </div>
 
             <div className="space-y-4">
-              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">Action Details</h3>
+              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">
+                Action Details
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Action Type</p>
-                  <p className="text-sm">{selectedLog ? ACTION_LABELS[selectedLog.action] || selectedLog.action : "—"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Action Type
+                  </p>
+                  <p className="text-sm">
+                    {selectedLog
+                      ? ACTION_LABELS[selectedLog.action] || selectedLog.action
+                      : "—"}
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Target Entity</p>
-                  <p className="text-sm font-mono">{selectedLog?.target_entity || "—"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Target Entity
+                  </p>
+                  <p className="text-sm font-mono">
+                    {selectedLog?.target_entity || "—"}
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Target ID</p>
-                  <p className="text-sm font-mono text-muted-foreground truncate" title={selectedLog?.target_id}>{selectedLog?.target_id || "—"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Target ID
+                  </p>
+                  <p
+                    className="text-sm font-mono text-muted-foreground truncate"
+                    title={selectedLog?.target_id}
+                  >
+                    {selectedLog?.target_id || "—"}
+                  </p>
                 </div>
                 <div className="space-y-1">
-                  <p className="text-xs font-medium text-muted-foreground">Timestamp</p>
-                  <p className="text-sm">{selectedLog ? format(new Date(selectedLog.created_at), "PPpp") : "—"}</p>
+                  <p className="text-xs font-medium text-muted-foreground">
+                    Timestamp
+                  </p>
+                  <p className="text-sm">
+                    {selectedLog
+                      ? format(new Date(selectedLog.created_at), "PPpp")
+                      : "—"}
+                  </p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">Metadata Detail</h3>
+              <h3 className="text-sm font-semibold border-b pb-2 uppercase tracking-wider text-muted-foreground">
+                Metadata Detail
+              </h3>
               {selectedLog?.metadata ? (
                 <div className="bg-muted p-4 rounded-md overflow-auto text-xs max-h-[250px] border">
                   <pre className="whitespace-pre-wrap font-mono">
-                    {JSON.stringify(selectedLog.metadata, (key, value) => {
-                      if (userNamesMap && userNamesMap[value]) return `${userNamesMap[value]} (${value})`;
-                      return value;
-                    }, 2)}
+                    {JSON.stringify(
+                      selectedLog.metadata,
+                      (key, value) => {
+                        if (userNamesMap && userNamesMap[value])
+                          return `${userNamesMap[value]} (${value})`;
+                        return value;
+                      },
+                      2,
+                    )}
                   </pre>
                 </div>
               ) : (
-                <p className="text-xs text-muted-foreground italic">No additional metadata available.</p>
+                <p className="text-xs text-muted-foreground italic">
+                  No additional metadata available.
+                </p>
               )}
             </div>
           </div>

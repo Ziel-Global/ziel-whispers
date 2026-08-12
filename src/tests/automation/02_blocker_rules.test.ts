@@ -1,6 +1,15 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { setupTestEnvironment, teardownTestEnvironment, TestContext } from "./setup/testContext";
-import { STATUS_DEVELOPMENT, STATUS_QA_REVIEW, USER_PM_SAMI, USER_DEV_SAAD } from "./setup/constants";
+import {
+  setupTestEnvironment,
+  teardownTestEnvironment,
+  TestContext,
+} from "./setup/testContext";
+import {
+  STATUS_DEVELOPMENT,
+  STATUS_QA_REVIEW,
+  USER_PM_SAMI,
+  USER_DEV_SAAD,
+} from "./setup/constants";
 import { dbQuery } from "./helpers/dbClient";
 import { reporter } from "./helpers/reporter";
 
@@ -23,17 +32,17 @@ describe("Section 2: Blocker Rules Engine (Tests 2.1–2.7)", () => {
 
     // Raise blocker on High Priority task
     await dbQuery(
-      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Database deadlock on concurrent requests', 'open', '${USER_DEV_SAAD}', false, false);`
+      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Database deadlock on concurrent requests', 'open', '${USER_DEV_SAAD}', false, false);`,
     );
 
     // Run automation engine for blocker_raised
     await dbQuery(
-      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`
+      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`,
     );
 
     // Check status changed to QA Review
     const rows = await dbQuery<{ status_id: string }>(
-      `SELECT status_id FROM tasks WHERE id = '${task.id}';`
+      `SELECT status_id FROM tasks WHERE id = '${task.id}';`,
     );
     expect(rows[0].status_id).toBe(STATUS_QA_REVIEW);
 
@@ -51,17 +60,17 @@ describe("Section 2: Blocker Rules Engine (Tests 2.1–2.7)", () => {
 
     // Raise blocker on Medium Priority task
     await dbQuery(
-      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Waiting for third-party API docs', 'open', '${USER_DEV_SAAD}', false, false);`
+      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Waiting for third-party API docs', 'open', '${USER_DEV_SAAD}', false, false);`,
     );
 
     // Run automation engine for blocker_raised
     await dbQuery(
-      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`
+      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`,
     );
 
     // Status should remain Development (High priority rule skipped)
     const rows = await dbQuery<{ status_id: string }>(
-      `SELECT status_id FROM tasks WHERE id = '${task.id}';`
+      `SELECT status_id FROM tasks WHERE id = '${task.id}';`,
     );
     expect(rows[0].status_id).toBe(STATUS_DEVELOPMENT);
 
@@ -79,17 +88,17 @@ describe("Section 2: Blocker Rules Engine (Tests 2.1–2.7)", () => {
 
     // Raise blocker on Low Priority, Development task
     await dbQuery(
-      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Missing logo asset', 'open', '${USER_DEV_SAAD}', false, false);`
+      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Missing logo asset', 'open', '${USER_DEV_SAAD}', false, false);`,
     );
 
     // Run automation engine for blocker_raised
     await dbQuery(
-      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`
+      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`,
     );
 
     // Verify task assignee changed to USER_PM_SAMI
     const rows = await dbQuery<{ assigned_to: string }>(
-      `SELECT assigned_to FROM tasks WHERE id = '${task.id}';`
+      `SELECT assigned_to FROM tasks WHERE id = '${task.id}';`,
     );
     expect(rows[0].assigned_to).toBe(USER_PM_SAMI);
 
@@ -106,18 +115,22 @@ describe("Section 2: Blocker Rules Engine (Tests 2.1–2.7)", () => {
     expect(task).toBeDefined();
 
     await dbQuery(
-      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Security review pending', 'open', '${USER_DEV_SAAD}', false, false);`
+      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Security review pending', 'open', '${USER_DEV_SAAD}', false, false);`,
     );
 
     await dbQuery(
-      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`
+      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`,
     );
 
     // Check system comment added
     const comments = await dbQuery<{ body: string }>(
-      `SELECT body FROM task_comments WHERE task_id = '${task.id}';`
+      `SELECT body FROM task_comments WHERE task_id = '${task.id}';`,
     );
-    expect(comments.some((c) => c.body.includes("System Alert: A blocker was reported"))).toBe(true);
+    expect(
+      comments.some((c) =>
+        c.body.includes("System Alert: A blocker was reported"),
+      ),
+    ).toBe(true);
 
     reporter.logResult({
       testId: "2.4",
@@ -132,23 +145,27 @@ describe("Section 2: Blocker Rules Engine (Tests 2.1–2.7)", () => {
     expect(task).toBeDefined();
 
     await dbQuery(
-      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Swagger spec missing', 'open', '${USER_DEV_SAAD}', false, false);`
+      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Swagger spec missing', 'open', '${USER_DEV_SAAD}', false, false);`,
     );
 
     await dbQuery(
-      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`
+      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`,
     );
 
     // Check assignee AND comment
     const taskRows = await dbQuery<{ assigned_to: string }>(
-      `SELECT assigned_to FROM tasks WHERE id = '${task.id}';`
+      `SELECT assigned_to FROM tasks WHERE id = '${task.id}';`,
     );
     expect(taskRows[0].assigned_to).toBe(USER_DEV_SAAD);
 
     const comments = await dbQuery<{ body: string }>(
-      `SELECT body FROM task_comments WHERE task_id = '${task.id}';`
+      `SELECT body FROM task_comments WHERE task_id = '${task.id}';`,
     );
-    expect(comments.some((c) => c.body.includes("Escalated to lead developer Saad Nasir"))).toBe(true);
+    expect(
+      comments.some((c) =>
+        c.body.includes("Escalated to lead developer Saad Nasir"),
+      ),
+    ).toBe(true);
 
     reporter.logResult({
       testId: "2.5",
@@ -164,22 +181,22 @@ describe("Section 2: Blocker Rules Engine (Tests 2.1–2.7)", () => {
 
     // Insert blocker and resolve it
     const blockerRows = await dbQuery<{ id: string }>(
-      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Third party server down', 'open', '${USER_DEV_SAAD}', false, false) RETURNING id;`
+      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Third party server down', 'open', '${USER_DEV_SAAD}', false, false) RETURNING id;`,
     );
     const blockerId = blockerRows[0].id;
 
     await dbQuery(
-      `UPDATE task_blockers SET status = 'resolved', resolved_at = now() WHERE id = '${blockerId}';`
+      `UPDATE task_blockers SET status = 'resolved', resolved_at = now() WHERE id = '${blockerId}';`,
     );
 
     // Trigger blocker_resolved automation
     await dbQuery(
-      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_resolved', 'task', '${task.id}'::uuid);`
+      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_resolved', 'task', '${task.id}'::uuid);`,
     );
 
     // Status should reset to Development
     const rows = await dbQuery<{ status_id: string }>(
-      `SELECT status_id FROM tasks WHERE id = '${task.id}';`
+      `SELECT status_id FROM tasks WHERE id = '${task.id}';`,
     );
     expect(rows[0].status_id).toBe(STATUS_DEVELOPMENT);
 
@@ -198,24 +215,28 @@ describe("Section 2: Blocker Rules Engine (Tests 2.1–2.7)", () => {
     expect(ruleId).toBeDefined();
 
     // Disable rule
-    await dbQuery(`UPDATE automation_rules SET status = 'disabled' WHERE id = '${ruleId}';`);
-
     await dbQuery(
-      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Push credentials expired', 'open', '${USER_DEV_SAAD}', false, false);`
+      `UPDATE automation_rules SET status = 'disabled' WHERE id = '${ruleId}';`,
     );
 
     await dbQuery(
-      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`
+      `INSERT INTO task_blockers (project_id, task_id, description, status, raised_by, client_visible, requires_client_action) VALUES ('${context.projectId}', '${task.id}', 'Push credentials expired', 'open', '${USER_DEV_SAAD}', false, false);`,
+    );
+
+    await dbQuery(
+      `SELECT public.run_automation_rules('${context.projectId}'::uuid, 'blocker_raised', 'task', '${task.id}'::uuid);`,
     );
 
     // Status should NOT be changed
     const rows1 = await dbQuery<{ status_id: string }>(
-      `SELECT status_id FROM tasks WHERE id = '${task.id}';`
+      `SELECT status_id FROM tasks WHERE id = '${task.id}';`,
     );
     expect(rows1[0].status_id).toBe(STATUS_DEVELOPMENT);
 
     // Enable rule back
-    await dbQuery(`UPDATE automation_rules SET status = 'enabled' WHERE id = '${ruleId}';`);
+    await dbQuery(
+      `UPDATE automation_rules SET status = 'enabled' WHERE id = '${ruleId}';`,
+    );
 
     reporter.logResult({
       testId: "2.7",

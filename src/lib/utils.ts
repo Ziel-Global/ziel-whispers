@@ -33,13 +33,16 @@ export function parseCSVLine(line: string): string[] {
 }
 
 export function toSlug(name: string): string {
-  return name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+  return name
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "");
 }
 
 export function getAvatarUrl(path: string | null | undefined) {
   if (!path) return undefined;
   if (path.startsWith("http")) return path;
-  
+
   const { data } = supabase.storage.from("avatars").getPublicUrl(path);
   return `${data.publicUrl}?t=${avatarCacheBuster}`;
 }
@@ -63,7 +66,9 @@ export function getLeaveTypeName(r: any) {
   if (r.hours) {
     return `Hourly Leave — ${r.hours} hours`;
   }
-  return r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual";
+  return (
+    r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual"
+  );
 }
 
 export function getCurrentLeaveYear() {
@@ -97,4 +102,3 @@ export function getLeaveYearOptions() {
   }
   return options;
 }
-

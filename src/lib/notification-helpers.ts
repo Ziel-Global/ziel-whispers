@@ -1,16 +1,16 @@
 "use client";
 import { supabase } from "@/integrations/supabase/client";
 
-type NotificationType = 
-  | 'project_update' 
-  | 'action_item_created' 
-  | 'action_item_completed' 
-  | 'action_item_linked' 
-  | 'action_item_auto_completed' 
-  | 'blocker_created' 
-  | 'blocker_resolved' 
-  | 'leave_request' 
-  | 'remote_work_request';
+type NotificationType =
+  | "project_update"
+  | "action_item_created"
+  | "action_item_completed"
+  | "action_item_linked"
+  | "action_item_auto_completed"
+  | "blocker_created"
+  | "blocker_resolved"
+  | "leave_request"
+  | "remote_work_request";
 
 export async function createNotification({
   userId,
@@ -32,7 +32,7 @@ export async function createNotification({
     metadata: { title, message, project_id: projectId },
     read: false,
   });
-  
+
   if (error) console.error("createNotification error:", error);
   return error;
 }
@@ -43,9 +43,9 @@ export async function getProjectMemberIds(projectId: string) {
     .select("user_id")
     .eq("project_id", projectId)
     .is("removed_at", null);
-  
+
   if (error) throw error;
-  return data?.map(member => member.user_id) || [];
+  return data?.map((member) => member.user_id) || [];
 }
 
 export async function getAdminManagerIds(excludeUserId?: string) {
@@ -53,14 +53,14 @@ export async function getAdminManagerIds(excludeUserId?: string) {
     .from("users")
     .select("id")
     .in("role", ["admin", "manager"]);
-  
+
   if (excludeUserId) {
     query = query.ne("id", excludeUserId);
   }
-  
+
   const { data, error } = await query;
   if (error) throw error;
-  return data?.map(user => user.id) || [];
+  return data?.map((user) => user.id) || [];
 }
 
 export async function createProjectRelatedNotifications({
@@ -80,26 +80,33 @@ export async function createProjectRelatedNotifications({
 }) {
   const projectMemberIds = await getProjectMemberIds(projectId);
   const adminManagerIds = await getAdminManagerIds(createdByUserId);
-  
+
   let targetUserIds = new Set(projectMemberIds);
-  adminManagerIds.forEach(id => targetUserIds.add(id));
+  adminManagerIds.forEach((id) => targetUserIds.add(id));
   targetUserIds.delete(createdByUserId);
-  
+
   if (requiresClientAction) {
     const clientMemberIds = await getClientMemberIds(projectId);
-    clientMemberIds.forEach(id => targetUserIds.add(id));
+    clientMemberIds.forEach((id) => targetUserIds.add(id));
   }
-  
-  const notificationsToInsert = Array.from(targetUserIds).map(userId => ({
+
+  const notificationsToInsert = Array.from(targetUserIds).map((userId) => ({
     user_id: userId,
     type,
     channel: "in_app",
-    metadata: { title, message, project_id: projectId, created_by: createdByUserId },
+    metadata: {
+      title,
+      message,
+      project_id: projectId,
+      created_by: createdByUserId,
+    },
     read: false,
   }));
-  
+
   if (notificationsToInsert.length > 0) {
-    const { error } = await supabase.from("notifications").insert(notificationsToInsert);
+    const { error } = await supabase
+      .from("notifications")
+      .insert(notificationsToInsert);
     if (error) console.error("createProjectRelatedNotifications error:", error);
     return error;
   }
@@ -113,7 +120,7 @@ export async function getClientMemberIds(projectId: string) {
     .eq("project_id", projectId)
     .is("removed_at", null)
     .in("users.role", ["client", "client member", "client portal"]);
-  
+
   if (error) throw error;
-  return data?.map(member => member.user_id) || [];
+  return data?.map((member) => member.user_id) || [];
 }

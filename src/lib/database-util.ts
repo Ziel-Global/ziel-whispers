@@ -1,6 +1,6 @@
 /**
  * Database Utility - Schema & Environment Management
- * 
+ *
  * Programmatic access to Supabase database operations
  * Can be imported and used in your Node.js scripts or applications
  */
@@ -50,7 +50,7 @@ export function loadDatabaseConfig(envFile: string = ".env"): DatabaseConfig {
 
   if (!url || !key) {
     throw new Error(
-      "Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in environment"
+      "Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY in environment",
     );
   }
 
@@ -89,7 +89,7 @@ export function createSupabaseClient(config: DatabaseConfig) {
  * Get schema statistics from a database
  */
 export async function getSchemaStats(
-  connectionString: string
+  connectionString: string,
 ): Promise<SchemaStats> {
   const queries = {
     tables: `SELECT count(*) as count FROM information_schema.tables 
@@ -114,7 +114,7 @@ export async function getSchemaStats(
   try {
     for (const [key, query] of Object.entries(queries)) {
       const { stdout } = await execPromise(
-        `psql --dbname="${connectionString}" --command="${query}" -t`
+        `psql --dbname="${connectionString}" --command="${query}" -t`,
       );
       stats[key as keyof SchemaStats] = parseInt(stdout.trim().split("\n")[0]);
     }
@@ -128,9 +128,7 @@ export async function getSchemaStats(
 /**
  * List all tables in schema
  */
-export async function listTables(
-  connectionString: string
-): Promise<string[]> {
+export async function listTables(connectionString: string): Promise<string[]> {
   const query = `
     SELECT table_name 
     FROM information_schema.tables 
@@ -140,7 +138,7 @@ export async function listTables(
 
   try {
     const { stdout } = await execPromise(
-      `psql --dbname="${connectionString}" --command="${query}" -t`
+      `psql --dbname="${connectionString}" --command="${query}" -t`,
     );
     return stdout
       .trim()
@@ -156,14 +154,14 @@ export async function listTables(
  */
 export async function extractSchema(
   connectionString: string,
-  outputFile?: string
+  outputFile?: string,
 ): Promise<string> {
   console.log("🔍 Extracting schema...");
 
   try {
     const { stdout } = await execPromise(
       `pg_dump --schema-only --no-privileges --no-owner --dbname="${connectionString}"`,
-      { maxBuffer: 50 * 1024 * 1024 } // 50MB buffer
+      { maxBuffer: 50 * 1024 * 1024 }, // 50MB buffer
     );
 
     if (outputFile) {
@@ -182,7 +180,7 @@ export async function extractSchema(
  */
 export async function applySchema(
   connectionString: string,
-  schemaSql: string
+  schemaSql: string,
 ): Promise<void> {
   console.log("📤 Applying schema...");
 
@@ -193,7 +191,7 @@ export async function applySchema(
 
     await execPromise(
       `psql --dbname="${connectionString}" --file="${tempFile}" --set ON_ERROR_STOP=on --output=/dev/null`,
-      { maxBuffer: 50 * 1024 * 1024 }
+      { maxBuffer: 50 * 1024 * 1024 },
     );
 
     console.log("✅ Schema applied successfully");
@@ -210,7 +208,7 @@ export async function applySchema(
  */
 export async function compareSchemas(
   devConnectionString: string,
-  prodConnectionString: string
+  prodConnectionString: string,
 ): Promise<{
   devStats: SchemaStats;
   prodStats: SchemaStats;
@@ -241,7 +239,7 @@ export async function replicateSchema(
     dryRun?: boolean;
     backup?: boolean;
     verify?: boolean;
-  } = {}
+  } = {},
 ): Promise<void> {
   const { dryRun = false, backup = true, verify = true } = options;
 
@@ -272,30 +270,32 @@ export async function replicateSchema(
       console.log("");
       const comparison = await compareSchemas(
         devConnectionString,
-        prodConnectionString
+        prodConnectionString,
       );
 
       console.log("📊 Schema comparison:");
       console.log(
-        `  Tables: dev=${comparison.devStats.tables}, prod=${comparison.prodStats.tables}`
+        `  Tables: dev=${comparison.devStats.tables}, prod=${comparison.prodStats.tables}`,
       );
       console.log(
-        `  Indexes: dev=${comparison.devStats.indexes}, prod=${comparison.prodStats.indexes}`
+        `  Indexes: dev=${comparison.devStats.indexes}, prod=${comparison.prodStats.indexes}`,
       );
       console.log(
-        `  Functions: dev=${comparison.devStats.functions}, prod=${comparison.prodStats.functions}`
+        `  Functions: dev=${comparison.devStats.functions}, prod=${comparison.prodStats.functions}`,
       );
       console.log(
-        `  Triggers: dev=${comparison.devStats.triggers}, prod=${comparison.prodStats.triggers}`
+        `  Triggers: dev=${comparison.devStats.triggers}, prod=${comparison.prodStats.triggers}`,
       );
       console.log(
-        `  Policies: dev=${comparison.devStats.policies}, prod=${comparison.prodStats.policies}`
+        `  Policies: dev=${comparison.devStats.policies}, prod=${comparison.prodStats.policies}`,
       );
 
       if (comparison.match) {
         console.log("\n✅ Schemas match perfectly!");
       } else {
-        console.warn("\n⚠️  Warning: Schemas may differ - manual review recommended");
+        console.warn(
+          "\n⚠️  Warning: Schemas may differ - manual review recommended",
+        );
       }
     }
 
@@ -310,11 +310,11 @@ export async function replicateSchema(
  * Create a test connection
  */
 export async function testConnection(
-  connectionString: string
+  connectionString: string,
 ): Promise<boolean> {
   try {
     const { stdout } = await execPromise(
-      `psql --dbname="${connectionString}" --command="SELECT version();" -t`
+      `psql --dbname="${connectionString}" --command="SELECT version();" -t`,
     );
     console.log("✅ Connection successful");
     return true;
@@ -325,7 +325,10 @@ export async function testConnection(
 }
 
 // Example usage / CLI execution
-const isMainModule = process.argv[1] && (import.meta.url === `file://${process.argv[1]}` || process.argv[1].endsWith("database-util.ts"));
+const isMainModule =
+  process.argv[1] &&
+  (import.meta.url === `file://${process.argv[1]}` ||
+    process.argv[1].endsWith("database-util.ts"));
 if (isMainModule) {
   const command = process.argv[2];
 
@@ -358,10 +361,7 @@ if (isMainModule) {
           break;
 
         case "extract":
-          await extractSchema(
-            devConnStr,
-            `schema-dev-${Date.now()}.sql`
-          );
+          await extractSchema(devConnStr, `schema-dev-${Date.now()}.sql`);
           break;
 
         case "replicate":
@@ -380,12 +380,18 @@ if (isMainModule) {
         default:
           console.log("Usage: npx ts-node src/lib/database-util.ts [command]");
           console.log("\nCommands:");
-          console.log("  test              - Test connections to both databases");
+          console.log(
+            "  test              - Test connections to both databases",
+          );
           console.log("  stats             - Show schema statistics");
-          console.log("  compare           - Compare schemas between dev and prod");
+          console.log(
+            "  compare           - Compare schemas between dev and prod",
+          );
           console.log("  extract           - Extract dev schema to file");
           console.log("  replicate         - Full replication dev → prod");
-          console.log("  replicate:dry-run - Test replication without applying");
+          console.log(
+            "  replicate:dry-run - Test replication without applying",
+          );
       }
     } catch (error) {
       console.error("Error:", error);

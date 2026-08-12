@@ -18,12 +18,13 @@ export function TopBar() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const initials = profile?.full_name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) ?? "?";
+  const initials =
+    profile?.full_name
+      ?.split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) ?? "?";
 
   const handleLogout = async () => {
     await signOut();
@@ -52,12 +53,18 @@ export function TopBar() {
             </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer">
+            <DropdownMenuItem
+              onClick={() => navigate("/profile")}
+              className="cursor-pointer"
+            >
               <User className="mr-2 h-4 w-4" />
               My Profile
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
+            <DropdownMenuItem
+              onClick={handleLogout}
+              className="text-destructive cursor-pointer"
+            >
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </DropdownMenuItem>

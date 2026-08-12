@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, useRef, useCallback, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useRef,
+  useCallback,
+  ReactNode,
+} from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -67,34 +75,60 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionIdRef = useRef<string | null>(null);
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sessionAgeCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sessionAgeCheckRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
   const sessionTimeoutMsRef = useRef<number>(12 * 60 * 60 * 1000);
+  const profileFetchPromiseRef = useRef<Promise<UserProfile | null> | null>(null);
+  const profileRef = useRef<UserProfile | null>(null);
   const queryClient = useQueryClient();
 
   const fetchProfile = async (userId: string) => {
-    const { data, error } = await supabase
-      .from("users")
-      .select("id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days, overtime_enabled, remote_access, remote_access_from, remote_access_to")
-      .eq("id", userId)
-      .maybeSingle();
-
-    if (error) {
-      console.error("Failed to fetch user profile", error);
-      setProfile(null);
-      return null;
+    if (profileRef.current?.id === userId) {
+      return profileRef.current;
+    }
+    if (profileFetchPromiseRef.current) {
+      return profileFetchPromiseRef.current;
     }
 
-    const nextProfile = data as UserProfile | null;
-    if (nextProfile && nextProfile.status === "inactive") {
-      toast.error("Your account has been deactivated. Please contact your administrator.");
-      await supabase.auth.signOut();
-      setSession(null);
-      setProfile(null);
-      return null;
-    }
+    profileFetchPromiseRef.current = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("users")
+          .select(
+            "id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days, overtime_enabled, remote_access, remote_access_from, remote_access_to",
+          )
+          .eq("id", userId)
+          .maybeSingle();
 
-    setProfile(nextProfile);
-    return nextProfile;
+        if (error) {
+          console.error("Failed to fetch user profile", error);
+          setProfile(null);
+          profileRef.current = null;
+          return null;
+        }
+
+        const nextProfile = data as UserProfile | null;
+        if (nextProfile && nextProfile.status === "inactive") {
+          toast.error(
+            "Your account has been deactivated. Please contact your administrator.",
+          );
+          await supabase.auth.signOut();
+          setSession(null);
+          setProfile(null);
+          profileRef.current = null;
+          return null;
+        }
+
+        setProfile(nextProfile);
+        profileRef.current = nextProfile;
+        return nextProfile;
+      } finally {
+        profileFetchPromiseRef.current = null;
+      }
+    })();
+
+    return profileFetchPromiseRef.current;
   };
 
   const startStatusCheck = useCallback((userId: string) => {
@@ -106,7 +140,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq("id", userId)
         .maybeSingle();
       if (data?.status === "inactive") {
-        toast.error("Your account has been deactivated. Please contact your administrator.");
+        toast.error(
+          "Your account has been deactivated. Please contact your administrator.",
+        );
         await supabase.auth.signOut();
         setSession(null);
         setProfile(null);
@@ -126,7 +162,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkInactivityExpiry = useCallback(async () => {
     const last = localStorage.getItem(ACTIVITY_KEY);
     if (last && Date.now() - Number(last) > sessionTimeoutMsRef.current) {
-      toast.error("Your session has expired due to inactivity. Please log in again");
+      toast.error(
+        "Your session has expired due to inactivity. Please log in again",
+      );
       await supabase.auth.signOut();
       return true;
     }
@@ -153,8 +191,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const handleStorage = async (e: StorageEvent) => {
-      if (e.key === SESSION_ID_KEY && e.newValue && e.newValue !== sessionIdRef.current) {
-        toast.info("You have been logged out because a new session was started");
+      if (
+        e.key === SESSION_ID_KEY &&
+        e.newValue &&
+        e.newValue !== sessionIdRef.current
+      ) {
+        toast.info(
+          "You have been logged out because a new session was started",
+        );
         setSession(null);
         setProfile(null);
       }
@@ -173,7 +217,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const events = ["mousedown", "keydown", "scroll", "touchstart"];
     const handler = () => resetInactivityTimer();
-    events.forEach((ev) => window.addEventListener(ev, handler, { passive: true }));
+    events.forEach((ev) =>
+      window.addEventListener(ev, handler, { passive: true }),
+    );
     resetInactivityTimer();
 
     return () => {
@@ -222,13 +268,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       // Check absolute max session lifetime (24h)
       const maxExpired = await checkMaxSessionLifetime();
-      if (maxExpired) { setLoading(false); return; }
+      if (maxExpired) {
+        setLoading(false);
+        return;
+      }
 
       // Refresh session timeout from settings on each session sync
       sessionTimeoutMsRef.current = await getSessionTimeoutMs();
 
       const expired = await checkInactivityExpiry();
-      if (expired) { setLoading(false); return; }
+      if (expired) {
+        setLoading(false);
+        return;
+      }
 
       try {
         const prof = await fetchProfile(nextSession.user.id);
@@ -240,31 +292,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, nextSession) => {
-        if (_event === "SIGNED_OUT") {
-          setSession(null);
-          setProfile(null);
-          setLoading(false);
-          localStorage.removeItem(SESSION_ID_KEY);
-          localStorage.removeItem(ACTIVITY_KEY);
-          localStorage.removeItem(SESSION_START_KEY);
-          if (statusCheckRef.current) clearInterval(statusCheckRef.current);
-          if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
-          return;
-        }
-        // Never set loading = true here. The initial useState(true) handles
-        // the first app bootstrap. All subsequent auth events (SIGNED_IN from
-        // token refreshes on tab re-focus, TOKEN_REFRESHED, etc.) should sync
-        // silently in the background so the UI isn't torn down and in-progress
-        // user work (file imports, form edits, etc.) is preserved.
-        void syncSession(nextSession);
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (_event === "SIGNED_OUT") {
+        setSession(null);
+        setProfile(null);
+        setLoading(false);
+        localStorage.removeItem(SESSION_ID_KEY);
+        localStorage.removeItem(ACTIVITY_KEY);
+        localStorage.removeItem(SESSION_START_KEY);
+        if (statusCheckRef.current) clearInterval(statusCheckRef.current);
+        if (sessionAgeCheckRef.current)
+          clearInterval(sessionAgeCheckRef.current);
+        return;
       }
-    );
-
-    void supabase.auth.getSession().then(({ data: { session: nextSession } }) => {
+      // Never set loading = true here. The initial useState(true) handles
+      // the first app bootstrap. All subsequent auth events (SIGNED_IN from
+      // token refreshes on tab re-focus, TOKEN_REFRESHED, etc.) should sync
+      // silently in the background so the UI isn't torn down and in-progress
+      // user work (file imports, form edits, etc.) is preserved.
       void syncSession(nextSession);
     });
+
+    void supabase.auth
+      .getSession()
+      .then(({ data: { session: nextSession } }) => {
+        void syncSession(nextSession);
+      });
 
     return () => {
       isMounted = false;
@@ -297,7 +352,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user: session?.user ?? null,
+        profile,
+        loading,
+        signOut,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

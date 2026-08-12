@@ -2,7 +2,10 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { Eye, EyeOff } from "lucide-react";
 
-export interface PasswordInputProps extends Omit<React.ComponentProps<"input">, "type"> {
+export interface PasswordInputProps extends Omit<
+  React.ComponentProps<"input">,
+  "type"
+> {
   showStrength?: boolean;
 }
 
@@ -22,7 +25,13 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
       return { level: score, label: labels[score] || "Strong" };
     }, [value]);
 
-    const strengthColors = ["", "bg-red-500", "bg-yellow-500", "bg-blue-500", "bg-green-500"];
+    const strengthColors = [
+      "",
+      "bg-red-500",
+      "bg-yellow-500",
+      "bg-blue-500",
+      "bg-green-500",
+    ];
 
     return (
       <div className="space-y-1.5">
@@ -43,7 +52,11 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
             onClick={() => setVisible(!visible)}
             tabIndex={-1}
           >
-            {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            {visible ? (
+              <EyeOff className="h-4 w-4" />
+            ) : (
+              <Eye className="h-4 w-4" />
+            )}
           </button>
         </div>
         {showStrength && value && String(value).length > 0 && (
@@ -52,7 +65,12 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
               {[1, 2, 3, 4].map((i) => (
                 <div
                   key={i}
-                  className={cn("h-1 flex-1 rounded-md transition-colors", i <= strength.level ? strengthColors[strength.level] : "bg-muted")}
+                  className={cn(
+                    "h-1 flex-1 rounded-md transition-colors",
+                    i <= strength.level
+                      ? strengthColors[strength.level]
+                      : "bg-muted",
+                  )}
                 />
               ))}
             </div>

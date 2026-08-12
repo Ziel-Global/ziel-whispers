@@ -46,14 +46,29 @@ export function AvatarUpload({ currentUrl, onFileChange }: Props) {
     <div className="flex items-center gap-4">
       <Avatar className="h-16 w-16">
         <AvatarImage src={preview || currentUrl} />
-        <AvatarFallback className="bg-muted text-muted-foreground"><Camera className="h-6 w-6" /></AvatarFallback>
+        <AvatarFallback className="bg-muted text-muted-foreground">
+          <Camera className="h-6 w-6" />
+        </AvatarFallback>
       </Avatar>
       <div>
-        <Button type="button" variant="outline" size="sm" onClick={() => inputRef.current?.click()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => inputRef.current?.click()}
+        >
           Upload Photo
         </Button>
-        <p className="text-xs text-muted-foreground mt-1">Max 2MB, JPG or PNG</p>
-        <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleSelect} />
+        <p className="text-xs text-muted-foreground mt-1">
+          Max 2MB, JPG or PNG
+        </p>
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleSelect}
+        />
       </div>
     </div>
   );

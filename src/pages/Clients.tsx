@@ -7,14 +7,53 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
-import { Plus, Search, Archive, ArchiveRestore, Pencil, Building2, Trash2 } from "lucide-react";
+import {
+  DataRow,
+  RowPrimary,
+  RowSecondary,
+  RowDataGrid,
+  RowDataItem,
+  RowBadgeItem,
+  RowActions,
+  TableHeader,
+  editButtonClass,
+} from "@/components/ui/data-row";
+import {
+  Plus,
+  Search,
+  Archive,
+  ArchiveRestore,
+  Pencil,
+  Building2,
+  Trash2,
+} from "lucide-react";
 import { format } from "date-fns";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface ClientForm {
   name: string;
@@ -28,15 +67,39 @@ interface ClientForm {
 }
 
 const INDUSTRIES = [
-  "Technology", "Healthcare", "Finance & Banking", "Education",
-  "Retail & E-commerce", "Manufacturing", "Construction", "Real Estate",
-  "Transportation & Logistics", "Media & Entertainment", "Hospitality & Tourism",
-  "Energy & Utilities", "Telecommunications", "Agriculture",
-  "Legal & Professional Services", "Marketing & Advertising", "Non-Profit",
-  "Government", "Automotive", "Food & Beverage", "Other"
+  "Technology",
+  "Healthcare",
+  "Finance & Banking",
+  "Education",
+  "Retail & E-commerce",
+  "Manufacturing",
+  "Construction",
+  "Real Estate",
+  "Transportation & Logistics",
+  "Media & Entertainment",
+  "Hospitality & Tourism",
+  "Energy & Utilities",
+  "Telecommunications",
+  "Agriculture",
+  "Legal & Professional Services",
+  "Marketing & Advertising",
+  "Non-Profit",
+  "Government",
+  "Automotive",
+  "Food & Beverage",
+  "Other",
 ];
 
-const emptyForm: ClientForm = { name: "", industry: "", contact_name: "", contact_email: "", location: "", notes: "", account_email: "", password: "" };
+const emptyForm: ClientForm = {
+  name: "",
+  industry: "",
+  contact_name: "",
+  contact_email: "",
+  location: "",
+  notes: "",
+  account_email: "",
+  password: "",
+};
 
 export default function ClientsPage() {
   const { profile } = useAuth();
@@ -53,7 +116,10 @@ export default function ClientsPage() {
   const { data: clients, isLoading } = useQuery({
     queryKey: ["clients"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("clients").select("*").order("name", { ascending: true });
+      const { data, error } = await supabase
+        .from("clients")
+        .select("*")
+        .order("name", { ascending: true });
       if (error) throw error;
       return data;
     },
@@ -63,10 +129,14 @@ export default function ClientsPage() {
   const { data: projectCounts } = useQuery({
     queryKey: ["client-project-counts"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("projects").select("client_id");
+      const { data, error } = await supabase
+        .from("projects")
+        .select("client_id");
       if (error) throw error;
       const counts: Record<string, number> = {};
-      data?.forEach((p) => { if (p.client_id) counts[p.client_id] = (counts[p.client_id] || 0) + 1; });
+      data?.forEach((p) => {
+        if (p.client_id) counts[p.client_id] = (counts[p.client_id] || 0) + 1;
+      });
       return counts;
     },
   });
@@ -75,34 +145,63 @@ export default function ClientsPage() {
     if (!clients) return [];
     return clients.filter((c) => {
       if (statusFilter !== "all" && c.status !== statusFilter) return false;
-      if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search && !c.name.toLowerCase().includes(search.toLowerCase()))
+        return false;
       return true;
     });
   }, [clients, search, statusFilter]);
 
-  const openAdd = () => { setEditId(null); setForm(emptyForm); setDialogOpen(true); };
+  const openAdd = () => {
+    setEditId(null);
+    setForm(emptyForm);
+    setDialogOpen(true);
+  };
   const openEdit = (c: any) => {
     setEditId(c.id);
-    setForm({ 
-      name: c.name, 
-      industry: c.industry || "", 
-      contact_name: c.contact_name || "", 
-      contact_email: c.contact_email || "", 
+    setForm({
+      name: c.name,
+      industry: c.industry || "",
+      contact_name: c.contact_name || "",
+      contact_email: c.contact_email || "",
       location: c.contact_phone || "", // Mapping contact_phone to location
-      notes: (c as any).notes || "" 
+      notes: (c as any).notes || "",
     });
     setDialogOpen(true);
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Client name is required"); return; }
-    if (!form.location.trim()) { toast.error("Location is required"); return; }
-    if (form.contact_email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact_email)) { toast.error("Invalid email format"); return; }
+    if (!form.name.trim()) {
+      toast.error("Client name is required");
+      return;
+    }
+    if (!form.location.trim()) {
+      toast.error("Location is required");
+      return;
+    }
+    if (
+      form.contact_email &&
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.contact_email)
+    ) {
+      toast.error("Invalid email format");
+      return;
+    }
     if (!editId) {
-      if (!form.account_email.trim()) { toast.error("Account email is required"); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.account_email)) { toast.error("Invalid account email format"); return; }
-      if (!form.password.trim()) { toast.error("Password is required"); return; }
-      if (form.password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+      if (!form.account_email.trim()) {
+        toast.error("Account email is required");
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.account_email)) {
+        toast.error("Invalid account email format");
+        return;
+      }
+      if (!form.password.trim()) {
+        toast.error("Password is required");
+        return;
+      }
+      if (form.password.length < 6) {
+        toast.error("Password must be at least 6 characters");
+        return;
+      }
     }
     setSaving(true);
     try {
@@ -115,52 +214,85 @@ export default function ClientsPage() {
         notes: form.notes || null,
       };
       if (editId) {
-        const { error } = await supabase.from("clients").update(payload).eq("id", editId);
+        const { error } = await supabase
+          .from("clients")
+          .update(payload)
+          .eq("id", editId);
         if (error) throw error;
         toast.success("Client updated");
       } else {
-        const { data: newClient, error } = await supabase.from("clients").insert({ ...payload, created_by: profile?.id }).select("id").single();
+        const { data: newClient, error } = await supabase
+          .from("clients")
+          .insert({ ...payload, created_by: profile?.id })
+          .select("id")
+          .single();
         if (error) throw error;
 
-        const { data: inviteResult, error: inviteError } = await supabase.functions.invoke("invite-user", {
-          body: {
-            full_name: form.contact_name.trim() || form.name.trim(),
-            email: form.account_email.trim(),
-            password: form.password,
-            designation: "Client",
-            role: "client",
-            department: "Other",
-            employment_type: "contract",
-            join_date: new Date().toISOString().split("T")[0],
-            app_url: window.location.origin,
-            client_id: newClient?.id,
-          },
-        });
+        const { data: inviteResult, error: inviteError } =
+          await supabase.functions.invoke("invite-user", {
+            body: {
+              full_name: form.contact_name.trim() || form.name.trim(),
+              email: form.account_email.trim(),
+              password: form.password,
+              designation: "Client",
+              role: "client",
+              department: "Other",
+              employment_type: "contract",
+              join_date: new Date().toISOString().split("T")[0],
+              app_url: window.location.origin,
+              client_id: newClient?.id,
+            },
+          });
         if (inviteError) {
           console.error("Failed to create client account:", inviteError);
-          toast.warning("Client created but account creation failed: " + (inviteError.message || "Unknown error"));
+          toast.warning(
+            "Client created but account creation failed: " +
+              (inviteError.message || "Unknown error"),
+          );
         } else if (inviteResult && !inviteResult.ok) {
           console.error("invite-user returned error:", inviteResult.error);
-          toast.warning("Client created but account creation failed: " + (inviteResult.error || "Unknown error"));
+          toast.warning(
+            "Client created but account creation failed: " +
+              (inviteResult.error || "Unknown error"),
+          );
         } else {
-          toast.success("Client account created. Welcome email sent to " + form.account_email.trim());
+          toast.success(
+            "Client account created. Welcome email sent to " +
+              form.account_email.trim(),
+          );
         }
 
-        await supabase.from("audit_logs").insert({ actor_id: profile?.id, action: "client.created", target_entity: "clients" });
+        await supabase.from("audit_logs").insert({
+          actor_id: profile?.id,
+          action: "client.created",
+          target_entity: "clients",
+        });
         if (!inviteError && (!inviteResult || inviteResult.ok)) {
           toast.success("Client created");
         }
       }
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       setDialogOpen(false);
-    } catch (err: any) { toast.error(err.message); } finally { setSaving(false); }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleArchive = async (id: string, current: string) => {
     const newStatus = current === "archived" ? "active" : "archived";
-    const { error } = await supabase.from("clients").update({ status: newStatus }).eq("id", id);
-    if (error) { toast.error(error.message); return; }
-    toast.success(newStatus === "archived" ? "Client archived" : "Client restored");
+    const { error } = await supabase
+      .from("clients")
+      .update({ status: newStatus })
+      .eq("id", id);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(
+      newStatus === "archived" ? "Client archived" : "Client restored",
+    );
     queryClient.invalidateQueries({ queryKey: ["clients"] });
   };
 
@@ -169,29 +301,38 @@ export default function ClientsPage() {
     setDeleting(true);
     try {
       // Unlink projects before deleting
-      await supabase.from("projects").update({ client_id: null }).eq("client_id", deleteId);
+      await supabase
+        .from("projects")
+        .update({ client_id: null })
+        .eq("client_id", deleteId);
 
       // Unlink users before deleting
-      await supabase.from("users").update({ client_id: null }).eq("client_id", deleteId);
+      await supabase
+        .from("users")
+        .update({ client_id: null })
+        .eq("client_id", deleteId);
 
-      const { error } = await supabase.from("clients").delete().eq("id", deleteId);
+      const { error } = await supabase
+        .from("clients")
+        .delete()
+        .eq("id", deleteId);
       if (error) throw error;
-      
-      await supabase.from("audit_logs").insert({ 
-        actor_id: profile?.id, 
-        action: "client.deleted", 
+
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "client.deleted",
         target_entity: "clients",
-        target_id: deleteId 
+        target_id: deleteId,
       });
-      
+
       toast.success("Client deleted permanently");
       setDeleteId(null);
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       queryClient.invalidateQueries({ queryKey: ["client-project-counts"] });
-    } catch (err: any) { 
-      toast.error(err.message); 
-    } finally { 
-      setDeleting(false); 
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -200,10 +341,17 @@ export default function ClientsPage() {
       {/* ── PAGE HEADER ── */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-[32px] font-bold text-[#09090B] tracking-tight leading-none mb-2">Clients</h1>
-          <p className="text-[14px] text-[#71717A]">Manage your clients and their contact information</p>
+          <h1 className="text-[32px] font-bold text-[#09090B] tracking-tight leading-none mb-2">
+            Clients
+          </h1>
+          <p className="text-[14px] text-[#71717A]">
+            Manage your clients and their contact information
+          </p>
         </div>
-        <Button onClick={openAdd} className="bg-[#EC6824] hover:bg-[#c4541a] text-white rounded-md h-10 px-4 text-[13px] font-semibold shadow-sm transition-colors">
+        <Button
+          onClick={openAdd}
+          className="bg-[#EC6824] hover:bg-[#c4541a] text-white rounded-md h-10 px-4 text-[13px] font-semibold shadow-sm transition-colors"
+        >
           <Plus className="h-4 w-4 mr-2" />
           Add Client
         </Button>
@@ -237,9 +385,13 @@ export default function ClientsPage() {
 
       {/* ── TABLE ── */}
       {isLoading ? (
-        <div className="border border-[#E4E4E7] rounded-[16px] bg-white py-12 text-center text-[#71717A] text-[13px] shadow-sm">Loading…</div>
+        <div className="border border-[#E4E4E7] rounded-[16px] bg-white py-12 text-center text-[#71717A] text-[13px] shadow-sm">
+          Loading…
+        </div>
       ) : filtered.length === 0 ? (
-        <div className="border border-[#E4E4E7] rounded-[16px] bg-white py-12 text-center text-[#71717A] text-[13px] shadow-sm">No clients found</div>
+        <div className="border border-[#E4E4E7] rounded-[16px] bg-white py-12 text-center text-[#71717A] text-[13px] shadow-sm">
+          No clients found
+        </div>
       ) : (
         <div className="border border-[#E4E4E7] rounded-[16px] bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.05)] overflow-hidden">
           {/* Table Header */}
@@ -268,9 +420,12 @@ export default function ClientsPage() {
                     <Building2 className="h-[20px] w-[20px] text-[#EC6824]" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[14px] font-bold text-[#18181B] truncate tracking-tight">{c.name}</p>
+                    <p className="text-[14px] font-bold text-[#18181B] truncate tracking-tight">
+                      {c.name}
+                    </p>
                     <p className="text-[12px] text-[#71717A] truncate mt-0.5">
-                      {c.contact_email || "—"} {c.contact_phone ? `· ${c.contact_phone}` : ""}
+                      {c.contact_email || "—"}{" "}
+                      {c.contact_phone ? `· ${c.contact_phone}` : ""}
                     </p>
                   </div>
                 </div>
@@ -282,7 +437,9 @@ export default function ClientsPage() {
 
                 {/* Status */}
                 <div>
-                  <Badge className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md border-transparent ${c.status === "active" ? "bg-[#DCFCE7] text-[#166534]" : "bg-[#F4F4F5] text-[#71717A]"}`}>
+                  <Badge
+                    className={`text-[11px] font-bold px-2.5 py-0.5 rounded-md border-transparent ${c.status === "active" ? "bg-[#DCFCE7] text-[#166534]" : "bg-[#F4F4F5] text-[#71717A]"}`}
+                  >
                     {c.status}
                   </Badge>
                 </div>
@@ -306,7 +463,11 @@ export default function ClientsPage() {
                     className="h-8 w-8 flex items-center justify-center rounded-lg bg-[#FFF4EA] text-[#EC6824] hover:bg-[#FFEDD5] transition-colors"
                     title={c.status === "archived" ? "Restore" : "Archive"}
                   >
-                    {c.status === "archived" ? <ArchiveRestore className="h-[15px] w-[15px]" /> : <Archive className="h-[15px] w-[15px]" />}
+                    {c.status === "archived" ? (
+                      <ArchiveRestore className="h-[15px] w-[15px]" />
+                    ) : (
+                      <Archive className="h-[15px] w-[15px]" />
+                    )}
                   </button>
                   <button
                     onClick={() => setDeleteId(c.id)}
@@ -324,49 +485,135 @@ export default function ClientsPage() {
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{editId ? "Edit Client" : "Add Client"}</DialogTitle></DialogHeader>
-           <div className="space-y-4">
-            <div><Label>Client Name *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+          <DialogHeader>
+            <DialogTitle>{editId ? "Edit Client" : "Add Client"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Client Name *</Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+              />
+            </div>
             <div>
               <Label>Industry</Label>
-              <Select value={form.industry} onValueChange={(v) => setForm({ ...form, industry: v })}>
-                <SelectTrigger><SelectValue placeholder="Select industry" /></SelectTrigger>
+              <Select
+                value={form.industry}
+                onValueChange={(v) => setForm({ ...form, industry: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select industry" />
+                </SelectTrigger>
                 <SelectContent>
                   {INDUSTRIES.map((ind) => (
-                    <SelectItem key={ind} value={ind}>{ind}</SelectItem>
+                    <SelectItem key={ind} value={ind}>
+                      {ind}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            <div><Label>Contact Name</Label><Input value={form.contact_name} onChange={(e) => setForm({ ...form, contact_name: e.target.value })} /></div>
-            <div><Label>Contact Email</Label><Input type="email" value={form.contact_email} onChange={(e) => setForm({ ...form, contact_email: e.target.value })} /></div>
-            <div><Label>Location *</Label><Input value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="e.g. Islamabad, Pakistan" /></div>
+            <div>
+              <Label>Contact Name</Label>
+              <Input
+                value={form.contact_name}
+                onChange={(e) =>
+                  setForm({ ...form, contact_name: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <Label>Contact Email</Label>
+              <Input
+                type="email"
+                value={form.contact_email}
+                onChange={(e) =>
+                  setForm({ ...form, contact_email: e.target.value })
+                }
+              />
+            </div>
+            <div>
+              <Label>Location *</Label>
+              <Input
+                value={form.location}
+                onChange={(e) => setForm({ ...form, location: e.target.value })}
+                placeholder="e.g. Islamabad, Pakistan"
+              />
+            </div>
             {!editId && (
               <>
-                <div className="pt-2 border-t"><Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Account Credentials</Label></div>
-                <div><Label>Account Email *</Label><Input type="email" value={form.account_email} onChange={(e) => setForm({ ...form, account_email: e.target.value })} placeholder="Login email for the client" /></div>
-                <div><Label>Password *</Label><Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="One-time password (min 6 characters)" /></div>
+                <div className="pt-2 border-t">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Account Credentials
+                  </Label>
+                </div>
+                <div>
+                  <Label>Account Email *</Label>
+                  <Input
+                    type="email"
+                    value={form.account_email}
+                    onChange={(e) =>
+                      setForm({ ...form, account_email: e.target.value })
+                    }
+                    placeholder="Login email for the client"
+                  />
+                </div>
+                <div>
+                  <Label>Password *</Label>
+                  <Input
+                    type="password"
+                    value={form.password}
+                    onChange={(e) =>
+                      setForm({ ...form, password: e.target.value })
+                    }
+                    placeholder="One-time password (min 6 characters)"
+                  />
+                </div>
               </>
             )}
-            <div><Label>Notes</Label><Textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={3} /></div>
+            <div>
+              <Label>Notes</Label>
+              <Textarea
+                value={form.notes}
+                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                rows={3}
+              />
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-            <Button onClick={handleSave} disabled={saving} className="rounded-button">{saving ? "Saving…" : editId ? "Update" : "Create"}</Button>
+            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-button"
+            >
+              {saving ? "Saving…" : editId ? "Update" : "Create"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+      <AlertDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete Client?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete this client? This will permanently remove the client from the system. This action cannot be undone.
+              Are you sure you want to delete this client? This will permanently
+              remove the client from the system. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
               {deleting ? "Deleting…" : "Delete Permanently"}
             </AlertDialogAction>
           </AlertDialogFooter>

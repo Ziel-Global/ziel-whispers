@@ -9,13 +9,46 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  DataRow,
+  RowPrimary,
+  RowSecondary,
+  RowDataItem,
+  RowBadgeItem,
+  RowActions,
+  TableHeader,
+  editButtonClass,
+} from "@/components/ui/data-row";
 import { ArrowLeft, Save, Check, Plus, Trash2, Pencil } from "lucide-react";
 import { format } from "date-fns";
-import { PRIORITY_COLORS, TASK_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
+import {
+  PRIORITY_COLORS,
+  TASK_STATUS_COLORS as STATUS_COLORS,
+} from "@/lib/workflow";
 
 export default function PhaseEditPage() {
   const { slug, phaseId } = useParams<{ slug: string; phaseId: string }>();
@@ -27,14 +60,18 @@ export default function PhaseEditPage() {
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDueDate, setEditingDueDate] = useState("");
   const [saving, setSaving] = useState(false);
-  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [taskFilter, setTaskFilter] = useState<string>("all");
 
   const [addSprintOpen, setAddSprintOpen] = useState(false);
   const [sprintName, setSprintName] = useState("");
   const [sprintStartDate, setSprintStartDate] = useState("");
   const [sprintEndDate, setSprintEndDate] = useState("");
-  const [confirmSprintDelId, setConfirmSprintDelId] = useState<string | null>(null);
+  const [confirmSprintDelId, setConfirmSprintDelId] = useState<string | null>(
+    null,
+  );
 
   const { data: resolvedId } = useQuery({
     queryKey: ["resolve-project-slug", slug],
@@ -51,7 +88,11 @@ export default function PhaseEditPage() {
   const { data: phase, isLoading: phaseLoading } = useQuery({
     queryKey: ["project-phase", phaseId],
     queryFn: async () => {
-      const { data } = await supabase.from("project_phases").select("*").eq("id", phaseId!).single();
+      const { data } = await supabase
+        .from("project_phases")
+        .select("*")
+        .eq("id", phaseId!)
+        .single();
       if (data) {
         setEditingTitle(data.title);
         setEditingDueDate(data.due_date || "");
@@ -100,32 +141,47 @@ export default function PhaseEditPage() {
   }, [eligibleTasks]);
 
   const assignedTaskIds = useMemo(
-    () => new Set(eligibleTasks.filter((t: any) => t.phase_id === phaseId).map((t: any) => t.id)),
-    [eligibleTasks, phaseId]
+    () =>
+      new Set(
+        eligibleTasks
+          .filter((t: any) => t.phase_id === phaseId)
+          .map((t: any) => t.id),
+      ),
+    [eligibleTasks, phaseId],
   );
 
   // Sync selectedTaskIds with currently assigned tasks once loaded
   useEffect(() => {
-    if (eligibleTasks.length > 0 && selectedTaskIds.size === 0 && assignedTaskIds.size > 0) {
+    if (
+      eligibleTasks.length > 0 &&
+      selectedTaskIds.size === 0 &&
+      assignedTaskIds.size > 0
+    ) {
       setSelectedTaskIds(new Set(assignedTaskIds));
     }
   }, [eligibleTasks, assignedTaskIds]);
 
   const handleSaveAll = async () => {
-    if (!editingTitle.trim()) { toast.error("Title is required"); return; }
+    if (!editingTitle.trim()) {
+      toast.error("Title is required");
+      return;
+    }
     setSaving(true);
     try {
-      const { error: phaseError } = await supabase.from("project_phases").update({
-        title: editingTitle.trim(),
-        due_date: editingDueDate || null,
-      }).eq("id", phaseId!);
+      const { error: phaseError } = await supabase
+        .from("project_phases")
+        .update({
+          title: editingTitle.trim(),
+          due_date: editingDueDate || null,
+        })
+        .eq("id", phaseId!);
       if (phaseError) throw phaseError;
 
       const toUnassign = eligibleTasks.filter(
-        (t: any) => t.phase_id === phaseId && !selectedTaskIds.has(t.id)
+        (t: any) => t.phase_id === phaseId && !selectedTaskIds.has(t.id),
       );
       const toAssign = eligibleTasks.filter(
-        (t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id)
+        (t: any) => t.phase_id !== phaseId && selectedTaskIds.has(t.id),
       );
 
       const unassignIds = toUnassign.map((t: any) => t.id);
@@ -142,17 +198,27 @@ export default function PhaseEditPage() {
         const { error } = await supabase
           .from("tasks")
           .update({ phase_id: phaseId!, status: "linked" })
-          .in("id", toAssign.map((t: any) => t.id));
+          .in(
+            "id",
+            toAssign.map((t: any) => t.id),
+          );
         if (error) throw error;
       }
 
       toast.success("All changes saved");
       queryClient.invalidateQueries({ queryKey: ["project-phase", phaseId] });
-      queryClient.invalidateQueries({ queryKey: ["project-phases", projectId] });
-      queryClient.invalidateQueries({ queryKey: ["phase-eligible-tasks", projectId, phaseId] });
+      queryClient.invalidateQueries({
+        queryKey: ["project-phases", projectId],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["phase-eligible-tasks", projectId, phaseId],
+      });
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
   };
 
   const toggleTask = (taskId: string) => {
@@ -175,7 +241,10 @@ export default function PhaseEditPage() {
       end_date: sprintEndDate,
       status: "planned",
     });
-    if (error) { toast.error(error.message); return; }
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Sprint created");
     setAddSprintOpen(false);
     setSprintName("");
@@ -185,34 +254,60 @@ export default function PhaseEditPage() {
   };
 
   const deleteSprint = async (sprintId: string) => {
-    const { error } = await supabase.from("sprints").delete().eq("id", sprintId);
-    if (error) { toast.error(error.message); return; }
+    const { error } = await supabase
+      .from("sprints")
+      .delete()
+      .eq("id", sprintId);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Sprint deleted");
     setConfirmSprintDelId(null);
     queryClient.invalidateQueries({ queryKey: ["phase-sprints", phaseId] });
   };
 
   if (!isAdmin) {
-    return <div className="text-center py-12 text-muted-foreground">Access denied</div>;
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Access denied
+      </div>
+    );
   }
 
   if (phaseLoading) {
-    return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
+    return (
+      <div className="flex items-center justify-center py-12 text-muted-foreground">
+        Loading…
+      </div>
+    );
   }
 
   if (!phase) {
-    return <div className="text-center py-12 text-muted-foreground">Phase not found</div>;
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        Phase not found
+      </div>
+    );
   }
 
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate(`/projects/${slug}`); }}>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={() => {
+            if (window.history.length > 1) navigate(-1);
+            else navigate(`/projects/${slug}`);
+          }}
+        >
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <h1 className="text-2xl font-bold tracking-tight flex-1">Edit Phase</h1>
         <Button onClick={handleSaveAll} disabled={saving}>
-          <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save"}
+          <Save className="h-4 w-4 mr-2" />
+          {saving ? "Saving…" : "Save"}
         </Button>
       </div>
 
@@ -220,11 +315,19 @@ export default function PhaseEditPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-2">
             <label className="text-sm font-medium">Title</label>
-            <Input value={editingTitle} onChange={(e) => setEditingTitle(e.target.value)} placeholder="Phase title" />
+            <Input
+              value={editingTitle}
+              onChange={(e) => setEditingTitle(e.target.value)}
+              placeholder="Phase title"
+            />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium">Due Date</label>
-            <Input type="date" value={editingDueDate} onChange={(e) => setEditingDueDate(e.target.value)} />
+            <Input
+              type="date"
+              value={editingDueDate}
+              onChange={(e) => setEditingDueDate(e.target.value)}
+            />
           </div>
         </div>
       </Card>
@@ -234,14 +337,20 @@ export default function PhaseEditPage() {
           <h2 className="text-lg font-semibold">
             Sprints ({phaseSprints.length})
           </h2>
-          <Button size="sm" onClick={() => setAddSprintOpen(true)} className="rounded-button bg-primary text-black hover:bg-black hover:text-white">
+          <Button
+            size="sm"
+            onClick={() => setAddSprintOpen(true)}
+            className="rounded-button bg-primary text-black hover:bg-black hover:text-white"
+          >
             <Plus className="h-4 w-4 mr-1" /> Add Sprint
           </Button>
         </div>
         {sprintsLoading ? (
           <p className="text-sm text-muted-foreground">Loading...</p>
         ) : phaseSprints.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No sprints in this phase yet.</p>
+          <p className="text-sm text-muted-foreground">
+            No sprints in this phase yet.
+          </p>
         ) : (
           <div>
             <TableHeader gridCols="1fr 112px 96px 96px 80px">
@@ -255,21 +364,36 @@ export default function PhaseEditPage() {
               <DataRow key={s.id} gridCols="1fr 112px 96px 96px 80px">
                 <div>
                   <RowPrimary>{s.name}</RowPrimary>
-                  <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+                  <RowSecondary>
+                    {sprintTaskCount[s.id] || 0} tasks
+                  </RowSecondary>
                 </div>
                 <RowDataItem label="DATES">
-                  {format(new Date(s.start_date + "T00:00:00"), "MMM d")} – {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
+                  {format(new Date(s.start_date + "T00:00:00"), "MMM d")} –{" "}
+                  {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
                 </RowDataItem>
                 <RowBadgeItem label="STATUS">
-                  <Badge className={
-                    s.status === "active" ? "bg-green-100 text-green-800" :
-                    s.status === "completed" ? "bg-blue-100 text-blue-800" :
-                    "bg-gray-100 text-gray-800"
-                  }>{s.status}</Badge>
+                  <Badge
+                    className={
+                      s.status === "active"
+                        ? "bg-green-100 text-green-800"
+                        : s.status === "completed"
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-gray-100 text-gray-800"
+                    }
+                  >
+                    {s.status}
+                  </Badge>
                 </RowBadgeItem>
-                <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
+                <RowDataItem label="TASKS">
+                  {sprintTaskCount[s.id] || 0}
+                </RowDataItem>
                 <RowActions className="justify-self-end">
-                  <button onClick={() => setConfirmSprintDelId(s.id)} className={editButtonClass} title="Delete Sprint">
+                  <button
+                    onClick={() => setConfirmSprintDelId(s.id)}
+                    className={editButtonClass}
+                    title="Delete Sprint"
+                  >
                     <Trash2 className="h-4 w-4 text-destructive" />
                   </button>
                 </RowActions>
@@ -296,7 +420,9 @@ export default function PhaseEditPage() {
           </Select>
         </div>
         {eligibleTasks.length === 0 ? (
-          <p className="text-sm text-muted-foreground">No tasks available for this project.</p>
+          <p className="text-sm text-muted-foreground">
+            No tasks available for this project.
+          </p>
         ) : (
           <div>
             <TableHeader gridCols="40px 1fr 112px 80px 96px 80px">
@@ -307,42 +433,59 @@ export default function PhaseEditPage() {
               <span>STATUS</span>
               <span>PRIORITY</span>
             </TableHeader>
-            {[...eligibleTasks].filter((t: any) => {
-              if (taskFilter === "all") return true;
-              if (taskFilter === "complete") return t.status === "complete";
-              if (taskFilter === "linked") return t.status === "linked";
-              return true;
-            }).sort((a: any, b: any) => {
-              const aChecked = selectedTaskIds.has(a.id) ? 1 : 0;
-              const bChecked = selectedTaskIds.has(b.id) ? 1 : 0;
-              return bChecked - aChecked;
-            }).map((t: any) => {
-              const checked = selectedTaskIds.has(t.id);
-              return (
-                <DataRow
-                  key={t.id}
-                  gridCols="40px 1fr 112px 80px 96px 80px"
-                  className={checked ? "bg-primary/5" : ""}
-                >
-                  <button
-                    onClick={() => toggleTask(t.id)}
-                    className={`mt-1 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
-                      checked ? "bg-primary border-primary text-white" : "border-[#d1d5db]"
-                    }`}
+            {[...eligibleTasks]
+              .filter((t: any) => {
+                if (taskFilter === "all") return true;
+                if (taskFilter === "complete") return t.status === "complete";
+                if (taskFilter === "linked") return t.status === "linked";
+                return true;
+              })
+              .sort((a: any, b: any) => {
+                const aChecked = selectedTaskIds.has(a.id) ? 1 : 0;
+                const bChecked = selectedTaskIds.has(b.id) ? 1 : 0;
+                return bChecked - aChecked;
+              })
+              .map((t: any) => {
+                const checked = selectedTaskIds.has(t.id);
+                return (
+                  <DataRow
+                    key={t.id}
+                    gridCols="40px 1fr 112px 80px 96px 80px"
+                    className={checked ? "bg-primary/5" : ""}
                   >
-                    {checked && <Check className="h-3 w-3" />}
-                  </button>
-                  <div>
-                    <RowPrimary>{t.title}</RowPrimary>
-                    {checked && <RowSecondary>Assigned</RowSecondary>}
-                  </div>
-                  <RowDataItem label="ASSIGNEE">{(t as any).users?.full_name || "—"}</RowDataItem>
-                  <RowDataItem label="EST.">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</RowDataItem>
-                  <RowBadgeItem label="STATUS"><Badge className={STATUS_COLORS[t.status] || ""}>{t.status.replace(/_/g, " ")}</Badge></RowBadgeItem>
-                  <RowBadgeItem label="PRIORITY"><Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge></RowBadgeItem>
-                </DataRow>
-              );
-            })}
+                    <button
+                      onClick={() => toggleTask(t.id)}
+                      className={`mt-1 w-4 h-4 rounded border flex items-center justify-center shrink-0 ${
+                        checked
+                          ? "bg-primary border-primary text-white"
+                          : "border-[#d1d5db]"
+                      }`}
+                    >
+                      {checked && <Check className="h-3 w-3" />}
+                    </button>
+                    <div>
+                      <RowPrimary>{t.title}</RowPrimary>
+                      {checked && <RowSecondary>Assigned</RowSecondary>}
+                    </div>
+                    <RowDataItem label="ASSIGNEE">
+                      {(t as any).users?.full_name || "—"}
+                    </RowDataItem>
+                    <RowDataItem label="EST.">
+                      {t.estimated_hours ? `${t.estimated_hours}h` : "—"}
+                    </RowDataItem>
+                    <RowBadgeItem label="STATUS">
+                      <Badge className={STATUS_COLORS[t.status] || ""}>
+                        {t.status.replace(/_/g, " ")}
+                      </Badge>
+                    </RowBadgeItem>
+                    <RowBadgeItem label="PRIORITY">
+                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>
+                        {t.priority}
+                      </Badge>
+                    </RowBadgeItem>
+                  </DataRow>
+                );
+              })}
           </div>
         )}
       </Card>
@@ -350,22 +493,45 @@ export default function PhaseEditPage() {
       {/* Add Sprint Dialog */}
       <Dialog open={addSprintOpen} onOpenChange={setAddSprintOpen}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Add Sprint to {phase?.title}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Add Sprint to {phase?.title}</DialogTitle>
+          </DialogHeader>
           <form onSubmit={handleAddSprint} className="space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Sprint Name *</label>
-              <Input value={sprintName} onChange={(e) => setSprintName(e.target.value)} placeholder="e.g. Sprint 1" required />
+              <Input
+                value={sprintName}
+                onChange={(e) => setSprintName(e.target.value)}
+                placeholder="e.g. Sprint 1"
+                required
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Start Date *</label>
-              <Input type="date" value={sprintStartDate} onChange={(e) => setSprintStartDate(e.target.value)} required />
+              <Input
+                type="date"
+                value={sprintStartDate}
+                onChange={(e) => setSprintStartDate(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">End Date *</label>
-              <Input type="date" value={sprintEndDate} onChange={(e) => setSprintEndDate(e.target.value)} required />
+              <Input
+                type="date"
+                value={sprintEndDate}
+                onChange={(e) => setSprintEndDate(e.target.value)}
+                required
+              />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setAddSprintOpen(false)}>Cancel</Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setAddSprintOpen(false)}
+              >
+                Cancel
+              </Button>
               <Button type="submit">Create Sprint</Button>
             </DialogFooter>
           </form>
@@ -373,15 +539,27 @@ export default function PhaseEditPage() {
       </Dialog>
 
       {/* Delete Sprint Confirmation */}
-      <AlertDialog open={!!confirmSprintDelId} onOpenChange={(open) => !open && setConfirmSprintDelId(null)}>
+      <AlertDialog
+        open={!!confirmSprintDelId}
+        onOpenChange={(open) => !open && setConfirmSprintDelId(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete sprint?</AlertDialogTitle>
-            <AlertDialogDescription>This will unlink all tasks from this sprint and cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>
+              This will unlink all tasks from this sprint and cannot be undone.
+            </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmSprintDelId) deleteSprint(confirmSprintDelId); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction
+              onClick={() => {
+                if (confirmSprintDelId) deleteSprint(confirmSprintDelId);
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

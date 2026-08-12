@@ -48,7 +48,9 @@ export function useNotifications() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications", profile?.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", profile?.id],
+      });
     },
   });
 
@@ -62,7 +64,9 @@ export function useNotifications() {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["notifications", profile?.id] });
+      queryClient.invalidateQueries({
+        queryKey: ["notifications", profile?.id],
+      });
       toast.success("All notifications marked as read");
     },
   });
@@ -73,16 +77,24 @@ export function useNotifications() {
     if (!profile?.id) return;
     const channel = supabase
       .channel("notifications-realtime")
-      .on("postgres_changes", {
-        event: "INSERT",
-        schema: "public",
-        table: "notifications",
-        filter: `user_id=eq.${profile.id}`,
-      }, () => {
-        queryClient.invalidateQueries({ queryKey: ["notifications", profile.id] });
-      })
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `user_id=eq.${profile.id}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: ["notifications", profile.id],
+          });
+        },
+      )
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [profile?.id, queryClient]);
 
   return { notifications, isLoading, unreadCount, markAsRead, markAllAsRead };

@@ -19,13 +19,29 @@ export default function SetPasswordPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (hasSubmitted.current) return;
-    if (password.length < 8) { toast.error("Password must be at least 8 characters"); return; }
-    if (!/[0-9]/.test(password)) { toast.error("Password must contain at least one number"); return; }
-    if (!/[^a-zA-Z0-9]/.test(password)) { toast.error("Password must contain at least one special character"); return; }
-    if (password !== confirm) { toast.error("Passwords do not match"); return; }
+    if (password.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    if (!/[0-9]/.test(password)) {
+      toast.error("Password must contain at least one number");
+      return;
+    }
+    if (!/[^a-zA-Z0-9]/.test(password)) {
+      toast.error("Password must contain at least one special character");
+      return;
+    }
+    if (password !== confirm) {
+      toast.error("Passwords do not match");
+      return;
+    }
 
     const userId = profile?.id || user?.id;
-    if (!userId) { toast.error("Session expired. Please log in again."); navigate("/login", { replace: true }); return; }
+    if (!userId) {
+      toast.error("Session expired. Please log in again.");
+      navigate("/login", { replace: true });
+      return;
+    }
 
     setLoading(true);
     hasSubmitted.current = true;
@@ -36,7 +52,9 @@ export default function SetPasswordPage() {
       if (error) throw error;
 
       // Mark that we're performing a password set flow so route guards can avoid redirect flashes
-      try { localStorage.setItem("_zl_just_set_password", "1"); } catch {}
+      try {
+        localStorage.setItem("_zl_just_set_password", "1");
+      } catch {}
 
       // 2. Clear the must_change_password flag BEFORE signing out
       const { error: profileError } = await supabase
@@ -46,23 +64,30 @@ export default function SetPasswordPage() {
       if (profileError) throw profileError;
 
       // 3. Audit log (non-critical, don't block on error)
-      await supabase.from("audit_logs").insert({
-        actor_id: userId,
-        action: "user.password_set",
-        target_entity: "users",
-        target_id: userId,
-      }).then(() => {});
+      await supabase
+        .from("audit_logs")
+        .insert({
+          actor_id: userId,
+          action: "user.password_set",
+          target_entity: "users",
+          target_id: userId,
+        })
+        .then(() => {});
 
       // 4. Refresh session to ensure user data is updated (optional but good practice)
       await supabase.auth.refreshSession();
 
       // 5. Show success and redirect directly to the app (HomeRouter will redirect Client to /projects)
       toast.success("Password set successfully! Welcome to the portal.");
-      try { localStorage.removeItem("_zl_just_set_password"); } catch {}
+      try {
+        localStorage.removeItem("_zl_just_set_password");
+      } catch {}
       navigate("/", { replace: true });
     } catch (error: any) {
       hasSubmitted.current = false;
-      try { localStorage.removeItem("_zl_just_set_password"); } catch {}
+      try {
+        localStorage.removeItem("_zl_just_set_password");
+      } catch {}
       toast.error(error.message || "Failed to update password");
     } finally {
       setLoading(false);
@@ -74,19 +99,38 @@ export default function SetPasswordPage() {
       <Card className="w-full max-w-sm border-border bg-card">
         <CardHeader className="text-center">
           <CardTitle className="text-xl font-bold">Set Your Password</CardTitle>
-          <p className="text-sm text-muted-foreground mt-1">Please choose a new password to continue</p>
+          <p className="text-sm text-muted-foreground mt-1">
+            Please choose a new password to continue
+          </p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="password">New Password</Label>
-              <PasswordInput id="password" placeholder="Min 8 characters" value={password} onChange={(e) => setPassword(e.target.value)} required showStrength />
+              <PasswordInput
+                id="password"
+                placeholder="Min 8 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                showStrength
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="confirm">Confirm Password</Label>
-              <PasswordInput id="confirm" placeholder="Re-enter password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required />
+              <PasswordInput
+                id="confirm"
+                placeholder="Re-enter password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                required
+              />
             </div>
-            <Button type="submit" disabled={loading} className="w-full rounded-btn bg-primary text-primary-foreground hover:bg-primary/90">
+            <Button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-btn bg-primary text-primary-foreground hover:bg-primary/90"
+            >
               {loading ? "Updating…" : "Set Password"}
             </Button>
           </form>

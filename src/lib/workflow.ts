@@ -14,7 +14,12 @@ export const PRIORITY_COLORS: Record<string, string> = {
   low: "bg-green-100 text-green-800",
 };
 
-export const PROJECT_STATUS_OPTIONS = ["active", "on_hold", "completed", "archived"];
+export const PROJECT_STATUS_OPTIONS = [
+  "active",
+  "on_hold",
+  "completed",
+  "archived",
+];
 
 export const PROJECT_STATUS_COLORS: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -33,10 +38,14 @@ export function getPriorityColor(priority: string): string {
 
 export function getCategoryColor(category: string): string {
   switch (category) {
-    case "todo": return "bg-gray-100 text-gray-800";
-    case "in_progress": return "bg-blue-100 text-blue-800";
-    case "done": return "bg-green-100 text-green-800";
-    default: return "bg-gray-100 text-gray-800";
+    case "todo":
+      return "bg-gray-100 text-gray-800";
+    case "in_progress":
+      return "bg-blue-100 text-blue-800";
+    case "done":
+      return "bg-green-100 text-green-800";
+    default:
+      return "bg-gray-100 text-gray-800";
   }
 }
 
@@ -103,7 +112,7 @@ export async function fetchWorkflowTemplate(projectId: string): Promise<{
 export function getAllowedTransitions(
   statuses: WorkflowStatus[],
   transitions: WorkflowTransition[],
-  fromStatusId: string | null
+  fromStatusId: string | null,
 ): WorkflowStatus[] {
   const allowedIds = transitions
     .filter((t) => t.from_status_id === fromStatusId)
@@ -111,14 +120,16 @@ export function getAllowedTransitions(
   return statuses.filter((s) => allowedIds.includes(s.id));
 }
 
-export function getInitialStatus(statuses: WorkflowStatus[]): WorkflowStatus | undefined {
+export function getInitialStatus(
+  statuses: WorkflowStatus[],
+): WorkflowStatus | undefined {
   return statuses.find((s) => s.is_initial);
 }
 
 export async function changeTaskStatus(
   taskId: string,
   newStatusId: string,
-  changedByType: "admin" | "system" | "auto" = "system"
+  changedByType: "admin" | "system" | "auto" = "system",
 ) {
   const { error } = await supabase.rpc("change_task_status", {
     p_task_id: taskId,

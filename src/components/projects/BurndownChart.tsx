@@ -9,7 +9,13 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export interface BurndownDataPoint {
   name: string;
@@ -70,17 +76,29 @@ function buildStepDisplayData(
 ): { chartData: ChartPoint[]; nowIndex: number; timelineEnd: number } {
   const timelineEnd = Math.max(1, burndownData.length - 1);
   const nowIndex = burndownData.findIndex((d) => d.isNow);
-  const effectiveNow = nowIndex >= 0 ? nowIndex : Math.round(timelineEnd * 0.55);
+  const effectiveNow =
+    nowIndex >= 0 ? nowIndex : Math.round(timelineEnd * 0.55);
 
   const chartData: ChartPoint[] = [];
 
   for (let i = 0; i < burndownData.length; i++) {
     const point = burndownData[i];
-    const val = point.actual != null ? point.actual : (i <= effectiveNow ? totalEst : remaining);
+    const val =
+      point.actual != null
+        ? point.actual
+        : i <= effectiveNow
+          ? totalEst
+          : remaining;
     chartData.push({
       chartIndex: i,
       displayActual: Math.max(0, val),
-      hoverRemaining: getRealRemainingAt(burndownData, i, totalEst, remaining, effectiveNow),
+      hoverRemaining: getRealRemainingAt(
+        burndownData,
+        i,
+        totalEst,
+        remaining,
+        effectiveNow,
+      ),
       isNow: point.isNow,
     });
   }
@@ -101,7 +119,10 @@ function NowOverlay({
   remaining: number;
   showTooltip: boolean;
   displayY: number;
-  xAxisMap?: Record<string, { scale: (v: number) => number; bandwidth?: () => number }>;
+  xAxisMap?: Record<
+    string,
+    { scale: (v: number) => number; bandwidth?: () => number }
+  >;
   yAxisMap?: Record<string, { scale: (v: number) => number }>;
   offset?: { top: number; left: number; width: number; height: number };
 }) {
@@ -111,7 +132,8 @@ function NowOverlay({
   const yAxis = Object.values(yAxisMap)[0];
   if (!xAxis?.scale || !yAxis?.scale) return null;
 
-  const x = xAxis.scale(nowIndex) + (xAxis.bandwidth?.() ?? 0) / 2 + offset.left;
+  const x =
+    xAxis.scale(nowIndex) + (xAxis.bandwidth?.() ?? 0) / 2 + offset.left;
   const y = yAxis.scale(displayY) + offset.top;
   const bottom = offset.top + offset.height;
 
@@ -128,10 +150,18 @@ function NowOverlay({
       />
       <circle cx={x} cy={y} r={5} fill={ORANGE} stroke="#fff" strokeWidth={2} />
       {showTooltip && (
-        <foreignObject x={x - 60} y={y - 68} width={120} height={52} className="overflow-visible">
+        <foreignObject
+          x={x - 60}
+          y={y - 68}
+          width={120}
+          height={52}
+          className="overflow-visible"
+        >
           <div className="flex justify-center">
             <div className="rounded-lg bg-[#1A1A1A] px-3.5 py-2 text-center shadow-[0_4px_16px_rgba(0,0,0,0.22)] animate-in fade-in-0 slide-in-from-bottom-1 duration-500">
-              <p className="text-[10px] font-medium leading-tight text-[#9CA3AF]">Now</p>
+              <p className="text-[10px] font-medium leading-tight text-[#9CA3AF]">
+                Now
+              </p>
               <p className="text-[11px] font-bold leading-tight text-white">
                 Remaining: {formatHours(displayY)}
               </p>
@@ -170,7 +200,10 @@ export function BurndownChart({
   const nowPercent = timelineEnd > 0 ? nowIndex / timelineEnd : 0.5;
 
   const chartKey = useMemo(
-    () => chartData.map((d) => `${d.chartIndex.toFixed(2)}-${d.displayActual.toFixed(1)}`).join("|"),
+    () =>
+      chartData
+        .map((d) => `${d.chartIndex.toFixed(2)}-${d.displayActual.toFixed(1)}`)
+        .join("|"),
     [chartData],
   );
 
@@ -185,7 +218,9 @@ export function BurndownChart({
       className={`overflow-visible rounded-[16px] border border-[#E5E7EB] bg-white p-7 shadow-sm ${className}`}
     >
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-base font-semibold tracking-tight text-[#111827]">Burndown</h2>
+        <h2 className="text-base font-semibold tracking-tight text-[#111827]">
+          Burndown
+        </h2>
         <div className="flex shrink-0 items-center gap-2">
           <span className="text-xs font-medium text-[#6B7280]">Scope:</span>
           <Select value={burndownScope} onValueChange={onScopeChange}>
@@ -208,15 +243,21 @@ export function BurndownChart({
         <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
           <span className="text-[#6B7280]">
             Total estimated:{" "}
-            <strong className="font-semibold tabular-nums text-[#111827]">{formatHours(totalEst)}</strong>
+            <strong className="font-semibold tabular-nums text-[#111827]">
+              {formatHours(totalEst)}
+            </strong>
           </span>
           <span className="text-[#6B7280]">
             Logged:{" "}
-            <strong className="font-semibold tabular-nums text-[#111827]">{formatHours(loggedHrs)}</strong>
+            <strong className="font-semibold tabular-nums text-[#111827]">
+              {formatHours(loggedHrs)}
+            </strong>
           </span>
           <span className="text-[#6B7280]">
             Remaining:{" "}
-            <strong className="font-semibold tabular-nums text-[#111827]">{formatHours(remaining)}</strong>
+            <strong className="font-semibold tabular-nums text-[#111827]">
+              {formatHours(remaining)}
+            </strong>
           </span>
           <span className="font-medium text-[#EC6824]">
             Unestimated:{" "}
@@ -239,7 +280,7 @@ export function BurndownChart({
             >
               <defs>
                 <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor={ORANGE} stopOpacity={0.20} />
+                  <stop offset="0%" stopColor={ORANGE} stopOpacity={0.2} />
                   <stop offset="100%" stopColor={ORANGE} stopOpacity={0} />
                 </linearGradient>
               </defs>
@@ -263,7 +304,8 @@ export function BurndownChart({
                 hide
                 domain={[
                   (dataMin: number) => Math.floor(dataMin * 0.9),
-                  (dataMax: number) => Math.ceil(Math.max(dataMax, totalEstimatedHours) * 1.05),
+                  (dataMax: number) =>
+                    Math.ceil(Math.max(dataMax, totalEstimatedHours) * 1.05),
                 ]}
               />
 
@@ -299,9 +341,17 @@ export function BurndownChart({
 
               <Customized
                 component={(props: {
-                  xAxisMap?: Record<string, { scale: (v: number) => number; bandwidth?: () => number }>;
+                  xAxisMap?: Record<
+                    string,
+                    { scale: (v: number) => number; bandwidth?: () => number }
+                  >;
                   yAxisMap?: Record<string, { scale: (v: number) => number }>;
-                  offset?: { top: number; left: number; width: number; height: number };
+                  offset?: {
+                    top: number;
+                    left: number;
+                    width: number;
+                    height: number;
+                  };
                 }) => (
                   <NowOverlay
                     nowIndex={nowIndex}
@@ -318,26 +368,37 @@ export function BurndownChart({
           </ResponsiveContainer>
 
           <div className="relative mt-2 h-5 px-2">
-            <span className="absolute left-0 text-[12px] font-medium text-[#9CA3AF]">Start</span>
+            <span className="absolute left-0 text-[12px] font-medium text-[#9CA3AF]">
+              Start
+            </span>
             {nowIndex >= 0 && (
               <span
                 className="absolute text-[11px] font-medium text-[#9CA3AF]"
-                style={{ left: `${nowPercent * 100}%`, transform: "translateX(-50%)" }}
+                style={{
+                  left: `${nowPercent * 100}%`,
+                  transform: "translateX(-50%)",
+                }}
               >
                 Now
               </span>
             )}
-            <span className="absolute right-0 text-[11px] font-medium text-[#9CA3AF]">Due</span>
+            <span className="absolute right-0 text-[11px] font-medium text-[#9CA3AF]">
+              Due
+            </span>
           </div>
 
           <div className="mt-4 flex items-center gap-6 pl-1">
             <div className="flex items-center gap-2">
               <span className="h-[3px] w-5 rounded-full bg-[#EC6824]" />
-              <span className="text-[10px] font-medium text-[#6B7280]">Remaining</span>
+              <span className="text-[10px] font-medium text-[#6B7280]">
+                Remaining
+              </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="w-5 border-t-[1.5px] border-dashed border-[#9CA3AF]" />
-              <span className="text-[10px] font-medium text-[#6B7280]">Total estimated</span>
+              <span className="text-[10px] font-medium text-[#6B7280]">
+                Total estimated
+              </span>
             </div>
           </div>
         </div>

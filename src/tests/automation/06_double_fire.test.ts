@@ -1,5 +1,9 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { setupTestEnvironment, teardownTestEnvironment, TestContext } from "./setup/testContext";
+import {
+  setupTestEnvironment,
+  teardownTestEnvironment,
+  TestContext,
+} from "./setup/testContext";
 import { STATUS_QA_REVIEW } from "./setup/constants";
 import { dbQuery } from "./helpers/dbClient";
 import { reporter } from "./helpers/reporter";
@@ -23,15 +27,17 @@ describe("Section 6: Double-Fire Check (Test 6.1)", () => {
 
     // Record baseline rule run count
     const before = await dbQuery<{ cnt: string }>(
-      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`
+      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`,
     );
     const countBefore = parseInt(before[0]?.cnt ?? "0");
 
     // Move to QA Review — this fires trg_run_automation_on_status_change exactly once
-    await dbQuery(`UPDATE tasks SET status_id = '${STATUS_QA_REVIEW}' WHERE id = '${task.id}';`);
+    await dbQuery(
+      `UPDATE tasks SET status_id = '${STATUS_QA_REVIEW}' WHERE id = '${task.id}';`,
+    );
 
     const after = await dbQuery<{ cnt: string }>(
-      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`
+      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`,
     );
     const countAfter = parseInt(after[0]?.cnt ?? "0");
 
@@ -47,7 +53,7 @@ describe("Section 6: Double-Fire Check (Test 6.1)", () => {
     // both an inline call AND the trigger fired). In practice, with N enabled rules
     // per project, delta should equal N (one run per rule), not 2*N.
     const rulesCount = await dbQuery<{ cnt: string }>(
-      `SELECT COUNT(*) AS cnt FROM automation_rules WHERE project_id = '${context.projectId}' AND trigger_type = 'status_change' AND status = 'enabled';`
+      `SELECT COUNT(*) AS cnt FROM automation_rules WHERE project_id = '${context.projectId}' AND trigger_type = 'status_change' AND status = 'enabled';`,
     );
     const enabledRules = parseInt(rulesCount[0]?.cnt ?? "0");
 

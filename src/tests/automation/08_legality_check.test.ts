@@ -1,6 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { setupTestEnvironment, teardownTestEnvironment, TestContext } from "./setup/testContext";
-import { STATUS_DEVELOPMENT, STATUS_QA_REVIEW, STATUS_DONE } from "./setup/constants";
+import {
+  setupTestEnvironment,
+  teardownTestEnvironment,
+  TestContext,
+} from "./setup/testContext";
+import {
+  STATUS_DEVELOPMENT,
+  STATUS_QA_REVIEW,
+  STATUS_DONE,
+} from "./setup/constants";
 import { dbQuery } from "./helpers/dbClient";
 import { reporter } from "./helpers/reporter";
 
@@ -27,36 +35,41 @@ describe("Section 8: Legality & Validation Check (Test 8.1)", () => {
     expect(task).toBeDefined();
 
     // First move to Done (valid: Dev -> Done is allowed)
-    await dbQuery(`UPDATE tasks SET status_id = '${STATUS_DONE}' WHERE id = '${task.id}';`);
+    await dbQuery(
+      `UPDATE tasks SET status_id = '${STATUS_DONE}' WHERE id = '${task.id}';`,
+    );
 
     const beforeRuns = await dbQuery<{ cnt: string }>(
-      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`
+      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`,
     );
 
     // Attempt illegal: Done -> QA Review (NOT in workflow_transitions)
     let errorThrown = false;
     try {
       await dbQuery(
-        `SELECT public.declare_stage_outcome('${task.id}', '${STATUS_QA_REVIEW}', 'system');`
+        `SELECT public.declare_stage_outcome('${task.id}', '${STATUS_QA_REVIEW}', 'system');`,
       );
     } catch (err: any) {
       errorThrown = true;
     }
 
     const taskState = await dbQuery<{ status_id: string }>(
-      `SELECT status_id FROM tasks WHERE id = '${task.id}';`
+      `SELECT status_id FROM tasks WHERE id = '${task.id}';`,
     );
 
     const afterRuns = await dbQuery<{ cnt: string }>(
-      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`
+      `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`,
     );
 
     // Transition must be blocked: error thrown OR status stayed as Done
-    const transitionBlocked = errorThrown || taskState[0].status_id === STATUS_DONE;
+    const transitionBlocked =
+      errorThrown || taskState[0].status_id === STATUS_DONE;
     expect(transitionBlocked).toBe(true);
 
     // No automation rule runs for this rejected transition
-    expect(parseInt(afterRuns[0]?.cnt ?? "0")).toBe(parseInt(beforeRuns[0]?.cnt ?? "0"));
+    expect(parseInt(afterRuns[0]?.cnt ?? "0")).toBe(
+      parseInt(beforeRuns[0]?.cnt ?? "0"),
+    );
 
     reporter.logResult({
       testId: "8.1",
@@ -72,7 +85,9 @@ describe("Section 8: Legality & Validation Check (Test 8.1)", () => {
 
     // Reset to unlinked (valid: Done -> Dev -> we'll bypass to set unlinked directly for test setup)
     // Since Done->Development is valid, first go Dev
-    await dbQuery(`UPDATE tasks SET status_id = '${STATUS_DEVELOPMENT}' WHERE id = '${task.id}';`);
+    await dbQuery(
+      `UPDATE tasks SET status_id = '${STATUS_DEVELOPMENT}' WHERE id = '${task.id}';`,
+    );
     // Then back to unlinked — this is also a potentially blocked transition, so just force it at DB level
     // by temporarily bypassing the trigger for setup only
     // Actually unlinked is already a valid status — the trigger only checks transitions on UPDATE.
@@ -83,7 +98,9 @@ describe("Section 8: Legality & Validation Check (Test 8.1)", () => {
     // Force task to unlinked for setup (this may also be blocked — if so, test is still valid)
     let setupError = false;
     try {
-      await dbQuery(`UPDATE tasks SET status_id = '${STATUS_UNLINKED}' WHERE id = '${task.id}';`);
+      await dbQuery(
+        `UPDATE tasks SET status_id = '${STATUS_UNLINKED}' WHERE id = '${task.id}';`,
+      );
     } catch {
       setupError = true;
       // Can't set to unlinked directly; that's fine, we know the trigger is working
@@ -91,30 +108,35 @@ describe("Section 8: Legality & Validation Check (Test 8.1)", () => {
 
     if (!setupError) {
       const before = await dbQuery<{ cnt: string }>(
-        `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`
+        `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`,
       );
 
       let blocked = false;
       try {
         // unlinked -> Done: NOT a valid transition
-        await dbQuery(`UPDATE tasks SET status_id = '${STATUS_DONE}' WHERE id = '${task.id}';`);
+        await dbQuery(
+          `UPDATE tasks SET status_id = '${STATUS_DONE}' WHERE id = '${task.id}';`,
+        );
       } catch {
         blocked = true;
       }
 
       const taskState = await dbQuery<{ status_id: string }>(
-        `SELECT status_id FROM tasks WHERE id = '${task.id}';`
+        `SELECT status_id FROM tasks WHERE id = '${task.id}';`,
       );
 
       const after = await dbQuery<{ cnt: string }>(
-        `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`
+        `SELECT COUNT(*) AS cnt FROM automation_rule_runs WHERE entity_id = '${task.id}';`,
       );
 
       // Either error thrown or status stayed unlinked
-      const transitionBlocked = blocked || taskState[0].status_id === STATUS_UNLINKED;
+      const transitionBlocked =
+        blocked || taskState[0].status_id === STATUS_UNLINKED;
       expect(transitionBlocked).toBe(true);
       // No automation fired for blocked illegal transition
-      expect(parseInt(after[0]?.cnt ?? "0")).toBe(parseInt(before[0]?.cnt ?? "0"));
+      expect(parseInt(after[0]?.cnt ?? "0")).toBe(
+        parseInt(before[0]?.cnt ?? "0"),
+      );
 
       reporter.logResult({
         testId: "8.2",
@@ -128,7 +150,8 @@ describe("Section 8: Legality & Validation Check (Test 8.1)", () => {
         testId: "8.2",
         testName: "Direct UPDATE Illegal Transition Blocked",
         status: "PASS",
-        notes: "BEFORE trigger is so strict it blocked even setup UPDATE. Validates trigger is enforcing transitions at all times.",
+        notes:
+          "BEFORE trigger is so strict it blocked even setup UPDATE. Validates trigger is enforcing transitions at all times.",
       });
     }
   }, 60000);

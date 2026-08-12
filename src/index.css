@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Host+Grotesk:ital,wght@0,300..800;1,300..800&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Host+Grotesk:ital,wght@0,300..800;1,300..800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --font-sans: 'Host Grotesk', sans-serif;
+    --font-sans: "Host Grotesk", sans-serif;
 
     --background: 0 0% 98.4%;
     --foreground: 0 0% 0%;
@@ -80,7 +80,12 @@
     @apply bg-background text-foreground font-sans;
   }
   /* Headings should not have primary color */
-  h1, h2, h3, h4, h5, h6 {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
     @apply text-foreground !important;
   }
 }
@@ -88,14 +93,18 @@
 @layer components {
   /* Global button logic: Primary buttons use orange brand color with white text */
   .rounded-button,
-  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]) {
+  button[class*="bg-primary"]:not([class*="destructive"]):not(
+      [class*="outline"]
+    ):not([class*="ghost"]):not([class*="secondary"]) {
     @apply text-white !important;
     transition: all 150ms ease;
   }
 
   /* Hover effect for primary buttons: Background turns darker orange */
   .rounded-button:hover,
-  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover {
+  button[class*="bg-primary"]:not([class*="destructive"]):not(
+      [class*="outline"]
+    ):not([class*="ghost"]):not([class*="secondary"]):hover {
     background-color: #c4541a !important;
     @apply text-white !important;
   }

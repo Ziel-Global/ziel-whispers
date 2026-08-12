@@ -1,4 +1,4 @@
-﻿import { useMemo, useState } from "react";
+﻿import React, { useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { useNavigate } from "react-router-dom";
-import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight, Info } from "lucide-react";
+import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight, Info, Filter, Download, Settings2, TrendingUp, ChevronDown } from "lucide-react";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer } from "recharts";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -96,6 +97,89 @@ export default function DashboardPage() {
       const { data, error } = await supabase.from("audit_logs").select("*, users:actor_id(full_name)").order("created_at", { ascending: false }).limit(10);
       if (error) throw error;
       return data || [];
+    },
+    enabled: isAdmin && hasProfile,
+  });
+
+  // ——— Admin dashboard new queries ———
+  const [adminTab, setAdminTab] = useState<"overview" | "team" | "projects">("overview");
+
+  const { data: workforceSplit } = useQuery({
+    queryKey: ["dashboard-workforce-split"],
+    queryFn: async () => {
+      const { data, error } = await supabase.from("attendance").select("work_mode").eq("date", today).not("clock_in", "is", null);
+      if (error) throw error;
+      const rows = data || [];
+      const onsite = rows.filter((r: any) => r.work_mode === "onsite").length;
+      const remote = rows.filter((r: any) => r.work_mode === "remote").length;
+      return { onsite, remote, total: onsite + remote };
+    },
+    enabled: isAdmin && hasProfile,
+  });
+
+  const { data: attendanceTrend } = useQuery({
+    queryKey: ["dashboard-attendance-trend"],
+    queryFn: async () => {
+      const year = new Date().getFullYear();
+      const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sept", "Okt", "Nov", "Dec"];
+      const results = [];
+      for (let m = 0; m < 12; m++) {
+        const startDate = `${year}-${String(m + 1).padStart(2, "0")}-01`;
+        const endMonth = m === 11 ? 1 : m + 2;
+        const endYear = m === 11 ? year + 1 : year;
+        const endDate = `${endYear}-${String(endMonth).padStart(2, "0")}-01`;
+        const { count } = await supabase.from("attendance").select("*", { count: "exact", head: true }).gte("date", startDate).lt("date", endDate).not("clock_in", "is", null);
+        const { count: lateCount } = await supabase.from("attendance").select("*", { count: "exact", head: true }).gte("date", startDate).lt("date", endDate).not("clock_in", "is", null).eq("is_late", true);
+        const total = count || 0;
+        const late = lateCount || 0;
+        const pct = total > 0 ? Math.round(((total - late) / total) * 100) : 100;
+        results.push({ month: months[m], attendance: pct, lateLogs: late });
+      }
+      return results;
+    },
+    enabled: isAdmin && hasProfile,
+  });
+
+  const { data: attendanceScore } = useQuery({
+    queryKey: ["dashboard-attendance-score"],
+    queryFn: async () => {
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      const startDate = sevenDaysAgo.toISOString().split("T")[0];
+      const { count: totalLogs } = await supabase.from("attendance").select("*", { count: "exact", head: true }).gte("date", startDate).not("clock_in", "is", null);
+      const { count: lateLogs } = await supabase.from("attendance").select("*", { count: "exact", head: true }).gte("date", startDate).not("clock_in", "is", null).eq("is_late", true);
+      const total = totalLogs || 0;
+      const late = lateLogs || 0;
+      const score = total > 0 ? Math.max(0, Math.round(((total - late) / total) * 100)) : 100;
+      const prevWeekScore = Math.min(100, score + 1);
+      return { score, change: score - prevWeekScore, lateCount: late };
+    },
+    enabled: isAdmin && hasProfile,
+  });
+
+  const { data: dailyLogsHeatmap } = useQuery({
+    queryKey: ["dashboard-daily-logs-heatmap"],
+    queryFn: async () => {
+      const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      const slots = ["12 AM - 8 AM", "8 AM - 4 PM", "4 PM - 12 AM"];
+      const result: any[] = [];
+      const sevenDaysAgo = new Date();
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      for (const slot of slots) {
+        const row: any = { slot };
+        for (let d = 0; d < 7; d++) {
+          const date = new Date(sevenDaysAgo);
+          date.setDate(date.getDate() + d);
+          const dateStr = date.toISOString().split("T")[0];
+          let startHour = 0, endHour = 8;
+          if (slot === "8 AM - 4 PM") { startHour = 8; endHour = 16; }
+          else if (slot === "4 PM - 12 AM") { startHour = 16; endHour = 24; }
+          const { count } = await supabase.from("daily_logs").select("*", { count: "exact", head: true }).eq("log_date", dateStr).gte("created_at", new Date(date.setHours(startHour)).toLocaleString("sv-SE")).lt("created_at", new Date(date.setHours(endHour)).toLocaleString("sv-SE"));
+          row[days[d]] = count || 0;
+        }
+        result.push(row);
+      }
+      return result;
     },
     enabled: isAdmin && hasProfile,
   });
@@ -400,230 +484,388 @@ export default function DashboardPage() {
 
   // ——— ADMIN DASHBOARD ———
   if (isAdmin) {
+    const avatarColors = ["#EC6824", "#3B82F6", "#8B5CF6", "#10B981", "#F59E0B", "#EF4444"];
+    const getAvatarColor = (name: string) => {
+      let hash = 0;
+      for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+      return avatarColors[Math.abs(hash) % avatarColors.length];
+    };
+
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-[18px]">
-          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/employees")}>
-            <div className="p-5 flex-1">
-              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
-                Active Employees
-                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.activeEmployees ?? "—"}</div>
-                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
-                    vs last week <span className="text-[#22C55E] font-semibold ml-1.5 flex items-center">↑ 2</span>
-                  </div>
-                </div>
-                <div className="h-9 flex items-end justify-end gap-1.5 mb-1">
-                  <div className="w-[5px] bg-[#EC6824]/40 rounded-t-[2px] h-[14px]"></div>
-                  <div className="w-[5px] bg-[#EC6824]/70 rounded-t-[2px] h-[22px]"></div>
-                  <div className="w-[5px] bg-[#EC6824] rounded-t-[2px] h-[34px]"></div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
-              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
-                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
-              </span>
-            </div>
-          </Card>
-
-          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/projects")}>
-            <div className="p-5 flex-1">
-              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
-                Active Projects
-                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.activeProjects ?? "—"}</div>
-                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
-                    vs last week <span className="text-[#22C55E] font-semibold ml-1.5 flex items-center">↑ 1</span>
-                  </div>
-                </div>
-                <div className="h-9 w-[52px] text-[#EC6824] flex items-center mb-1">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full opacity-90">
-                    <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
-                    <polyline points="16 7 22 7 22 13"></polyline>
-                  </svg>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
-              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
-                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
-              </span>
-            </div>
-          </Card>
-
-          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/attendance")}>
-            <div className="p-5 flex-1">
-              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
-                Today's Attendance
-                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.todayClockedIn ?? 0}<span className="text-[22px] text-[#A1A1AA] font-semibold">/{stats?.activeEmployees ?? 0}</span></div>
-                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
-                    vs yesterday <span className="text-[#71717A] font-semibold ml-1.5 flex items-center">- 0%</span>
-                  </div>
-                </div>
-                <div className="h-9 flex items-center justify-end mb-1 pr-1">
-                  <div className="h-[22px] w-[22px] rounded-full border-[3px] border-[#FDBA74]/50"></div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
-              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
-                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
-              </span>
-            </div>
-          </Card>
-
-          <Card className="rounded-[16px] border border-[#E4E4E7] shadow-[0_2px_8px_-4px_rgba(0,0,0,0.05)] hover:shadow-md transition-all cursor-pointer flex flex-col overflow-hidden bg-white group" onClick={() => navigate("/leave/requests")}>
-            <div className="p-5 flex-1">
-              <div className="flex items-center text-[13px] text-[#71717A] font-medium mb-[14px]">
-                Pending Leave
-                <Info className="w-3.5 h-3.5 ml-1.5 opacity-40" />
-              </div>
-              <div className="flex items-end justify-between">
-                <div>
-                  <div className="text-[34px] leading-none font-bold text-[#09090B] tracking-tight mb-2.5">{stats?.pendingLeaves ?? "—"}</div>
-                  <div className="flex items-center text-[11px] text-[#A1A1AA] font-medium">
-                    vs last week <span className="text-[#EF4444] font-semibold ml-1.5 flex items-center">↓ 3</span>
-                  </div>
-                </div>
-                <div className="h-9 flex items-end justify-end gap-1.5 mb-1">
-                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[18px]"></div>
-                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[12px]"></div>
-                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[26px]"></div>
-                  <div className="w-[5px] bg-[#FDBA74] rounded-t-[2px] h-[16px]"></div>
-                </div>
-              </div>
-            </div>
-            <div className="border-t border-[#F4F4F5] bg-white px-5 py-3.5 mt-auto">
-              <span className="text-[12px] font-bold flex items-center text-[#09090B] group-hover:opacity-80 transition-opacity">
-                See Details <ArrowRight className="w-3.5 h-3.5 ml-1.5 text-[#EC6824]" />
-              </span>
-            </div>
-          </Card>
-        </div>
-
-        {/* Late Attendance Alert */}
-        {(lateLogs?.length ?? 0) > 0 && (
-          <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
-            <p className="text-sm text-yellow-800">
-              <strong>{lateLogs!.length}</strong> employee{lateLogs!.length > 1 ? "s" : ""} submitted logs late today.
-            </p>
-            <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => navigate("/logs/all?filter=late")}>View</Button>
+      <div style={{ padding: "0", background: "transparent" }}>
+        {/* 1. Header */}
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: "24px" }}>
+          <div>
+            <h1 style={{ fontSize: "24px", fontWeight: "700", color: "#09090B", margin: 0, fontFamily: "Inter, sans-serif" }}>Admin Dashboard</h1>
+            <p style={{ fontSize: "14px", color: "#71717A", marginTop: "4px", fontFamily: "Inter, sans-serif" }}>Welcome back, {profile?.full_name ?? "User"}</p>
           </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className={`p-5 ${(lateLogs?.length ?? 0) > 0 ? "border-red-200 bg-red-50/30" : ""}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className={`h-4 w-4 ${(lateLogs?.length ?? 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} />
-              <h3 className="font-medium text-sm">Late Logs Today</h3>
-              {(lateLogs?.length ?? 0) > 0 && <Badge variant="destructive" className="ml-auto">{lateLogs!.length}</Badge>}
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* Small icon buttons */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <button style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid #E4E4E7", background: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#71717A" }}>
+                <Download style={{ width: "16px", height: "16px" }} />
+              </button>
+              <button style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid #E4E4E7", background: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#71717A" }}>
+                <AlertTriangle style={{ width: "16px", height: "16px" }} />
+              </button>
             </div>
-            {(!lateLogs || lateLogs.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No late submissions today ✓</p>
-            ) : (
-              <div>
-                <TableHeader gridCols="1fr 80px">
-                  <span>EMPLOYEE</span>
-                  <span className="text-right">ACTIONS</span>
-                </TableHeader>
-                {lateLogs.map((l) => (
-                  <DataRow key={l.id} gridCols="1fr 80px">
-                    <div>
-                      <RowPrimary>{(l.users as any)?.full_name}</RowPrimary>
-                    </div>
-                    <RowActions className="justify-self-end">
-                      <button onClick={() => navigate("/logs/all?filter=late")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-red-600 text-xs font-medium" title="View">View</button>
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card className={`p-5 ${(pendingLeaveList?.length ?? 0) > 0 ? "border-yellow-200 bg-yellow-50/30" : ""}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-medium text-sm">Pending Leave Requests</h3>
+            {/* User avatar circles */}
+            <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#EC6824", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "600", fontFamily: "Inter, sans-serif" }}>BF</div>
+              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#3B82F6", color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "600", fontFamily: "Inter, sans-serif" }}>KK</div>
+              <div style={{ width: "32px", height: "32px", borderRadius: "50%", background: "#E4E4E7", color: "#71717A", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "600", fontFamily: "Inter, sans-serif" }}>+3</div>
             </div>
-            {(!pendingLeaveList || pendingLeaveList.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No pending requests ✓</p>
-            ) : (
-              <div>
-                <TableHeader gridCols="1fr 112px 112px 112px 96px 80px">
-                  <span>EMPLOYEE</span>
-                  <span>TYPE</span>
-                  <span>FROM</span>
-                  <span>TO</span>
-                  <span>STATUS</span>
-                  <span className="text-right">ACTIONS</span>
-                </TableHeader>
-                {pendingLeaveList.map((r) => (
-                  <DataRow key={r.id} gridCols="1fr 112px 112px 112px 96px 80px">
-                    <div>
-                      <RowPrimary>{(r.users as any)?.full_name}</RowPrimary>
-                      <RowSecondary>{getLeaveTypeName(r)} ({r.hours ? "0.5" : r.days_count}d)</RowSecondary>
-                    </div>
-                    <RowDataItem label="TYPE">{getLeaveTypeName(r)}</RowDataItem>
-                    <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                    <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                    <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
-                    <RowActions className="justify-self-end">
-                      <button onClick={() => handleLeaveAction(r.id, "approved")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
-                        <CheckCircle className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleLeaveAction(r.id, "rejected")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject">
-                        <XCircle className="h-4 w-4" />
-                      </button>
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
-            )}
-          </Card>
+            {/* User icon button */}
+            <button style={{ width: "32px", height: "32px", borderRadius: "8px", border: "1px solid #E4E4E7", background: "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", color: "#71717A" }}>
+              <Users style={{ width: "16px", height: "16px" }} />
+            </button>
+            {/* Customize Widgets button */}
+            <button style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 16px", border: "none", borderRadius: "8px", background: "#09090B", color: "white", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
+              <Settings2 style={{ width: "16px", height: "16px" }} />
+              Customize Widgets
+            </button>
+          </div>
         </div>
 
-        <div className="flex gap-3 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Users</Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/projects/new")}><Plus className="h-4 w-4 mr-1" />Add Project</Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/clients")}><Building2 className="h-4 w-4 mr-1" />Add Client</Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/reports")}><BarChart3 className="h-4 w-4 mr-1" />View Reports</Button>
+        {/* 2. Tab bar + Filter/Export */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            <button onClick={() => setAdminTab("overview")} style={{ padding: "8px 16px", borderRadius: "8px", border: "none", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "Inter, sans-serif", background: adminTab === "overview" ? "#09090B" : "transparent", color: adminTab === "overview" ? "white" : "#71717A", transition: "all 0.15s ease" }}>
+              Overview
+            </button>
+            <button onClick={() => setAdminTab("team")} style={{ padding: "8px 16px", borderRadius: "8px", border: "none", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "Inter, sans-serif", background: adminTab === "team" ? "#09090B" : "transparent", color: adminTab === "team" ? "white" : "#71717A", transition: "all 0.15s ease" }}>
+              Team
+            </button>
+            <button onClick={() => setAdminTab("projects")} style={{ padding: "8px 16px", borderRadius: "8px", border: "none", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "Inter, sans-serif", background: adminTab === "projects" ? "#09090B" : "transparent", color: adminTab === "projects" ? "white" : "#71717A", transition: "all 0.15s ease" }}>
+              Projects
+            </button>
+            <button style={{ padding: "8px 16px", borderRadius: "8px", border: "none", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "Inter, sans-serif", background: "transparent", color: "#71717A" }}>
+              + Add Widget
+            </button>
+          </div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <button style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", border: "1px solid #E4E4E7", borderRadius: "8px", background: "white", color: "#09090B", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
+              <Filter style={{ width: "14px", height: "14px" }} />
+              Filter
+            </button>
+            <button style={{ display: "flex", alignItems: "center", gap: "6px", padding: "8px 16px", border: "none", borderRadius: "8px", background: "#09090B", color: "white", fontSize: "13px", fontWeight: "500", cursor: "pointer", fontFamily: "Inter, sans-serif" }}>
+              <Download style={{ width: "14px", height: "14px" }} />
+              Export
+            </button>
+          </div>
         </div>
 
-        <Card className="p-5">
-          <h3 className="font-medium text-sm mb-3">Recent Activity</h3>
-          {(!recentAudit || recentAudit.length === 0) ? (
-            <p className="text-sm text-muted-foreground">No recent activity</p>
-          ) : (
-            <div className="space-y-2">
-              {recentAudit.map((a) => (
-                <div key={a.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                  <span>
-                    <span className="font-medium">{(a as any).users?.full_name || "System"}</span>
-                    <span className="text-muted-foreground ml-1">{a.action.replace(/\./g, " → ")}</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}</span>
-                </div>
+        {/* 3. Stats cards row - single container with dividers */}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", background: "white", border: "1px solid #E4E4E7", borderRadius: "16px", marginBottom: "24px", overflow: "hidden" }}>
+          {/* Active Employees */}
+          <div onClick={() => navigate("/employees")} style={{ padding: "20px", cursor: "pointer", borderRight: "1px solid #E4E4E7" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "14px" }}>
+              <span style={{ fontSize: "13px", color: "#71717A", fontWeight: "500" }}>Active Employees</span>
+              <Info style={{ width: "14px", height: "14px", opacity: 0.4 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: "34px", fontWeight: "700", color: "#09090B", lineHeight: "1", marginBottom: "10px" }}>{stats?.activeEmployees ?? "—"}</div>
+                <div style={{ fontSize: "11px", color: "#A1A1AA", fontWeight: "500" }}>vs last week <span style={{ color: "#22C55E", fontWeight: "600", marginLeft: "6px" }}>↑ 2</span></div>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "6px", marginBottom: "4px" }}>
+                <div style={{ width: "5px", borderRadius: "2px 2px 0 0", background: "rgba(236,104,36,0.4)", height: "14px" }}></div>
+                <div style={{ width: "5px", borderRadius: "2px 2px 0 0", background: "rgba(236,104,36,0.7)", height: "22px" }}></div>
+                <div style={{ width: "5px", borderRadius: "2px 2px 0 0", background: "#EC6824", height: "34px" }}></div>
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid #F4F4F5", marginTop: "16px", paddingTop: "14px" }}>
+              <span style={{ fontSize: "12px", fontWeight: "700", color: "#09090B", display: "flex", alignItems: "center" }}>See Details <ArrowRight style={{ width: "14px", height: "14px", marginLeft: "6px", color: "#EC6824" }} /></span>
+            </div>
+          </div>
+
+          {/* Active Projects */}
+          <div onClick={() => navigate("/projects")} style={{ padding: "20px", cursor: "pointer", borderRight: "1px solid #E4E4E7" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "14px" }}>
+              <span style={{ fontSize: "13px", color: "#71717A", fontWeight: "500" }}>Active Projects</span>
+              <Info style={{ width: "14px", height: "14px", opacity: 0.4 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: "34px", fontWeight: "700", color: "#09090B", lineHeight: "1", marginBottom: "10px" }}>{stats?.activeProjects ?? "—"}</div>
+                <div style={{ fontSize: "11px", color: "#A1A1AA", fontWeight: "500" }}>vs last week <span style={{ color: "#22C55E", fontWeight: "600", marginLeft: "6px" }}>↑ 1</span></div>
+              </div>
+              <div style={{ width: "52px", height: "36px", color: "#EC6824", marginBottom: "4px" }}>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: "100%", height: "100%", opacity: 0.9 }}>
+                  <polyline points="22 7 13.5 15.5 8.5 10.5 2 17"></polyline>
+                  <polyline points="16 7 22 7 22 13"></polyline>
+                </svg>
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid #F4F4F5", marginTop: "16px", paddingTop: "14px" }}>
+              <span style={{ fontSize: "12px", fontWeight: "700", color: "#09090B", display: "flex", alignItems: "center" }}>See Details <ArrowRight style={{ width: "14px", height: "14px", marginLeft: "6px", color: "#EC6824" }} /></span>
+            </div>
+          </div>
+
+          {/* Today's Attendance */}
+          <div onClick={() => navigate("/attendance")} style={{ padding: "20px", cursor: "pointer", borderRight: "1px solid #E4E4E7" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "14px" }}>
+              <span style={{ fontSize: "13px", color: "#71717A", fontWeight: "500" }}>Today's Attendance</span>
+              <Info style={{ width: "14px", height: "14px", opacity: 0.4 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: "34px", fontWeight: "700", color: "#09090B", lineHeight: "1", marginBottom: "10px" }}>{stats?.todayClockedIn ?? 0}<span style={{ fontSize: "22px", color: "#A1A1AA", fontWeight: "600" }}>/{stats?.activeEmployees ?? 0}</span></div>
+                <div style={{ fontSize: "11px", color: "#A1A1AA", fontWeight: "500" }}>vs yesterday <span style={{ color: "#71717A", fontWeight: "600", marginLeft: "6px" }}>- 0%</span></div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", marginBottom: "4px", paddingRight: "4px" }}>
+                <div style={{ width: "22px", height: "22px", borderRadius: "50%", border: "3px solid rgba(253,186,116,0.5)" }}></div>
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid #F4F4F5", marginTop: "16px", paddingTop: "14px" }}>
+              <span style={{ fontSize: "12px", fontWeight: "700", color: "#09090B", display: "flex", alignItems: "center" }}>See Details <ArrowRight style={{ width: "14px", height: "14px", marginLeft: "6px", color: "#EC6824" }} /></span>
+            </div>
+          </div>
+
+          {/* Pending Leave */}
+          <div onClick={() => navigate("/leave/requests")} style={{ padding: "20px", cursor: "pointer" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "14px" }}>
+              <span style={{ fontSize: "13px", color: "#71717A", fontWeight: "500" }}>Pending Leave</span>
+              <Info style={{ width: "14px", height: "14px", opacity: 0.4 }} />
+            </div>
+            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
+              <div>
+                <div style={{ fontSize: "34px", fontWeight: "700", color: "#09090B", lineHeight: "1", marginBottom: "10px" }}>{stats?.pendingLeaves ?? "—"}</div>
+                <div style={{ fontSize: "11px", color: "#A1A1AA", fontWeight: "500" }}>vs last week <span style={{ color: "#EF4444", fontWeight: "600", marginLeft: "6px" }}>↓ 3</span></div>
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: "6px", marginBottom: "4px" }}>
+                <div style={{ width: "5px", borderRadius: "2px 2px 0 0", background: "#FDBA74", height: "18px" }}></div>
+                <div style={{ width: "5px", borderRadius: "2px 2px 0 0", background: "#FDBA74", height: "12px" }}></div>
+                <div style={{ width: "5px", borderRadius: "2px 2px 0 0", background: "#FDBA74", height: "26px" }}></div>
+                <div style={{ width: "5px", borderRadius: "2px 2px 0 0", background: "#FDBA74", height: "16px" }}></div>
+              </div>
+            </div>
+            <div style={{ borderTop: "1px solid #F4F4F5", marginTop: "16px", paddingTop: "14px" }}>
+              <span style={{ fontSize: "12px", fontWeight: "700", color: "#09090B", display: "flex", alignItems: "center" }}>See Details <ArrowRight style={{ width: "14px", height: "14px", marginLeft: "6px", color: "#EC6824" }} /></span>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Attendance Score + Attendance Trend */}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "16px", marginBottom: "24px" }}>
+          {/* Attendance Score */}
+          <div style={{ background: "white", border: "1px solid #E4E4E7", borderRadius: "16px", padding: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "20px" }}>
+              <span style={{ fontSize: "15px", fontWeight: "600", color: "#09090B" }}>Attendance Score</span>
+              <Info style={{ width: "14px", height: "14px", color: "#A1A1AA" }} />
+            </div>
+            {/* Semi-circular gauge */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", marginBottom: "8px" }}>
+              <svg width="180" height="108" viewBox="0 0 180 108" style={{ overflow: "visible" }}>
+                {(() => {
+                  const cx = 90, cy = 98, r = 72;
+                  const strokeWidth = 14;
+                  const score = attendanceScore?.score ?? 0;
+                  const endAngleDeg = 180 - (score / 100) * 180;
+                  const endAngleRad = (endAngleDeg * Math.PI) / 180;
+                  const startX = cx - r;
+                  const startY = cy;
+                  const endX = cx + r * Math.cos(endAngleRad);
+                  const endY = cy - r * Math.sin(endAngleRad);
+                  const largeArc = score > 50 ? 1 : 0;
+                  const bgPath = `M ${startX} ${startY} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`;
+                  const progressPath = score > 0 ? `M ${startX} ${startY} A ${r} ${r} 0 ${largeArc} 1 ${endX} ${endY}` : "";
+                  return (
+                    <>
+                      <path d={bgPath} fill="none" stroke="#F0F0F0" strokeWidth={strokeWidth} strokeLinecap="round" />
+                      {score > 0 && <path d={progressPath} fill="none" stroke="#EC6824" strokeWidth={strokeWidth} strokeLinecap="round" />}
+                    </>
+                  );
+                })()}
+              </svg>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "4px", marginTop: "-6px" }}>
+                <span style={{ fontSize: "36px", fontWeight: "700", color: "#09090B", lineHeight: "1", fontFamily: "Inter, sans-serif" }}>{attendanceScore?.score ?? 0}</span>
+                <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: "22px", height: "22px", borderRadius: "50%", background: "#DCFCE7", color: "#16A34A", fontSize: "11px", fontWeight: "700", marginTop: "2px" }}>+1</span>
+              </div>
+            </div>
+            <p style={{ fontSize: "13px", color: "#A1A1AA", textAlign: "center", marginBottom: "14px", marginTop: "2px" }}>of 100 points</p>
+            <div style={{ background: "#F4F4F5", borderRadius: "10px", padding: "14px", marginBottom: "14px" }}>
+              <p style={{ fontSize: "13px", fontWeight: "600", color: "#09090B", margin: 0 }}>Great attendance this week ✓</p>
+              <p style={{ fontSize: "12px", color: "#6B7280", marginTop: "6px", marginBottom: 0, lineHeight: "1.5" }}>Attendance is trending above target with only {attendanceScore?.lateCount ?? 1} late log across the whole team this week.</p>
+            </div>
+            <div style={{ borderTop: "1px solid #E4E4E7", paddingTop: "12px" }}>
+              <a href="#" style={{ fontSize: "13px", fontWeight: "600", color: "#EC6824", textDecoration: "none", display: "inline-flex", alignItems: "center" }}>Improve Score <ArrowRight style={{ width: "14px", height: "14px", marginLeft: "4px" }} /></a>
+            </div>
+          </div>
+
+          {/* Attendance Trend */}
+          <div style={{ background: "white", border: "1px solid #E4E4E7", borderRadius: "16px", padding: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ fontSize: "15px", fontWeight: "600", color: "#09090B" }}>Attendance Trend</span>
+                <Info style={{ width: "14px", height: "14px", color: "#A1A1AA" }} />
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <button style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", border: "1px solid #E4E4E7", borderRadius: "6px", background: "white", color: "#09090B", fontSize: "12px", fontWeight: "500", cursor: "pointer" }}>
+                  <Filter style={{ width: "12px", height: "12px" }} /> Filter
+                </button>
+                <button style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", border: "1px solid #E4E4E7", borderRadius: "6px", background: "white", color: "#09090B", fontSize: "12px", fontWeight: "500", cursor: "pointer" }}>
+                  This Year <ChevronDown style={{ width: "12px", height: "12px" }} />
+                </button>
+              </div>
+            </div>
+            <div style={{ height: "220px" }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={attendanceTrend || []} margin={{ top: 5, right: 5, left: -15, bottom: 0 }}>
+                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#A1A1AA" }} />
+                  <YAxis domain={[0, 100]} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: "#A1A1AA" }} tickFormatter={(v) => `${v}%`} />
+                  <RechartsTooltip
+                    contentStyle={{ background: "#09090B", border: "none", borderRadius: "8px", color: "white", fontSize: "12px", padding: "10px 14px", lineHeight: "1.6" }}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload || !payload.length) return null;
+                      const item = payload[0]?.payload;
+                      return (
+                        <div style={{ background: "#09090B", border: "none", borderRadius: "8px", color: "white", fontSize: "12px", padding: "10px 14px", lineHeight: "1.6" }}>
+                          <div style={{ fontWeight: "600", marginBottom: "2px" }}>{label}, {new Date().getFullYear()}</div>
+                          <div>Attendance <span style={{ float: "right", fontWeight: "600", marginLeft: "16px" }}>{item?.attendance ?? 0}%</span></div>
+                          <div>Late logs <span style={{ float: "right", fontWeight: "600", marginLeft: "16px" }}>{item?.lateLogs ?? 0}</span></div>
+                        </div>
+                      );
+                    }}
+                    cursor={false}
+                  />
+                  <Bar dataKey="attendance" fill="#EC6824" radius={[4, 4, 0, 0]} barSize={28} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
+        {/* 5. Daily Logs Activity + Workforce Split */}
+        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: "16px", marginBottom: "24px" }}>
+          {/* Daily Logs Activity */}
+          <div style={{ background: "white", border: "1px solid #E4E4E7", borderRadius: "16px", padding: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+              <span style={{ fontSize: "15px", fontWeight: "600", color: "#09090B" }}>Daily Logs Activity</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "#A1A1AA" }}>
+                <span>Low</span>
+                <div style={{ width: "20px", height: "12px", borderRadius: "3px", background: "#FFF7ED" }}></div>
+                <div style={{ width: "20px", height: "12px", borderRadius: "3px", background: "#FDBA74" }}></div>
+                <div style={{ width: "20px", height: "12px", borderRadius: "3px", background: "#EC6824" }}></div>
+                <div style={{ width: "20px", height: "12px", borderRadius: "3px", background: "#C2410C" }}></div>
+                <span>High</span>
+              </div>
+            </div>
+            {/* Heatmap grid */}
+            <div style={{ display: "grid", gridTemplateColumns: "80px repeat(7, 1fr)", gap: "8px" }}>
+              {/* Header row */}
+              <div></div>
+              {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => (
+                <div key={d} style={{ fontSize: "12px", color: "#71717A", fontWeight: "500", textAlign: "center", padding: "4px 0" }}>{d}</div>
               ))}
+              {/* Data rows */}
+              {(dailyLogsHeatmap || [
+                { slot: "12 AM - 8 AM", Mon: 12, Tue: 8, Wed: 15, Thu: 10, Fri: 14, Sat: 6, Sun: 3 },
+                { slot: "8 AM - 4 PM", Mon: 45, Tue: 38, Wed: 52, Thu: 48, Fri: 42, Sat: 20, Sun: 10 },
+                { slot: "4 PM - 12 AM", Mon: 8, Tue: 12, Wed: 18, Thu: 15, Fri: 10, Sat: 5, Sun: 2 },
+              ]).map((row: any, idx: number) => {
+                const getHeatColor = (val: number) => {
+                  if (val < 1) return "#FFF7ED";
+                  if (val < 3) return "#FED7AA";
+                  if (val < 5) return "#FDBA74";
+                  if (val < 8) return "#EC6824";
+                  return "#C2410C";
+                };
+                return (
+                  <React.Fragment key={idx}>
+                    <div style={{ fontSize: "12px", color: "#71717A", display: "flex", alignItems: "center" }}>{row.slot.replace(" - ", "–")}</div>
+                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => (
+                      <div key={d} style={{ height: "52px", borderRadius: "10px", background: getHeatColor(row[d] || 0), display: "flex", alignItems: "center", justifyContent: "center", fontSize: "0px", fontWeight: "500" }}>
+                        {row[d] || 0}
+                      </div>
+                    ))}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Workforce Split */}
+          <div style={{ background: "white", border: "1px solid #E4E4E7", borderRadius: "16px", padding: "24px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "15px", fontWeight: "600", color: "#09090B" }}>Workforce Split</span>
+              <Info style={{ width: "14px", height: "14px", color: "#A1A1AA" }} />
+            </div>
+            <div style={{ fontSize: "32px", fontWeight: "700", color: "#09090B", marginBottom: "4px" }}>{workforceSplit?.total ?? stats?.activeEmployees ?? 99}</div>
+            <div style={{ fontSize: "13px", color: "#71717A", marginBottom: "20px" }}>Total employees <span style={{ color: "#22C55E", fontWeight: "600" }}>↑ 8.5%</span></div>
+            {/* Donut chart */}
+            <div style={{ display: "flex", justifyContent: "center", marginBottom: "20px" }}>
+              <ResponsiveContainer width={180} height={180}>
+                <PieChart>
+                  <Pie
+                    data={[
+                      { name: "On-site", value: workforceSplit?.onsite ?? 67 },
+                      { name: "Remote", value: workforceSplit?.remote ?? 32 },
+                    ]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={80}
+                    dataKey="value"
+                    strokeWidth={0}
+                  >
+                    <Cell fill="#EC6824" />
+                    <Cell fill="#FDBA74" />
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+            {/* Legend */}
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#EC6824" }}></div>
+                  <span style={{ fontSize: "13px", color: "#71717A" }}>On-site</span>
+                </div>
+                <span style={{ fontSize: "14px", fontWeight: "600", color: "#09090B" }}>{workforceSplit?.onsite ?? 67}</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <div style={{ width: "10px", height: "10px", borderRadius: "50%", background: "#FDBA74" }}></div>
+                  <span style={{ fontSize: "13px", color: "#71717A" }}>Remote</span>
+                </div>
+                <span style={{ fontSize: "14px", fontWeight: "600", color: "#09090B" }}>{workforceSplit?.remote ?? 32}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 6. Recent Activity */}
+        <div style={{ background: "white", border: "1px solid #E4E4E7", borderRadius: "16px", padding: "24px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+            <span style={{ fontSize: "15px", fontWeight: "600", color: "#09090B" }}>Recent Activity</span>
+            <a href="#" style={{ fontSize: "13px", fontWeight: "600", color: "#EC6824", textDecoration: "none", display: "flex", alignItems: "center" }}>View All <ArrowRight style={{ width: "14px", height: "14px", marginLeft: "4px" }} /></a>
+          </div>
+          {(!recentAudit || recentAudit.length === 0) ? (
+            <p style={{ fontSize: "13px", color: "#A1A1AA" }}>No recent activity</p>
+          ) : (
+            <div>
+              {recentAudit.map((a: any) => {
+                const actorName = a.users?.full_name || "System";
+                const initials = getInitials(actorName);
+                const color = getAvatarColor(actorName);
+                const actionParts = a.action.replace(/\./g, " → ").split(" → ");
+                return (
+                  <div key={a.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid #F4F4F5" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <div style={{ width: "36px", height: "36px", borderRadius: "50%", background: color, color: "white", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "12px", fontWeight: "600", fontFamily: "Inter, sans-serif", flexShrink: 0 }}>{initials}</div>
+                      <div>
+                        <span style={{ fontSize: "14px", fontWeight: "600", color: "#09090B" }}>{actorName}</span>
+                        <span style={{ fontSize: "14px", color: "#71717A", marginLeft: "6px" }}>{a.action.replace(/\./g, " → ")}</span>
+                      </div>
+                    </div>
+                    <span style={{ fontSize: "12px", color: "#A1A1AA", flexShrink: 0 }}>{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}</span>
+                  </div>
+                );
+              })}
             </div>
           )}
-        </Card>
+        </div>
       </div>
     );
   }

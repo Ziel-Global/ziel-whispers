@@ -3,25 +3,21 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, GripVertical, ArrowUpDown } from "lucide-react";
-import { DataRow, TableHeader, RowPrimary, RowSecondary, RowDataItem, RowActions, editButtonClass } from "@/components/ui/data-row";
-import { getCategoryColor } from "@/lib/workflow";
+import { Plus, Trash2, GripVertical, ChevronDown, ChevronUp, Pencil } from "lucide-react";
 
 type Template = {
   id: string;
@@ -69,7 +65,7 @@ const COLOR_OPTIONS = [
 export default function WorkflowTemplatesPage() {
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(null);
 
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [editTemplateId, setEditTemplateId] = useState<string | null>(null);
@@ -86,6 +82,11 @@ export default function WorkflowTemplatesPage() {
   const [deletingStatusId, setDeletingStatusId] = useState<string | null>(null);
   const [confirmDelTemplateId, setConfirmDelTemplateId] = useState<string | null>(null);
   const [confirmDelStatusId, setConfirmDelStatusId] = useState<string | null>(null);
+
+  const [rulesExpanded, setRulesExpanded] = useState(false);
+  const [hoveredStatusId, setHoveredStatusId] = useState<string | null>(null);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["workflow-templates"],
@@ -123,8 +124,21 @@ export default function WorkflowTemplatesPage() {
     },
   });
 
-  const expandedStatuses = expandedId ? (statusesMap?.[expandedId] || []) : [];
-  const expandedTransitions = expandedId ? (transitionsMap?.[expandedId] || []) : [];
+  const expandedStatuses = selectedTemplateId ? (statusesMap?.[selectedTemplateId] || []) : [];
+  const expandedTransitions = selectedTemplateId ? (transitionsMap?.[selectedTemplateId] || []) : [];
+  const selectedTemplate = (templates || []).find((t) => t.id === selectedTemplateId);
+
+  function getCategoryBg(category: string) {
+    if (category === "in_progress") return "#F59E0B";
+    if (category === "done") return "#16A34A";
+    return "#3B82F6";
+  }
+
+  function getCategoryLabel(category: string) {
+    if (category === "in_progress") return "In progress";
+    if (category === "done") return "Done";
+    return "To do";
+  }
 
   function openNewTemplate() {
     setEditTemplateId(null);
@@ -133,19 +147,13 @@ export default function WorkflowTemplatesPage() {
     setTemplateDialogOpen(true);
   }
 
-  function openEditTemplate(t: Template) {
-    setEditTemplateId(t.id);
-    setTemplateName(t.name);
-    setTemplateDesc(t.description || "");
-    setTemplateDialogOpen(true);
-  }
-
   async function saveTemplate() {
     if (!templateName.trim()) { toast.error("Name is required"); return; }
     if (editTemplateId) {
       await supabase.from("workflow_templates").update({ name: templateName.trim(), description: templateDesc.trim() || null }).eq("id", editTemplateId);
     } else {
-      await supabase.from("workflow_templates").insert({ name: templateName.trim(), description: templateDesc.trim() || null, created_by: profile?.id });
+      const { data: newTemplate } = await supabase.from("workflow_templates").insert({ name: templateName.trim(), description: templateDesc.trim() || null, created_by: profile?.id }).select().single();
+      if (newTemplate) setSelectedTemplateId(newTemplate.id);
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
     setTemplateDialogOpen(false);
@@ -154,8 +162,17 @@ export default function WorkflowTemplatesPage() {
 
   async function deleteTemplate(id: string) {
     await supabase.from("workflow_templates").delete().eq("id", id);
+    if (selectedTemplateId === id) setSelectedTemplateId(null);
     queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
     toast.success("Template deleted");
+  }
+
+  async function renameTemplate() {
+    if (!renameValue.trim() || !selectedTemplateId) { toast.error("Name is required"); return; }
+    await supabase.from("workflow_templates").update({ name: renameValue.trim() }).eq("id", selectedTemplateId);
+    queryClient.invalidateQueries({ queryKey: ["workflow-templates"] });
+    setRenameDialogOpen(false);
+    toast.success("Template renamed");
   }
 
   function openNewStatus() {
@@ -177,14 +194,14 @@ export default function WorkflowTemplatesPage() {
   }
 
   async function saveStatus() {
-    if (!statusName.trim() || !expandedId) { toast.error("Name is required"); return; }
+    if (!statusName.trim() || !selectedTemplateId) { toast.error("Name is required"); return; }
     const maxOrder = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
     if (editStatusId) {
       const update: Partial<WorkflowStatus> = { name: statusName.trim(), category: statusCategory, color: statusColor, is_initial: statusInitial };
       await supabase.from("workflow_statuses").update(update).eq("id", editStatusId);
     } else {
       await supabase.from("workflow_statuses").insert({
-        workflow_template_id: expandedId, name: statusName.trim(), category: statusCategory, color: statusColor, sort_order: maxOrder + 1, is_initial: statusInitial,
+        workflow_template_id: selectedTemplateId, name: statusName.trim(), category: statusCategory, color: statusColor, sort_order: maxOrder + 1, is_initial: statusInitial,
       });
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-statuses"] });
@@ -202,152 +219,291 @@ export default function WorkflowTemplatesPage() {
   }
 
   async function toggleTransition(fromId: string, toId: string) {
-    if (!expandedId) return;
+    if (!selectedTemplateId) return;
     const existing = expandedTransitions.find((t) => t.from_status_id === fromId && t.to_status_id === toId);
     if (existing) {
       await supabase.from("workflow_transitions").delete().eq("id", existing.id);
     } else {
-      await supabase.from("workflow_transitions").insert({ workflow_template_id: expandedId, from_status_id: fromId, to_status_id: toId });
+      await supabase.from("workflow_transitions").insert({ workflow_template_id: selectedTemplateId, from_status_id: fromId, to_status_id: toId });
     }
     queryClient.invalidateQueries({ queryKey: ["workflow-transitions"] });
   }
 
-  const gridCols = "1fr 192px 80px";
-  const gridColsStatus = "1fr 112px 96px 80px 80px";
+  function isTransitionConnected(fromId: string, toId: string) {
+    return expandedTransitions.some((t) => t.from_status_id === fromId && t.to_status_id === toId);
+  }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-6 pb-24 space-y-6">
+      {/* Page Header */}
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Workflow Templates</h1>
-        <Button onClick={openNewTemplate}><Plus className="h-4 w-4 mr-2" />New Template</Button>
+        <div>
+          <h1 style={{ fontSize: "28px", fontWeight: 700, color: "#09090B" }}>Workflow Templates</h1>
+          <p style={{ fontSize: "14px", color: "#71717A", marginTop: "4px" }}>Create and manage reusable workflow templates with a cleaner, builder-focused layout.</p>
+        </div>
+        <button
+          onClick={openNewTemplate}
+          style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", height: "38px", cursor: "pointer", border: "none" }}
+        >
+          New Template
+        </button>
       </div>
 
-      {isLoading ? (
-        <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
-      ) : (
-        <Card>
-          <TableHeader gridCols={gridCols}>
-            <RowDataItem label="Name" />
-            <RowDataItem label="Created" />
-            <RowDataItem label="" />
-          </TableHeader>
-          <div>
-            {(templates || []).map((t) => (
-              <div key={t.id}>
-                <DataRow
-                  gridCols={gridCols}
-                  className="cursor-pointer"
-                  onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
-                >
-                  <div>
-                    <RowPrimary>{t.name}</RowPrimary>
-                    {t.description && <RowSecondary>{t.description}</RowSecondary>}
-                  </div>
-                  <RowDataItem label="Created">{new Date(t.created_at).toLocaleDateString()}</RowDataItem>
-                  <RowActions>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openEditTemplate(t); }}
-                      className={editButtonClass}
-                      title="Edit template"
-                    ><Pencil className="h-3.5 w-3.5" /></button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelTemplateId(t.id); }}
-                      className="shrink-0 p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
-                      title="Delete template"
-                    ><Trash2 className="h-3.5 w-3.5" /></button>
-                  </RowActions>
-                </DataRow>
+      {/* Template Selector */}
+      <div className="flex items-center gap-4">
+        <div className="relative" style={{ flex: 1, maxWidth: "360px" }}>
+          <div className="absolute left-3 top-1/2 -translate-y-1/2" style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: "#EC6824" }} />
+          <Select
+            value={selectedTemplateId || ""}
+            onValueChange={(v) => { setSelectedTemplateId(v); setRulesExpanded(false); setHoveredStatusId(null); }}
+          >
+            <SelectTrigger style={{ paddingLeft: "28px", height: "42px", borderColor: "#E4E4E7", borderRadius: "8px", outline: "none", boxShadow: "none" }}>
+              <SelectValue placeholder="Select a workflow template" />
+            </SelectTrigger>
+            <SelectContent>
+              {(templates || []).map((t) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <p style={{ fontSize: "13px", color: "#71717A" }}>Choose which workflow you want to edit</p>
+      </div>
 
-                {expandedId === t.id && (
-                  <div className="bg-gray-50 px-6 py-4 border-t border-b space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.05em] text-gray-500">Statuses</h3>
-                      <Button size="sm" variant="outline" onClick={openNewStatus}><Plus className="h-3.5 w-3.5 mr-1" />Add Status</Button>
-                    </div>
-
-                    <TableHeader gridCols={gridColsStatus}>
-                      <RowDataItem label="Status" />
-                      <RowDataItem label="Category" />
-                      <RowDataItem label="Initial" />
-                      <RowDataItem label="Sort" />
-                      <RowDataItem label="" />
-                    </TableHeader>
-                    <div>
-                      {expandedStatuses.map((s) => (
-                        <DataRow key={s.id} gridCols={gridColsStatus}>
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color}`}>{s.name}</span>
-                          </div>
-                          <RowDataItem label="Category">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getCategoryColor(s.category)}`}>
-                              {s.category.replace(/_/g, " ")}
-                            </span>
-                          </RowDataItem>
-                          <RowDataItem label="Initial">{s.is_initial ? <span className="text-green-600 font-bold">Yes</span> : "—"}</RowDataItem>
-                          <RowDataItem label="Sort">{s.sort_order}</RowDataItem>
-                          <RowActions>
-                            <button onClick={() => openEditStatus(s)} className={editButtonClass} title="Edit status"><Pencil className="h-3.5 w-3.5" /></button>
-                            <button onClick={() => setConfirmDelStatusId(s.id)} disabled={deletingStatusId === s.id} className="shrink-0 p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50" title="Delete status"><Trash2 className="h-3.5 w-3.5" /></button>
-                          </RowActions>
-                        </DataRow>
-                      ))}
-                    </div>
-
-                    {expandedStatuses.length > 1 && (
-                      <>
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.05em] text-gray-500 pt-2">Transitions</h3>
-                        <p className="text-xs text-gray-400">Check a cell to allow a transition from the row status to the column status.</p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs border-collapse">
-                            <thead>
-                              <tr>
-                                <th className="p-2 border text-left font-medium text-gray-500">From \ To</th>
-                                {expandedStatuses.map((s) => (
-                                  <th key={s.id} className="p-2 border text-center font-medium">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${s.color}`}>{s.name}</span>
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {expandedStatuses.map((from) => (
-                                <tr key={from.id}>
-                                  <td className="p-2 border font-medium">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${from.color}`}>{from.name}</span>
-                                  </td>
-                                  {expandedStatuses.map((to) => {
-                                    const hasTransition = expandedTransitions.some(
-                                      (tr) => tr.from_status_id === from.id && tr.to_status_id === to.id
-                                    );
-                                    return (
-                                      <td key={to.id} className="p-2 border text-center">
-                                        {from.id === to.id ? (
-                                          <span className="text-gray-300">—</span>
-                                        ) : (
-                                          <input
-                                            type="checkbox"
-                                            checked={hasTransition}
-                                            onChange={() => toggleTransition(from.id, to.id)}
-                                            className="h-4 w-4 cursor-pointer accent-blue-600"
-                                          />
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        </Card>
+      {isLoading && (
+        <div className="space-y-2">
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
       )}
+
+      {/* Selected Template */}
+      {selectedTemplate && !isLoading && (
+        <div style={{ border: "1px solid #E4E4E7", borderRadius: "12px", padding: "20px", backgroundColor: "#fff" }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 style={{ fontSize: "20px", fontWeight: 700, color: "#09090B" }}>{selectedTemplate.name}</h2>
+              <p style={{ fontSize: "13px", color: "#71717A", marginTop: "4px" }}>
+                Workflow template &bull; Updated {new Date(selectedTemplate.created_at).toLocaleDateString()} &bull; {expandedStatuses.length} statuses
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setRenameValue(selectedTemplate.name); setRenameDialogOpen(true); }}
+                style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "6px 12px", fontSize: "13px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
+              >
+                Rename
+              </button>
+              <button
+                onClick={() => setConfirmDelTemplateId(selectedTemplate.id)}
+                style={{ backgroundColor: "#DC2626", borderRadius: "8px", padding: "6px 10px", cursor: "pointer", border: "none" }}
+              >
+                <Trash2 className="h-4 w-4 text-white" />
+              </button>
+            </div>
+          </div>
+
+          {/* Workflow Path Visualization */}
+          {expandedStatuses.length > 0 && (
+            <div style={{ marginTop: "24px" }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#09090B" }}>Workflow Path</h3>
+                  <span style={{ backgroundColor: "#16A34A", color: "#fff", fontSize: "11px", fontWeight: 600, padding: "2px 10px", borderRadius: "9999px" }}>Live preview</span>
+                </div>
+                <button
+                  onClick={openNewStatus}
+                  style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "13px", padding: "6px 14px", borderRadius: "8px", height: "36px", cursor: "pointer", border: "none" }}
+                >
+                  Add Status
+                </button>
+              </div>
+              <p style={{ fontSize: "13px", color: "#71717A", marginTop: "4px" }}>Keep the default path easy to follow. You can change the order anytime.</p>
+
+              <div style={{ marginTop: "16px", border: "1px solid #E4E4E7", borderRadius: "12px", padding: "24px 20px", backgroundColor: "#FAFAFA", minHeight: "180px" }}>
+                <div style={{ fontSize: "12px", color: "#A1A1AA", marginBottom: "16px" }}>
+                  &mdash; &#8594; Transition &nbsp;|&nbsp; Hover a stage to focus only its incoming and outgoing transitions
+                </div>
+
+                <div className="flex items-center" style={{ gap: "16px", overflowX: "auto", padding: "20px 0" }}>
+                  {expandedStatuses.map((s, idx) => {
+                    const isHovered = hoveredStatusId === s.id;
+                    const isConnected = hoveredStatusId
+                      ? expandedTransitions.some((t) =>
+                          (t.from_status_id === hoveredStatusId && t.to_status_id === s.id) ||
+                          (t.to_status_id === hoveredStatusId && t.from_status_id === s.id)
+                        )
+                      : false;
+                    const shouldDim = hoveredStatusId !== null && !isHovered && !isConnected;
+
+                    return (
+                      <div key={s.id} className="flex items-center" style={{ gap: "16px" }}>
+                        <div
+                          onMouseEnter={() => setHoveredStatusId(s.id)}
+                          onMouseLeave={() => setHoveredStatusId(null)}
+                          style={{
+                            width: "160px",
+                            border: "1px solid #E4E4E7",
+                            borderRadius: "12px",
+                            padding: "16px",
+                            backgroundColor: "#fff",
+                            cursor: "pointer",
+                            transition: "opacity 0.2s",
+                            opacity: shouldDim ? 0.3 : 1,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <div className="flex items-center gap-2" style={{ marginBottom: "8px" }}>
+                            <span style={{
+                              width: "28px", height: "28px", borderRadius: "50%",
+                              backgroundColor: getCategoryBg(s.category), color: "#fff",
+                              display: "flex", alignItems: "center", justifyContent: "center",
+                              fontSize: "13px", fontWeight: 700, flexShrink: 0,
+                            }}>{idx + 1}</span>
+                            <span style={{ fontSize: "11px", color: getCategoryBg(s.category), fontWeight: 500 }}>{getCategoryLabel(s.category)}</span>
+                          </div>
+                          <div style={{ fontSize: "14px", fontWeight: 600, color: "#09090B" }}>{s.name}</div>
+                          <div style={{ fontSize: "11px", color: "#A1A1AA", marginTop: "4px" }}>Stage</div>
+                        </div>
+                        {idx < expandedStatuses.length - 1 && (
+                          <div style={{ display: "flex", alignItems: "center", minWidth: "48px", flexShrink: 0 }}>
+                            <div style={{ flex: 1, borderTop: "2px dashed #D4D4D8" }} />
+                            <span style={{ color: "#A1A1AA", fontSize: "16px" }}>&#8594;</span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Statuses Table */}
+          {expandedStatuses.length > 0 && (
+            <div style={{ marginTop: "24px" }}>
+              <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#09090B" }}>Statuses</h3>
+              <p style={{ fontSize: "13px", color: "#71717A", marginTop: "4px", marginBottom: "16px" }}>Manage the workflow statuses in one simple list.</p>
+
+              <div style={{ border: "1px solid #E4E4E7", borderRadius: "12px", overflow: "hidden" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "40px 1fr 140px 80px 60px 100px", padding: "10px 16px", backgroundColor: "#F9FAFB", borderBottom: "1px solid #E4E4E7", fontSize: "12px", fontWeight: 600, color: "#71717A", letterSpacing: "0.05em" }}>
+                  <span></span>
+                  <span>STATUS</span>
+                  <span>SYSTEM STATE</span>
+                  <span>INITIAL</span>
+                  <span>ORDER</span>
+                  <span>ACTIONS</span>
+                </div>
+                {expandedStatuses.map((s) => (
+                  <div key={s.id} style={{ display: "grid", gridTemplateColumns: "40px 1fr 140px 80px 60px 100px", padding: "12px 16px", borderBottom: "1px solid #F4F4F5", alignItems: "center" }}>
+                    <span style={{ color: "#A1A1AA", cursor: "grab" }}><GripVertical className="h-4 w-4" /></span>
+                    <div className="flex items-center gap-2">
+                      <span style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: getCategoryBg(s.category), display: "inline-block", flexShrink: 0 }} />
+                      <span style={{ fontSize: "14px", fontWeight: 600, color: "#09090B" }}>{s.name}</span>
+                    </div>
+                    <span style={{ display: "inline-block", padding: "2px 10px", borderRadius: "9999px", fontSize: "12px", fontWeight: 500, color: "#fff", backgroundColor: getCategoryBg(s.category), width: "fit-content" }}>
+                      {getCategoryLabel(s.category)}
+                    </span>
+                    <span style={{ fontSize: "13px", fontWeight: 600, color: s.is_initial ? "#16A34A" : "#A1A1AA" }}>{s.is_initial ? "Yes" : "No"}</span>
+                    <span style={{ fontSize: "13px", color: "#71717A" }}>{s.sort_order}</span>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => openEditStatus(s)} style={{ color: "#3B82F6", fontSize: "13px", fontWeight: 500, cursor: "pointer", background: "none", border: "none", padding: 0 }}>
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => setConfirmDelStatusId(s.id)}
+                        disabled={deletingStatusId === s.id}
+                        style={{ backgroundColor: "#DC2626", borderRadius: "6px", padding: "4px 6px", cursor: "pointer", border: "none", opacity: deletingStatusId === s.id ? 0.5 : 1 }}
+                        title="Delete status"
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-white" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Advanced Transition Rules */}
+          {expandedStatuses.length > 1 && (
+            <div style={{ marginTop: "24px", border: "1px solid #E4E4E7", borderRadius: "12px", overflow: "hidden" }}>
+              <button
+                onClick={() => setRulesExpanded(!rulesExpanded)}
+                className="flex items-center justify-between w-full"
+                style={{ padding: "16px 20px", backgroundColor: "#fff", border: "none", cursor: "pointer", textAlign: "left" }}
+              >
+                <div>
+                  <h3 style={{ fontSize: "16px", fontWeight: 600, color: "#09090B" }}>Advanced Transition Rules</h3>
+                  <p style={{ fontSize: "13px", color: "#71717A", marginTop: "2px" }}>Open only when you need custom movement rules between statuses.</p>
+                </div>
+                {rulesExpanded ? <ChevronUp className="h-5 w-5 text-gray-400" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
+              </button>
+
+              {rulesExpanded && (
+                <div style={{ padding: "0 20px 20px" }}>
+                  <div style={{ overflowX: "auto" }}>
+                    <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                      <thead>
+                        <tr>
+                          <th style={{ padding: "10px 12px", border: "1px solid #E4E4E7", textAlign: "left", fontWeight: 500, color: "#71717A", backgroundColor: "#F9FAFB" }}>From / To &rarr;</th>
+                          {expandedStatuses.map((s) => (
+                            <th key={s.id} style={{ padding: "10px 12px", border: "1px solid #E4E4E7", textAlign: "center", fontWeight: 500, color: "#71717A", backgroundColor: "#F9FAFB" }}>
+                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "9999px", fontSize: "11px", fontWeight: 500, color: "#fff", backgroundColor: getCategoryBg(s.category) }}>{s.name}</span>
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {expandedStatuses.map((from) => (
+                          <tr key={from.id}>
+                            <td style={{ padding: "10px 12px", border: "1px solid #E4E4E7", fontWeight: 500 }}>
+                              <span style={{ display: "inline-block", padding: "2px 8px", borderRadius: "9999px", fontSize: "11px", fontWeight: 500, color: "#fff", backgroundColor: getCategoryBg(from.category) }}>{from.name}</span>
+                            </td>
+                            {expandedStatuses.map((to) => (
+                              <td key={to.id} style={{ padding: "10px 12px", border: "1px solid #E4E4E7", textAlign: "center" }}>
+                                {from.id === to.id ? (
+                                  <span style={{ color: "#D4D4D8" }}>&mdash;</span>
+                                ) : (
+                                  <input
+                                    type="checkbox"
+                                    checked={isTransitionConnected(from.id, to.id)}
+                                    onChange={() => toggleTransition(from.id, to.id)}
+                                    style={{ width: "16px", height: "16px", cursor: "pointer", accentColor: "#EC6824" }}
+                                  />
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Sticky Footer */}
+      <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, backgroundColor: "#fff", borderTop: "1px solid #E4E4E7", padding: "16px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", zIndex: 50 }}>
+        <p style={{ fontSize: "13px", color: "#71717A" }}>The layout is tightened so the page feels more compact and builder-focused.</p>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => { setSelectedTemplateId(null); setRulesExpanded(false); setHoveredStatusId(null); }}
+            style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={() => toast.success("Changes saved")}
+            style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
+          >
+            Save Changes
+          </button>
+        </div>
+      </div>
 
       {/* Template Dialog */}
       <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
@@ -364,8 +520,35 @@ export default function WorkflowTemplatesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveTemplate}>Save</Button>
+            <button
+              onClick={() => setTemplateDialogOpen(false)}
+              style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
+            >Cancel</button>
+            <button
+              onClick={saveTemplate}
+              style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
+            >Save</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Rename Dialog */}
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Rename Template</DialogTitle></DialogHeader>
+          <div>
+            <Label>Name</Label>
+            <Input value={renameValue} onChange={(e) => setRenameValue(e.target.value)} placeholder="Template name" />
+          </div>
+          <DialogFooter>
+            <button
+              onClick={() => setRenameDialogOpen(false)}
+              style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
+            >Cancel</button>
+            <button
+              onClick={renameTemplate}
+              style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
+            >Save</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -408,13 +591,19 @@ export default function WorkflowTemplatesPage() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" checked={statusInitial} onChange={(e) => setStatusInitial(e.target.checked)} className="h-4 w-4 accent-blue-600" />
+              <input type="checkbox" checked={statusInitial} onChange={(e) => setStatusInitial(e.target.checked)} style={{ accentColor: "#EC6824" }} />
               <Label className="cursor-pointer">Initial status (default for new tasks)</Label>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveStatus}>Save</Button>
+            <button
+              onClick={() => setStatusDialogOpen(false)}
+              style={{ border: "1px solid #E4E4E7", borderRadius: "8px", padding: "8px 16px", fontSize: "14px", fontWeight: 500, color: "#3F3F46", backgroundColor: "#fff", cursor: "pointer" }}
+            >Cancel</button>
+            <button
+              onClick={saveStatus}
+              style={{ backgroundColor: "#EC6824", color: "#fff", fontWeight: 600, fontSize: "14px", padding: "8px 16px", borderRadius: "8px", cursor: "pointer", border: "none" }}
+            >Save</button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

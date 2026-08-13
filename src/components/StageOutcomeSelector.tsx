@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { getStatusColor, getStatusDisplay } from "@/lib/workflow";
+import { getAllowedTransitions, getStatusColor, getStatusDisplay } from "@/lib/workflow";
 import type { WorkflowStatus, WorkflowTransition } from "@/lib/workflow";
 
 interface StageOutcomeSelectorProps {
@@ -13,6 +13,10 @@ interface StageOutcomeSelectorProps {
   onDeclare: (toStatusId: string) => Promise<void>;
   onTargetChange?: (toStatusId: string | null) => void;
   compact?: boolean;
+  /** B2-B: the acting user's project_role_id for role-gated transition filtering */
+  userRoleId?: string | null;
+  /** B2-B: true when the user is a system admin/manager (bypasses role-gating) */
+  isSystemAdmin?: boolean;
 }
 
 export function StageOutcomeSelector({
@@ -23,18 +27,16 @@ export function StageOutcomeSelector({
   onDeclare,
   onTargetChange,
   compact = false,
+  userRoleId = null,
+  isSystemAdmin = false,
 }: StageOutcomeSelectorProps) {
   const [declaring, setDeclaring] = useState(false);
   const [selectedStatusId, setSelectedStatusId] = useState("");
 
+  // B2-A + B2-B: filter out retired destinations and role-gated transitions
   const allowedTransitions = useMemo(
-    () =>
-      transitions
-        .filter((t) => t.from_status_id === currentStatusId)
-        .map((t) => t.to_status_id)
-        .map((id) => workflowStatuses.find((s) => s.id === id))
-        .filter(Boolean) as WorkflowStatus[],
-    [currentStatusId, workflowStatuses, transitions]
+    () => getAllowedTransitions(workflowStatuses, transitions, currentStatusId, userRoleId, isSystemAdmin),
+    [currentStatusId, workflowStatuses, transitions, userRoleId, isSystemAdmin]
   );
 
   useEffect(() => {

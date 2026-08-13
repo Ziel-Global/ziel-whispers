@@ -412,6 +412,8 @@ export type Database = {
           is_locked: boolean
           is_missed: boolean
           is_overtime: boolean | null
+          declared_transition_to: string | null
+          hours_status_id: string | null
           log_date: string
           project_id: string | null
           status: string
@@ -425,8 +427,10 @@ export type Database = {
           admin_flagged?: boolean
           category: string
           created_at?: string
+          declared_transition_to?: string | null
           description: string
           hours: number
+          hours_status_id?: string | null
           id?: string
           is_late?: boolean
           is_locked?: boolean
@@ -445,8 +449,10 @@ export type Database = {
           admin_flagged?: boolean
           category?: string
           created_at?: string
+          declared_transition_to?: string | null
           description?: string
           hours?: number
+          hours_status_id?: string | null
           id?: string
           is_late?: boolean
           is_locked?: boolean
@@ -1563,31 +1569,37 @@ export type Database = {
       task_status_history: {
         Row: {
           assigned_to_at_change: string | null
+          automation_rule_id: string | null
           changed_at: string
           changed_by: string | null
           changed_by_type: string
           from_status_id: string | null
           id: string
+          source: string | null
           task_id: string
           to_status_id: string
         }
         Insert: {
           assigned_to_at_change?: string | null
+          automation_rule_id?: string | null
           changed_at?: string
           changed_by?: string | null
           changed_by_type: string
           from_status_id?: string | null
           id?: string
+          source?: string | null
           task_id: string
           to_status_id: string
         }
         Update: {
           assigned_to_at_change?: string | null
+          automation_rule_id?: string | null
           changed_at?: string
           changed_by?: string | null
           changed_by_type?: string
           from_status_id?: string | null
           id?: string
+          source?: string | null
           task_id?: string
           to_status_id?: string
         }

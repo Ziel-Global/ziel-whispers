@@ -384,6 +384,8 @@ export default function LogSubmitPage() {
       const finalTaskId = data.task_id === "other" ? null : (data.task_id || null);
 
       if (editId) {
+        const hoursStatusId = selectedTask?.status_id || null;
+
         // Update existing draft in database
         const { error } = await supabase.from("daily_logs").update({
           project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
@@ -392,12 +394,16 @@ export default function LogSubmitPage() {
           description: data.description,
           log_date: data.log_date,
           task_id: finalTaskId,
+          hours_status_id: hoursStatusId,
+          declared_transition_to: declaredTarget || null,
           declared_outcome_status_id: declaredTarget || null,
         }).eq("id", editId).eq("status", "draft");
         if (error) throw error;
         setEditId(null);
         toast.success("Log updated");
       } else {
+        const hoursStatusId = selectedTask?.status_id || null;
+
         // Insert new draft into database
         const { error } = await supabase.from("daily_logs").insert({
           user_id: user!.id,
@@ -410,6 +416,8 @@ export default function LogSubmitPage() {
           is_late: false,
           is_overtime: false,
           task_id: finalTaskId,
+          hours_status_id: hoursStatusId,
+          declared_transition_to: declaredTarget || null,
           declared_outcome_status_id: declaredTarget || null,
         });
         if (error) throw error;
@@ -523,14 +531,19 @@ export default function LogSubmitPage() {
         (taskStatuses || []).forEach((t: any) => { taskStatusMap[t.id] = t.status_id; });
       }
 
-      // Update each draft to submitted with computed fields + status_id
+      // Update each draft to submitted with computed fields + status_id, hours_status_id, and declared_transition_to
       for (const log of pendingLogs) {
+        const activeStatusId = log.task_id ? (taskStatusMap[log.task_id] || null) : null;
+        const transitionTarget = log.declared_transition_to || log.declared_outcome_status_id || null;
+
         const { error } = await supabase.from("daily_logs").update({
           status: "submitted",
           is_late: isLateForDate(log.log_date),
           is_overtime: overtimeFlags[log.id] || false,
           submitted_at: nowPKTStr,
-          status_id: log.task_id ? (taskStatusMap[log.task_id] || null) : null,
+          status_id: activeStatusId,
+          hours_status_id: log.hours_status_id || activeStatusId,
+          declared_transition_to: transitionTarget,
         }).eq("id", log.id).eq("status", "draft");
         if (error) throw error;
       }

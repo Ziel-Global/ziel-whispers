@@ -370,6 +370,26 @@ const { data: resolvedId } = useQuery({
     enabled: !!id && !!project?.workflow_template_id,
   });
 
+  // B2-B: Resolve the current user's project role for role-gated transition filtering.
+  // This is used client-side to hide transitions the user cannot execute.
+  // The DB trigger is the authoritative enforcement point.
+  const { data: currentUserProjectRoleId } = useQuery({
+    queryKey: ["current-user-project-role", id, profile?.id],
+    queryFn: async () => {
+      if (!profile?.id || !id) return null;
+      const { data } = await supabase
+        .from("project_members")
+        .select("project_role_id")
+        .eq("project_id", id)
+        .eq("user_id", profile.id)
+        .is("removed_at", null)
+        .maybeSingle();
+      return data?.project_role_id ?? null;
+    },
+    enabled: !!id && !!profile?.id,
+  });
+
+
   const [viewTaskData, setViewTaskData] = useState<any>(null);
   const [viewDependencyWarning, setViewDependencyWarning] = useState("");
   useEffect(() => {
@@ -4381,6 +4401,8 @@ const { data: resolvedId } = useQuery({
                   });
                 }}
                 compact
+                userRoleId={currentUserProjectRoleId ?? null}
+                isSystemAdmin={isAdmin}
               />
               {viewDependencyWarning && (
                 <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">

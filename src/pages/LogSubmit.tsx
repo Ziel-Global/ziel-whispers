@@ -242,6 +242,26 @@ export default function LogSubmitPage() {
     enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
   });
 
+  // B2-B: Resolve the current user's project role for role-gated transition filtering.
+  // Keyed on selectedProjectId so it refreshes when the user switches projects.
+  const { data: logSubmitUserRoleId } = useQuery({
+    queryKey: ["logsubmit-user-project-role", selectedProjectId, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !selectedProjectId) return null;
+      const { data } = await supabase
+        .from("project_members")
+        .select("project_role_id")
+        .eq("project_id", selectedProjectId)
+        .eq("user_id", user.id)
+        .is("removed_at", null)
+        .maybeSingle();
+      return data?.project_role_id ?? null;
+    },
+    enabled: !!user?.id && !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
+  });
+  // System admin / manager bypass for role-gating
+  const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "manager";
+
   const { data: availableTasks = [] } = useQuery({
     queryKey: ["my-project-tasks", selectedProjectId, user?.id],
     queryFn: async () => {
@@ -327,8 +347,15 @@ export default function LogSubmitPage() {
   const selectedTask = selectedTaskId ? availableTasks.find((t: any) => t.id === selectedTaskId) : null;
   const allowedTransitions = useMemo(() => {
     if (!selectedTask?.status_id || !workflowStatuses) return [];
-    return getAllowedTransitions(workflowStatuses, transitionsRef.current, selectedTask.status_id);
-  }, [selectedTask?.status_id, workflowStatuses]);
+    // B2-A: retired destinations excluded; B2-B: role-gated transitions filtered
+    return getAllowedTransitions(
+      workflowStatuses,
+      transitionsRef.current,
+      selectedTask.status_id,
+      logSubmitUserRoleId ?? null,
+      isLogSubmitSystemAdmin
+    );
+  }, [selectedTask?.status_id, workflowStatuses, logSubmitUserRoleId, isLogSubmitSystemAdmin]);
   useEffect(() => {
     if (declareOutcome && allowedTransitions.length === 1) {
       setSelectedOutcomeStatusId(allowedTransitions[0].id);

@@ -7,8 +7,6 @@ import { createClient } from "@supabase/supabase-js";
 import { readFileSync, existsSync } from "fs";
 
 
-const supabase = createClient(SUPABASE_URL, ANON_KEY);
-
 let passed = 0;
 let failed = 0;
 let skipped = 0;

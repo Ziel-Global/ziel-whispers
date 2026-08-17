@@ -982,18 +982,21 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          permissions: Json
           project_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          permissions?: Json
           project_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          permissions?: Json
           project_id?: string | null
         }
         Relationships: [
@@ -1392,6 +1395,76 @@ export type Database = {
             foreignKeyName: "project_settings_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      project_settings_kv: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          project_id: string | null
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          project_id?: string | null
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          project_id?: string | null
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_settings_kv_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      task_types: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          project_id: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          project_id?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_types_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
             referencedRelation: "projects"
             referencedColumns: ["id"]
           }
@@ -1997,6 +2070,10 @@ export type Database = {
         Returns: undefined
       }
       get_my_role: { Args: never; Returns: string }
+      get_project_setting: {
+        Args: { p_project_id: string | null; p_key: string; p_default?: Json }
+        Returns: Json
+      }
       is_project_member: { Args: { p_id: string }; Returns: boolean }
     }
     Enums: {

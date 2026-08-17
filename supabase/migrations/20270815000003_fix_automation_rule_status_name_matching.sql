@@ -1,43 +1,4 @@
--- Migration: Phase 3 - Lockout rules guard for automation engine & System source audit tagging
--- Section 6: Lockout Rules for System Transition Actions (C6)
--- Section 7: System Source Audit Tagging (C7)
-
--- 1. Update record_task_status_history to populate source
-CREATE OR REPLACE FUNCTION public.record_task_status_history()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-SECURITY DEFINER
-SET search_path = public
-AS $$
-BEGIN
-  IF OLD.status_id IS DISTINCT FROM NEW.status_id THEN
-    INSERT INTO public.task_status_history (
-      task_id,
-      from_status_id,
-      to_status_id,
-      changed_by,
-      changed_by_type,
-      assigned_to_at_change,
-      source
-    )
-    VALUES (
-      NEW.id,
-      OLD.status_id,
-      NEW.status_id,
-      auth.uid(),
-      COALESCE(auth.role(), 'system'),
-      NEW.assigned_to,
-      CASE 
-        WHEN auth.uid() IS NULL THEN 'system'
-        ELSE 'manual'
-      END
-    );
-  END IF;
-  RETURN NEW;
-END;
-$$;
-
--- 2. Update run_automation_rules to enforce Lockout Rules (C6) and System Audit Tagging (C7)
+-- Migration: Fix status_id matching in run_automation_rules to support status names (e.g. 'QA Review') in addition to UUIDs
 CREATE OR REPLACE FUNCTION public.run_automation_rules(
   p_project_id UUID,
   p_trigger_type TEXT,
@@ -82,14 +43,11 @@ DECLARE
   v_project_name TEXT;
   v_task_title TEXT;
   v_assignee_name TEXT;
-  -- C6 Lockout Variables
   v_has_active_blockers BOOLEAN := false;
   v_is_task_flagged BOOLEAN := false;
 BEGIN
-  -- Determine root event ID
   v_actual_root_id := COALESCE(p_root_event_id, gen_random_uuid());
 
-  -- Count chain depth
   IF p_root_event_id IS NOT NULL THEN
     SELECT COUNT(*)::INTEGER + 1 INTO v_chain_depth
     FROM automation_rule_runs
@@ -98,19 +56,16 @@ BEGIN
     v_chain_depth := 1;
   END IF;
 
-  -- Hard cap at 5 hops
   IF v_chain_depth > 5 THEN
     RETURN;
   END IF;
 
-  -- Resolve task_id from entity
   v_task_id := CASE
     WHEN p_entity_type = 'task' THEN p_entity_id
     WHEN p_entity_type = 'blocker' THEN (SELECT task_id FROM task_blockers WHERE id = p_entity_id)
     ELSE NULL
   END;
 
-  -- Check C6 Lockout Conditions on the target task
   IF v_task_id IS NOT NULL THEN
     SELECT COALESCE(is_flagged, false) INTO v_is_task_flagged FROM tasks WHERE id = v_task_id;
     SELECT EXISTS (
@@ -126,7 +81,6 @@ BEGIN
       AND status = 'enabled'
     ORDER BY priority DESC
   LOOP
-    -- C6 Guard: If task has active blockers or is flagged, defer system status transitions
     IF (v_is_task_flagged OR v_has_active_blockers) AND p_trigger_type = 'status_change' THEN
       INSERT INTO automation_rule_runs (
         automation_rule_id, entity_type, entity_id, root_event_id, result, error_message
@@ -138,7 +92,6 @@ BEGIN
       CONTINUE;
     END IF;
 
-    -- Evaluate conditions (all must pass)
     v_condition_passed := true;
     IF jsonb_array_length(v_rule.conditions) > 0 THEN
       SELECT * INTO v_task_record FROM tasks WHERE id = v_task_id;
@@ -204,7 +157,6 @@ BEGIN
       CONTINUE;
     END IF;
 
-    -- Execute actions in sequence
     FOR v_action IN SELECT * FROM jsonb_array_elements(v_rule.actions)
     LOOP
       v_error_msg := NULL;
@@ -215,10 +167,8 @@ BEGIN
           WHEN 'change_status' THEN
             v_target_status_id := (v_action->'params'->>'status_id')::UUID;
             IF v_target_status_id IS NOT NULL AND v_task_id IS NOT NULL THEN
-              -- Update task status
               UPDATE tasks SET status_id = v_target_status_id WHERE id = v_task_id;
               
-              -- C7 System Source Audit Tagging
               INSERT INTO task_status_history (
                 task_id, from_status_id, to_status_id, changed_by, changed_by_type, source, automation_rule_id
               )

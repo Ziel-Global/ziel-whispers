@@ -405,6 +405,10 @@ export default function LogSubmitPage() {
       toast.error("Select the stage that actually happened before adding the log.");
       return;
     }
+    if (declareOutcome && selectedTask?.is_flagged) {
+      toast.error(`Cannot declare stage outcome for "${selectedTask.title}" — it is blocked by an active blocker.`);
+      return;
+    }
     const declaredTarget = declareOutcome
       ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
       : "";

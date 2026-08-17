@@ -1,4 +1,4 @@
-﻿export type Json =
+export type Json =
   | string
   | number
   | boolean
@@ -412,6 +412,8 @@ export type Database = {
           is_locked: boolean
           is_missed: boolean
           is_overtime: boolean | null
+          declared_transition_to: string | null
+          hours_status_id: string | null
           log_date: string
           project_id: string | null
           status: string
@@ -425,8 +427,10 @@ export type Database = {
           admin_flagged?: boolean
           category: string
           created_at?: string
+          declared_transition_to?: string | null
           description: string
           hours: number
+          hours_status_id?: string | null
           id?: string
           is_late?: boolean
           is_locked?: boolean
@@ -445,8 +449,10 @@ export type Database = {
           admin_flagged?: boolean
           category?: string
           created_at?: string
+          declared_transition_to?: string | null
           description?: string
           hours?: number
+          hours_status_id?: string | null
           id?: string
           is_late?: boolean
           is_locked?: boolean
@@ -976,18 +982,21 @@ export type Database = {
           created_at: string
           id: string
           name: string
+          permissions: Json
           project_id: string | null
         }
         Insert: {
           created_at?: string
           id?: string
           name: string
+          permissions?: Json
           project_id?: string | null
         }
         Update: {
           created_at?: string
           id?: string
           name?: string
+          permissions?: Json
           project_id?: string | null
         }
         Relationships: [
@@ -1391,6 +1400,76 @@ export type Database = {
           }
         ]
       }
+      project_settings_kv: {
+        Row: {
+          created_at: string
+          id: string
+          key: string
+          project_id: string | null
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          key: string
+          project_id?: string | null
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          key?: string
+          project_id?: string | null
+          updated_at?: string
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_settings_kv_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
+      task_types: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          project_id: string | null
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          project_id?: string | null
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          project_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_types_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       project_health_snapshots: {
       task_dependencies: {
         Row: {
@@ -1524,36 +1603,76 @@ export type Database = {
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
+      task_collaborators: {
+        Row: {
+          added_at: string
+          id: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          added_at?: string
+          id?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          added_at?: string
+          id?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_collaborators_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_collaborators_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       task_status_history: {
         Row: {
           assigned_to_at_change: string | null
+          automation_rule_id: string | null
           changed_at: string
           changed_by: string | null
           changed_by_type: string
           from_status_id: string | null
           id: string
+          source: string | null
           task_id: string
           to_status_id: string
         }
         Insert: {
           assigned_to_at_change?: string | null
+          automation_rule_id?: string | null
           changed_at?: string
           changed_by?: string | null
           changed_by_type: string
           from_status_id?: string | null
           id?: string
+          source?: string | null
           task_id: string
           to_status_id: string
         }
         Update: {
           assigned_to_at_change?: string | null
+          automation_rule_id?: string | null
           changed_at?: string
           changed_by?: string | null
           changed_by_type?: string
           from_status_id?: string | null
           id?: string
+          source?: string | null
           task_id?: string
           to_status_id?: string
         }
@@ -1615,6 +1734,7 @@ export type Database = {
           status: string
           status_id: string | null
           title: string
+          version: number
         }
         Insert: {
           assigned_to?: string | null
@@ -1635,6 +1755,7 @@ export type Database = {
           status?: string
           status_id?: string | null
           title: string
+          version?: number
         }
         Update: {
           assigned_to?: string | null
@@ -1655,6 +1776,7 @@ export type Database = {
           status?: string
           status_id?: string | null
           title?: string
+          version?: number
         }
         Relationships: [
           {
@@ -1948,6 +2070,10 @@ export type Database = {
         Returns: undefined
       }
       get_my_role: { Args: never; Returns: string }
+      get_project_setting: {
+        Args: { p_project_id: string | null; p_key: string; p_default?: Json }
+        Returns: Json
+      }
       is_project_member: { Args: { p_id: string }; Returns: boolean }
     }
     Enums: {

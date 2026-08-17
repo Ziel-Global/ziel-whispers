@@ -36,6 +36,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pi
 
 import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS, getAllowedTransitions, getStatusColor, getDoneStatusIds, getInitialStatus, getStatusDisplay } from "@/lib/workflow";
 import { StageOutcomeSelector } from "@/components/StageOutcomeSelector";
+import { TaskCollaboratorsSection } from "@/components/TaskCollaboratorsSection";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 const CHART_COLORS = ["hsl(82,100%,72%)", "#60a5fa", "#f59e0b", "#ef4444", "#8b5cf6", "#14b8a6", "#f97316", "#ec4899"];
 
@@ -368,6 +369,26 @@ const { data: resolvedId } = useQuery({
     },
     enabled: !!id && !!project?.workflow_template_id,
   });
+
+  // B2-B: Resolve the current user's project role for role-gated transition filtering.
+  // This is used client-side to hide transitions the user cannot execute.
+  // The DB trigger is the authoritative enforcement point.
+  const { data: currentUserProjectRoleId } = useQuery({
+    queryKey: ["current-user-project-role", id, profile?.id],
+    queryFn: async () => {
+      if (!profile?.id || !id) return null;
+      const { data } = await supabase
+        .from("project_members")
+        .select("project_role_id")
+        .eq("project_id", id)
+        .eq("user_id", profile.id)
+        .is("removed_at", null)
+        .maybeSingle();
+      return data?.project_role_id ?? null;
+    },
+    enabled: !!id && !!profile?.id,
+  });
+
 
   const [viewTaskData, setViewTaskData] = useState<any>(null);
   const [viewDependencyWarning, setViewDependencyWarning] = useState("");
@@ -4128,6 +4149,18 @@ const { data: resolvedId } = useQuery({
 
           <Separator className="my-4" />
 
+          {/* Collaborators */}
+          {viewTaskData?.id && (
+            <>
+              <TaskCollaboratorsSection
+                taskId={viewTaskData.id}
+                projectMembers={resourceMembers}
+                primaryOwnerId={viewTaskData.assigned_to}
+              />
+              <Separator className="my-4" />
+            </>
+          )}
+
           {/* Comments */}
           <div className="space-y-3">
             <h4 className="text-sm font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Comments</h4>
@@ -4368,6 +4401,8 @@ const { data: resolvedId } = useQuery({
                   });
                 }}
                 compact
+                userRoleId={currentUserProjectRoleId ?? null}
+                isSystemAdmin={isAdmin}
               />
               {viewDependencyWarning && (
                 <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">

@@ -331,6 +331,7 @@ const { data: resolvedId } = useQuery({
       });
     },
     enabled: !!id,
+    refetchInterval: 3000,
   });
 
   const { data: phases = [] } = useQuery({
@@ -446,6 +447,7 @@ const { data: resolvedId } = useQuery({
       return data || [];
     },
     enabled: !!activeViewId,
+    refetchInterval: 3000,
   });
 
   const { data: viewDeps = [], isLoading: viewDepsLoading } = useQuery({
@@ -564,6 +566,7 @@ const { data: resolvedId } = useQuery({
       return data || [];
     },
     enabled: !!id,
+    refetchInterval: 3000,
   });
 
   const { data: actionItemMessages = [] } = useQuery({
@@ -649,6 +652,7 @@ const { data: resolvedId } = useQuery({
       return data || [];
     },
     enabled: !!id,
+    refetchInterval: 3000,
   });
 
   const { data: sprints = [] } = useQuery({
@@ -936,26 +940,36 @@ const { data: resolvedId } = useQuery({
 
   const resolveBlocker = async (blockerId: string, taskId: string) => {
     if (!profile) return;
-    const { error } = await supabase
-      .from("task_blockers")
-      .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile.id })
-      .eq("id", blockerId);
-    if (error) { toast.error(error.message); return; }
-    await syncTaskFlagStatus(taskId, viewTaskData?.project_id || id || "");
+    const targetProjectId = viewTaskData?.project_id || id || "";
+
+    // Execute Security Definer RPC to resolve blocker, complete linked action items, and update task.is_flagged
+    const { error: cascadeErr } = await supabase.rpc("resolve_blocker_cascade", {
+      p_blocker_id: blockerId,
+      p_resolved_by: profile.id,
+    });
+
+    if (cascadeErr) {
+      await supabase
+        .from("task_blockers")
+        .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile.id })
+        .eq("id", blockerId);
+      await syncTaskFlagStatus(taskId, targetProjectId);
+    }
+
     const { error: rpcError } = await supabase.rpc("run_automation_rules", {
-      p_project_id: viewTaskData?.project_id || id,
+      p_project_id: targetProjectId,
       p_trigger_type: "blocker_resolved",
       p_entity_type: "blocker",
       p_entity_id: blockerId,
     });
     if (rpcError) console.error("Automation engine error:", rpcError);
-    queryClient.invalidateQueries({ queryKey: ["task-blockers-view", taskId] });
-    
+
+    // Fetch blocker details to notify raiser/assignee
     const { data: blockers } = await supabase
       .from("task_blockers")
-      .select("*, project_id, task_id, tasks!inner(title)")
+      .select("*, project_id, raised_by, task_id, tasks!inner(title)")
       .eq("id", blockerId);
-    
+
     if (blockers?.[0]) {
       const blocker = blockers[0];
       const blockerTaskTitle = (blocker as any).tasks?.title || "(unknown task)";
@@ -963,50 +977,21 @@ const { data: resolvedId } = useQuery({
       const message = `${profile.full_name} resolved a blocker on task "${blockerTaskTitle}" in project "${project?.name}"`;
       await createProjectRelatedNotifications({
         createdByUserId: profile.id,
-        projectId: blocker.project_id,
+        projectId: targetProjectId,
         type: "blocker_resolved",
         title: "Blocker Resolved",
         message,
         requiresClientAction: isClientAction,
       });
 
-      // Auto-complete linked action items
-      const { data: linkedItems } = await supabase
-        .from("client_action_items")
-        .select("id, title, status")
-        .eq("blocker_id", blockerId)
-        .eq("status", "pending");
-
-      if (linkedItems && linkedItems.length > 0) {
-        const now = new Date().toISOString();
-        for (const item of linkedItems) {
-          await supabase
-            .from("client_action_items")
-            .update({ status: "completed", completed_at: now })
-            .eq("id", item.id);
-
-          await supabase.from("audit_logs").insert({
-            actor_id: profile.id,
-            action: "action_item.auto_completed",
-            target_entity: "client_action_items",
-            target_id: item.id,
-            metadata: {
-              previous_status: item.status,
-              new_status: "completed",
-              trigger: "blocker_resolved",
-              blocker_id: blockerId,
-            },
-          });
-
-          await createProjectRelatedNotifications({
-            createdByUserId: profile.id,
-            projectId: blocker.project_id,
-            type: "action_item_auto_completed",
-            title: "Action Item Auto-Completed",
-            message: `"${item.title}" was automatically completed due to blocker resolution in project "${project?.name}"`,
-          });
-        }
-        queryClient.invalidateQueries({ queryKey: ["project-action-items", blocker.project_id] });
+      if (blocker.raised_by && blocker.raised_by !== profile.id) {
+        await createNotification({
+          userId: blocker.raised_by,
+          type: "blocker_resolved",
+          title: "Blocker You Raised Was Resolved",
+          message: `${profile.full_name} resolved the blocker you reported on task "${blockerTaskTitle}"`,
+          projectId: targetProjectId,
+        });
       }
     }
 
@@ -1017,11 +1002,16 @@ const { data: resolvedId } = useQuery({
         type: "blocker_resolved",
         title: "Blocker Resolved on Your Task",
         message: `A blocker on your task "${resolveTask.title}" in project "${project?.name}" was resolved`,
-        projectId: viewTaskData?.project_id || id,
+        projectId: targetProjectId,
       });
     }
 
-    queryClient.invalidateQueries({ queryKey: ["project-tasks", viewTaskData?.project_id || id] });
+    // Invalidate all related caches across the project
+    queryClient.invalidateQueries({ queryKey: ["task-blockers-view", taskId] });
+    queryClient.invalidateQueries({ queryKey: ["project-blockers-all", targetProjectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-action-items", targetProjectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", targetProjectId] });
+
     const { data: updatedTask } = await supabase.from("tasks").select("*").eq("id", taskId).single();
     if (updatedTask) setViewTaskData(updatedTask);
   };
@@ -1041,6 +1031,46 @@ const { data: resolvedId } = useQuery({
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [expandedActionItemId, queryClient]);
+
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`project-realtime-${id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "task_blockers", filter: `project_id=eq.${id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+          queryClient.invalidateQueries({ queryKey: ["project-blockers", id] });
+          queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+          if (viewTaskData?.id) {
+            queryClient.invalidateQueries({ queryKey: ["task-blockers-view", viewTaskData.id] });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tasks", filter: `project_id=eq.${id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+          if (viewTaskData?.id) {
+            queryClient.invalidateQueries({ queryKey: ["task-blockers-view", viewTaskData.id] });
+          }
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "client_action_items", filter: `project_id=eq.${id}` },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, viewTaskData?.id, queryClient]);
 
   const addDependency = async (taskId: string) => {
     if (!addDepTaskId || !profile) return;
@@ -1330,40 +1360,64 @@ const { data: resolvedId } = useQuery({
 
   const completeActionItem = async (itemId: string) => {
     if (!id || !profile) return;
+
+    // 1. Fetch action item details
+    const { data: completedItem } = await supabase
+      .from("client_action_items")
+      .select("title, blocker_id, requested_by, assigned_to")
+      .eq("id", itemId)
+      .single();
+
+    // 2. Update client_action_items status
     const { error } = await supabase
       .from("client_action_items")
       .update({ status: "completed", completed_at: new Date().toISOString(), resolved_by: profile.id })
       .eq("id", itemId)
       .eq("project_id", id);
+
     if (error) { toast.error(error.message); return; }
     toast.success("Action item completed");
-    queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
 
-    await supabase.from("audit_logs").insert({
-      actor_id: profile.id,
-      action: "action_item.completed",
-      target_entity: "client_action_items",
-      target_id: itemId,
-    });
-
-    const { data: completedItem } = await supabase
-      .from("client_action_items")
-      .select("title, blocker_id")
-      .eq("id", itemId)
-      .single();
-
+    // 3. If linked to a blocker, resolve the blocker via Security Definer RPC
     if (completedItem?.blocker_id) {
-      await supabase
-        .from("task_blockers")
-        .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile.id })
-        .eq("id", completedItem.blocker_id)
-        .eq("status", "open");
+      const { error: rpcErr } = await supabase.rpc("resolve_blocker_cascade", {
+        p_blocker_id: completedItem.blocker_id,
+        p_resolved_by: profile.id,
+      });
 
-      const { data: blk } = await supabase.from("task_blockers").select("task_id").eq("id", completedItem.blocker_id).single();
+      if (rpcErr) {
+        await supabase
+          .from("task_blockers")
+          .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile.id })
+          .eq("id", completedItem.blocker_id);
+
+        const { data: blk } = await supabase.from("task_blockers").select("task_id").eq("id", completedItem.blocker_id).single();
+        if (blk?.task_id) {
+          await syncTaskFlagStatus(blk.task_id, id);
+        }
+      }
+
+      const { data: blk } = await supabase.from("task_blockers").select("task_id, raised_by").eq("id", completedItem.blocker_id).single();
       if (blk?.task_id) {
-        await syncTaskFlagStatus(blk.task_id, id);
+        queryClient.invalidateQueries({ queryKey: ["task-blockers-view", blk.task_id] });
+
+        // Send cross-role notification to raiser if completed by assignee
+        if (blk.raised_by && blk.raised_by !== profile.id) {
+          await createNotification({
+            userId: blk.raised_by,
+            type: "blocker_resolved",
+            title: "Blocker You Raised Was Resolved",
+            message: `${profile.full_name} completed the action item and resolved the blocker you reported in project "${project?.name}"`,
+            projectId: id,
+          });
+        }
       }
     }
+
+    // Invalidate all related caches across the project
+    queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+    queryClient.invalidateQueries({ queryKey: ["project-blockers-all", id] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
 
     const completedTitle = completedItem?.title || "(untitled)";
     await createProjectRelatedNotifications({
@@ -1638,6 +1692,7 @@ const { data: resolvedId } = useQuery({
       toast.error("Cannot edit a completed task");
       return;
     }
+    setViewTaskData(null);
     setEditTaskId(task.id);
     setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
@@ -1738,6 +1793,7 @@ const { data: resolvedId } = useQuery({
       setEditTaskDueDate("");
       setEditTaskClientVisible(true);
       setEditTaskAssignedTo("");
+      setViewTaskData(null);
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
     } catch (err: any) { toast.error(err.message); }
   };
@@ -2870,7 +2926,9 @@ const { data: resolvedId } = useQuery({
           </TabsContent>
         )}
 
-        {/* TASKS — employees only (clients have their own view above) */}
+
+
+        {/* TASKS — employees only */}
         {!isAdmin && !isClient && (
           <TabsContent value="tasks" className="space-y-4">
             <h2 className="text-lg font-semibold">My Tasks</h2>
@@ -3121,8 +3179,8 @@ const { data: resolvedId } = useQuery({
           </TabsContent>
         )}
 
-        {/* TASKS — all project team members */}
-        {!isClient && (
+        {/* TASKS — admin only */}
+        {isAdmin && (
           <TabsContent value="tasks" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold">Tasks</h2>

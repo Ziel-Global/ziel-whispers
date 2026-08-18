@@ -43,12 +43,18 @@ export type WorkflowStatus = {
   color: string;
   sort_order: number;
   is_initial: boolean;
+  /** B2-A: soft-retired statuses remain valid for existing tasks/history but
+   *  must not appear as selectable destinations for new transitions. */
+  retired: boolean;
 };
 
 export type WorkflowTransition = {
   id: string;
   from_status_id: string | null;
   to_status_id: string;
+  /** B2-B: when non-null, only users whose project_role_id appears in this
+   *  array may execute this transition.  NULL means unrestricted. */
+  allowed_role_ids: string[] | null;
 };
 
 export type WorkflowTemplate = {
@@ -96,19 +102,59 @@ export async function fetchWorkflowTemplate(projectId: string): Promise<{
   };
 }
 
+/**
+ * Returns the list of status destinations the current user may transition to.
+ *
+ * B2-A: retired statuses are excluded from the returned list (they must not
+ *       be selectable for new transitions).
+ * B2-B: transitions whose `allowed_role_ids` is set are hidden unless the
+ *       user's active project role ID is included in that array, OR the user
+ *       is a system admin/manager (isSystemAdmin = true).
+ *
+ * Historical display helpers (getStatusColor, getStatusDisplay, etc.) do NOT
+ * call this function — they operate on the full status list so retired statuses
+ * continue to render correctly on existing tasks.
+ *
+ * @param statuses        - Full status list for the workflow template (all, incl. retired)
+ * @param transitions     - All transitions for the workflow template
+ * @param fromStatusId    - The task's current status_id
+ * @param userRoleId      - The acting user's project_role_id (or null if not a member / unknown)
+ * @param isSystemAdmin   - True when the user holds a system-level admin or manager role
+ */
 export function getAllowedTransitions(
   statuses: WorkflowStatus[],
   transitions: WorkflowTransition[],
-  fromStatusId: string | null
+  fromStatusId: string | null,
+  userRoleId?: string | null,
+  isSystemAdmin: boolean = false
 ): WorkflowStatus[] {
-  const allowedIds = transitions
-    .filter((t) => t.from_status_id === fromStatusId)
-    .map((t) => t.to_status_id);
-  return statuses.filter((s) => allowedIds.includes(s.id));
+  const eligibleTransitions = transitions.filter((t) => {
+    if (t.from_status_id !== fromStatusId) return false;
+
+    // B2-B: role-gating — skip check when unrestricted or when actor is admin/system
+    if (!isSystemAdmin && t.allowed_role_ids && t.allowed_role_ids.length > 0) {
+      if (!userRoleId || !t.allowed_role_ids.includes(userRoleId)) return false;
+    }
+
+    return true;
+  });
+
+  const allowedIds = eligibleTransitions.map((t) => t.to_status_id);
+
+  // B2-A: filter out retired destination statuses
+  return statuses.filter((s) => allowedIds.includes(s.id) && !s.retired);
 }
 
+/**
+ * Returns the initial (default) status for new tasks.
+ * B2-A: retired statuses are excluded — a retired initial status must not be
+ * auto-assigned to new tasks.
+ */
 export function getInitialStatus(statuses: WorkflowStatus[]): WorkflowStatus | undefined {
-  return statuses.find((s) => s.is_initial);
+  return (
+    statuses.find((s) => s.is_initial && !s.retired) ||
+    statuses.find((s) => !s.retired)
+  );
 }
 
 export function getDoneStatusIds(statuses: WorkflowStatus[]): Set<string> {

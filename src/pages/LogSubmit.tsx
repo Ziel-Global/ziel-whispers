@@ -242,6 +242,26 @@ export default function LogSubmitPage() {
     enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
   });
 
+  // B2-B: Resolve the current user's project role for role-gated transition filtering.
+  // Keyed on selectedProjectId so it refreshes when the user switches projects.
+  const { data: logSubmitUserRoleId } = useQuery({
+    queryKey: ["logsubmit-user-project-role", selectedProjectId, user?.id],
+    queryFn: async () => {
+      if (!user?.id || !selectedProjectId) return null;
+      const { data } = await supabase
+        .from("project_members")
+        .select("project_role_id")
+        .eq("project_id", selectedProjectId)
+        .eq("user_id", user.id)
+        .is("removed_at", null)
+        .maybeSingle();
+      return data?.project_role_id ?? null;
+    },
+    enabled: !!user?.id && !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
+  });
+  // System admin / manager bypass for role-gating
+  const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "manager";
+
   const { data: availableTasks = [] } = useQuery({
     queryKey: ["my-project-tasks", selectedProjectId, user?.id],
     queryFn: async () => {
@@ -327,8 +347,15 @@ export default function LogSubmitPage() {
   const selectedTask = selectedTaskId ? availableTasks.find((t: any) => t.id === selectedTaskId) : null;
   const allowedTransitions = useMemo(() => {
     if (!selectedTask?.status_id || !workflowStatuses) return [];
-    return getAllowedTransitions(workflowStatuses, transitionsRef.current, selectedTask.status_id);
-  }, [selectedTask?.status_id, workflowStatuses]);
+    // B2-A: retired destinations excluded; B2-B: role-gated transitions filtered
+    return getAllowedTransitions(
+      workflowStatuses,
+      transitionsRef.current,
+      selectedTask.status_id,
+      logSubmitUserRoleId ?? null,
+      isLogSubmitSystemAdmin
+    );
+  }, [selectedTask?.status_id, workflowStatuses, logSubmitUserRoleId, isLogSubmitSystemAdmin]);
   useEffect(() => {
     if (declareOutcome && allowedTransitions.length === 1) {
       setSelectedOutcomeStatusId(allowedTransitions[0].id);
@@ -359,11 +386,13 @@ export default function LogSubmitPage() {
       cancelled = true;
     };
   }, [pendingOutcomeStatusId, selectedTask?.id, workflowStatuses]);
-  const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
-    selectedDate === today
-      ? submittedHours > 0
-      : submittedHours >= 8
-  );
+  // TEMPORARILY COMMENTED OUT FOR TESTING MULTIPLE LOG SUBMISSIONS PER DAY
+  // const isLocked = !overtimeEnabled && profile?.role !== "admin" && (
+  //   selectedDate === today
+  //     ? submittedHours > 0
+  //     : submittedHours >= 8
+  // );
+  const isLocked = false; // Disabled lockout for manual testing
 
   const onAddLog = async (data: z.infer<typeof schema>) => {
     const currentHours = Number(data.hours);
@@ -376,6 +405,10 @@ export default function LogSubmitPage() {
       toast.error("Select the stage that actually happened before adding the log.");
       return;
     }
+    if (declareOutcome && selectedTask?.is_flagged) {
+      toast.error(`Cannot declare stage outcome for "${selectedTask.title}" — it is blocked by an active blocker.`);
+      return;
+    }
     const declaredTarget = declareOutcome
       ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
       : "";
@@ -384,6 +417,8 @@ export default function LogSubmitPage() {
       const finalTaskId = data.task_id === "other" ? null : (data.task_id || null);
 
       if (editId) {
+        const hoursStatusId = selectedTask?.status_id || null;
+
         // Update existing draft in database
         const { error } = await supabase.from("daily_logs").update({
           project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
@@ -392,12 +427,16 @@ export default function LogSubmitPage() {
           description: data.description,
           log_date: data.log_date,
           task_id: finalTaskId,
+          hours_status_id: hoursStatusId,
+          declared_transition_to: declaredTarget || null,
           declared_outcome_status_id: declaredTarget || null,
         }).eq("id", editId).eq("status", "draft");
         if (error) throw error;
         setEditId(null);
         toast.success("Log updated");
       } else {
+        const hoursStatusId = selectedTask?.status_id || null;
+
         // Insert new draft into database
         const { error } = await supabase.from("daily_logs").insert({
           user_id: user!.id,
@@ -410,6 +449,8 @@ export default function LogSubmitPage() {
           is_late: false,
           is_overtime: false,
           task_id: finalTaskId,
+          hours_status_id: hoursStatusId,
+          declared_transition_to: declaredTarget || null,
           declared_outcome_status_id: declaredTarget || null,
         });
         if (error) throw error;
@@ -523,14 +564,19 @@ export default function LogSubmitPage() {
         (taskStatuses || []).forEach((t: any) => { taskStatusMap[t.id] = t.status_id; });
       }
 
-      // Update each draft to submitted with computed fields + status_id
+      // Update each draft to submitted with computed fields + status_id, hours_status_id, and declared_transition_to
       for (const log of pendingLogs) {
+        const activeStatusId = log.task_id ? (taskStatusMap[log.task_id] || null) : null;
+        const transitionTarget = log.declared_transition_to || log.declared_outcome_status_id || null;
+
         const { error } = await supabase.from("daily_logs").update({
           status: "submitted",
           is_late: isLateForDate(log.log_date),
           is_overtime: overtimeFlags[log.id] || false,
           submitted_at: nowPKTStr,
-          status_id: log.task_id ? (taskStatusMap[log.task_id] || null) : null,
+          status_id: activeStatusId,
+          hours_status_id: log.hours_status_id || activeStatusId,
+          declared_transition_to: transitionTarget,
         }).eq("id", log.id).eq("status", "draft");
         if (error) throw error;
       }

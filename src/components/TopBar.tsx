@@ -1,4 +1,4 @@
-import { LogOut, User, Bell } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -10,14 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-
 import { getAvatarUrl } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export function TopBar() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
-
   const initials = profile?.full_name
     ?.split(" ")
     .map((n) => n[0])
@@ -33,31 +31,31 @@ export function TopBar() {
   const avatarUrl = getAvatarUrl((profile as any)?.avatar_url);
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-card px-4">
-      <SidebarTrigger className="text-foreground" />
+    <header className="flex h-14 items-center justify-between border-b border-border bg-card px-5 shadow-2xs">
+      <SidebarTrigger className="text-foreground hover:bg-muted rounded-lg" />
       <div className="flex items-center gap-3">
-        <span className="text-sm text-muted-foreground hidden sm:inline">
+        <span className="text-sm font-medium text-foreground hidden sm:inline">
           {profile?.full_name}
         </span>
         <NotificationBell />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="focus:outline-none">
-              <Avatar className="h-8 w-8 cursor-pointer">
+            <button className="focus:outline-none rounded-full ring-offset-background transition-shadow hover:ring-2 hover:ring-primary/20">
+              <Avatar className="h-8 w-8 cursor-pointer border border-border">
                 <AvatarImage src={avatarUrl} />
-                <AvatarFallback className="text-xs font-semibold">
+                <AvatarFallback className="text-xs font-bold bg-accent text-foreground">
                   {initials}
                 </AvatarFallback>
               </Avatar>
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer">
+          <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-lg border border-border">
+            <DropdownMenuItem onClick={() => navigate("/profile")} className="cursor-pointer font-medium">
               <User className="mr-2 h-4 w-4" />
               My Profile
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive cursor-pointer font-medium">
               <LogOut className="mr-2 h-4 w-4" />
               Sign Out
             </DropdownMenuItem>

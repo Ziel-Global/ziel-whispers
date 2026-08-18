@@ -8,11 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { useNavigate } from "react-router-dom";
-import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight } from "lucide-react";
+import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight, Upload, Download, Filter, ChevronDown, Bell } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { format, formatDistanceToNow, subDays } from "date-fns";
+import { format, formatDistanceToNow, startOfYear, subDays, subWeeks } from "date-fns";
 import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear, toSlug } from "@/lib/utils";
 
 export default function DashboardPage() {
@@ -96,6 +96,21 @@ export default function DashboardPage() {
       const { data, error } = await supabase.from("audit_logs").select("*, users:actor_id(full_name)").order("created_at", { ascending: false }).limit(10);
       if (error) throw error;
       return data || [];
+    },
+    enabled: isAdmin && hasProfile,
+  });
+
+  // Read-only data used solely by the approved dashboard visualizations.
+  const { data: dashboardVisuals } = useQuery({
+    queryKey: ["dashboard-visuals", today],
+    queryFn: async () => {
+      const [attendanceResult, logsResult] = await Promise.all([
+        supabase.from("attendance").select("date, clock_in").gte("date", format(startOfYear(new Date()), "yyyy-MM-dd")).lte("date", today),
+        supabase.from("daily_logs").select("log_date, submitted_at").gte("log_date", format(subWeeks(new Date(), 12), "yyyy-MM-dd")).lte("log_date", today).eq("status", "submitted"),
+      ]);
+      if (attendanceResult.error) throw attendanceResult.error;
+      if (logsResult.error) throw logsResult.error;
+      return { attendance: attendanceResult.data || [], logs: logsResult.data || [] };
     },
     enabled: isAdmin && hasProfile,
   });
@@ -398,162 +413,57 @@ export default function DashboardPage() {
 
   const hasSubmittedLog = (todayLogs?.length || 0) > 0;
 
-  // ——— ADMIN DASHBOARD ———
-  if (isAdmin) {
+  const attendanceMonths = useMemo(() => {
+    const year = new Date().getFullYear();
+    return Array.from({ length: 12 }, (_, index) => {
+      const key = `${year}-${String(index + 1).padStart(2, "0")}`;
+      const clockedIn = dashboardVisuals?.attendance.filter((entry) => entry.date.startsWith(key) && entry.clock_in).length || 0;
+      const daysInMonth = new Date(year, index + 1, 0).getDate();
+      const denominator = Math.max(1, (stats?.activeEmployees || 1) * Math.min(daysInMonth, 22));
+      return { key, label: format(new Date(year, index, 1), "MMM"), value: Math.min(100, Math.round((clockedIn / denominator) * 100)) };
+    });
+  }, [dashboardVisuals?.attendance, stats?.activeEmployees]);
+
+  const logActivity = useMemo(() => ["12 AM–8 AM", "8 AM–4 PM", "4 PM–12 AM"].map((label, range) => Array.from({ length: 7 }, (_, day) => {
+    const count = dashboardVisuals?.logs.filter((log) => {
+      const loggedAt = log.submitted_at ? new Date(log.submitted_at) : new Date(`${log.log_date}T12:00:00`);
+      return loggedAt.getDay() === (day + 1) % 7 && Math.floor(loggedAt.getHours() / 8) === range;
+    }).length || 0;
+    return { label, day, count };
+  })), [dashboardVisuals?.logs]);
+
+  const maxLogActivity = Math.max(1, ...logActivity.flat().map((cell) => cell.count));
+  const workforce = useMemo(() => {
+    const active = (teamStatus || []).filter((member: any) => !!member.attendance?.clock_in && !member.attendance?.clock_out);
+    const onsite = active.filter((member: any) => member.attendance?.work_mode === "onsite").length;
+    const remote = active.filter((member: any) => member.attendance?.work_mode === "remote").length;
+    return { onsite, remote, total: onsite + remote };
+  }, [teamStatus]);
+  const attendanceScore = stats?.activeEmployees ? Math.round(((stats.todayClockedIn || 0) / stats.activeEmployees) * 100) : 0;
+
+  if (isAdmin || isClient) {
     return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
+      <div className="dashboard-shell space-y-5">
+        <div className="dashboard-title">
+          <h1>Admin Dashboard</h1>
+          <p>Welcome back, {profile?.full_name ?? "User"}</p>
         </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/employees")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10"><Users className="h-5 w-5" /></div>
-              <div><p className="text-sm text-muted-foreground">Active Employees</p><p className="text-2xl font-bold">{stats?.activeEmployees ?? "—"}</p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/projects")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-blue-50"><FolderKanban className="h-5 w-5 text-blue-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Active Projects</p><p className="text-2xl font-bold">{stats?.activeProjects ?? "—"}</p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/attendance")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-green-50"><Clock className="h-5 w-5 text-green-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Today's Attendance</p><p className="text-2xl font-bold">{stats?.todayClockedIn ?? 0} <span className="text-sm font-normal text-muted-foreground">/ {stats?.activeEmployees ?? 0}</span></p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/leave/requests")}>
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-md ${(stats?.pendingLeaves ?? 0) > 0 ? "bg-yellow-50" : "bg-muted"}`}><Calendar className={`h-5 w-5 ${(stats?.pendingLeaves ?? 0) > 0 ? "text-yellow-600" : "text-muted-foreground"}`} /></div>
-              <div><p className="text-sm text-muted-foreground">Pending Leave</p><p className="text-2xl font-bold">{stats?.pendingLeaves ?? "—"}</p></div>
-            </div>
-          </Card>
-        </div>
-
-        {/* Late Attendance Alert */}
-        {(lateLogs?.length ?? 0) > 0 && (
-          <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
-            <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
-            <p className="text-sm text-yellow-800">
-              <strong>{lateLogs!.length}</strong> employee{lateLogs!.length > 1 ? "s" : ""} submitted logs late today.
-            </p>
-            <Button variant="ghost" size="sm" className="ml-auto text-xs" onClick={() => navigate("/logs/all?filter=late")}>View</Button>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className={`p-5 ${(lateLogs?.length ?? 0) > 0 ? "border-red-200 bg-red-50/30" : ""}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className={`h-4 w-4 ${(lateLogs?.length ?? 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} />
-              <h3 className="font-medium text-sm">Late Logs Today</h3>
-              {(lateLogs?.length ?? 0) > 0 && <Badge variant="destructive" className="ml-auto">{lateLogs!.length}</Badge>}
-            </div>
-            {(!lateLogs || lateLogs.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No late submissions today ✓</p>
-            ) : (
-              <div>
-                <TableHeader gridCols="1fr 80px">
-                  <span>EMPLOYEE</span>
-                  <span className="text-right">ACTIONS</span>
-                </TableHeader>
-                {lateLogs.map((l) => (
-                  <DataRow key={l.id} gridCols="1fr 80px">
-                    <div>
-                      <RowPrimary>{(l.users as any)?.full_name}</RowPrimary>
-                    </div>
-                    <RowActions className="justify-self-end">
-                      <button onClick={() => navigate("/logs/all?filter=late")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-red-600 text-xs font-medium" title="View">View</button>
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card className={`p-5 ${(pendingLeaveList?.length ?? 0) > 0 ? "border-yellow-200 bg-yellow-50/30" : ""}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <Calendar className="h-4 w-4 text-muted-foreground" />
-              <h3 className="font-medium text-sm">Pending Leave Requests</h3>
-            </div>
-            {(!pendingLeaveList || pendingLeaveList.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No pending requests ✓</p>
-            ) : (
-              <div>
-                <TableHeader gridCols="1fr 112px 112px 112px 96px 80px">
-                  <span>EMPLOYEE</span>
-                  <span>TYPE</span>
-                  <span>FROM</span>
-                  <span>TO</span>
-                  <span>STATUS</span>
-                  <span className="text-right">ACTIONS</span>
-                </TableHeader>
-                {pendingLeaveList.map((r) => (
-                  <DataRow key={r.id} gridCols="1fr 112px 112px 112px 96px 80px">
-                    <div>
-                      <RowPrimary>{(r.users as any)?.full_name}</RowPrimary>
-                      <RowSecondary>{getLeaveTypeName(r)} ({r.hours ? "0.5" : r.days_count}d)</RowSecondary>
-                    </div>
-                    <RowDataItem label="TYPE">{getLeaveTypeName(r)}</RowDataItem>
-                    <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                    <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                    <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
-                    <RowActions className="justify-self-end">
-                      <button onClick={() => handleLeaveAction(r.id, "approved")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
-                        <CheckCircle className="h-4 w-4" />
-                      </button>
-                      <button onClick={() => handleLeaveAction(r.id, "rejected")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-destructive" title="Reject">
-                        <XCircle className="h-4 w-4" />
-                      </button>
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
-            )}
-          </Card>
-        </div>
-
-        <div className="flex gap-3 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Users</Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/projects/new")}><Plus className="h-4 w-4 mr-1" />Add Project</Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/clients")}><Building2 className="h-4 w-4 mr-1" />Add Client</Button>
-          <Button variant="outline" size="sm" onClick={() => navigate("/reports")}><BarChart3 className="h-4 w-4 mr-1" />View Reports</Button>
-        </div>
-
-        <Card className="p-5">
-          <h3 className="font-medium text-sm mb-3">Recent Activity</h3>
-          {(!recentAudit || recentAudit.length === 0) ? (
-            <p className="text-sm text-muted-foreground">No recent activity</p>
-          ) : (
-            <div className="space-y-2">
-              {recentAudit.map((a) => (
-                <div key={a.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                  <span>
-                    <span className="font-medium">{(a as any).users?.full_name || "System"}</span>
-                    <span className="text-muted-foreground ml-1">{a.action.replace(/\./g, " → ")}</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
-      </div>
-    );
-  }
-
-  // ——— CLIENT DASHBOARD ———
-  if (isClient) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <section className="dashboard-kpis">
+          <Card className="dashboard-kpi" onClick={() => navigate("/employees")}><div className="dashboard-kpi__body"><p>Active Employees</p><strong>{stats?.activeEmployees ?? 0}</strong><span>View current details</span><div className="dashboard-kpi__icon"><Users /></div></div><div className="dashboard-kpi__footer">See Details <span>→</span></div></Card>
+          <Card className="dashboard-kpi" onClick={() => navigate("/projects")}><div className="dashboard-kpi__body"><p>Active Projects</p><strong>{stats?.activeProjects ?? 0}</strong><span>View current details</span><div className="dashboard-kpi__icon"><FolderKanban /></div></div><div className="dashboard-kpi__footer">See Details <span>→</span></div></Card>
+          <Card className="dashboard-kpi" onClick={() => navigate("/attendance")}><div className="dashboard-kpi__body"><p>Today's Attendance</p><strong>{stats?.todayClockedIn ?? 0}/{stats?.activeEmployees ?? 0}</strong><span>View current details</span><div className="dashboard-kpi__icon"><Clock /></div></div><div className="dashboard-kpi__footer">See Details <span>→</span></div></Card>
+          <Card className="dashboard-kpi" onClick={() => navigate("/leave/requests")}><div className="dashboard-kpi__body"><p>Pending Leave</p><strong>{stats?.pendingLeaves ?? 0}</strong><span>View current details</span><div className="dashboard-kpi__icon"><Calendar /></div></div><div className="dashboard-kpi__footer">See Details <span>→</span></div></Card>
+        </section>
+        <section className="dashboard-grid dashboard-grid--score">
+          <Card className="dashboard-card dashboard-score-card"><h2>Attendance Score <span>ⓘ</span></h2><div className="score-gauge" style={{ "--score": `${attendanceScore * 1.8}deg` } as React.CSSProperties}><div><strong>{attendanceScore}</strong><span>of 100 points</span></div></div><div className="score-message"><strong>{attendanceScore >= 80 ? "Great attendance this week ✓" : "Attendance needs attention"}</strong><p>{stats?.todayClockedIn ?? 0} team member{(stats?.todayClockedIn ?? 0) === 1 ? " is" : "s are"} clocked in today.</p></div><button className="dashboard-text-action" onClick={() => navigate("/attendance")}>View Attendance <span>→</span></button></Card>
+          <Card className="dashboard-card dashboard-trend-card"><div className="trend-header"><h2>Attendance Trend <span>ⓘ</span></h2><div className="trend-controls"><span><Filter /> Filter</span><span>This Year <ChevronDown /></span></div></div><div className="trend-scale"><span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0</span></div><div className="attendance-bars">{attendanceMonths.map((month) => { const isCurrent = month.key === format(new Date(), "yyyy-MM"); return <div key={month.key} className={isCurrent ? "is-current" : ""}>{isCurrent && <div className="attendance-tooltip"><strong>{format(new Date(`${month.key}-01T00:00:00`), "MMM, yyyy")}</strong><span>Attendance <b>{month.value}%</b></span></div>}<i style={{ height: `${Math.max(10, month.value)}%` }} /><span>{month.label}</span></div>; })}</div></Card>
+        </section>
+        <section className="dashboard-grid dashboard-grid--activity">
+          <Card className="dashboard-card dashboard-activity-card"><div className="card-heading"><h2>Daily Logs Activity</h2><span className="activity-legend">Low <i /><i /><i /><i /> High</span></div><div className="heatmap"><div /><div className="heatmap-days">{["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => <span key={day}>{day}</span>)}</div>{logActivity.map((row) => <div className="heatmap-row" key={row[0].label}><span>{row[0].label}</span>{row.map((cell) => <i key={cell.day} style={{ opacity: 0.15 + (cell.count / maxLogActivity) * 0.85 }} />)}</div>)}</div></Card>
+          <Card className="dashboard-card dashboard-workforce-card"><h2>Workforce Split <span>ⓘ</span></h2><strong className="workforce-total">{workforce.total}</strong><p>Total clocked-in employees</p><div className="workforce-donut" style={{ background: `conic-gradient(#EB5A1E 0 ${(workforce.onsite / Math.max(1, workforce.total)) * 100}%, #F6D1B2 ${(workforce.onsite / Math.max(1, workforce.total)) * 100}% 100%)` }}><i /></div><div className="workforce-legend"><span><i className="onsite" />On-site <strong>{workforce.onsite}</strong></span><span><i className="remote" />Remote <strong>{workforce.remote}</strong></span></div></Card>
+        </section>
+        <Card className="dashboard-card dashboard-recent"><div className="card-heading"><h2>Recent Activity</h2><button onClick={() => navigate("/audit")}>View All →</button></div>{!recentAudit?.length ? <p className="empty-activity">No recent activity</p> : recentAudit.map((activity: any) => <div className="activity-row" key={activity.id}><span className="activity-avatar">{getInitials(activity.users?.full_name || "System")}</span><p><strong>{activity.users?.full_name || "System"}</strong> {activity.action.replace(/\./g, " → ")}</p><time>{formatDistanceToNow(new Date(activity.created_at), { addSuffix: true })}</time></div>)}</Card>
+        <div className="hidden grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/projects")}>
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-md bg-blue-50"><FolderKanban className="h-5 w-5 text-blue-600" /></div>

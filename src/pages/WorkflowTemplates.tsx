@@ -22,7 +22,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Pencil, Trash2, GripVertical, ArrowUpDown } from "lucide-react";
 import { DataRow, TableHeader, RowPrimary, RowSecondary, RowDataItem, RowActions, editButtonClass } from "@/components/ui/data-row";
 import { getCategoryColor } from "@/lib/workflow";
-import { getProjectRoles } from "@/lib/projectRolesService";
 
 type Template = {
   id: string;
@@ -48,8 +47,7 @@ type WorkflowTransition = {
   workflow_template_id: string;
   from_status_id: string | null;
   to_status_id: string;
-  /** B2-B */
-  allowed_role_ids: string[] | null;
+  allowed_role_ids?: string[] | null;
 };
 
 const CATEGORY_OPTIONS = [
@@ -98,11 +96,6 @@ export default function WorkflowTemplatesPage() {
   const [statusInitial, setStatusInitial] = useState(false);
   const [statusRetired, setStatusRetired] = useState(false);
   const [statusSortOrder, setStatusSortOrder] = useState("");
-
-  // B2-B: transition role editing state
-  const [transitionRoleDialogOpen, setTransitionRoleDialogOpen] = useState(false);
-  const [editingTransition, setEditingTransition] = useState<WorkflowTransition | null>(null);
-  const [transitionRoleSelection, setTransitionRoleSelection] = useState<string[]>([]);
 
   const [deletingStatusId, setDeletingStatusId] = useState<string | null>(null);
   const [confirmDelTemplateId, setConfirmDelTemplateId] = useState<string | null>(null);
@@ -404,7 +397,7 @@ export default function WorkflowTemplatesPage() {
         workflow_template_id: expandedId,
         from_status_id: fromId,
         to_status_id: toId,
-        // B2-B: new transitions default to unrestricted (null = no role restriction)
+        // new transitions default to unrestricted
         allowed_role_ids: null,
       } as any);
       if (error) {
@@ -414,38 +407,6 @@ export default function WorkflowTemplatesPage() {
     }
     invalidateWorkflowConsumers();
   }
-
-  // B2-B: Save role restrictions for a transition
-  async function saveTransitionRoles() {
-    if (!editingTransition) return;
-    const { error } = await supabase
-      .from("workflow_transitions")
-      .update({ allowed_role_ids: transitionRoleSelection.length > 0 ? transitionRoleSelection : null } as any)
-      .eq("id", editingTransition.id);
-    if (error) {
-      toast.error(`Could not save role restriction: ${error.message}`);
-      return;
-    }
-    invalidateWorkflowConsumers();
-    setTransitionRoleDialogOpen(false);
-    setEditingTransition(null);
-    toast.success("Role restriction saved");
-  }
-
-  // B2-B: fetch roles for the currently expanded template's project
-  // We derive a template-to-project lookup via the transitions/statuses
-  // (project_roles are project-scoped, but templates can be global — we show
-  //  roles where project_id matches the first project using this template, or
-  //  org-level global roles if none found.)
-  const { data: templateProjectRoles } = useQuery({
-    queryKey: ["template-project-roles", expandedId],
-    queryFn: async () => {
-      if (!expandedId) return [];
-      return getProjectRoles(expandedId); // returns project + global roles
-    },
-    enabled: !!expandedId,
-  });
-
   const gridCols = "40px 1fr 192px 80px";
   const gridColsStatus = "1fr 112px 96px 64px 64px 80px";
 
@@ -564,7 +525,7 @@ export default function WorkflowTemplatesPage() {
                     {expandedStatuses.length > 1 && (
                       <>
                         <h3 className="text-sm font-semibold uppercase tracking-[0.05em] text-gray-500 pt-2">Transitions</h3>
-                        <p className="text-xs text-gray-400">Check a cell to allow a transition from the row status to the column status. Click 🔑 to restrict a transition to specific project roles.</p>
+                        <p className="text-xs text-gray-400">Check a cell to allow tasks to move from the row status to the column status. Any checked transition will be available to all project members.</p>
                         <div className="overflow-x-auto">
                           <table className="w-full text-xs border-collapse">
                             <thead>
@@ -590,7 +551,6 @@ export default function WorkflowTemplatesPage() {
                                       (tr) => tr.from_status_id === from.id && tr.to_status_id === to.id
                                     );
                                     const hasTransition = !!existingTransition;
-                                    const hasRoleGating = !!(existingTransition?.allowed_role_ids?.length);
                                     return (
                                       <td key={to.id} className="p-2 border text-center break-words">
                                         {from.id === to.id ? (
@@ -603,23 +563,6 @@ export default function WorkflowTemplatesPage() {
                                               onChange={() => toggleTransition(from.id, to.id)}
                                               className="h-4 w-4 cursor-pointer accent-blue-600"
                                             />
-                                            {hasTransition && (
-                                              <button
-                                                onClick={() => {
-                                                  setEditingTransition(existingTransition);
-                                                  setTransitionRoleSelection(existingTransition.allowed_role_ids ?? []);
-                                                  setTransitionRoleDialogOpen(true);
-                                                }}
-                                                title={hasRoleGating ? `Restricted to ${existingTransition.allowed_role_ids!.length} role(s)` : "Restrict to roles (unrestricted)"}
-                                                className={`text-[11px] px-1 rounded transition-colors ${
-                                                  hasRoleGating
-                                                    ? "bg-amber-100 text-amber-700 hover:bg-amber-200 border border-amber-300"
-                                                    : "text-gray-400 hover:text-gray-600"
-                                                }`}
-                                              >
-                                                🔑
-                                              </button>
-                                            )}
                                           </div>
                                         )}
                                       </td>
@@ -787,58 +730,6 @@ export default function WorkflowTemplatesPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* B2-B: Transition Role Restriction Dialog */}
-      <Dialog open={transitionRoleDialogOpen} onOpenChange={(open) => { if (!open) { setTransitionRoleDialogOpen(false); setEditingTransition(null); } }}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Role Restriction for Transition</DialogTitle>
-          </DialogHeader>
-          {editingTransition && (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Select which project roles may execute this transition.
-                Leave all unchecked to make it unrestricted (any member can use it).
-              </p>
-              {(templateProjectRoles || []).length === 0 && (
-                <p className="text-xs text-gray-400">No project roles found for this template. Create roles in the Project settings first.</p>
-              )}
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {(templateProjectRoles || []).map((role) => (
-                  <label key={role.id} className="flex items-center gap-2 cursor-pointer hover:bg-gray-50 rounded p-1">
-                    <input
-                      type="checkbox"
-                      checked={transitionRoleSelection.includes(role.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setTransitionRoleSelection([...transitionRoleSelection, role.id]);
-                        } else {
-                          setTransitionRoleSelection(transitionRoleSelection.filter((id) => id !== role.id));
-                        }
-                      }}
-                      className="h-4 w-4 accent-amber-500"
-                    />
-                    <span className="text-sm font-medium">{role.name}</span>
-                    {role.project_id === null && <span className="text-[10px] text-gray-400 ml-1">(global)</span>}
-                  </label>
-                ))}
-              </div>
-              {transitionRoleSelection.length > 0 ? (
-                <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded p-2">
-                  🔒 Only users with the selected role(s) can execute this transition. System admins and automated rules always bypass this restriction.
-                </p>
-              ) : (
-                <p className="text-xs text-green-700 bg-green-50 border border-green-200 rounded p-2">
-                  ✓ Unrestricted — any project member can execute this transition.
-                </p>
-              )}
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => { setTransitionRoleDialogOpen(false); setEditingTransition(null); }}>Cancel</Button>
-            <Button onClick={saveTransitionRoles}>Save Restriction</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

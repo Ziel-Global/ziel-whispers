@@ -1473,7 +1473,7 @@ const { data: resolvedId } = useQuery({
 
   const handleEditSprintSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editSprintName.trim() || !editSprintStartDate || !editSprintEndDate || !editSprintPhaseId || !editSprintId) return;
+    if (!editSprintName.trim() || !editSprintStartDate || !editSprintEndDate || !editSprintId) return;
     const updates: any = {
       name: editSprintName.trim(),
       start_date: editSprintStartDate,

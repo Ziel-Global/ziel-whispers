@@ -1496,10 +1496,16 @@ const { data: resolvedId } = useQuery({
     }
     if (editSprintTaskIds.length > 0) {
       const assignTasks = (tasks || []).filter((t: any) => editSprintTaskIds.includes(t.id));
-      if (assignTasks.length > 0) {
+      // If the sprint is being completed, prevent the frontend from re-assigning incomplete tasks
+      // because our database trigger already kicked them out.
+      const finalAssignTasks = editSprintStatus === 'completed' 
+        ? assignTasks.filter((t: any) => doneStatusIds.has(t.status_id) || t.status === 'complete')
+        : assignTasks;
+
+      if (finalAssignTasks.length > 0) {
         const { error } = await supabase.from("tasks").update({
           sprint_id: editSprintId,
-        }).in("id", assignTasks.map((t: any) => t.id));
+        }).in("id", finalAssignTasks.map((t: any) => t.id));
         if (error) { toast.error(error.message); return; }
       }
     }

@@ -1,0 +1,250 @@
+import React from 'react';
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Play, Square, Pause, ExternalLink, Calendar as CalendarIcon, MessageSquare } from "lucide-react";
+import { format } from "date-fns";
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { Upload, Plus, Trash2, Flag, Eye, EyeOff, Info, Pencil } from "lucide-react";
+import { editButtonClass } from "@/components/ui/data-row";
+import { truncateWords } from "@/lib/utils";
+import { getStatusDisplay } from "@/lib/workflow";
+
+export interface ProjectTasksTabProps {
+  tasks: any[];
+  sprints: any[];
+  phases: any[];
+  isAdmin: boolean;
+  viewTaskData: any;
+  setViewTaskData: (data: any) => void;
+  PRIORITY_COLORS: Record<string, string>;
+  taskStatusFilter: string;
+  setTaskStatusFilter: (s: string) => void;
+  workflowStatuses: any[];
+  setBulkTaskOpen: (b: boolean) => void;
+  setAddTaskOpen: (b: boolean) => void;
+  profile: any;
+  selectedTaskIds: Set<string>;
+  setSelectedTaskIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
+  setBulkTaskDeleteOpen: (b: boolean) => void;
+  criticalTaskIds: Set<string>;
+  openEditTask: (t: any) => void;
+  setDeleteTaskConfirmId: (id: string | null) => void;
+  isClient: boolean;
+  doneStatusIds: Set<string>;
+  statusColor: (id: string | null) => string;
+}
+
+export function ProjectTasksTab({
+  tasks,
+  sprints,
+  phases,
+  isAdmin,
+  viewTaskData,
+  setViewTaskData,
+  PRIORITY_COLORS,
+  taskStatusFilter,
+  setTaskStatusFilter,
+  workflowStatuses,
+  setBulkTaskOpen,
+  setAddTaskOpen,
+  profile,
+  selectedTaskIds,
+  setSelectedTaskIds,
+  setBulkTaskDeleteOpen,
+  criticalTaskIds,
+  openEditTask,
+  setDeleteTaskConfirmId,
+  isClient,
+  doneStatusIds,
+  statusColor,
+}: ProjectTasksTabProps) {
+  return (
+    <>
+          {isAdmin ? (
+            /* ── Admin full Tasks layout ── */
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Tasks</h2>
+                <div className="flex gap-2">
+                  <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+                    <SelectTrigger className="w-[140px] h-9">
+                      <SelectValue placeholder="All" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All</SelectItem>
+                      {(workflowStatuses || []).map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button"><Upload className="h-4 w-4 mr-1" />Bulk Add Tasks</Button>
+                  <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
+                </div>
+              </div>
+              {(() => {
+                const filteredTasks = (tasks || []).filter(
+                  (t: any) => (isAdmin || t.assigned_to === profile?.id || t.created_by === profile?.id) &&
+                    (taskStatusFilter === "all" || t.status_id === taskStatusFilter)
+                );
+                return filteredTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No tasks yet.</p>
+                ) : (
+                  <>
+                  {selectedTaskIds.size > 0 && (
+                    <div className="flex items-center gap-3 bg-muted rounded-md px-4 py-2 mb-2">
+                      <span className="text-sm font-medium">{selectedTaskIds.size} selected</span>
+                      <Button variant="destructive" size="sm" onClick={() => setBulkTaskDeleteOpen(true)} className="rounded-button"><Trash2 className="h-4 w-4 mr-1" />Delete Selected</Button>
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedTaskIds(new Set())}>Clear</Button>
+                    </div>
+                  )}
+                  <table className="w-full">
+                    <thead>
+                      <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                        <th className="px-4 py-2 text-left w-10">
+                          <input type="checkbox" className="rounded" checked={selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0} onChange={(e) => { if (e.target.checked) setSelectedTaskIds(new Set(filteredTasks.map((t: any) => t.id))); else setSelectedTaskIds(new Set()); }} />
+                        </th>
+                        <th className="px-4 py-2 text-left">TASK</th>
+                        <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                        <th className="px-4 py-2 text-left">PRIORITY</th>
+                        <th className="px-4 py-2 text-left">STATUS</th>
+                        <th className="px-4 py-2 text-left">EST. HOURS</th>
+                        <th className="px-4 py-2 text-left">DUE DATE</th>
+                        <th className="px-4 py-2 text-left">FLAGGED</th>
+                        <th className="px-4 py-2 text-left">VISIBLE</th>
+                        <th className="px-4 py-2 text-right">ACTIONS</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                    {filteredTasks.map((t: any) => (
+                      <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                        <td className="px-4 py-3 break-words">
+                          <input type="checkbox" className="rounded" checked={selectedTaskIds.has(t.id)} onChange={(e) => { const next = new Set(selectedTaskIds); if (e.target.checked) next.add(t.id); else next.delete(t.id); setSelectedTaskIds(next); }} />
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="font-semibold text-[15px] text-[#111827] break-words">
+                            {t.title}
+                            {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                            {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                            {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
+                          </div>
+                          <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">ASSIGNED TO</div>
+                          <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                          <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                          <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                          <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">FLAGGED</div>
+                          {t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">VISIBLE</div>
+                          {t.client_visible !== false ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                        </td>
+                        <td className="px-4 py-3 break-words text-right flex gap-2">
+                          <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                            <Info className="h-4 w-4" />
+                          </button>
+                          <button onClick={() => openEditTask(t)} className={editButtonClass} title="Edit Task">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          {profile?.role === "admin" && (
+                            <button onClick={() => setDeleteTaskConfirmId(t.id)} className={editButtonClass} title="Delete Task">
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    </tbody>
+                  </table>
+                  </>
+                );
+              })()}
+            </>
+          ) : !isClient ? (
+            /* ── Employee "My Tasks" clean layout ── */
+            <>
+              <h2 className="text-lg font-semibold">My Tasks</h2>
+              {(() => {
+                const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id);
+                if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
+                return (
+                  <TooltipProvider>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                          <th className="px-4 py-2 text-left">TASK</th>
+                          <th className="px-4 py-2 text-left">STATUS</th>
+                          <th className="px-4 py-2 text-left">EST. HOURS</th>
+                          <th className="px-4 py-2 text-left">PRIORITY</th>
+                          <th className="px-4 py-2 text-left">DUE DATE</th>
+                          <th className="px-4 py-2 text-right">ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myTasks.map((t: any) => (
+                          <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                            <td className="px-4 py-3 break-words">
+                              <div className="flex items-center gap-2">
+                                <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status_id && doneStatusIds.has(t.status_id) ? " line-through text-muted-foreground" : "")}>
+                                  {t.title}
+                                  {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                                  {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                                  {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                              <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                              <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                              <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                              <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 break-words text-right">
+                              <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                                <Info className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TooltipProvider>
+                );
+              })()}
+            </>
+          ) : null}
+    </>
+  );
+}

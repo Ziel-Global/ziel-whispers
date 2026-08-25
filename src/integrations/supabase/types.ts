@@ -1174,7 +1174,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       sprints: {
         Row: {
           created_at: string
@@ -1469,8 +1469,7 @@ export type Database = {
             referencedColumns: ["id"]
           }
         ]
-      }
-      project_health_snapshots: {
+      },
       task_dependencies: {
         Row: {
           created_at: string
@@ -1512,7 +1511,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       sprints: {
         Row: {
           id: string
@@ -1560,7 +1559,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       task_schedule_snapshots: {
         Row: {
           earliest_finish: string | null
@@ -1603,6 +1602,8 @@ export type Database = {
             referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
+        ]
+      },
       task_collaborators: {
         Row: {
           added_at: string
@@ -1638,7 +1639,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       task_status_history: {
         Row: {
           assigned_to_at_change: string | null
@@ -1713,7 +1714,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       tasks: {
         Row: {
           assigned_to: string | null
@@ -1829,7 +1830,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       users: {
         Row: {
           avatar_url: string | null
@@ -1939,7 +1940,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       workflow_statuses: {
         Row: {
           category: string
@@ -1977,7 +1978,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       workflow_templates: {
         Row: {
           created_at: string
@@ -2009,7 +2010,7 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
+      },
       workflow_transitions: {
         Row: {
           from_status_id: string | null

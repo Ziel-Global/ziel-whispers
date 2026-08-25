@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
       // We calculate a timestamp and ensure it's after the clock_in.
       
       const clockInTime = new Date(session.clock_in);
-      let clockOutDateStr = session.date;
+      const clockOutDateStr = session.date;
       let clockOutTimestamp = new Date(`${clockOutDateStr}T${autoClockoutTime}:00${tzOffset}`);
       
       // If the calculated clock-out is before or equal to clock-in (e.g. 00:00 on the same day), 
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    let processed = succeeded.length;
+    const processed = succeeded.length;
     if (processed > 0) {
       const auditRows = succeeded.map(s => ({
         actor_id: null,

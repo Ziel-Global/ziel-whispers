@@ -236,7 +236,7 @@ export default function DashboardPage() {
   }, [unnotifiedProjects, user?.id]);
 
   const visibleRequestNotifications = useMemo(() => {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+     
     const _tick = requestBannerDismissTick;
     if (!user?.id) return [];
     const notifications: any[] = [];

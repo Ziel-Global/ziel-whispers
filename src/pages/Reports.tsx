@@ -317,7 +317,7 @@ function AttendanceTrendReport() {
   const { data: attendance } = useQuery({
     queryKey: ["att-trend", startDate, endDate, dept],
     queryFn: async () => {
-      let q = supabase.from("attendance").select("date, clock_in, work_mode, user_id").gte("date", startDate).lte("date", endDate);
+      const q = supabase.from("attendance").select("date, clock_in, work_mode, user_id").gte("date", startDate).lte("date", endDate);
       const { data } = await q;
       return data || [];
     },

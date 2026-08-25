@@ -98,3 +98,10 @@ export function getLeaveYearOptions() {
   return options;
 }
 
+
+export const truncateWords = (str: string | null | undefined, n: number) => {
+  if (!str) return null;
+  const words = str.split(/\s+/);
+  if (words.length <= n) return str;
+  return words.slice(0, n).join(' ') + '...';
+};

@@ -46,7 +46,7 @@ export default function AnnouncementsPage() {
   const { data: announcements, isLoading } = useQuery({
     queryKey: ["announcements", page],
     queryFn: async () => {
-      let q = supabase.from("announcements").select("*, announcement_reads(read_at, dismissed, user_id)").order("created_at", { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
+      const q = supabase.from("announcements").select("*, announcement_reads(read_at, dismissed, user_id)").order("created_at", { ascending: false }).range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
       const { data, error } = await q;
       if (error) throw error;
       return data || [];

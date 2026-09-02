@@ -1,0 +1,609 @@
+ZIEL CMS
+
+Generalised Project Engine
+
+Core Architecture Specification
+
+Document Status | Draft for Engineering Review
+
+Document Status
+
+Draft for Engineering Review
+
+Version | 1.1
+
+Version
+
+1.1
+
+Date | 11 August 2026
+
+Date
+
+11 August 2026
+
+Product | Ziel CMS
+
+Product
+
+Ziel CMS
+
+Primary Scope | Generic project engine: configuration model, roles, structural layer, workflow, task engine, status advancement mechanism, automation
+
+Primary Scope
+
+Generic project engine: configuration model, roles, structural layer, workflow, task engine, status advancement mechanism, automation
+
+Relationship to Existing Specs | Updates the structural and workflow assumptions in Project Management Module Spec v1.2. Skill Metrics Feature Spec v1.0 is unaffected; see Section 15.
+
+Relationship to Existing Specs
+
+Updates the structural and workflow assumptions in Project Management Module Spec v1.2. Skill Metrics Feature Spec v1.0 is unaffected; see Section 15.
+
+Design principleA Project is the only mandatory container. Every other structure is optional and independently configurable. Nothing about a task's type, team, or delivery methodology is assumed by the engine. All of it is configuration, not code.
+
+Design principle
+
+A Project is the only mandatory container. Every other structure is optional and independently configurable. Nothing about a task's type, team, or delivery methodology is assumed by the engine. All of it is configuration, not code.
+
+Changes in v1.1Automation chain-depth guard against rule loops (Section 10.1)Version-checked writes on Tasks to prevent silent overwrite conflicts (Sections 7, 8, 13)Daily log status attribution split from transition request (Section 8)Task collaborators alongside single ownership (Sections 7, 9, 12)Role-gated workflow transitions (Section 6)Workflow status deletion protection via a retired flag (Section 6)Reassignment workload now counted across all Projects, not one (Section 9)
+
+Changes in v1.1
+
+Automation chain-depth guard against rule loops (Section 10.1)
+
+Version-checked writes on Tasks to prevent silent overwrite conflicts (Sections 7, 8, 13)
+
+Daily log status attribution split from transition request (Section 8)
+
+Task collaborators alongside single ownership (Sections 7, 9, 12)
+
+Role-gated workflow transitions (Section 6)
+
+Workflow status deletion protection via a retired flag (Section 6)
+
+Reassignment workload now counted across all Projects, not one (Section 9)
+
+Contents
+
+TOC \h \o "1-1"
+
+1. Purpose
+
+This document defines the target architecture for a project engine that can represent any delivery methodology (agile, phased, continuous, hybrid) and any team type (development, sales, marketing, content, support, and others) through configuration alone, with no methodology-specific or team-specific logic in the engine itself.
+
+It is a ground-up design. It does not describe a migration path from the current production schema; a separate migration document should sequence that work once this architecture is approved. It preserves every mechanism already locked in for auditability and automation safety: log-gated status advancement, a read-only Kanban board, and the existing reassignment strategy.
+
+2. Non-Negotiable Architecture Principles
+
+These principles constrain every section that follows. Any future change that would violate one of these needs to be raised as a deliberate architecture decision, not introduced silently.
+
+Task is the only mandatory, universal execution unit within a Project. Every other structure is optional.
+
+All tunable behaviour is configuration, held in project_settings. Nothing is hardcoded, and nothing is inferred from a status name, a role name, or a fixed methodology enum.
+
+Kanban is a read-only visualisation of workflow status. It has no write path. This is enforced at the schema level, not only in application logic.
+
+A Task's workflow status can change only through a submitted, hour-attributed log, a system automation action, or an explicitly audited admin override. Editing status directly from a task detail screen is not a separate path.
+
+Assignment (who is responsible) and status advancement (what stage the work is in) are separate write paths. Automation may reassign a Task on stage entry without affecting the status-advancement rule above.
+
+Every workflow status change is attributable to a source, an actor or system process, and a timestamp.
+
+Roles and Task Types are project-defined, not fixed platform enums.
+
+Any entity a Task references (Phase, Milestone, Sprint, parent Task, dependency) must belong to the same Project. This is enforced at the database level, not only in service code.
+
+Automation rules are scoped to exactly one of a Workflow Template or a Project. Never both, never neither.
+
+Automation-triggered status changes are limited by a configurable chain depth, so two rules can never loop indefinitely.
+
+Every write to a Task's status or assignment is version-checked. A conflicting concurrent write is rejected, not silently overwritten.
+
+3. Configuration Model (project_settings)
+
+project_settings is a key-value store scoped to a Project, with an optional organisation-level default row (project_id is null) that a project-level row overrides for the same key. Every toggle, threshold, or policy introduced anywhere in this document belongs here.
+
+Key | Purpose | Example value
+
+Key
+
+Purpose
+
+Example value
+
+structure.phases.enabled | Enables Phase entities for a Project | true
+
+structure.phases.enabled
+
+Enables Phase entities for a Project
+
+true
+
+structure.milestones.enabled | Enables Milestone entities for a Project | true
+
+structure.milestones.enabled
+
+Enables Milestone entities for a Project
+
+true
+
+structure.sprints.enabled | Enables Sprint entities for a Project | false
+
+structure.sprints.enabled
+
+Enables Sprint entities for a Project
+
+false
+
+task.subtask.max_depth | Maximum nested subtask depth | 2
+
+task.subtask.max_depth
+
+Maximum nested subtask depth
+
+2
+
+task.reopen.reason_required | Whether reopening a completed Task requires a reason | true
+
+task.reopen.reason_required
+
+Whether reopening a completed Task requires a reason
+
+true
+
+milestone.auto_complete.enabled | Whether a Milestone auto-completes once all contributing Tasks are complete | true
+
+milestone.auto_complete.enabled
+
+Whether a Milestone auto-completes once all contributing Tasks are complete
+
+true
+
+log.status_change.assignee_only | Whether only the current assignee may submit a status-advancing log. See Section 14. | unset, decision pending
+
+log.status_change.assignee_only
+
+Whether only the current assignee may submit a status-advancing log. See Section 14.
+
+unset, decision pending
+
+4. Roles and Task Types
+
+4.1 Project-defined roles
+
+PROJECT_ROLES replaces a fixed Admin / PM / Member / Viewer enum with project-defined rows, each holding a name and a permission set. An organisation may seed a default role template that a Project starts from, but Admin or PM users can add or modify roles per Project. Permission checks resolve by looking up a member's role and its permission set; nothing in service code compares against a hardcoded role name.
+
+4.2 Project-defined task types
+
+TASK_TYPES is the mechanism that makes the engine usable outside software delivery. A development project might define Story, Bug, and Spike. A content team might define Article, Review, and Publish. A support queue might define Incident and Request. The engine treats task_type_id as an opaque classification; nothing in the execution model branches on it.
+
+5. Structural Layer: Phase, Milestone, Sprint
+
+Phase, Milestone, and Sprint are independent, optional, and each controlled by its own project_settings flag. No combination of the three is a special case; a Project may enable any subset. A Hybrid delivery is simply a Project with more than one flag enabled, not a fourth planning mode the engine has to understand.
+
+Entity | Purpose | Key fields
+
+Entity
+
+Purpose
+
+Key fields
+
+PROJECT_PHASES | Ordered planning stages within a Project | project_id, name, sort_order, planned/actual start and end, status
+
+PROJECT_PHASES
+
+Ordered planning stages within a Project
+
+project_id, name, sort_order, planned/actual start and end, status
+
+PROJECT_MILESTONES | Zero-effort delivery points, project-level or phase-level | project_id, phase_id (nullable), target_date, completed_date, client_visible
+
+PROJECT_MILESTONES
+
+Zero-effort delivery points, project-level or phase-level
+
+project_id, phase_id (nullable), target_date, completed_date, client_visible
+
+SPRINTS | Time-boxed iterations, optionally nested in a Phase | project_id, phase_id (nullable), state: planned, active, or completed
+
+SPRINTS
+
+Time-boxed iterations, optionally nested in a Phase
+
+project_id, phase_id (nullable), state: planned, active, or completed
+
+Deleting a Phase, Milestone, or Sprint that still has linked Tasks requires explicit reassignment or unlinking. A Task is never deleted implicitly as a side effect of deleting a structure it references.
+
+6. Workflow Model
+
+A fixed three-value status category (todo, in progress, done) cannot represent every workflow. A continuous support queue commonly needs a Waiting state that has started but should not count toward active-effort reporting. WORKFLOW_STATUSES therefore carries composable boolean flags instead of a single category:
+
+is_initial: exactly one active status per template must carry this flag.
+
+is_completed: marks a status as a successful terminal state.
+
+is_terminal: marks a status as closed, whether or not it was successful (covers Cancelled, Rejected, Won't Fix).
+
+counts_as_started: sets actual_start_date on first entry, replacing the old in_progress category.
+
+pauses_clock: marks a status as active but not clocking, for SLA and aging calculations.
+
+show_on_board: controls Kanban column visibility only, independent of every flag above.
+
+WORKFLOW_TRANSITIONS remains a flat table of from_status to to_status rows. Branching and looping require no special handling; they are simply additional rows against the same template.
+
+Task creation resolves the status marked is_initial for the Task's Workflow Template. If no active initial status can be resolved, Task creation fails safely with an actionable configuration error rather than defaulting to an arbitrary status.
+
+WORKFLOW_TRANSITIONS additionally carries a nullable allowed_role_ids field. Null leaves the transition unrestricted, which is today's behaviour. A populated list restricts the transition to members holding one of those Project Roles, checked at the same point the transition itself is validated. This is what lets a sales pipeline restrict Closed Won to a manager, or a support queue restrict Escalated to a lead, without adding methodology-specific logic to the engine.
+
+A WORKFLOW_STATUS cannot be deleted while a Task currently occupies it, or while it appears in any WORKFLOW_TRANSITIONS row. Retiring a status instead (a retired flag) is supported: a retired status remains valid for history and can no longer be selected for new transitions, so nothing already pointing at it breaks.
+
+7. Task Engine
+
+TASKS is the single execution model. project_id is required and immutable. phase_id, milestone_id, sprint_id, and parent_task_id are all nullable, so a Task is valid with none, some, or all of them set, provided each set reference belongs to the same Project (Section 11).
+
+Field group | Fields
+
+Field group
+
+Fields
+
+Identity and classification | id, project_id, task_type_id, title
+
+Identity and classification
+
+id, project_id, task_type_id, title
+
+Structural links (all nullable) | phase_id, milestone_id, sprint_id, parent_task_id
+
+Structural links (all nullable)
+
+phase_id, milestone_id, sprint_id, parent_task_id
+
+Workflow and assignment | workflow_status_id, assignee_id
+
+Workflow and assignment
+
+workflow_status_id, assignee_id
+
+Planning vs actual | priority, estimated_hours, planned_start_date, planned_end_date, actual_start_date, actual_end_date, spent_hours (derived)
+
+Planning vs actual
+
+priority, estimated_hours, planned_start_date, planned_end_date, actual_start_date, actual_end_date, spent_hours (derived)
+
+Blocker state | is_blocked, blocker_reason, blocked_since, blocked_by, expected_resolution_date
+
+Blocker state
+
+is_blocked, blocker_reason, blocked_since, blocked_by, expected_resolution_date
+
+Visibility and lifecycle | client_visible, archived_at
+
+Visibility and lifecycle
+
+client_visible, archived_at
+
+Concurrency | version, incremented on every write to workflow_status_id or assignee_id
+
+Concurrency
+
+version, incremented on every write to workflow_status_id or assignee_id
+
+Subtask depth is not limited in the schema; parent_task_id is a self-referencing foreign key that supports any depth. The limit is enforced at the service layer, read from task.subtask.max_depth, so it can change per Project without a schema migration.
+
+TASK_COLLABORATORS (task_id, user_id, added_at) supports shared work without redefining ownership. assignee_id remains the single owner that the log-gating rule in Section 8 and the reassignment algorithm in Section 9 key off; collaborators are additional contributors and have no effect on either mechanism.
+
+8. Status Advancement Mechanism
+
+This is the section engineering should treat as safety-critical. The only writers of workflow_status_id are a submitted Daily Log, a system automation action, or an audited admin override or API and system process.
+
+Schema-level enforcement, not just a conventionThe source field on TASK_STATUS_HISTORY and TASK_EVENTS is an enum restricted to: daily_log, automation, admin_override, api_system. kanban is not a valid value, and there is no independent task_detail source; a task detail screen that lets someone advance a Task must invoke the log-submission flow, not write status directly. Adding a bypass therefore requires a deliberate schema change, not a quiet application change.
+
+Schema-level enforcement, not just a convention
+
+The source field on TASK_STATUS_HISTORY and TASK_EVENTS is an enum restricted to: daily_log, automation, admin_override, api_system. kanban is not a valid value, and there is no independent task_detail source; a task detail screen that lets someone advance a Task must invoke the log-submission flow, not write status directly. Adding a bypass therefore requires a deliberate schema change, not a quiet application change.
+
+Every status change, regardless of source, is validated against WORKFLOW_TRANSITIONS before it is written.
+
+DAILY_LOGS separates two concerns that were previously combined in a single field. hours_status_id is always set and attributes the logged hours to the status active when the work happened. declared_transition_to is nullable and is only set when the log is also requesting a move. The transition validator fires only when declared_transition_to is present and differs from the Task's current status, so a log can record ordinary progress without forcing a stage change.
+
+Every write in this section, whether from a Daily Log, an automation action, or an admin override, must supply the Task's current version (Section 7). A write against a stale version is rejected as a conflict rather than applied, so an automation action and a person mid-log-submission can never silently overwrite one another.
+
+Acceptance criteria
+
+GIVEN | A Task is In Progress.
+
+GIVEN
+
+A Task is In Progress.
+
+WHEN | An employee opens the Kanban board and looks for a way to move the Task to another column.
+
+WHEN
+
+An employee opens the Kanban board and looks for a way to move the Task to another column.
+
+THEN | No control exists to do so from the board. The board is read-only.
+
+THEN
+
+No control exists to do so from the board. The board is read-only.
+
+GIVEN | A Task is In Progress and assigned to an employee.
+
+GIVEN
+
+A Task is In Progress and assigned to an employee.
+
+WHEN | The employee submits a Daily Log declaring completion of the current stage.
+
+WHEN
+
+The employee submits a Daily Log declaring completion of the current stage.
+
+THEN | The system validates the transition against WORKFLOW_TRANSITIONS and, if valid, updates workflow_status_id, records assigned_to_at_change, and sets the log's hours_status_id and declared_transition_to.
+
+THEN
+
+The system validates the transition against WORKFLOW_TRANSITIONS and, if valid, updates workflow_status_id, records assigned_to_at_change, and sets the log's hours_status_id and declared_transition_to.
+
+GIVEN | A Daily Log declares a transition that is not present in WORKFLOW_TRANSITIONS for the Task's current status.
+
+GIVEN
+
+A Daily Log declares a transition that is not present in WORKFLOW_TRANSITIONS for the Task's current status.
+
+WHEN | The log is submitted.
+
+WHEN
+
+The log is submitted.
+
+THEN | The log is rejected, the specific blocking rule is identified to the user, and no partial state is written to the Task.
+
+THEN
+
+The log is rejected, the specific blocking rule is identified to the user, and no partial state is written to the Task.
+
+9. Assignment and Reassignment
+
+Assignment and status advancement are separate write paths. Automation may reassign a Task the moment it enters a new status, independently of who eventually submits the log that advances it further.
+
+9.1 assigned_to_at_change
+
+TASK_STATUS_HISTORY.assigned_to_at_change records who held the Task at the moment of each status change. This is what makes the reassignment strategy possible: it lets the system ask who last held this Task at this status, rather than relying on the Task's current assignee, which may have already changed.
+
+9.2 Reassignment algorithm
+
+On entry to a new status via an automation-triggered reassignment rule, look up the most recent TASK_STATUS_HISTORY row for this Task at this to_status_id.
+
+If a row is found and its assigned_to_at_change references an active, eligible Project member, assign the Task to that member.
+
+Otherwise, fall back to role-based balanced workload: assign to the eligible member holding the role configured for this status or transition with the lowest current active Task count, counted across every Project the member belongs to, not this Project alone.
+
+Record the resulting assignment with source set to automation and a reference to the triggering rule.
+
+The log-gating restriction discussed in Section 14 applies to assignee_id only. TASK_COLLABORATORS members are not subject to it unless the decision in Section 14 is explicitly extended to cover them.
+
+10. Automation and Event Model
+
+AUTOMATION_RULES follows a trigger, conditions, actions model. Its scope is enforced by a database check constraint requiring exactly one of workflow_template_id or project_id to be set, never both and never neither.
+
+Domain events are emitted reliably regardless of whether any rule currently subscribes to them, so a future automation feature never requires a schema change to the event model:
+
+Project Created, Phase Created / Updated / Completed, Milestone Created / Approaching / Missed / Completed, Sprint Created / Started / Completed
+
+Task Created, Task Assigned, Task Reassigned, Task Became Ready, Task Started, Task Status Changed, Task Blocked, Task Unblocked, Task Completed, Task Reopened, Task Overdue
+
+Dependency Satisfied, Work Log Approved
+
+Task Automation Loop Detected
+
+10.1 Chain depth protection
+
+An automation action can itself produce a further automation-eligible event; for example, a status change triggered by one rule can satisfy the trigger condition of another. Without a safeguard, two rules can reference each other and loop indefinitely.
+
+Every automation-triggered event carries a chain_depth. A human, admin, or API-originated change starts a chain at 0; each automation action that produces a further automation-eligible event increments it by 1. automation.max_chain_depth in project_settings (default: 5) caps this. When the limit is reached, the engine halts further automation on that chain and emits Task Automation Loop Detected instead of continuing silently.
+
+11. Cross-Project Referential Integrity
+
+Every structural reference from a Task (Phase, Milestone, Sprint, parent Task, dependency) must resolve to the same Project. This is enforced at the database level, not only in service logic:
+
+project_id is denormalised onto PROJECT_PHASES, PROJECT_MILESTONES, SPRINTS, and TASKS.
+
+Every structural foreign key on TASKS is a composite key: (project_id, phase_id), (project_id, milestone_id), (project_id, sprint_id), (project_id, parent_task_id), referencing composite (project_id, id) keys on the parent tables.
+
+A Task cannot reference a structure belonging to a different Project. The database rejects the write; no service-layer check is relied upon as the only safeguard.
+
+12. Data Model Reference
+
+Full entity list for this specification. Field-level detail for each is in the section that introduces it.
+
+Entity | Purpose
+
+Entity
+
+Purpose
+
+PROJECTS | The mandatory container. Everything else is optional.
+
+PROJECTS
+
+The mandatory container. Everything else is optional.
+
+PROJECT_SETTINGS | Key-value configuration, project-level and organisation-default rows.
+
+PROJECT_SETTINGS
+
+Key-value configuration, project-level and organisation-default rows.
+
+PROJECT_ROLES | Project-defined roles and permission sets.
+
+PROJECT_ROLES
+
+Project-defined roles and permission sets.
+
+PROJECT_MEMBERS | Links users to a Project and a Project Role.
+
+PROJECT_MEMBERS
+
+Links users to a Project and a Project Role.
+
+TASK_TYPES | Project-defined Task classification.
+
+TASK_TYPES
+
+Project-defined Task classification.
+
+PROJECT_PHASES | Optional ordered planning stages.
+
+PROJECT_PHASES
+
+Optional ordered planning stages.
+
+PROJECT_MILESTONES | Optional zero-effort delivery points.
+
+PROJECT_MILESTONES
+
+Optional zero-effort delivery points.
+
+SPRINTS | Optional time-boxed iterations.
+
+SPRINTS
+
+Optional time-boxed iterations.
+
+WORKFLOW_TEMPLATES | Reusable workflow definitions.
+
+WORKFLOW_TEMPLATES
+
+Reusable workflow definitions.
+
+WORKFLOW_STATUSES | Statuses with composable semantic flags.
+
+WORKFLOW_STATUSES
+
+Statuses with composable semantic flags.
+
+WORKFLOW_TRANSITIONS | Allowed from-status to to-status rows.
+
+WORKFLOW_TRANSITIONS
+
+Allowed from-status to to-status rows.
+
+TASKS | The universal execution unit.
+
+TASKS
+
+The universal execution unit.
+
+TASK_COLLABORATORS | Additional contributors on a Task, alongside its single owner.
+
+TASK_COLLABORATORS
+
+Additional contributors on a Task, alongside its single owner.
+
+TASK_DEPENDENCIES | Predecessor and successor relationships between Tasks.
+
+TASK_DEPENDENCIES
+
+Predecessor and successor relationships between Tasks.
+
+TASK_STATUS_HISTORY | Every status change, with assigned_to_at_change and source.
+
+TASK_STATUS_HISTORY
+
+Every status change, with assigned_to_at_change and source.
+
+TASK_EVENTS | Broader domain event log for audit and automation.
+
+TASK_EVENTS
+
+Broader domain event log for audit and automation.
+
+DAILY_LOGS | Hour-attributed work entries; the sole mechanism for status advancement.
+
+DAILY_LOGS
+
+Hour-attributed work entries; the sole mechanism for status advancement.
+
+AUTOMATION_RULES | Trigger, conditions, actions, scoped to a template or a Project.
+
+AUTOMATION_RULES
+
+Trigger, conditions, actions, scoped to a template or a Project.
+
+13. Non-Functional Requirements
+
+Area | Requirement
+
+Area
+
+Requirement
+
+Integrity | No cross-Project structural references, enforced by composite foreign keys, not service logic alone. No orphaning of Tasks through structure deletion.
+
+Integrity
+
+No cross-Project structural references, enforced by composite foreign keys, not service logic alone. No orphaning of Tasks through structure deletion.
+
+Security | Server-side permission and client-visibility enforcement. UI hiding alone is never sufficient.
+
+Security
+
+Server-side permission and client-visibility enforcement. UI hiding alone is never sufficient.
+
+Auditability | Every status change and privileged override carries actor or system source, and timestamp, and is queryable.
+
+Auditability
+
+Every status change and privileged override carries actor or system source, and timestamp, and is queryable.
+
+Concurrency | Conflicting Task status or assignment edits are rejected via an explicit version check on TASKS (Section 7), not an implicit or unspecified safeguard.
+
+Concurrency
+
+Conflicting Task status or assignment edits are rejected via an explicit version check on TASKS (Section 7), not an implicit or unspecified safeguard.
+
+Idempotency | Automation and event handlers avoid duplicate side effects on retry.
+
+Idempotency
+
+Automation and event handlers avoid duplicate side effects on retry.
+
+Performance | Task list and board queries remain responsive on large Projects; pagination or virtualisation as needed.
+
+Performance
+
+Task list and board queries remain responsive on large Projects; pagination or virtualisation as needed.
+
+14. Open Decisions Requiring Sign-off
+
+These were surfaced during design and need an explicit answer before engineering treats the mechanism as fully specified.
+
+Should a status-advancing log be restricted to the current assignee, or can any Project member log against a Task assigned to someone else? Recommended default if undecided: restrict to the current assignee, and require an admin_override with a reason for any exception.
+
+Should a PM or Admin force-moving a Task without hours require a mandatory zero-hour log entry, keeping the mechanism fully exception-free, or is an audited admin_override sufficient without a log record at all?
+
+Confirm the default subtask depth (proposed: 2) and whether any known use case needs deeper or unlimited nesting.
+
+Confirm whether milestone.auto_complete should be configurable per Project or per Milestone.
+
+15. Relationship to Existing Specifications
+
+This document is the authoritative source for the Project Engine's core mechanics going forward. It updates the structural and workflow assumptions in Project Management Module Spec v1.2: methodology is now expressed through composable project_settings flags rather than a fixed Sprint or Backlog assumption. Every mechanism from that spec is preserved and made explicit here, including log-gated status changes, the read-only Kanban board, and the unified reassignment strategy.
+
+Skill Metrics Feature Spec v1.0 is unaffected. Its Task-linked tables integrate through task_id as before, and can additionally key off the new task_type_id where skill requirements differ by Task Type.
+
+16. Out of Scope for This Document
+
+Full GIVEN / WHEN / THEN acceptance criteria for every requirement. This document covers the mechanisms that carry the highest risk if built incorrectly; a complete acceptance-criteria pass should follow once this architecture is approved.
+
+A migration plan from the current production schema. That belongs in a separate, sequenced migration document.
+
+UI and UX specification for Phase, Milestone, and Timeline views.
+
+Skill Metrics integration detail, which remains governed by its own specification.

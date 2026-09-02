@@ -79,7 +79,7 @@ export async function createProjectRelatedNotifications({
   const projectMemberIds = await getProjectMemberIds(projectId);
   const adminManagerIds = await getAdminManagerIds(createdByUserId);
   
-  let targetUserIds = new Set(projectMemberIds);
+  const targetUserIds = new Set(projectMemberIds);
   adminManagerIds.forEach(id => targetUserIds.add(id));
   targetUserIds.delete(createdByUserId);
   

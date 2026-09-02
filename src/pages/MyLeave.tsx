@@ -146,7 +146,7 @@ export default function MyLeavePage() {
     };
     const s = parseShiftTime(shiftStart);
     const e = parseShiftTime(shiftEnd);
-    let sMin = s.hours * 60 + s.minutes;
+    const sMin = s.hours * 60 + s.minutes;
     let eMin = e.hours * 60 + e.minutes;
     if (eMin < sMin) eMin += 24 * 60; // overnight
     

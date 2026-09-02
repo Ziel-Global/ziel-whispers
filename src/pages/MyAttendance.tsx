@@ -20,7 +20,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWee
 export default function MyAttendancePage() {
   const { user, profile } = useAuth();
   const queryClient = useQueryClient();
-  const { shiftStart, shiftEnd, workingDays, graceMinutes } = useWorkSettings();
+  const { shiftStart, shiftEnd, workingDays, graceMinutes, onsiteLatitude, onsiteLongitude, geofenceRadiusMeters, geofenceEnabled } = useWorkSettings();
   const [workMode, setWorkMode] = useState("");
   const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
@@ -48,6 +48,7 @@ export default function MyAttendancePage() {
       return data;
     },
     enabled: !!user?.id,
+    staleTime: 30000,
     refetchInterval: 30000,
   });
 
@@ -64,6 +65,7 @@ export default function MyAttendancePage() {
       return data;
     },
     enabled: !!user?.id,
+    staleTime: 30000,
   });
 
   // Monthly attendance
@@ -218,6 +220,72 @@ export default function MyAttendancePage() {
     return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${sec.toString().padStart(2, "0")}`;
   };
 
+  const calculateDistanceMeters = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+    const R = 6371000;
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) *
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  const validateGeofence = (): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (!navigator.geolocation) {
+        toast.error("Geolocation is not supported by your browser or device.");
+        resolve(false);
+        return;
+      }
+
+      const checkPosition = (enableHighAccuracy: boolean) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            const distance = calculateDistanceMeters(latitude, longitude, onsiteLatitude, onsiteLongitude);
+            if (distance <= geofenceRadiusMeters) {
+              resolve(true);
+            } else {
+              const roundedDistance = Math.round(distance);
+              toast.error(
+                `You must be within ${geofenceRadiusMeters}m of the allowed onsite location to clock in onsite. (Your current distance is ${roundedDistance}m)`
+              );
+              resolve(false);
+            }
+          },
+          (error) => {
+            // If fast standard-accuracy check failed for non-permission reasons, attempt high-accuracy fallback once
+            if (!enableHighAccuracy && error.code !== error.PERMISSION_DENIED) {
+              checkPosition(true);
+              return;
+            }
+            let msg = "Unable to retrieve your location for onsite clock-in validation.";
+            if (error.code === error.PERMISSION_DENIED) {
+              msg = "Location permission denied. Please enable location access in your browser and device settings to clock in onsite.";
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+              msg = "Location information unavailable. Please ensure your device GPS/location services are turned on.";
+            } else if (error.code === error.TIMEOUT) {
+              msg = "Location request timed out. Please try clocking in again.";
+            }
+            toast.error(msg);
+            resolve(false);
+          },
+          {
+            enableHighAccuracy,
+            timeout: enableHighAccuracy ? 6000 : 4000,
+            maximumAge: 10000,
+          }
+        );
+      };
+
+      checkPosition(false);
+    });
+  };
+
   const performClockIn = async () => {
     setLoading(true);
     setLateConfirmOpen(false);
@@ -267,6 +335,13 @@ export default function MyAttendancePage() {
 
   const handleClockIn = async () => {
     if (!workMode) { toast.error("Select work mode first"); return; }
+
+    if (workMode === "onsite" && geofenceEnabled) {
+      setLoading(true);
+      const isGeofenceValid = await validateGeofence();
+      setLoading(false);
+      if (!isGeofenceValid) return;
+    }
 
     const { isLate } = getLatenessInfo(shiftStart);
     if (isLate) {

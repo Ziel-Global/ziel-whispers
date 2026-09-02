@@ -21,7 +21,7 @@ export default function AttendanceAdminPage() {
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(getPKTDateString());
-  const [statusFilter, setStatusFilter] = useState("present");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [workModeFilter, setWorkModeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [editRecord, setEditRecord] = useState<any>(null);
@@ -71,50 +71,48 @@ export default function AttendanceAdminPage() {
   });
 
   const filtered = useMemo(() => {
-    if (statusFilter === "absent") {
-      const userIdsWithAttendance = new Set(records.map((r: any) => r.user_id));
-      return activeUsers
-        .filter((u: any) => !userIdsWithAttendance.has(u.id))
-        .filter((u: any) => {
-          if (searchQuery.trim()) {
-            const q = searchQuery.trim().toLowerCase();
-            if (!(u.full_name || "").toLowerCase().includes(q)) return false;
-          }
-          return true;
-        })
-        .map((u: any) => ({
-          user_id: u.id,
-          users: u,
-          clock_in: null,
-          clock_out: null,
-          work_mode: null,
-          notes: null,
-          is_late: false,
-          minutes_late: 0,
-          hours_late: 0,
-          date: selectedDate,
-          id: "absent-" + u.id,
-          auto_clocked_out: false,
-          auto_clockout_notes: null,
-        }))
-        .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    const userIdsWithAttendance = new Set(records.map((r: any) => r.user_id));
+    const absentRecords = activeUsers
+      .filter((u: any) => !userIdsWithAttendance.has(u.id))
+      .map((u: any) => ({
+        user_id: u.id,
+        users: u,
+        clock_in: null,
+        clock_out: null,
+        work_mode: null,
+        notes: null,
+        is_late: false,
+        minutes_late: 0,
+        hours_late: 0,
+        date: selectedDate,
+        id: "absent-" + u.id,
+        auto_clocked_out: false,
+        auto_clockout_notes: null,
+      }));
+
+    let list: any[] = [];
+    if (statusFilter === "all") {
+      list = [...records, ...absentRecords];
+    } else if (statusFilter === "absent") {
+      list = absentRecords;
+    } else if (statusFilter === "present") {
+      list = records.filter((r: any) => !!r.clock_in);
+    } else if (statusFilter === "late") {
+      list = records.filter((r: any) => r.clock_in && r.is_late);
+    } else {
+      list = records;
     }
 
-    return records.filter((r: any) => {
-      if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
-      if (statusFilter === "present") {
-        if (!r.clock_in) return false;
-      }
-      if (statusFilter === "late") {
-        if (!r.clock_in) return false;
-        if (!r.is_late) return false;
-      }
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
-      }
-      return true;
-    }).sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    return list
+      .filter((r: any) => {
+        if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
+        if (searchQuery.trim()) {
+          const q = searchQuery.trim().toLowerCase();
+          if (!(r.users?.full_name || "").toLowerCase().includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
   }, [records, activeUsers, statusFilter, workModeFilter, searchQuery, selectedDate]);
 
   const lateCount = useMemo(() => filtered.filter((r: any) => r.clock_in && r.is_late).length, [filtered]);
@@ -267,8 +265,9 @@ export default function AttendanceAdminPage() {
         />
         <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
           <SelectContent>
+            <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="present">Present</SelectItem>
             <SelectItem value="absent">Absent</SelectItem>
             <SelectItem value="late">Late</SelectItem>

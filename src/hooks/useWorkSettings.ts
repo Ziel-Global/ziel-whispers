@@ -11,6 +11,10 @@ type WorkSettings = {
   workingDays: number;
   graceMinutes: number;
   expectedDailyHours: number;
+  onsiteLatitude: number;
+  onsiteLongitude: number;
+  geofenceRadiusMeters: number;
+  geofenceEnabled: boolean;
 };
 
 /**
@@ -33,6 +37,10 @@ export function useWorkSettings() {
           "timezone",
           "late_grace_minutes",
           "expected_daily_hours",
+          "onsite_latitude",
+          "onsite_longitude",
+          "onsite_radius_meters",
+          "geofence_enabled",
         ]);
       const map: Record<string, string> = {};
       (data || []).forEach((s) => {
@@ -69,6 +77,11 @@ export function useWorkSettings() {
   const timezone = "Asia/Karachi";
   const graceMinutes = Number(globalSettings?.late_grace_minutes ?? 15);
 
+  const onsiteLatitude = Number(globalSettings?.onsite_latitude ?? 33.712417);
+  const onsiteLongitude = Number(globalSettings?.onsite_longitude ?? 73.039444);
+  const geofenceRadiusMeters = Number(globalSettings?.onsite_radius_meters ?? 300);
+  const geofenceEnabled = globalSettings?.geofence_enabled !== "false";
+
   const resolved: WorkSettings = {
     shiftStart,
     shiftEnd,
@@ -78,6 +91,10 @@ export function useWorkSettings() {
     workingDays: Number((userShift as any)?.working_days || 5),
     graceMinutes,
     expectedDailyHours: Number(globalSettings?.expected_daily_hours ?? 8),
+    onsiteLatitude,
+    onsiteLongitude,
+    geofenceRadiusMeters,
+    geofenceEnabled,
   };
 
   return resolved;

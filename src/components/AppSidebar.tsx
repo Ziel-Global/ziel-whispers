@@ -16,10 +16,11 @@ import {
   Shield,
   User,
   Bell,
+  ChevronRight,
 } from "lucide-react";
 import { useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
@@ -39,51 +40,15 @@ import {
   SidebarFooter,
   useSidebar,
 } from "@/components/ui/sidebar";
-import zielLogoWhite from "@/assets/ziel-logo-white.png";
 
-const adminNav = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Active Users", url: "/employees", icon: Users },
-  { title: "Attendance", url: "/attendance", icon: Clock },
-  { title: "Daily Logs", url: "/logs/all", icon: FileText },
-  { title: "Leave", url: "/leave/requests", icon: Calendar },
-  { title: "Notifications", url: "/notifications", icon: Bell },
-  { title: "Clients", url: "/clients", icon: Briefcase },
-  { title: "Projects", url: "/projects", icon: FolderKanban },
-  { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Announcements", url: "/announcements", icon: Megaphone },
-  { title: "Settings", url: "/settings", icon: Settings },
-  { title: "Workflow", url: "/workflow-templates", icon: GitBranch },
-  { title: "Audit Log", url: "/audit", icon: Shield },
-];
-
-const managerNav = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Attendance", url: "/attendance", icon: Clock },
-  { title: "Daily Logs", url: "/logs/all", icon: FileText },
-  { title: "Leave", url: "/leave/requests", icon: Calendar },
-  { title: "Notifications", url: "/notifications", icon: Bell },
-  { title: "Projects", url: "/projects", icon: FolderKanban },
-  { title: "Reports", url: "/reports", icon: BarChart3 },
-  { title: "Announcements", url: "/announcements", icon: Megaphone },
-];
-
-const employeeNav = [
-  { title: "Dashboard", url: "/", icon: LayoutDashboard },
-  { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
-  { title: "Submit Log", url: "/logs/submit", icon: Send },
-  { title: "My Logs", url: "/logs/my", icon: ClipboardList },
-  { title: "My Attendance", url: "/attendance/my", icon: Clock },
-  { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
-  { title: "Notifications", url: "/notifications", icon: Bell },
-  { title: "My Projects", url: "/my-projects", icon: FolderKanban },
-  { title: "Announcements", url: "/announcements", icon: Megaphone },
-  { title: "Profile", url: "/profile", icon: User },
-];
-
-const clientNav = [
-  { title: "Projects", url: "/projects", icon: FolderKanban },
-];
+interface NavSection {
+  label: string;
+  items: {
+    title: string;
+    url: string;
+    icon: React.ComponentType<{ className?: string }>;
+  }[];
+}
 
 export function AppSidebar() {
   const { profile, user } = useAuth();
@@ -93,18 +58,111 @@ export function AppSidebar() {
 
   useEffect(() => {
     setOpenMobile(false);
-  }, [location.pathname]);
+  }, [location.pathname, setOpenMobile]);
 
   const role = profile?.role;
   const isClient = profile?.designation === "Client" || profile?.designation === "Client Member";
   const isAdminOrManager = role === "admin" || role === "manager";
-  const items = isClient
-    ? clientNav
-    : role === "admin"
-    ? adminNav
-    : role === "manager"
-    ? managerNav
-    : employeeNav;
+
+  // Grouped Navigation Sections based on Role
+  const sections = useMemo<NavSection[]>(() => {
+    if (isClient) {
+      return [
+        {
+          label: "MAIN MENU",
+          items: [{ title: "Projects", url: "/projects", icon: FolderKanban }],
+        },
+      ];
+    }
+
+    if (role === "admin") {
+      return [
+        {
+          label: "MAIN MENU",
+          items: [
+            { title: "Dashboard", url: "/", icon: LayoutDashboard },
+            { title: "Active Users", url: "/employees", icon: Users },
+            { title: "Attendance", url: "/attendance", icon: Clock },
+            { title: "Daily Logs", url: "/logs/all", icon: FileText },
+            { title: "Leave", url: "/leave/requests", icon: Calendar },
+          ],
+        },
+        {
+          label: "TOOLS",
+          items: [
+            { title: "Notifications", url: "/notifications", icon: Bell },
+            { title: "Clients", url: "/clients", icon: Briefcase },
+            { title: "Projects", url: "/projects", icon: FolderKanban },
+            { title: "Reports", url: "/reports", icon: BarChart3 },
+            { title: "Announcements", url: "/announcements", icon: Megaphone },
+          ],
+        },
+        {
+          label: "SYSTEM",
+          items: [
+            { title: "Settings", url: "/settings", icon: Settings },
+            { title: "Workflow", url: "/workflow-templates", icon: GitBranch },
+            { title: "Audit Log", url: "/audit", icon: Shield },
+          ],
+        },
+      ];
+    }
+
+    if (role === "manager") {
+      return [
+        {
+          label: "MAIN MENU",
+          items: [
+            { title: "Dashboard", url: "/", icon: LayoutDashboard },
+            { title: "Attendance", url: "/attendance", icon: Clock },
+            { title: "Daily Logs", url: "/logs/all", icon: FileText },
+            { title: "Leave", url: "/leave/requests", icon: Calendar },
+          ],
+        },
+        {
+          label: "TOOLS",
+          items: [
+            { title: "Notifications", url: "/notifications", icon: Bell },
+            { title: "Projects", url: "/projects", icon: FolderKanban },
+            { title: "Reports", url: "/reports", icon: BarChart3 },
+            { title: "Announcements", url: "/announcements", icon: Megaphone },
+          ],
+        },
+      ];
+    }
+
+    // Default: Employee
+    return [
+      {
+        label: "MAIN MENU",
+        items: [
+          { title: "Dashboard", url: "/", icon: LayoutDashboard },
+          { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
+          { title: "Submit Log", url: "/logs/submit", icon: Send },
+          { title: "My Logs", url: "/logs/my", icon: ClipboardList },
+          { title: "My Attendance", url: "/attendance/my", icon: Clock },
+          { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
+        ],
+      },
+      {
+        label: "TOOLS",
+        items: [
+          { title: "Notifications", url: "/notifications", icon: Bell },
+          { title: "My Projects", url: "/my-projects", icon: FolderKanban },
+          { title: "Announcements", url: "/announcements", icon: Megaphone },
+          { title: "Profile", url: "/profile", icon: User },
+        ],
+      },
+    ];
+  }, [role, isClient]);
+
+  // Subtitle subtitle badge
+  const portalSubtitle = useMemo(() => {
+    if (isClient) return "Client Portal";
+    if (role === "admin") return "Admin Console";
+    if (role === "manager") return "Manager Console";
+    return "Employee Portal";
+  }, [role, isClient]);
 
   // Project detail sub-navigation (client portal only)
   const projectMatch = location.pathname.match(/^\/projects\/([^/]+)/);
@@ -174,21 +232,21 @@ export function AppSidebar() {
     queryKey: ["employee-unseen-requests", user?.id],
     queryFn: async () => {
       const lastSeen = localStorage.getItem(`leave_last_seen_${user!.id}`) || "2000-01-01T00:00:00Z";
-      
+
       const { data: leaves } = await supabase
         .from("leave_requests")
         .select("id")
         .eq("user_id", user!.id)
         .in("status", ["approved", "rejected"])
         .gt("reviewed_at", lastSeen);
-        
+
       const { data: wfh } = await supabase
         .from("remote_work_requests")
         .select("id")
         .eq("user_id", user!.id)
         .in("status", ["approved", "rejected"])
         .gt("reviewed_at", lastSeen);
-        
+
       return (leaves?.length || 0) + (wfh?.length || 0);
     },
     enabled: !isAdminOrManager && !!user?.id,
@@ -202,99 +260,167 @@ export function AppSidebar() {
     return 0;
   };
 
+  const userInitials = (profile?.full_name || "User")
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
+
   return (
-    <Sidebar collapsible="icon" className="border-r-0">
-      <div className="flex h-14 items-center px-4 border-b border-sidebar-border">
-        {!collapsed ? (
-          <img src={zielLogoWhite} alt="Ziel" className="h-7" />
-        ) : (
-          <img src={zielLogoWhite} alt="Ziel" className="h-6 w-6 object-contain" />
-        )}
+    <Sidebar collapsible="icon" className="border-r border-black/10 bg-white">
+      {/* Brand Header */}
+      <div className="flex items-center justify-between p-4 pb-3 border-b border-black/5">
+        <div className="flex items-center gap-2.5">
+          <div className="w-[34px] h-[34px] rounded-[9px] bg-[#17171A] flex items-center justify-center shrink-0">
+            <span className="text-[#EB5A1E] font-extrabold text-[15px] tracking-tight">Zi</span>
+          </div>
+          {!collapsed && (
+            <div>
+              <div className="font-bold text-[15px] leading-tight text-[#17171A]">Ziel</div>
+              <div className="text-[11.5px] text-[#8B8B92] font-medium">{portalSubtitle}</div>
+            </div>
+          )}
+        </div>
       </div>
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-sidebar-foreground/50 text-xs uppercase tracking-wider">
-            Menu
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              {items.map((item) => {
-                const isActive = item.url === "/" ? location.pathname === "/" : location.pathname.startsWith(item.url);
-                const badgeCount = getBadgeCount(item.title);
-                const showBadge = badgeCount > 0;
-                const isProjectsItem = item.title === "Projects" && isClient;
-                return (
-                  <SidebarMenuItem key={item.title}>
-                    {isProjectsItem ? (
-                      <>
-                        <SidebarMenuButton
-                          onClick={() => { setProjectsSubOpen(!projectsSubOpen); setOpenMobile(false); }}
-                          isActive={isActive}
-                        >
-                          <item.icon className="h-4 w-4 shrink-0" />
-                          {!collapsed && (
-                            <span className="flex items-center gap-2 flex-1">
-                              {item.title}
-                            </span>
+
+      <SidebarContent className="px-4 py-3 space-y-4">
+        {sections.map((sec) => (
+          <SidebarGroup key={sec.label} className="p-0 space-y-1">
+            {!collapsed && (
+              <SidebarGroupLabel className="px-2 text-[10.5px] font-bold text-[#B0B0B6] tracking-wider uppercase mb-1">
+                {sec.label}
+              </SidebarGroupLabel>
+            )}
+            <SidebarGroupContent>
+              <SidebarMenu className="space-y-1">
+                {sec.items.map((item) => {
+                  const isDashboard = item.url === "/" || item.url === "/dashboard";
+                  const isActive = isDashboard
+                    ? location.pathname === "/" || location.pathname === "/dashboard"
+                    : location.pathname.startsWith(item.url);
+                  const badgeCount = getBadgeCount(item.title);
+                  const showBadge = badgeCount > 0;
+                  const isProjectsItem = item.title === "Projects" && isClient;
+
+                  return (
+                    <SidebarMenuItem key={item.title} className="relative">
+                      {/* Active Indicator Orange Bar - Detached on left edge */}
+                      {isActive && (
+                        <div className="absolute -left-3 top-1.5 bottom-1.5 w-[3px] rounded-r-[3px] bg-[#EB5A1E] z-10" />
+                      )}
+
+                      {isProjectsItem ? (
+                        <>
+                          <SidebarMenuButton
+                            onClick={() => {
+                              setProjectsSubOpen(!projectsSubOpen);
+                              setOpenMobile(false);
+                            }}
+                            isActive={isActive}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-[11px] text-[13.5px] font-medium transition-all ${
+                              isActive
+                                ? "!bg-white !border !border-black/10 text-[#17171A] font-bold shadow-xs"
+                                : "text-[#4B4B52] hover:bg-[#F6F5F3] hover:text-[#17171A]"
+                            }`}
+                          >
+                            <item.icon
+                              className={`h-[18px] w-[18px] shrink-0 ${
+                                isActive ? "text-[#17171A]" : "text-[#8B8B92]"
+                              }`}
+                            />
+                            {!collapsed && (
+                              <span className="flex items-center justify-between flex-1">
+                                <span>{item.title}</span>
+                              </span>
+                            )}
+                          </SidebarMenuButton>
+                          {!collapsed && projectsSubOpen && isOnProjectDetail && (
+                            <SidebarMenuSub className="ml-4 border-l border-black/10 pl-2">
+                              {clientProjectNav.map((sub) => (
+                                <SidebarMenuSubItem key={sub.value}>
+                                  <SidebarMenuSubButton asChild onClick={() => setOpenMobile(false)}>
+                                    <NavLink
+                                      to={`/projects/${currentProjectSlug}?tab=${sub.value}`}
+                                      className={`flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs transition-colors ${
+                                        currentTab === sub.value
+                                          ? "text-[#EB5A1E] font-semibold !bg-white"
+                                          : "text-[#8B8B92] hover:text-[#17171A] hover:bg-[#F6F5F3]"
+                                      }`}
+                                    >
+                                      <span>{sub.label}</span>
+                                    </NavLink>
+                                  </SidebarMenuSubButton>
+                                </SidebarMenuSubItem>
+                              ))}
+                            </SidebarMenuSub>
                           )}
+                        </>
+                      ) : (
+                        <SidebarMenuButton asChild isActive={isActive} onClick={() => setOpenMobile(false)}>
+                          <NavLink
+                            to={item.url}
+                            className={`flex items-center gap-2.5 px-3 py-2 rounded-[11px] text-[13.5px] font-medium transition-all ${
+                              isActive
+                                ? "!bg-white !border !border-black/10 text-[#17171A] font-bold shadow-xs"
+                                : "text-[#4B4B52] hover:bg-[#F6F5F3] hover:text-[#17171A]"
+                            }`}
+                          >
+                            <item.icon
+                              className={`h-[18px] w-[18px] shrink-0 ${
+                                isActive ? "text-[#17171A]" : "text-[#8B8B92]"
+                              }`}
+                            />
+                            {!collapsed && (
+                              <span className="flex items-center justify-between flex-1 min-w-0">
+                                <span className="truncate">{item.title}</span>
+                                {showBadge && (
+                                  <span className="bg-[#EB5A1E] text-white text-[10px] font-bold rounded-full h-4 min-w-[18px] flex items-center justify-center px-1 shrink-0">
+                                    {badgeCount > 99 ? "99+" : badgeCount}
+                                  </span>
+                                )}
+                              </span>
+                            )}
+                          </NavLink>
                         </SidebarMenuButton>
-                        {!collapsed && projectsSubOpen && isOnProjectDetail && (
-                          <SidebarMenuSub>
-                            {clientProjectNav.map((sub) => (
-                              <SidebarMenuSubItem key={sub.value}>
-                                  <SidebarMenuSubButton
-                                  asChild
-                                  onClick={() => setOpenMobile(false)}
-                                >
-                                  <NavLink
-                                    to={`/projects/${currentProjectSlug}?tab=${sub.value}`}
-                                    className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors ${
-                                      currentTab === sub.value
-                                        ? "text-primary font-medium"
-                                        : "text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent"
-                                    }`}
-                                  >
-                                    <span className="text-xs">
-                                      {sub.label}
-                                    </span>
-                                  </NavLink>
-                                </SidebarMenuSubButton>
-                              </SidebarMenuSubItem>
-                            ))}
-                          </SidebarMenuSub>
-                        )}
-                      </>
-                    ) : (
-                      <SidebarMenuButton asChild isActive={isActive} onClick={() => setOpenMobile(false)}>
-                        <NavLink
-                          to={item.url}
-                          end={item.url === "/"}
-                          className="flex items-center gap-3 px-3 py-2 rounded-md text-sidebar-foreground/70 hover:text-sidebar-foreground hover:bg-sidebar-accent transition-colors"
-                          activeClassName="!bg-sidebar-accent !text-sidebar-primary font-medium"
-                        >
-                          <item.icon className="h-4 w-4 shrink-0" />
-                          {!collapsed && (
-                            <span className="flex items-center gap-2 flex-1">
-                              {item.title}
-                              {showBadge && (
-                                <span className="ml-auto bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
-                                  {badgeCount > 99 ? "99+" : badgeCount}
-                                </span>
-                              )}
-                            </span>
-                          )}
-                        </NavLink>
-                      </SidebarMenuButton>
-                    )}
-                  </SidebarMenuItem>
-                );
-              })}
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+                      )}
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
-      <SidebarFooter className="px-4 pb-3">
-        <span className="text-[11px] text-sidebar-foreground/40">{APP_VERSION}</span>
+
+      {/* Footer Profile Card */}
+      <SidebarFooter className="p-3 border-t border-black/5 mt-auto">
+        {!collapsed ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2.5 p-2 rounded-[11px] border border-black/10 bg-white">
+              <div className="w-8 h-8 rounded-full bg-[#DFF6E4] text-[#1FAA59] flex items-center justify-center font-bold text-[12.5px] shrink-0">
+                {userInitials}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-[12.5px] font-semibold text-[#17171A] truncate">
+                  {profile?.full_name || user?.email}
+                </div>
+                <div className="text-[11px] text-[#8B8B92] capitalize truncate">
+                  {profile?.designation || role || "User"}
+                </div>
+              </div>
+              <ChevronRight className="h-4 w-4 text-[#B0B0B6] shrink-0" />
+            </div>
+            <div className="text-[10.5px] text-[#C6C6CC] text-center font-medium">{APP_VERSION}</div>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-8 h-8 rounded-full bg-[#DFF6E4] text-[#1FAA59] flex items-center justify-center font-bold text-[12.5px]">
+              {userInitials}
+            </div>
+            <span className="text-[9px] text-[#C6C6CC] font-medium">{APP_VERSION}</span>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

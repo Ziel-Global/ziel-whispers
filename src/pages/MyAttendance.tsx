@@ -48,6 +48,7 @@ export default function MyAttendancePage() {
       return data;
     },
     enabled: !!user?.id,
+    staleTime: 30000,
     refetchInterval: 30000,
   });
 
@@ -64,6 +65,7 @@ export default function MyAttendancePage() {
       return data;
     },
     enabled: !!user?.id,
+    staleTime: 30000,
   });
 
   // Monthly attendance
@@ -240,38 +242,47 @@ export default function MyAttendancePage() {
         return;
       }
 
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const { latitude, longitude } = position.coords;
-          const distance = calculateDistanceMeters(latitude, longitude, onsiteLatitude, onsiteLongitude);
-          if (distance <= geofenceRadiusMeters) {
-            resolve(true);
-          } else {
-            const roundedDistance = Math.round(distance);
-            toast.error(
-              `You must be within ${geofenceRadiusMeters}m of the allowed onsite location to clock in onsite. (Your current distance is ${roundedDistance}m)`
-            );
+      const checkPosition = (enableHighAccuracy: boolean) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            const { latitude, longitude } = position.coords;
+            const distance = calculateDistanceMeters(latitude, longitude, onsiteLatitude, onsiteLongitude);
+            if (distance <= geofenceRadiusMeters) {
+              resolve(true);
+            } else {
+              const roundedDistance = Math.round(distance);
+              toast.error(
+                `You must be within ${geofenceRadiusMeters}m of the allowed onsite location to clock in onsite. (Your current distance is ${roundedDistance}m)`
+              );
+              resolve(false);
+            }
+          },
+          (error) => {
+            // If fast standard-accuracy check failed for non-permission reasons, attempt high-accuracy fallback once
+            if (!enableHighAccuracy && error.code !== error.PERMISSION_DENIED) {
+              checkPosition(true);
+              return;
+            }
+            let msg = "Unable to retrieve your location for onsite clock-in validation.";
+            if (error.code === error.PERMISSION_DENIED) {
+              msg = "Location permission denied. Please enable location access in your browser and device settings to clock in onsite.";
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+              msg = "Location information unavailable. Please ensure your device GPS/location services are turned on.";
+            } else if (error.code === error.TIMEOUT) {
+              msg = "Location request timed out. Please try clocking in again.";
+            }
+            toast.error(msg);
             resolve(false);
+          },
+          {
+            enableHighAccuracy,
+            timeout: enableHighAccuracy ? 6000 : 4000,
+            maximumAge: 10000,
           }
-        },
-        (error) => {
-          let msg = "Unable to retrieve your location for onsite clock-in validation.";
-          if (error.code === error.PERMISSION_DENIED) {
-            msg = "Location permission denied. Please enable location access in your browser and device settings to clock in onsite.";
-          } else if (error.code === error.POSITION_UNAVAILABLE) {
-            msg = "Location information unavailable. Please ensure your device GPS/location services are turned on.";
-          } else if (error.code === error.TIMEOUT) {
-            msg = "Location request timed out. Please try clocking in again.";
-          }
-          toast.error(msg);
-          resolve(false);
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0,
-        }
-      );
+        );
+      };
+
+      checkPosition(false);
     });
   };
 

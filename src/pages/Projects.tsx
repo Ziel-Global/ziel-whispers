@@ -199,21 +199,55 @@ export default function ProjectsPage() {
   // Employee card view
   if (!isAdmin) {
     return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">My Projects</h1>
-        {isLoading && <p className="text-muted-foreground">Loading…</p>}
-        {!isLoading && filtered.length === 0 && <p className="text-muted-foreground">You're not assigned to any projects yet.</p>}
+      <div className="space-y-6 font-sans">
+        <div className="flex items-center justify-between pb-1">
+          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">My Projects</h1>
+        </div>
+        {isLoading && (
+          <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+            Loading projects…
+          </div>
+        )}
+        {!isLoading && filtered.length === 0 && (
+          <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+            You're not assigned to any projects yet.
+          </div>
+        )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((p) => (
-            <Card key={p.id} className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${toSlug(p.name)}`)}>
-              <div className="flex items-start justify-between mb-2">
-                <FolderKanban className="h-5 w-5 text-muted-foreground" />
-                <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
+            <div
+              key={p.id}
+              className="bg-white border border-black/[0.08] rounded-[14px] p-5 cursor-pointer hover:shadow-md transition-all space-y-3"
+              onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
+            >
+              <div className="flex items-start justify-between">
+                <div className="w-8 h-8 rounded-[9px] bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center">
+                  <FolderKanban className="h-4 w-4 text-[#EB5A1E]" />
+                </div>
+                <Badge
+                  className={
+                    p.status === "active"
+                      ? "bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      : p.status === "on_hold"
+                      ? "bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      : p.status === "completed"
+                      ? "bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      : "bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                  }
+                >
+                  {p.status}
+                </Badge>
               </div>
-              <h3 className="font-semibold">{p.name}</h3>
-              <p className="text-sm text-muted-foreground">{(p.clients as any)?.name}</p>
-              <Badge variant="outline" className="mt-2 text-xs">{getMemberRole(p.id)}</Badge>
-            </Card>
+              <div>
+                <h3 className="font-bold text-[15px] text-[#17171A] truncate">{p.name}</h3>
+                <p className="text-[12.5px] text-[#8B8B92] truncate mt-0.5">{(p.clients as any)?.name || "No Client"}</p>
+              </div>
+              <div className="pt-1">
+                <span className="inline-block bg-[#F6F5F3] text-[#4B4B52] text-[11px] font-bold px-2.5 py-0.5 rounded-full">
+                  {getMemberRole(p.id)}
+                </span>
+              </div>
+            </div>
           ))}
         </div>
       </div>
@@ -222,19 +256,37 @@ export default function ProjectsPage() {
 
   // Admin table view
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Projects</h1>
-        <Button onClick={() => navigate("/projects/new")} className="rounded-button"><Plus className="h-4 w-4 mr-2" />New Project</Button>
+    <div className="space-y-6 font-sans">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+        <div>
+          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Projects</h1>
+        </div>
+        <button
+          type="button"
+          onClick={() => navigate("/projects/new")}
+          className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
+        >
+          <Plus className="h-3.5 w-3.5 text-white" />
+          New Project
+        </button>
       </div>
 
-      <div className="flex gap-3 flex-wrap">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search projects…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+      <div className="flex flex-wrap gap-2.5 items-center">
+        <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
+          <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
+          <input
+            type="text"
+            placeholder="Search projects…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
+          />
         </div>
+
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="active">Active</SelectItem>
@@ -243,119 +295,231 @@ export default function ProjectsPage() {
             <SelectItem value="archived">Archived</SelectItem>
           </SelectContent>
         </Select>
+
         <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-44"><SelectValue placeholder="All Clients" /></SelectTrigger>
+          <SelectTrigger className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+            <SelectValue placeholder="All Clients" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Clients</SelectItem>
-            {clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
+            {clients?.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.name}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
 
-      {isLoading && <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>}
-      {!isLoading && filtered.length === 0 && <Card><div className="py-12 text-center text-muted-foreground">No projects found</div></Card>}
+      {isLoading && (
+        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+          Loading projects…
+        </div>
+      )}
+
+      {!isLoading && filtered.length === 0 && (
+        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+          No projects found
+        </div>
+      )}
+
       {!isLoading && filtered.length > 0 && (
-        <div>
-          <TableHeader gridCols="1fr 96px 96px 112px 112px 80px">
+        <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans">
+          <div className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_0.8fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
             <span>PROJECT</span>
             <span>STATUS</span>
             <span>MEMBERS</span>
             <span>DEADLINE</span>
             <span>CREATED</span>
-            <span className="text-right">ACTIONS</span>
-          </TableHeader>
+            <span className="text-right pr-2">ACTIONS</span>
+          </div>
+
           {filtered.map((p) => (
-            <DataRow
+            <div
               key={p.id}
               onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
-              gridCols="1fr 96px 96px 112px 112px 80px"
+              className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_0.8fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors"
             >
+              {/* PROJECT */}
+              <div className="min-w-0">
+                <p className="text-[13.5px] font-bold text-[#17171A] truncate">{p.name}</p>
+                <p className="text-[12px] text-[#8B8B92] truncate">{(p.clients as any)?.name || "—"}</p>
+              </div>
+
+              {/* STATUS */}
               <div>
-                <RowPrimary>{p.name}</RowPrimary>
-                <RowSecondary>{(p.clients as any)?.name || "—"}</RowSecondary>
+                <Badge
+                  className={
+                    p.status === "active"
+                      ? "bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      : p.status === "on_hold"
+                      ? "bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      : p.status === "completed"
+                      ? "bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      : "bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                  }
+                >
+                  {p.status}
+                </Badge>
               </div>
-              <RowDataItem label="STATUS">
-                <Badge className={STATUS_COLORS[p.status] || ""}>{p.status}</Badge>
-              </RowDataItem>
-              <RowDataItem label="MEMBERS">{projectStats?.teamSize[p.id] || 0}</RowDataItem>
-              <RowDataItem label="DEADLINE">{p.deadline ? format(new Date(p.deadline + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
-              <RowDataItem label="CREATED">{format(new Date(p.created_at), "MMM d, yyyy")}</RowDataItem>
-              <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}>
-                  <Pencil className="h-3.5 w-3.5" />
-                </Button>
-                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => setDeleteId(p.id)}>
-                  <Trash2 className="h-3.5 w-3.5" />
-                </Button>
+
+              {/* MEMBERS */}
+              <div className="text-[13.5px] font-bold text-[#4B4B52]">{projectStats?.teamSize[p.id] || 0}</div>
+
+              {/* DEADLINE */}
+              <div className="text-[13px] text-[#B0B0B6]">
+                {p.deadline ? format(new Date(p.deadline + "T00:00:00"), "MMM d, yyyy") : "—"}
               </div>
-            </DataRow>
+
+              {/* CREATED */}
+              <div className="text-[13px] text-[#4B4B52]">{format(new Date(p.created_at), "MMM d, yyyy")}</div>
+
+              {/* ACTIONS */}
+              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  onClick={() => openEdit(p)}
+                  className="w-7 h-7 rounded-[8px] bg-[#FDECE3] hover:bg-[#FCD8C8] text-[#EB5A1E] flex items-center justify-center transition-colors"
+                  title="Edit"
+                >
+                  <Pencil className="h-3.5 w-3.5 text-[#EB5A1E]" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeleteId(p.id)}
+                  className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
+                  title="Delete"
+                >
+                  <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
+                </button>
+              </div>
+            </div>
           ))}
         </div>
       )}
 
+      {/* Delete Dialog */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent>
+        <AlertDialogContent className="font-sans sm:max-w-md">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Project?</AlertDialogTitle>
-            <AlertDialogDescription>
+            <AlertDialogTitle className="text-[16px] font-bold text-[#17171A]">Delete Project?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[13px] text-[#8B8B92]">
               Are you sure you want to delete this project? This will permanently remove the project and all related data from the system. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+            <AlertDialogCancel disabled={deleting} className="rounded-[10px] text-[13px]">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={deleting}
+              className="bg-[#E5484D] text-white hover:bg-red-700 font-semibold rounded-[10px] px-4 text-[13px]"
+            >
               {deleting ? "Deleting…" : "Delete Permanently"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
+      {/* Edit Project Dialog */}
       <Dialog open={!!editProjectId} onOpenChange={(open) => { if (!open) setEditProjectId(null); }}>
-        <DialogContent className="w-[92vw] sm:w-[60vw] max-h-[80vh] overflow-y-auto">
-          <DialogHeader><DialogTitle>Edit Project</DialogTitle></DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Project Name *</label>
-              <Input value={editForm.name} onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))} required />
+        <DialogContent className="font-sans w-[92vw] sm:w-[60vw] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-[16px] font-bold text-[#17171A]">Edit Project</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Project Name *</label>
+              <Input
+                value={editForm.name}
+                onChange={(e) => setEditForm((f) => ({ ...f, name: e.target.value }))}
+                required
+                className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+              />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Description</label>
-              <Textarea value={editForm.description} onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))} rows={3} />
+
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Description</label>
+              <Textarea
+                value={editForm.description}
+                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                rows={3}
+                className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+              />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Client *</label>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Client *</label>
                 <Select value={editForm.client_id} onValueChange={(v) => setEditForm((f) => ({ ...f, client_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select client" /></SelectTrigger>
-                  <SelectContent>{clients?.map((c) => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="w-full bg-white border border-black/10 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold text-[#4B4B52] h-[38px]">
+                    <SelectValue placeholder="Select client" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {clients?.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Workflow Template *</label>
+
+              <div className="space-y-1.5">
+                <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Workflow Template *</label>
                 <Select value={editForm.workflow_template_id} onValueChange={(v) => setEditForm((f) => ({ ...f, workflow_template_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select workflow" /></SelectTrigger>
-                  <SelectContent>{templates?.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                  <SelectTrigger className="w-full bg-white border border-black/10 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold text-[#4B4B52] h-[38px]">
+                    <SelectValue placeholder="Select workflow" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates?.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Start Date *</label>
-                <Input type="date" value={editForm.start_date} onChange={(e) => setEditForm((f) => ({ ...f, start_date: e.target.value }))} required />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Start Date *</label>
+                <Input
+                  type="date"
+                  value={editForm.start_date}
+                  onChange={(e) => setEditForm((f) => ({ ...f, start_date: e.target.value }))}
+                  required
+                  className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+                />
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium">End Date</label>
-                <Input type="date" value={editForm.end_date} onChange={(e) => setEditForm((f) => ({ ...f, end_date: e.target.value }))} />
+
+              <div className="space-y-1.5">
+                <label className="block text-[12.5px] font-semibold text-[#4B4B52]">End Date</label>
+                <Input
+                  type="date"
+                  value={editForm.end_date}
+                  onChange={(e) => setEditForm((f) => ({ ...f, end_date: e.target.value }))}
+                  className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+                />
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Document Link</label>
-              <Input value={editForm.document_link} onChange={(e) => setEditForm((f) => ({ ...f, document_link: e.target.value }))} placeholder="https://drive.google.com/..." />
+
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Document Link</label>
+              <Input
+                value={editForm.document_link}
+                onChange={(e) => setEditForm((f) => ({ ...f, document_link: e.target.value }))}
+                placeholder="https://drive.google.com/..."
+                className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+              />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Status</label>
+
+            <div className="space-y-1.5">
+              <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Status</label>
               <Select value={editForm.status} onValueChange={(v) => setEditForm((f) => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="w-full bg-white border border-black/10 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold text-[#4B4B52] h-[38px]">
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="active">Active</SelectItem>
                   <SelectItem value="on_hold">On Hold</SelectItem>
@@ -364,9 +528,17 @@ export default function ProjectsPage() {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => setEditProjectId(null)}>Cancel</Button>
-              <Button onClick={handleEditSave}>Save Changes</Button>
+
+            <div className="flex justify-end gap-2 pt-3">
+              <Button variant="outline" onClick={() => setEditProjectId(null)} className="rounded-[10px] text-[13px]">
+                Cancel
+              </Button>
+              <Button
+                onClick={handleEditSave}
+                className="bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 text-[13px]"
+              >
+                Save Changes
+              </Button>
             </div>
           </div>
         </DialogContent>

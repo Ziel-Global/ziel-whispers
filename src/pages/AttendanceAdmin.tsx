@@ -12,7 +12,7 @@ import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeIt
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Download, Pencil, AlertTriangle } from "lucide-react";
+import { Download, Pencil, AlertTriangle, Search } from "lucide-react";
 import { format } from "date-fns";
 import { formatLateness, getPKTDateString, formatPKTTime, isAttendanceLate } from "@/hooks/useWorkSettings";
 
@@ -233,39 +233,58 @@ export default function AttendanceAdminPage() {
   const staleOpenSessions = openSessions.filter((s: any) => s.date < today);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Attendance Management</h1>
-        <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" />Export CSV</Button>
+    <div className="space-y-6 font-sans">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Attendance Management</h1>
+        <button
+          type="button"
+          onClick={exportCSV}
+          className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors shadow-sm"
+        >
+          <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
+          Export CSV
+        </button>
       </div>
 
       {staleOpenSessions.length > 0 && (
-        <Card className="p-4 border-yellow-200 bg-yellow-50/50">
+        <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-[14px] p-4 shadow-sm">
           <div className="flex items-center gap-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-600" />
-            <h3 className="text-sm font-medium text-yellow-800">Open Sessions</h3>
+            <AlertTriangle className="h-4 w-4 text-[#D97706]" />
+            <h3 className="text-sm font-bold text-[#92400E]">Open Sessions</h3>
           </div>
-          <div className="divide-y divide-black/30">
+          <div className="divide-y divide-black/10">
             {staleOpenSessions.map((s: any) => (
-              <p key={s.id} className="text-sm text-yellow-700 py-2 first:pt-0 last:pb-0">
+              <p key={s.id} className="text-xs text-[#B45309] py-2 first:pt-0 last:pb-0">
                 <strong>{s.users?.full_name}</strong> — Open session since {formatPKTTime(s.clock_in)} on {format(new Date(s.clock_in), "MMM d")}
               </p>
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
-      <div className="flex gap-3 items-center flex-wrap">
-        <Input
-          type="search"
-          placeholder="Search by employee name…"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-[240px]"
+      <div className="flex gap-2.5 items-center flex-wrap">
+        <div className="flex-1 min-w-[200px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
+          <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
+          <input
+            type="text"
+            placeholder="Search by employee name…"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
+          />
+        </div>
+
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm focus:outline-none"
         />
-        <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[180px]" />
+
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+          <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Statuses</SelectItem>
             <SelectItem value="present">Present</SelectItem>
@@ -273,27 +292,33 @@ export default function AttendanceAdminPage() {
             <SelectItem value="late">Late</SelectItem>
           </SelectContent>
         </Select>
+
         <Select value={workModeFilter} onValueChange={setWorkModeFilter}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Work Mode" /></SelectTrigger>
+          <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+            <SelectValue placeholder="Work Mode" />
+          </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Modes</SelectItem>
             <SelectItem value="remote">Remote</SelectItem>
             <SelectItem value="onsite">Onsite</SelectItem>
           </SelectContent>
         </Select>
+
         {lateCount > 0 && (
-          <Badge className="bg-yellow-100 text-yellow-800">{lateCount} late today</Badge>
+          <span className="inline-block bg-[#FDF3E3] text-[#A9720B] text-[12.5px] font-bold px-3.5 py-1.5 rounded-full whitespace-nowrap">
+            {lateCount} late today
+          </span>
         )}
       </div>
 
-      <div className="border border-border rounded-card bg-card overflow-hidden">
+      <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm">
         {isLoading ? (
-          <div className="px-4 py-8 text-center text-muted-foreground">Loading…</div>
+          <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">Loading…</div>
         ) : filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center text-muted-foreground">No records for this date</div>
+          <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">No records for this date</div>
         ) : (
           <div>
-            <TableHeader gridCols="1fr 96px 96px 80px 96px 80px 80px">
+            <TableHeader gridCols="1.6fr 0.8fr 0.8fr 0.9fr 0.8fr 0.8fr 0.6fr" className="px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
               <span>EMPLOYEE</span>
               <span>CLOCK IN</span>
               <span>CLOCK OUT</span>
@@ -305,32 +330,43 @@ export default function AttendanceAdminPage() {
             {filtered.map((r: any) => {
             const isOversight = r.users?.is_oversight === true;
             return (
-              <DataRow key={r.id} className={isOversight ? "bg-amber-50/70 hover:bg-amber-50/70" : ""} gridCols="1fr 96px 96px 80px 96px 80px 80px">
-                <div>
-                  <RowPrimary>{r.users?.full_name || 'Unknown'}</RowPrimary>
-                  <RowSecondary>{r.users?.department || ''}</RowSecondary>
+              <DataRow
+                key={r.id}
+                className={`px-5 py-3.5 border-b border-black/[0.05] transition-colors ${isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : "hover:bg-[#F6F5F3]/50"}`}
+                gridCols="1.6fr 0.8fr 0.8fr 0.9fr 0.8fr 0.8fr 0.6fr"
+              >
+                <div className="min-w-0">
+                  <RowPrimary className="font-bold text-[13.5px] text-[#17171A] truncate">{r.users?.full_name || "Unknown"}</RowPrimary>
+                  <RowSecondary className="text-[12px] text-[#8B8B92] truncate">{r.users?.department || ""}</RowSecondary>
                 </div>
-                <RowDataItem label="CLOCK IN">{r.clock_in ? formatPKTTime(r.clock_in) : '—'}</RowDataItem>
-                <RowDataItem label="CLOCK OUT">{r.clock_out ? formatPKTTime(r.clock_out) : '—'}</RowDataItem>
-                <RowDataItem label="HOURS">{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : '—'}</RowDataItem>
+                <RowDataItem label="CLOCK IN" className="text-[13px] text-[#4B4B52]">{r.clock_in ? formatPKTTime(r.clock_in) : "—"}</RowDataItem>
+                <RowDataItem label="CLOCK OUT" className="text-[13px] text-[#4B4B52]">{r.clock_out ? formatPKTTime(r.clock_out) : "—"}</RowDataItem>
+                <RowDataItem label="HOURS" className="text-[13px] text-[#4B4B52] whitespace-nowrap">{r.clock_in ? formatDuration(r.clock_in, r.clock_out) : "—"}</RowDataItem>
                 <RowBadgeItem label="WORK MODE">
-                  <Badge variant="outline" className="capitalize text-[10px]">{r.work_mode || '—'}</Badge>
+                  <span className="inline-block border border-black/10 text-[#4B4B52] text-[11.5px] font-semibold px-2.5 py-0.5 rounded-full capitalize">
+                    {r.work_mode || "—"}
+                  </span>
                 </RowBadgeItem>
                 <RowBadgeItem label="STATUS">
                   {!r.clock_in ? (
-                    <Badge className="bg-muted text-muted-foreground text-[10px]">Absent</Badge>
+                    <Badge className="bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Absent</Badge>
                   ) : !r.clock_out ? (
-                    <Badge className="bg-green-100 text-green-800 text-[10px]">Active</Badge>
+                    <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Active</Badge>
                   ) : r.is_late ? (
-                    <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>
+                    <Badge className="bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Late</Badge>
                   ) : (
-                    <Badge className="bg-green-100 text-green-800 text-[10px]">On Time</Badge>
+                    <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">On Time</Badge>
                   )}
                 </RowBadgeItem>
-                <RowActions className="justify-self-end">
+                <RowActions className="justify-self-end flex items-center justify-end">
                   {isAdmin && (
-                    <button onClick={() => openEdit(r)} className={editButtonClass}>
-                      <Pencil className="h-4 w-4" />
+                    <button
+                      type="button"
+                      onClick={() => openEdit(r)}
+                      className="w-7 h-7 rounded-[8px] bg-[#FDECE3] hover:bg-[#FCD8C5] text-[#EB5A1E] flex items-center justify-center transition-colors"
+                      title="Edit Attendance"
+                    >
+                      <Pencil className="h-3.5 w-3.5 text-[#EB5A1E]" />
                     </button>
                   )}
                 </RowActions>

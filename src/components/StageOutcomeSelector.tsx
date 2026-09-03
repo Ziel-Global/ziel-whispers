@@ -68,11 +68,8 @@ export function StageOutcomeSelector({
 
   if (compact) {
     return (
-      <div className="border-t pt-3 space-y-2">
-        <div>
-          <p className="text-sm font-semibold">Move task to next stage</p>
-          <p className="text-xs text-muted-foreground">Advance the task when this stage's work is done.</p>
-        </div>
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">Advance the task when this stage's work is done.</p>
         <div className="flex items-center gap-3 flex-wrap">
           <Badge className={getStatusColor(workflowStatuses, currentStatusId)}>
             {getStatusDisplay(workflowStatuses, currentStatusId).name}

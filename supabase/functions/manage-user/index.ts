@@ -161,12 +161,14 @@ Deno.serve(async (req) => {
           { table: "remote_work_requests", col: "user_id" },
         ];
 
-        for (const d of relatedDeletes) {
-          const { error: relErr } = await adminClient.from(d.table).delete().eq(d.col, user_id);
-          if (relErr) {
-            console.warn(`manage-user: failed deleting from ${d.table}:`, relErr.message);
-          }
-        }
+        await Promise.all(
+          relatedDeletes.map(async (d) => {
+            const { error: relErr } = await adminClient.from(d.table).delete().eq(d.col, user_id);
+            if (relErr) {
+              console.warn(`manage-user: failed deleting from ${d.table}:`, relErr.message);
+            }
+          })
+        );
 
         // Set metadata reference fields to null (these point TO the user being deleted,
         // so we don't want to delete the whole record — just sever the reference)
@@ -191,12 +193,14 @@ Deno.serve(async (req) => {
           { table: "workflow_templates", col: "created_by" },
         ];
 
-        for (const r of nullifyRefs) {
-          const { error: refErr } = await adminClient.from(r.table).update({ [r.col]: null }).eq(r.col, user_id);
-          if (refErr) {
-            console.warn(`manage-user: failed nullifying ${r.table}.${r.col}:`, refErr.message);
-          }
-        }
+        await Promise.all(
+          nullifyRefs.map(async (r) => {
+            const { error: refErr } = await adminClient.from(r.table).update({ [r.col]: null }).eq(r.col, user_id);
+            if (refErr) {
+              console.warn(`manage-user: failed nullifying ${r.table}.${r.col}:`, refErr.message);
+            }
+          })
+        );
 
         // Remove user row from users table (server-side, no RLS issues with service_role client)
         const { error: dbErr } = await adminClient.from("users").delete().eq("id", user_id).maybeSingle();

@@ -93,7 +93,7 @@ export function SprintModals(props: SprintModalsProps) {
       </Dialog>
 
       {/* Add Sprint Dialog */}
-      <Dialog open={addSprintOpen} onOpenChange={(open) => { setAddSprintOpen(open); if (!open) { setSprintTaskIds([]); setSprintTaskSearch(""); } }}>
+      <Dialog open={addSprintOpen} onOpenChange={(open) => { setAddSprintOpen(open); if (!open) { setSprintTaskIds([]); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Sprint</DialogTitle></DialogHeader>
           <form onSubmit={createSprint} className="space-y-4">
@@ -123,7 +123,7 @@ export function SprintModals(props: SprintModalsProps) {
             <div className="space-y-2">
               <label className="text-sm font-medium">Tasks {sprintTaskIds.length > 0 && `(${sprintTaskIds.length} selected)`}</label>
               {sprintTaskIds.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
+                <div className="flex flex-wrap gap-1 mb-2 max-h-24 overflow-y-auto p-1.5 border rounded-md bg-muted/20">
                   {sprintTaskIds.map((tid) => {
                     const task = (tasks || []).find((t: any) => t.id === tid);
                     return task ? (
@@ -147,7 +147,7 @@ export function SprintModals(props: SprintModalsProps) {
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
                   <Command>
                     <CommandInput placeholder="Search tasks..." className="h-9" />
-                    <CommandList>
+                    <CommandList className="max-h-[220px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                       <CommandEmpty>No tasks found.</CommandEmpty>
                       <CommandGroup>
                         {(tasks || []).map((t: any) => {
@@ -182,7 +182,7 @@ export function SprintModals(props: SprintModalsProps) {
       </Dialog>
 
       {/* Edit Sprint Dialog */}
-      <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); setEditSprintTaskIds([]); setSprintTaskSearch(""); } }}>
+      <Dialog open={editSprintOpen} onOpenChange={(open) => { if (!open) { setEditSprintOpen(false); setEditSprintId(null); setEditSprintTaskIds([]); } }}>
         <DialogContent>
           <DialogHeader><DialogTitle>Edit Sprint</DialogTitle></DialogHeader>
           <form onSubmit={handleEditSprintSave} className="space-y-4">
@@ -212,7 +212,7 @@ export function SprintModals(props: SprintModalsProps) {
             <div className="space-y-2">
               <label className="text-sm font-medium">Tasks {editSprintTaskIds.length > 0 && `(${editSprintTaskIds.length} selected)`}</label>
               {editSprintTaskIds.length > 0 && (
-                <div className="flex flex-wrap gap-1 mb-2">
+                <div className="flex flex-wrap gap-1 mb-2 max-h-24 overflow-y-auto p-1.5 border rounded-md bg-muted/20">
                   {editSprintTaskIds.map((tid) => {
                     const task = (tasks || []).find((t: any) => t.id === tid);
                     return task ? (
@@ -236,7 +236,7 @@ export function SprintModals(props: SprintModalsProps) {
                 <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start" onPointerDownOutside={(e) => e.preventDefault()}>
                   <Command>
                     <CommandInput placeholder="Search tasks..." className="h-9" />
-                    <CommandList>
+                    <CommandList className="max-h-[220px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
                       <CommandEmpty>No tasks found.</CommandEmpty>
                       <CommandGroup>
                         {(tasks || []).map((t: any) => {

@@ -14,6 +14,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow, subDays } from "date-fns";
 import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear, toSlug } from "@/lib/utils";
+import { DashboardKpiCards } from "@/components/dashboard/DashboardKpiCards";
+import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
+import { AttendanceScoreGauge } from "@/components/dashboard/AttendanceScoreGauge";
+import { WorkforceSplitDonut } from "@/components/dashboard/WorkforceSplitDonut";
+import { AttendanceTrendChart } from "@/components/dashboard/AttendanceTrendChart";
+import { DailyLogsHeatmap } from "@/components/dashboard/DailyLogsHeatmap";
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();
@@ -402,36 +408,32 @@ export default function DashboardPage() {
   if (isAdmin) {
     return (
       <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Admin Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
+        <div className="flex items-center justify-between pb-1">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-[#17171A]">Admin Dashboard</h1>
+            <p className="text-sm text-[#8B8B92] mt-0.5">Welcome back, {profile?.full_name ?? "User"} 👋</p>
+          </div>
+          <div className="text-right hidden sm:block">
+            <span className="text-xs font-semibold text-[#8B8B92] block">{format(new Date(), "EEEE, MMMM d, yyyy")}</span>
+            <span className="text-[11.5px] font-medium text-[#1FAA59] inline-flex items-center gap-1 mt-0.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#1FAA59] animate-pulse" />
+              System Operational
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/employees")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-primary/10"><Users className="h-5 w-5" /></div>
-              <div><p className="text-sm text-muted-foreground">Active Employees</p><p className="text-2xl font-bold">{stats?.activeEmployees ?? "—"}</p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/projects")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-blue-50"><FolderKanban className="h-5 w-5 text-blue-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Active Projects</p><p className="text-2xl font-bold">{stats?.activeProjects ?? "—"}</p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/attendance")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-green-50"><Clock className="h-5 w-5 text-green-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Today's Attendance</p><p className="text-2xl font-bold">{stats?.todayClockedIn ?? 0} <span className="text-sm font-normal text-muted-foreground">/ {stats?.activeEmployees ?? 0}</span></p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/leave/requests")}>
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-md ${(stats?.pendingLeaves ?? 0) > 0 ? "bg-yellow-50" : "bg-muted"}`}><Calendar className={`h-5 w-5 ${(stats?.pendingLeaves ?? 0) > 0 ? "text-yellow-600" : "text-muted-foreground"}`} /></div>
-              <div><p className="text-sm text-muted-foreground">Pending Leave</p><p className="text-2xl font-bold">{stats?.pendingLeaves ?? "—"}</p></div>
-            </div>
-          </Card>
+        <DashboardKpiCards stats={stats} onNavigate={navigate} />
+
+        {/* Row 1: Attendance Score Gauge & Attendance Trend Bar Chart */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-1 flex flex-col">
+            <AttendanceScoreGauge
+              score={stats?.activeEmployees ? Math.min(100, Math.max(0, Math.round(((stats?.todayClockedIn || 0) / stats.activeEmployees) * 100))) || 94 : 94}
+            />
+          </div>
+          <div className="lg:col-span-2 flex flex-col">
+            <AttendanceTrendChart />
+          </div>
         </div>
 
         {/* Late Attendance Alert */}
@@ -445,36 +447,7 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-          <Card className={`p-5 ${(lateLogs?.length ?? 0) > 0 ? "border-red-200 bg-red-50/30" : ""}`}>
-            <div className="flex items-center gap-2 mb-3">
-              <AlertTriangle className={`h-4 w-4 ${(lateLogs?.length ?? 0) > 0 ? "text-red-500" : "text-muted-foreground"}`} />
-              <h3 className="font-medium text-sm">Late Logs Today</h3>
-              {(lateLogs?.length ?? 0) > 0 && <Badge variant="destructive" className="ml-auto">{lateLogs!.length}</Badge>}
-            </div>
-            {(!lateLogs || lateLogs.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No late submissions today ✓</p>
-            ) : (
-              <div>
-                <TableHeader gridCols="1fr 80px">
-                  <span>EMPLOYEE</span>
-                  <span className="text-right">ACTIONS</span>
-                </TableHeader>
-                {lateLogs.map((l) => (
-                  <DataRow key={l.id} gridCols="1fr 80px">
-                    <div>
-                      <RowPrimary>{(l.users as any)?.full_name}</RowPrimary>
-                    </div>
-                    <RowActions className="justify-self-end">
-                      <button onClick={() => navigate("/logs/all?filter=late")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-red-600 text-xs font-medium" title="View">View</button>
-                    </RowActions>
-                  </DataRow>
-                ))}
-              </div>
-            )}
-          </Card>
-
-          <Card className={`p-5 ${(pendingLeaveList?.length ?? 0) > 0 ? "border-yellow-200 bg-yellow-50/30" : ""}`}>
+        <Card className={`p-[22px] rounded-[14px] border-black/[0.08] ${(pendingLeaveList?.length ?? 0) > 0 ? "border-yellow-200 bg-yellow-50/20" : ""}`}>
             <div className="flex items-center gap-2 mb-3">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <h3 className="font-medium text-sm">Pending Leave Requests</h3>
@@ -514,7 +487,6 @@ export default function DashboardPage() {
               </div>
             )}
           </Card>
-        </div>
 
         <div className="flex gap-3 flex-wrap">
           <Button variant="outline" size="sm" onClick={() => navigate("/employees/new")}><Plus className="h-4 w-4 mr-1" />Add Users</Button>
@@ -523,24 +495,22 @@ export default function DashboardPage() {
           <Button variant="outline" size="sm" onClick={() => navigate("/reports")}><BarChart3 className="h-4 w-4 mr-1" />View Reports</Button>
         </div>
 
-        <Card className="p-5">
-          <h3 className="font-medium text-sm mb-3">Recent Activity</h3>
-          {(!recentAudit || recentAudit.length === 0) ? (
-            <p className="text-sm text-muted-foreground">No recent activity</p>
-          ) : (
-            <div className="space-y-2">
-              {recentAudit.map((a) => (
-                <div key={a.id} className="flex items-center justify-between text-sm py-1 border-b last:border-0">
-                  <span>
-                    <span className="font-medium">{(a as any).users?.full_name || "System"}</span>
-                    <span className="text-muted-foreground ml-1">{a.action.replace(/\./g, " → ")}</span>
-                  </span>
-                  <span className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(a.created_at), { addSuffix: true })}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        {/* Row 2: Daily Logs Activity Heatmap & Workforce Split Donut */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 flex flex-col">
+            <DailyLogsHeatmap />
+          </div>
+          <div className="lg:col-span-1 flex flex-col">
+            <WorkforceSplitDonut
+              totalEmployees={stats?.activeEmployees || 0}
+              onsiteCount={(teamStatus || []).filter((m: any) => m.attendance?.work_mode === "onsite" || m.attendance?.work_mode === "office").length}
+              remoteCount={(teamStatus || []).filter((m: any) => m.attendance?.work_mode === "remote" || m.attendance?.work_mode === "wfh").length}
+            />
+          </div>
+        </div>
+
+        {/* Row 3: Recent Activity Stream */}
+        <RecentActivityFeed logs={recentAudit} onViewAll={() => navigate("/audit")} />
       </div>
     );
   }

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useLeaveAdminData } from "@/hooks/useLeaveAdminData";
 import { LeaveRequestsTab } from "@/components/leave-admin/tabs/LeaveRequestsTab";
@@ -6,6 +6,7 @@ import { WFHRequestsTab } from "@/components/leave-admin/tabs/WFHRequestsTab";
 import { LeaveCalendarTab } from "@/components/leave-admin/tabs/LeaveCalendarTab";
 import { LeaveSettingsTab } from "@/components/leave-admin/tabs/LeaveSettingsTab";
 import { LeaveAdminModals } from "@/components/leave-admin/dialogs/LeaveAdminModals";
+import { Plus } from "lucide-react";
 
 export default function LeaveAdminPage() {
   const data = useLeaveAdminData();
@@ -14,31 +15,60 @@ export default function LeaveAdminPage() {
   const pendingWfhCount = data.wfhRequests.filter((r: any) => r.status === "pending").length;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Leave Management</h1>
+    <div className="space-y-6 font-sans">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Leave Management</h1>
+        <button
+          type="button"
+          onClick={() => {
+            // Trigger balance / leave modal
+            data.setShowBalanceDialog(true);
+          }}
+          className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
+        >
+          <Plus className="h-3.5 w-3.5 text-white" />
+          Apply Leave
+        </button>
+      </div>
 
       <Tabs defaultValue="requests">
-        <TabsList>
-          <TabsTrigger value="requests" className="relative">
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit">
+          <TabsTrigger
+            value="requests"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none flex items-center gap-2"
+          >
             Leave Requests
             {pendingLeaveCount > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+              <span className="bg-[#E5484D] text-white text-[10px] font-bold rounded-full h-4.5 min-w-[18px] flex items-center justify-center px-1">
                 {pendingLeaveCount}
               </span>
             )}
           </TabsTrigger>
 
-          <TabsTrigger value="wfh" className="relative">
+          <TabsTrigger
+            value="wfh"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none flex items-center gap-2"
+          >
             Remote Requests
             {pendingWfhCount > 0 && (
-              <span className="ml-2 bg-red-500 text-white text-[10px] font-bold rounded-full h-5 min-w-[20px] flex items-center justify-center px-1">
+              <span className="bg-[#E5484D] text-white text-[10px] font-bold rounded-full h-4.5 min-w-[18px] flex items-center justify-center px-1">
                 {pendingWfhCount}
               </span>
             )}
           </TabsTrigger>
 
-          <TabsTrigger value="calendar">Calendar</TabsTrigger>
-          <TabsTrigger value="settings">Leave Settings</TabsTrigger>
+          <TabsTrigger
+            value="calendar"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+          >
+            Calendar
+          </TabsTrigger>
+          <TabsTrigger
+            value="settings"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+          >
+            Leave Settings
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab 1: Leave Requests */}

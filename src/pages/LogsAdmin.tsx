@@ -433,58 +433,80 @@ export default function LogsAdminPage() {
 
   const statusBadge = (logStatus: string) => {
     switch (logStatus) {
-      case "added": return <Badge className="bg-green-100 text-green-800">Logs Added</Badge>;
-      case "partial_day": return <Badge className="bg-green-100 text-green-800">Partial Day</Badge>;
-      case "late": return <Badge className="bg-yellow-100 text-yellow-800">Late</Badge>;
-      case "missed": return <Badge className="bg-red-100 text-red-800">Missed</Badge>;
-      case "on_leave": return <Badge className="bg-blue-100 text-blue-800">On Leave</Badge>;
-      case "half_day_leave": return <Badge className="bg-blue-50 text-blue-700">Half Day Leave</Badge>;
-      default: return <Badge variant="secondary">—</Badge>;
+      case "added": return <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Logs Added</Badge>;
+      case "partial_day": return <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Partial Day</Badge>;
+      case "late": return <Badge className="bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Late</Badge>;
+      case "missed": return <Badge className="bg-[#FDECEC] text-[#E5484D] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Missed</Badge>;
+      case "on_leave": return <Badge className="bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">On Leave</Badge>;
+      case "half_day_leave": return <Badge className="bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Half Day Leave</Badge>;
+      default: return <Badge className="bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">—</Badge>;
     }
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold tracking-tight">Daily Logs</h1>
-        <AdminAddLogDialog employees={employees} />
+    <div className="space-y-6 font-sans">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Daily Logs</h1>
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={exportCSV}
+            className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors shadow-sm"
+          >
+            <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
+            Export CSV
+          </button>
+          <AdminAddLogDialog employees={employees} />
+        </div>
       </div>
 
       <Tabs defaultValue="logs">
-        <TabsList>
-          <TabsTrigger value="logs">All Logs</TabsTrigger>
-          {isAdmin && <TabsTrigger value="rules">Log Rules & Thresholds</TabsTrigger>}
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit">
+          <TabsTrigger
+            value="logs"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+          >
+            All Logs
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger
+              value="rules"
+              className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+            >
+              Log Rules &amp; Thresholds
+            </TabsTrigger>
+          )}
         </TabsList>
 
-        <TabsContent value="logs" className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setModalType("missed")}>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-red-50"><FileX className="h-5 w-5 text-red-600" /></div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Logs Missed</p>
-                  <p className="text-2xl font-bold">{missedList.length}</p>
-                </div>
+        <TabsContent value="logs" className="space-y-6 mt-6">
+          <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm">
+            <div className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors" onClick={() => setModalType("missed")}>
+              <div className="w-[38px] h-[38px] rounded-[10px] bg-[#FDECEC] text-[#E5484D] flex items-center justify-center shrink-0">
+                <FileX className="h-4.5 w-4.5 text-[#E5484D]" />
               </div>
-            </Card>
-            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setModalType("added")}>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-green-50"><FileText className="h-5 w-5 text-green-600" /></div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Logs Added</p>
-                  <p className="text-2xl font-bold">{addedList.length}</p>
-                </div>
+              <div>
+                <p className="text-[13px] text-[#8B8B92] font-medium">Logs Missed</p>
+                <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{missedList.length}</p>
               </div>
-            </Card>
-            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => setModalType("late")}>
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-md bg-yellow-50"><Clock className="h-5 w-5 text-yellow-600" /></div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Logs Late</p>
-                  <p className="text-2xl font-bold">{lateList.length}</p>
-                </div>
+            </div>
+            <div className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors" onClick={() => setModalType("added")}>
+              <div className="w-[38px] h-[38px] rounded-[10px] bg-[#DFF6E4] text-[#1FAA59] flex items-center justify-center shrink-0">
+                <FileText className="h-4.5 w-4.5 text-[#1FAA59]" />
               </div>
-            </Card>
+              <div>
+                <p className="text-[13px] text-[#8B8B92] font-medium">Logs Added</p>
+                <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{addedList.length}</p>
+              </div>
+            </div>
+            <div className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors" onClick={() => setModalType("late")}>
+              <div className="w-[38px] h-[38px] rounded-[10px] bg-[#FDF3E3] text-[#C7860F] flex items-center justify-center shrink-0">
+                <Clock className="h-4.5 w-4.5 text-[#C7860F]" />
+              </div>
+              <div>
+                <p className="text-[13px] text-[#8B8B92] font-medium">Logs Late</p>
+                <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{lateList.length}</p>
+              </div>
+            </div>
           </div>
 
           <Dialog open={!!modalType} onOpenChange={() => setModalType(null)}>
@@ -509,25 +531,39 @@ export default function LogsAdminPage() {
             </DialogContent>
           </Dialog>
 
-          <div className="flex items-center justify-end">
-            <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" />Export CSV</Button>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search employees or descriptions…" value={searchQ} onChange={(e) => setSearchQ(e.target.value)} className="pl-9" />
+          <div className="flex flex-wrap gap-2.5 items-center">
+            <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
+              <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
+              <input
+                type="text"
+                placeholder="Search employees or descriptions…"
+                value={searchQ}
+                onChange={(e) => setSearchQ(e.target.value)}
+                className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
+              />
             </div>
-            <Input type="date" value={selectedDate} onChange={(e) => setSelectedDate(e.target.value)} className="w-[170px]" />
+
+            <input
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm focus:outline-none"
+            />
+
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Employee" /></SelectTrigger>
+              <SelectTrigger className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                <SelectValue placeholder="Employee" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Employees</SelectItem>
                 {employees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
               </SelectContent>
             </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 <SelectItem value="missed">Logs Missed</SelectItem>
@@ -538,33 +574,35 @@ export default function LogsAdminPage() {
           </div>
 
           {isLoading ? (
-            <Card><div className="py-12 text-center text-muted-foreground">Loading…</div></Card>
+            <div className="bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">Loading…</div>
           ) : groupedRows.length === 0 ? (
-            <Card><div className="py-12 text-center text-muted-foreground">No logs found for the selected filters</div></Card>
+            <div className="bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">No logs found for the selected filters</div>
           ) : (
-            <div className="border rounded-lg overflow-hidden">
-              <div className="grid grid-cols-[40px_1fr_90px_90px_140px_40px] gap-2 px-4 py-2.5 bg-muted/50 border-b text-xs font-medium text-muted-foreground uppercase tracking-wide">
+            <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm">
+              <div className="grid grid-cols-[40px_2.2fr_0.9fr_0.7fr_1fr_0.7fr_0.8fr_1fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
                 <div />
-                <span>Employee</span>
-                <span>Logs</span>
-                <span>Hours</span>
-                <span>Status</span>
-                <div />
+                <span>EMPLOYEE</span>
+                <span>DATE</span>
+                <span>HOURS</span>
+                <span>STATUS</span>
+                <span>LATE</span>
+                <span>FLAGGED</span>
+                <span className="text-right pr-2">ACTIONS</span>
               </div>
 
               {selectedLogIds.size > 0 && (
-                <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                  <span className="text-sm text-blue-700">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
+                <div className="flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+                  <span className="text-xs font-semibold">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
                   <div className="flex items-center gap-2">
                     <button
                       onClick={() => setSelectedLogIds(new Set())}
-                      className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white"
+                      className="px-3 py-1 text-xs font-medium text-white/80 hover:text-white border border-white/20 rounded-md bg-transparent"
                     >
                       Clear selection
                     </button>
                     <button
                       onClick={() => setBulkDeleteLogOpen(true)}
-                      className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1"
+                      className="px-3 py-1 text-xs bg-[#E5484D] text-white rounded-md hover:bg-red-700 flex items-center gap-1 font-semibold"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                       Delete selected
@@ -578,59 +616,85 @@ export default function LogsAdminPage() {
                 const allSelected = row.logs.length > 0 && row.logs.every((l: any) => selectedLogIds.has(l.id));
                 const someSelected = row.logs.some((l: any) => selectedLogIds.has(l.id));
                 const hasFlagged = row.hasFlaggedLog;
-                const hasLate = row.logs.some((l: any) => {
-                  const empShiftEnd = row.logs[0] ? undefined : undefined;
-                  return l.submitted_at && isLogSubmissionLate(l.submitted_at, globalShiftEnd, l.log_date);
-                });
+                const firstLog = row.logs[0];
+                const projectMeta = firstLog ? `${firstLog.projects?.name || "Miscellaneous"} · ${firstLog.category?.replace(/_/g, " ")}${row.logs.length > 1 ? ` (+${row.logs.length - 1} more)` : ""}` : (row.leaveName || "No logs submitted");
+
+                const empForLog = employees.find((e: any) => e.id === row.userId);
+                const empShiftEnd = empForLog?.has_custom_shift ? empForLog.shift_end : globalShiftEnd;
+                const isLateRow = row.logs.some((l: any) => l.submitted_at && empShiftEnd && isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date));
 
                 return (
                   <div key={row.userId}>
                     <div
-                      className={`grid grid-cols-[40px_1fr_90px_90px_140px_40px] gap-2 items-center px-4 py-3 border-b cursor-pointer hover:bg-muted/30 transition-colors ${isExpanded ? "bg-muted/20" : ""}`}
+                      className={`grid grid-cols-[40px_2.2fr_0.9fr_0.7fr_1fr_0.7fr_0.8fr_1fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors ${isExpanded ? "bg-[#F6F5F3]/70" : ""}`}
                       onClick={() => setExpandedEmployeeId(isExpanded ? null : row.userId)}
                     >
                       <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300"
+                          className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
                           checked={allSelected}
                           ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
                           onChange={() => toggleAllLogsForEmployee(row.logs)}
                         />
                       </div>
+
+                      {/* EMPLOYEE */}
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-medium shrink-0">
+                        <div className="h-8 w-8 rounded-full bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center text-[11.5px] font-bold shrink-0">
                           {getInitials(row.name)}
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-medium break-words flex items-center gap-1.5">
+                          <p className="text-[13.5px] font-bold text-[#17171A] truncate flex items-center gap-1.5">
                             {row.name}
-                            {hasFlagged && <Flag className="h-3 w-3 text-destructive fill-destructive shrink-0" />}
+                            {hasFlagged && <Flag className="h-3 w-3 text-[#E5484D] fill-[#E5484D] shrink-0" />}
                           </p>
-                          {row.leaveName && (
-                            <p className="text-xs text-muted-foreground">{row.leaveName}</p>
-                          )}
+                          <p className="text-[12px] text-[#8B8B92] truncate">{projectMeta}</p>
                         </div>
                       </div>
-                      <div>
-                        <span className="text-sm font-medium">{row.logCount}</span>
-                        {row.overtimeHours > 0 && (
-                          <span className="text-xs text-muted-foreground ml-1">(+{formatHours(row.overtimeHours)} OT)</span>
-                        )}
+
+                      {/* DATE */}
+                      <div className="text-[13px] text-[#4B4B52] whitespace-nowrap">
+                        {format(new Date(selectedDate + "T00:00:00"), "MMM d, yyyy")}
                       </div>
-                      <div className="text-sm font-medium">{formatHours(row.loggedHours)}</div>
+
+                      {/* HOURS */}
+                      <div className="text-[13px] font-bold text-[#17171A]">
+                        {formatHours(row.loggedHours)}
+                      </div>
+
+                      {/* STATUS */}
                       <div>{statusBadge(row.logStatus)}</div>
-                      <div className="flex items-center justify-center">
-                        {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+
+                      {/* LATE */}
+                      <div className="text-[13px] font-medium text-[#8B8B92]">
+                        {isLateRow ? <span className="text-[#A9720B] font-bold">Late</span> : "—"}
+                      </div>
+
+                      {/* FLAGGED */}
+                      <div className="text-[13px] font-medium text-[#8B8B92]">
+                        {hasFlagged ? <span className="text-[#E5484D] font-bold">Flagged</span> : "—"}
+                      </div>
+
+                      {/* ACTIONS */}
+                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedEmployeeId(isExpanded ? null : row.userId)}
+                          className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
+                          title="Toggle Log Details"
+                        >
+                          {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-[#4B4B52]" /> : <ChevronRight className="h-3.5 w-3.5 text-[#4B4B52]" />}
+                        </button>
                       </div>
                     </div>
 
                     {isExpanded && (
-                      <div className="bg-muted/10 border-b">
+                      <div className="bg-[#F6F5F3]/30 border-b border-black/[0.06]">
                         {row.logs.length === 0 ? (
-                          <div className="px-6 py-4 text-sm text-muted-foreground">No logs submitted this day.</div>
+                          <div className="px-6 py-4 text-xs text-[#8B8B92]">No logs submitted this day.</div>
                         ) : (
-                          <div className="divide-y divide-border/50">
+                          <div className="divide-y divide-black/[0.05]">
                             {row.logs.map((log: any) => {
                               const empForLog = employees.find((e: any) => e.id === log.user_id);
                               const logShiftEnd = empForLog?.has_custom_shift ? empForLog.shift_end : globalShiftEnd;
@@ -640,24 +704,24 @@ export default function LogsAdminPage() {
                                   <div className="flex items-start justify-between gap-4">
                                     <div className="min-w-0 flex-1 space-y-1.5">
                                       <div className="flex items-center gap-2 flex-wrap">
-                                        <Badge variant="outline" className="text-xs font-normal capitalize">{(log.projects?.name || "Miscellaneous")}</Badge>
-                                        <Badge variant="secondary" className="text-xs font-normal capitalize">{log.category?.replace(/_/g, " ")}</Badge>
-                                        <span className="text-sm font-medium">{formatHours(log.hours)}</span>
-                                        {isLate && <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>}
-                                        {log.admin_flagged && <Badge className="bg-red-100 text-red-700 text-[10px]">Flagged</Badge>}
-                                        {log.is_locked && <Badge className="bg-blue-100 text-blue-700 text-[10px]">Locked</Badge>}
+                                        <Badge variant="outline" className="text-xs font-semibold capitalize border-black/10 text-[#4B4B52]">{(log.projects?.name || "Miscellaneous")}</Badge>
+                                        <Badge variant="secondary" className="text-xs font-semibold capitalize bg-[#F6F5F3] text-[#4B4B52]">{log.category?.replace(/_/g, " ")}</Badge>
+                                        <span className="text-xs font-bold text-[#17171A]">{formatHours(log.hours)}</span>
+                                        {isLate && <Badge className="bg-[#FDF3E3] text-[#A9720B] text-[10px] font-bold border-0">Late</Badge>}
+                                        {log.admin_flagged && <Badge className="bg-[#FDECEC] text-[#E5484D] text-[10px] font-bold border-0">Flagged</Badge>}
+                                        {log.is_locked && <Badge className="bg-[#EAF3FF] text-[#1C6FC9] text-[10px] font-bold border-0">Locked</Badge>}
                                         {log.submitted_at && (
-                                          <span className="text-xs text-muted-foreground">Submitted {format(new Date(log.submitted_at), "h:mm a")}</span>
+                                          <span className="text-[11.5px] text-[#8B8B92]">Submitted {format(new Date(log.submitted_at), "h:mm a")}</span>
                                         )}
                                       </div>
                                       {log.description && (
-                                        <p className="text-sm text-muted-foreground whitespace-pre-wrap">{log.description}</p>
+                                        <p className="text-[13px] text-[#4B4B52] whitespace-pre-wrap">{log.description}</p>
                                       )}
                                       {log.admin_comment && (
-                                        <p className="text-xs text-blue-600 italic">Admin: {log.admin_comment}</p>
+                                        <p className="text-xs text-[#1C6FC9] italic font-medium">Admin: {log.admin_comment}</p>
                                       )}
                                     </div>
-                                    <div className="flex items-center gap-0.5 shrink-0">
+                                    <div className="flex items-center gap-1 shrink-0">
                                       <button
                                         onClick={() => {
                                           setEditingLogId(log.id);
@@ -667,23 +731,31 @@ export default function LogsAdminPage() {
                                           setComment(log.admin_comment || "");
                                           setEditLogOpen(true);
                                         }}
-                                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
+                                        className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
                                         title="Edit Log"
                                       >
-                                        <Pencil className="h-4 w-4 text-[#6b7280]" />
+                                        <Pencil className="h-3.5 w-3.5 text-[#4B4B52]" />
                                       </button>
-                                      <button onClick={() => toggleFlag(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.admin_flagged ? "Unflag" : "Flag"}>
-                                        <Flag className={`h-4 w-4 ${log.admin_flagged ? "text-destructive fill-destructive" : "text-[#d1d5db]"}`} />
+                                      <button
+                                        onClick={() => toggleFlag(log)}
+                                        className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
+                                        title={log.admin_flagged ? "Unflag" : "Flag"}
+                                      >
+                                        <Flag className={`h-3.5 w-3.5 ${log.admin_flagged ? "text-[#E5484D] fill-[#E5484D]" : "text-[#8B8B92]"}`} />
                                       </button>
-                                      <button onClick={() => toggleLock(log)} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors" title={log.is_locked ? "Unlock" : "Lock"}>
-                                        <Lock className={`h-4 w-4 ${log.is_locked ? "text-blue-600" : "text-[#d1d5db]"}`} />
+                                      <button
+                                        onClick={() => toggleLock(log)}
+                                        className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
+                                        title={log.is_locked ? "Unlock" : "Lock"}
+                                      >
+                                        <Lock className={`h-3.5 w-3.5 ${log.is_locked ? "text-[#1C6FC9]" : "text-[#8B8B92]"}`} />
                                       </button>
                                       <button
                                         onClick={() => setDeleteId(log.id)}
-                                        className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors"
+                                        className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
                                         title="Delete Log"
                                       >
-                                        <Trash2 className="h-4 w-4 text-[#d1d5db] hover:text-destructive" />
+                                        <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
                                       </button>
                                     </div>
                                   </div>
@@ -702,46 +774,52 @@ export default function LogsAdminPage() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="rules">
-            <Card className="p-6 space-y-6">
+          <TabsContent value="rules" className="mt-6">
+            <div className="bg-white border border-black/[0.08] rounded-[14px] p-[22px] space-y-6 shadow-sm font-sans">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
-                  <h4 className="text-sm font-medium border-b pb-2">Log Submission Rules</h4>
+                  <h4 className="font-bold text-[14.5px] text-[#17171A] border-b border-black/[0.06] pb-2">Log Submission Rules</h4>
                   <div className="space-y-1">
-                    <Label>Log Edit Window (days)</Label>
+                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Log Edit Window (days)</Label>
                     <Input type="number" value={logEditDays} onChange={(e) => setLogEditDays(e.target.value)} min="1" max="30" />
-                    <p className="text-xs text-muted-foreground">Employees can submit logs for today and up to this many days in the past</p>
+                    <p className="text-[11.5px] text-[#8B8B92]">Employees can submit logs for today and up to this many days in the past</p>
                   </div>
                   <div className="space-y-1">
-                    <Label>Auto Clock-Out Time</Label>
+                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Auto Clock-Out Time</Label>
                     <Input type="time" value={autoClockoutTime} onChange={(e) => setAutoClockoutTime(e.target.value)} />
-                    <p className="text-xs text-muted-foreground">Currently: {formatTime12h(autoClockoutTime)}</p>
+                    <p className="text-[11.5px] text-[#8B8B92]">Currently: {formatTime12h(autoClockoutTime)}</p>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="text-sm font-medium border-b pb-2">Reporting Thresholds</h4>
+                  <h4 className="font-bold text-[14.5px] text-[#17171A] border-b border-black/[0.06] pb-2">Reporting Thresholds</h4>
                   <div className="space-y-1">
-                    <Label>Expected Daily Hours</Label>
+                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Expected Daily Hours</Label>
                     <Input type="number" value={expectedHours} onChange={(e) => setExpectedHours(e.target.value)} min="1" max="24" />
-                    <p className="text-xs text-muted-foreground">Used to calculate utilization percentages</p>
+                    <p className="text-[11.5px] text-[#8B8B92]">Used to calculate utilization percentages</p>
                   </div>
                   <div className="space-y-1">
-                    <Label>Underutilized Threshold (%)</Label>
+                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Underutilized Threshold (%)</Label>
                     <Input type="number" value={utilLow} onChange={(e) => setUtilLow(e.target.value)} />
                   </div>
                   <div className="space-y-1">
-                    <Label>Overburdened Threshold (%)</Label>
+                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Overburdened Threshold (%)</Label>
                     <Input type="number" value={utilHigh} onChange={(e) => setUtilHigh(e.target.value)} />
                   </div>
                 </div>
               </div>
               <div className="flex items-center justify-end">
-                <Button onClick={handleSaveSettings} disabled={savingSettings} className="rounded-button">
-                  <Save className="h-4 w-4 mr-2" />{savingSettings ? "Saving…" : "Save Rules"}
-                </Button>
+                <button
+                  type="button"
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                  className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm disabled:opacity-50"
+                >
+                  <Save className="h-3.5 w-3.5 text-white" />
+                  {savingSettings ? "Saving…" : "Save Rules"}
+                </button>
               </div>
-            </Card>
+            </div>
           </TabsContent>
         )}
       </Tabs>

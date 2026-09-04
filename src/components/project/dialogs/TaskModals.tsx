@@ -17,9 +17,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Flag, Paperclip, Send, Trash2, Download, Upload, FileText, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, MessageSquare, Plus, Search, Eye, EyeOff, XCircle, Pencil } from "lucide-react";
+import { Flag, Paperclip, Send, Trash2, Download, Upload, FileText, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, MessageSquare, Plus, Search, Eye, EyeOff, XCircle, Pencil, ArrowRightCircle } from "lucide-react";
 import { format } from "date-fns";
 import { truncateWords, cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
 export interface TaskModalsProps {
   addTaskOpen: boolean;
@@ -32,31 +34,25 @@ export interface TaskModalsProps {
   setViewTaskData: (task: any) => void;
   
   taskTitle: string; setTaskTitle: (v: string) => void;
-  taskDescription: string;
-  setTaskDescription: (v: string) => void;
+  taskDescription: string; setTaskDescription: (v: string) => void;
   taskPriority: string; setTaskPriority: (v: string) => void;
   taskAssignedTo: string; setTaskAssignedTo: (v: string) => void;
   taskSprintId: string; setTaskSprintId: (v: string) => void;
-taskEstimatedHours: string; setTaskEstimatedHours: (v: string) => void;
-  taskDueDate: string;
-  setTaskDueDate: (v: string) => void;
-taskClientVisible: boolean;
-  setTaskClientVisible: (v: boolean) => void;
+  taskEstimatedHours: string; setTaskEstimatedHours: (v: string) => void;
+  taskDueDate: string; setTaskDueDate: (v: string) => void;
+  taskClientVisible: boolean; setTaskClientVisible: (v: boolean) => void;
   
   editTaskTitle: string; setEditTaskTitle: (v: string) => void;
-  editTaskDescription: string;
-  setEditTaskDescription: (v: string) => void;
+  editTaskDescription: string; setEditTaskDescription: (v: string) => void;
   editTaskPriority: string; setEditTaskPriority: (v: string) => void;
   editTaskAssignedTo: string; setEditTaskAssignedTo: (v: string) => void;
   editTaskSprintId: string; setEditTaskSprintId: (v: string) => void;
-editTaskEstimatedHours: string; setEditTaskEstimatedHours: (v: string) => void;
-  editTaskDueDate: string;
-  setEditTaskDueDate: (v: string) => void;
-editTaskClientVisible: boolean;
-  setEditTaskClientVisible: (v: boolean) => void;
+  editTaskEstimatedHours: string; setEditTaskEstimatedHours: (v: string) => void;
+  editTaskDueDate: string; setEditTaskDueDate: (v: string) => void;
+  editTaskClientVisible: boolean; setEditTaskClientVisible: (v: boolean) => void;
   
   descExpanded: boolean; setDescExpanded: (v: boolean) => void;
-csvRows: any[]; setCsvRows: (rows: any[]) => void;
+  csvRows: any[]; setCsvRows: (rows: any[]) => void;
   csvFileName: string; setCsvFileName: (name: string) => void;
   uploading: boolean; setUploading: (u: boolean) => void;
   replaceDuplicates: boolean; setReplaceDuplicates: (r: boolean) => void;
@@ -65,7 +61,7 @@ csvRows: any[]; setCsvRows: (rows: any[]) => void;
   handleEditTaskSave: (e: React.FormEvent) => void;
   handleBulkUpload: () => void;
   handleCSVUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-toggleFlag: (taskId: string, current: boolean) => void;
+  toggleFlag: (taskId: string, current: boolean) => void;
   openEditTask: (task: any) => void;
   
   members: any[];
@@ -78,6 +74,7 @@ toggleFlag: (taskId: string, current: boolean) => void;
   isClient: boolean;
   PRIORITY_COLORS: Record<string, string>;
   doneStatusIds: string[];
+  tasks?: any[];
 }
 
 export function TaskModals(props: TaskModalsProps) {
@@ -112,6 +109,36 @@ export function TaskModals(props: TaskModalsProps) {
   const [viewDependencyWarning, setViewDependencyWarning] = useState("");
   const [currentUserProjectRoleId, setCurrentUserProjectRoleId] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    if (!props.viewTaskData) return;
+    let isMounted = true;
+    const loadTransitions = async () => {
+      const projId = props.viewTaskData.project_id;
+      let templateId: string | null = null;
+      if (projId) {
+        const { data: proj } = await supabase
+          .from("projects")
+          .select("workflow_template_id")
+          .eq("id", projId)
+          .maybeSingle();
+        templateId = proj?.workflow_template_id || null;
+      }
+
+      let query = supabase.from("workflow_transitions").select("*");
+      if (templateId) {
+        query = query.eq("workflow_template_id", templateId);
+      }
+      const { data: trans } = await query;
+      if (isMounted && trans) {
+        setWorkflowTransitions(trans);
+      }
+    };
+    loadTransitions();
+    return () => {
+      isMounted = false;
+    };
+  }, [props.viewTaskData?.id, props.viewTaskData?.project_id]);
+
   const resourceMembers = (props.members || []).map((m: any) => m.users).filter(Boolean);
 
   const addViewComment = () => {
@@ -142,7 +169,7 @@ export function TaskModals(props: TaskModalsProps) {
   const checkAndTriggerBlockerAlert = async (_taskId: string, _title: string, _type: string) => false;
   const isDependencyWarnTarget = (_category: string) => false;
   const getUnfinishedDependencies = async (_taskId: string, _statuses: any[]) => [];
-  const queryClient = { invalidateQueries: () => {} };
+  const queryClient = { invalidateQueries: (_arg: any) => {} };
   const id = props.viewTaskData?.project_id || "";
 
   const {
@@ -155,32 +182,33 @@ export function TaskModals(props: TaskModalsProps) {
     taskPriority, setTaskPriority,
     taskAssignedTo, setTaskAssignedTo,
     taskSprintId, setTaskSprintId,
-taskEstimatedHours, setTaskEstimatedHours,
+    taskEstimatedHours, setTaskEstimatedHours,
     taskDueDate, setTaskDueDate,
-taskClientVisible, setTaskClientVisible,
+    taskClientVisible, setTaskClientVisible,
     editTaskTitle, setEditTaskTitle,
     editTaskDescription, setEditTaskDescription,
     editTaskPriority, setEditTaskPriority,
     editTaskAssignedTo, setEditTaskAssignedTo,
     editTaskSprintId, setEditTaskSprintId,
-editTaskEstimatedHours, setEditTaskEstimatedHours,
+    editTaskEstimatedHours, setEditTaskEstimatedHours,
     editTaskDueDate, setEditTaskDueDate,
-editTaskClientVisible, setEditTaskClientVisible,
+    editTaskClientVisible, setEditTaskClientVisible,
     descExpanded, setDescExpanded,
-csvRows, setCsvRows,
+    csvRows, setCsvRows,
     csvFileName, setCsvFileName,
     uploading, setUploading,
     replaceDuplicates, setReplaceDuplicates,
     handleCreateTask, handleEditTaskSave, handleBulkUpload, handleCSVUpload,
-toggleFlag, openEditTask,
+    toggleFlag, openEditTask,
     members, sprints, phases, taskTypes, workflowStatuses,
-    profile, isAdmin, isClient, PRIORITY_COLORS, doneStatusIds
+    profile, isAdmin, isClient, PRIORITY_COLORS, doneStatusIds, tasks
   } = props;
   const [taskDateOpen, setTaskDateOpen] = useState(false);
   const [editTaskDateOpen, setEditTaskDateOpen] = useState(false);
 
   return (
     <>
+      {/* Add Task Dialog */}
       <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Add Task</DialogTitle></DialogHeader>
@@ -718,58 +746,65 @@ toggleFlag, openEditTask,
             )}
           </div>
 
-          {(viewTaskData?.assigned_to === profile?.id || isAdmin || viewTaskData?.created_by === profile?.id) && viewTaskData?.status_id && workflowStatuses && workflowTransitions && (
-            <div className="mt-4">
-              <StageOutcomeSelector
-                taskId={viewTaskData.id}
-                currentStatusId={viewTaskData.status_id}
-                workflowStatuses={workflowStatuses}
-                transitions={workflowTransitions}
-                onDeclare={async (toStatusId) => {
-                  const isBlocked = await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
-                  if (isBlocked) return;
-                  const { error } = await supabase.rpc("declare_stage_outcome", {
-                    p_task_id: viewTaskData.id,
-                    p_to_status_id: toStatusId,
-                    p_changed_by_type: "admin",
-                  });
-                  if (error) {
-                    toast.error(`Could not move task: ${error.message}`);
-                    if (error.message.toLowerCase().includes("blocker")) {
-                      await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
+          {(viewTaskData?.assigned_to === profile?.id || isAdmin || viewTaskData?.created_by === profile?.id) && viewTaskData?.status_id && workflowStatuses && (
+            <>
+              <Separator className="my-4" />
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2">
+                  <ArrowRightCircle className="h-4 w-4 text-primary" /> Task Stage & Workflow
+                </h4>
+                <StageOutcomeSelector
+                  taskId={viewTaskData.id}
+                  currentStatusId={viewTaskData.status_id}
+                  workflowStatuses={workflowStatuses}
+                  transitions={workflowTransitions}
+                  onDeclare={async (toStatusId) => {
+                    const isBlocked = await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
+                    if (isBlocked) return;
+                    const { error } = await supabase.rpc("declare_stage_outcome", {
+                      p_task_id: viewTaskData.id,
+                      p_to_status_id: toStatusId,
+                      p_changed_by_type: isAdmin ? "admin" : "employee",
+                    });
+                    if (error) {
+                      toast.error(`Could not move task: ${error.message}`);
+                      if (error.message.toLowerCase().includes("blocker")) {
+                        await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
+                      }
+                      return;
                     }
-                    return;
-                  }
-                  const { data: updated } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
-                  if (updated) setViewTaskData(updated);
-                  queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
-                }}
-                onTargetChange={(toStatusId) => {
-                  if (!toStatusId) {
-                    setViewDependencyWarning("");
-                    return;
-                  }
-                  const target = workflowStatuses.find((s: any) => s.id === toStatusId);
-                  if (!target || !isDependencyWarnTarget(target.category)) {
-                    setViewDependencyWarning("");
-                    return;
-                  }
-                  getUnfinishedDependencies(viewTaskData.id, workflowStatuses).then((deps) => {
-                    setViewDependencyWarning(
-                      deps.length > 0 ? `Unfinished dependencies: ${deps.map((d) => d.title).join(", ")}` : ""
-                    );
-                  });
-                }}
-                compact
-                userRoleId={currentUserProjectRoleId ?? null}
-                isSystemAdmin={isAdmin}
-              />
-              {viewDependencyWarning && (
-                <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-                  <span className="font-medium">⚠ {viewDependencyWarning}</span>
-                </div>
-              )}
-            </div>
+                    toast.success("Task status updated successfully!");
+                    const { data: updated } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
+                    if (updated) setViewTaskData(updated);
+                    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+                  }}
+                  onTargetChange={(toStatusId) => {
+                    if (!toStatusId) {
+                      setViewDependencyWarning("");
+                      return;
+                    }
+                    const target = workflowStatuses.find((s: any) => s.id === toStatusId);
+                    if (!target || !isDependencyWarnTarget(target.category)) {
+                      setViewDependencyWarning("");
+                      return;
+                    }
+                    getUnfinishedDependencies(viewTaskData.id, workflowStatuses).then((deps) => {
+                      setViewDependencyWarning(
+                        deps.length > 0 ? `Unfinished dependencies: ${deps.map((d) => d.title).join(", ")}` : ""
+                      );
+                    });
+                  }}
+                  compact
+                  userRoleId={currentUserProjectRoleId ?? null}
+                  isSystemAdmin={isAdmin}
+                />
+                {viewDependencyWarning && (
+                  <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
+                    <span className="font-medium">⚠ {viewDependencyWarning}</span>
+                  </div>
+                )}
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>

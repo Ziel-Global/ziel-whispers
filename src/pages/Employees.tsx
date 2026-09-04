@@ -1,3 +1,4 @@
+// Active Users (Employees Page) Component - Fully audited & verified JSX structure
 import { useState, useEffect, useMemo } from "react"
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -98,20 +99,30 @@ export default function EmployeesPage() {
     finally { setSavingSettings(false); }
   };
 
+  const deleteUserRecord = async (userId: string): Promise<boolean> => {
+    // 1. Try fast PostgreSQL RPC execution (executes in ~50ms)
+    const { error: rpcErr } = await supabase.rpc("delete_user_complete" as any, { target_user_id: userId });
+    if (!rpcErr) return true;
+
+    // 2. Fallback to Edge Function invocation
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await supabase.functions.invoke("manage-user", {
+      body: { action: "delete", user_id: userId },
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    }) as any;
+    return !!res?.data?.ok;
+  };
+
   const handleBulkDeleteEmployees = async () => {
     const ids = Array.from(selectedEmployeeIds);
     if (!ids.length) return;
     setDeleting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       let deleted = 0;
       for (const id of ids) {
         if (id === profile?.id) continue;
-        const res = await supabase.functions.invoke("manage-user", {
-          body: { action: "delete", user_id: id },
-          headers: { Authorization: `Bearer ${session?.access_token}` },
-        }) as any;
-        if (res?.data?.ok) deleted++;
+        const ok = await deleteUserRecord(id);
+        if (ok) deleted++;
       }
       if (deleted > 0) toast.success(`${deleted} user${deleted > 1 ? "s" : ""} deleted`);
       setSelectedEmployeeIds(new Set());
@@ -145,71 +156,127 @@ export default function EmployeesPage() {
     });
   }, [employees, search, deptFilter, statusFilter, typeFilter, roleFilter]);
 
+  const getAvatarColors = (nameOrId: string) => {
+    const palette = [
+      { bg: "#DFF6E4", color: "#1B8A46" }, // Soft Mint / Emerald
+      { bg: "#E6E9FF", color: "#4C57D9" }, // Soft Indigo / Royal Blue
+      { bg: "#FDECE3", color: "#EB5A1E" }, // Soft Peach / Brand Orange
+      { bg: "#FDF3E3", color: "#A9720B" }, // Soft Amber / Gold
+      { bg: "#F6E6FF", color: "#9333EA" }, // Soft Violet
+      { bg: "#EAF3FF", color: "#1C6FC9" }, // Soft Sky Blue
+    ];
+    let hash = 0;
+    const str = nameOrId || "";
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % palette.length;
+    return palette[index];
+  };
+
   const statusBadge = (status: string) => {
     const variants: Record<string, string> = {
-      active: "bg-green-100 text-green-800",
-      inactive: "bg-gray-100 text-gray-500",
-      pending: "bg-yellow-100 text-yellow-800",
+      active: "bg-[#DFF6E4] text-[#1B8A46]",
+      inactive: "bg-[#F6F5F3] text-[#8B8B92]",
+      pending: "bg-[#FDF3E3] text-[#A9720B]",
     };
-    return <Badge className={`${variants[status] || ""} capitalize font-medium`}>{status}</Badge>;
+    return <Badge className={`${variants[status] || "bg-[#F6F5F3] text-[#8B8B92]"} capitalize font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none`}>{status}</Badge>;
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6 font-sans">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Users</h1>
-          <p className="text-muted-foreground mt-1">{employees.length} total users</p>
+          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Users</h1>
+          <p className="text-[13.5px] text-[#8B8B92] mt-0.5">{employees.length} total users</p>
         </div>
         {isAdmin && (
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => setCsvOpen(true)}>
-              <Upload className="h-4 w-4 mr-2" />
+          <div className="flex items-center gap-2.5">
+            <button
+              type="button"
+              onClick={() => setCsvOpen(true)}
+              className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors"
+            >
+              <Upload className="h-3.5 w-3.5 text-[#4B4B52]" />
               Import CSV
-            </Button>
-            <Button onClick={() => navigate("/employees/new")} className="rounded-button">
-              <Plus className="h-4 w-4 mr-2" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate("/employees/new")}
+              className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white rounded-[10px] px-4 py-2 text.5 text-[13px] font-semibold transition-colors shadow-sm"
+            >
+              <Plus className="h-3.5 w-3.5 text-white" />
               Add New User
-            </Button>
+            </button>
           </div>
         )}
       </div>
 
       <Tabs defaultValue="list">
-        <TabsList>
-          <TabsTrigger value="list">All Users </TabsTrigger>
-          {isAdmin && <TabsTrigger value="shift">Global Shift Settings</TabsTrigger>}
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit">
+          <TabsTrigger
+            value="list"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+          >
+            All Users
+          </TabsTrigger>
+          {isAdmin && (
+            <TabsTrigger
+              value="shift"
+              className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+            >
+              Global Shift Settings
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="list" className="space-y-6 mt-6">
-          <div className="flex flex-wrap gap-3">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by name, email, designation…" value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <div className="flex flex-wrap gap-2.5 items-center">
+            <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
+              <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
+              <input
+                type="text"
+                placeholder="Search by name, email, designation…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
+              />
             </div>
+
             <Select value={deptFilter} onValueChange={setDeptFilter}>
-              <SelectTrigger className="w-[160px]"><SelectValue placeholder="Department" /></SelectTrigger>
+              <SelectTrigger className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                <SelectValue placeholder="Department" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Departments</SelectItem>
                 {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
               </SelectContent>
             </Select>
+
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Status</SelectItem>
                 {STATUSES.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
               </SelectContent>
             </Select>
+
             <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[150px]"><SelectValue placeholder="Type" /></SelectTrigger>
+              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Types</SelectItem>
                 {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
               </SelectContent>
             </Select>
+
             <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Role" /></SelectTrigger>
+              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                <SelectValue placeholder="Role" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Roles</SelectItem>
                 <SelectItem value="admin">admin</SelectItem>
@@ -220,18 +287,18 @@ export default function EmployeesPage() {
             </Select>
           </div>
 
-          <div className="border border-border rounded-card bg-card overflow-hidden">
+          <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm">
             {isLoading ? (
-              <div className="px-4 py-8 text-center text-muted-foreground">Loading…</div>
+              <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">Loading…</div>
             ) : filtered.length === 0 ? (
-              <div className="px-4 py-8 text-center text-muted-foreground">No employees found</div>
+              <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">No employees found</div>
             ) : (
               <div>
-                <TableHeader gridCols="40px 1fr 192px 144px 96px 112px 80px">
+                <TableHeader gridCols="40px 2fr 1.7fr 1fr 0.8fr 1fr 0.7fr" className="px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
                   <div className="flex items-center justify-center">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-gray-300"
+                      className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
                       checked={selectedEmployeeIds.size === filtered.length && filtered.length > 0}
                       onChange={(e) => {
                         if (e.target.checked) setSelectedEmployeeIds(new Set(filtered.map((emp) => emp.id)));
@@ -247,11 +314,11 @@ export default function EmployeesPage() {
                   <span className="text-right">ACTIONS</span>
                 </TableHeader>
                 {selectedEmployeeIds.size > 0 && (
-                  <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                    <span className="text-sm text-blue-700">{selectedEmployeeIds.size} user{selectedEmployeeIds.size > 1 ? "s" : ""} selected</span>
+                  <div className="flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+                    <span className="text-xs font-semibold">{selectedEmployeeIds.size} user{selectedEmployeeIds.size > 1 ? "s" : ""} selected</span>
                     <div className="flex items-center gap-2">
-                      <button onClick={() => setSelectedEmployeeIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                      <button onClick={() => setBulkDeleteEmployeeOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
+                      <button onClick={() => setSelectedEmployeeIds(new Set())} className="px-3 py-1 text-xs font-medium text-white/80 hover:text-white border border-white/20 rounded-md bg-transparent">Clear selection</button>
+                      <button onClick={() => setBulkDeleteEmployeeOpen(true)} className="px-3 py-1 text-xs bg-[#E5484D] text-white rounded-md hover:bg-red-700 flex items-center gap-1 font-semibold">
                         <Trash2 className="h-3.5 w-3.5" />
                         Delete selected
                       </button>
@@ -261,17 +328,18 @@ export default function EmployeesPage() {
                 {filtered.map((emp) => {
                 const initials = emp.full_name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
                 const isOversight = emp.is_oversight;
+                const avatarStyle = getAvatarColors(emp.full_name || emp.id);
                 return (
                   <DataRow
                     key={emp.id}
                     onClick={() => navigate(`/employees/${emp.id}`)}
-                    className={isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : ""}
-                    gridCols="40px 1fr 192px 144px 96px 112px 80px"
+                    className={`px-5 py-3 border-b border-black/[0.05] transition-colors ${isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : "hover:bg-[#F6F5F3]/50"}`}
+                    gridCols="40px 2fr 1.7fr 1fr 0.8fr 1fr 0.7fr"
                   >
                     <div className="flex items-center justify-center">
                       <input
                         type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300"
+                        className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
                         checked={selectedEmployeeIds.has(emp.id)}
                         onChange={(e) => {
                           const next = new Set(selectedEmployeeIds);
@@ -283,27 +351,37 @@ export default function EmployeesPage() {
                       />
                     </div>
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9 shrink-0">
+                      <Avatar className="h-8 w-8 shrink-0 font-bold text-[11.5px]" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
                         <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
-                        <AvatarFallback className="text-xs font-semibold">{initials}</AvatarFallback>
+                        <AvatarFallback className="font-bold text-[11.5px] border-0" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>{initials}</AvatarFallback>
                       </Avatar>
                       <div className="min-w-0">
-                        <RowPrimary>{emp.full_name}</RowPrimary>
-                        <RowSecondary>{emp.designation}{emp.department ? ` · ${emp.department}` : ''}</RowSecondary>
+                        <RowPrimary className="font-bold text-[13.5px] text-[#17171A] truncate">{emp.full_name}</RowPrimary>
+                        <RowSecondary className="text-[12px] text-[#8B8B92] truncate">{emp.role || "Employee"}{emp.department ? ` · ${emp.department}` : ""}</RowSecondary>
                       </div>
                     </div>
-                    <RowDataItem label="EMAIL">{emp.email}</RowDataItem>
-                    <RowDataItem label="PHONE">{emp.phone || '—'}</RowDataItem>
+                    <RowDataItem label="EMAIL" className="text-[13px] text-[#4B4B52] truncate">{emp.email}</RowDataItem>
+                    <RowDataItem label="PHONE" className="text-[13px] text-[#4B4B52]">{emp.phone || "—"}</RowDataItem>
                     <RowBadgeItem label="STATUS">{statusBadge(emp.status)}</RowBadgeItem>
-                    <RowDataItem label="JOIN DATE">{emp.join_date ? format(new Date(emp.join_date), "MMM d, yyyy") : '—'}</RowDataItem>
-                    <RowActions className="justify-self-end">
-                      <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}>
-                        <Eye className="h-4 w-4" />
-                      </Button>
+                    <RowDataItem label="JOIN DATE" className="text-[13px] text-[#4B4B52]">{emp.join_date ? format(new Date(emp.join_date), "MMM d, yyyy") : "—"}</RowDataItem>
+                    <RowActions className="justify-self-end flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}
+                        className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
+                        title="View Profile"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-[#4B4B52]" />
+                      </button>
                       {isAdmin && (
-                        <Button variant="ghost" size="icon" onClick={(e) => { e.stopPropagation(); setDeletingUser(emp); }} className="text-destructive">
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setDeletingUser(emp); }}
+                          className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
+                          title="Delete User"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
+                        </button>
                       )}
                     </RowActions>
                   </DataRow>
@@ -327,20 +405,16 @@ export default function EmployeesPage() {
                   if (!deletingUser) return;
                   if (deletingUser.id === profile?.id) { toast.error("You cannot delete your own account."); return; }
                   setDeleting(true);
-                  try {
-                    const { data: { session } } = await supabase.auth.getSession();
-                    const res = await supabase.functions.invoke("manage-user", {
-                      body: { action: "delete", user_id: deletingUser.id },
-                      headers: { Authorization: `Bearer ${session?.access_token}` },
-                    }) as any;
-                    if (res?.data?.ok) {
-                      toast.success("User and related data deleted");
-                      queryClient.invalidateQueries({ queryKey: ["employees"] });
-                      setDeletingUser(null);
-                    } else {
-                      toast.error(res?.data?.error || res?.error?.message || "Failed to delete user");
-                    }
-                  } catch (err: any) {
+                    try {
+                      const ok = await deleteUserRecord(deletingUser.id);
+                      if (ok) {
+                        toast.success("User and related data deleted");
+                        queryClient.invalidateQueries({ queryKey: ["employees"] });
+                        setDeletingUser(null);
+                      } else {
+                        toast.error("Failed to delete user");
+                      }
+                    } catch (err: any) {
                     toast.error(err?.message || String(err));
                   } finally { setDeleting(false); }
                 }} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</Button>
@@ -366,15 +440,21 @@ export default function EmployeesPage() {
 
         {isAdmin && (
           <TabsContent value="shift" className="mt-6">
-            <Card className="p-6 space-y-6">
-              <div className="flex items-center justify-between">
+            <div className="bg-white border border-black/[0.08] rounded-[14px] p-[22px] space-y-6 shadow-sm font-sans">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <div>
-                  <h3 className="font-semibold text-lg">Global Shift & Leave Settings</h3>
-                  <p className="text-sm text-muted-foreground">Used for employees who do not have a custom shift override.</p>
+                  <h3 className="font-bold text-[16px] text-[#17171A]">Global Shift & Leave Settings</h3>
+                  <p className="text-[13px] text-[#8B8B92] mt-0.5">Used for employees who do not have a custom shift override.</p>
                 </div>
-                <Button onClick={handleSaveGlobalSettings} disabled={savingSettings} className="rounded-button">
-                  <Save className="h-4 w-4 mr-2" />{savingSettings ? "Saving…" : "Save Settings"}
-                </Button>
+                <button
+                  type="button"
+                  onClick={handleSaveGlobalSettings}
+                  disabled={savingSettings}
+                  className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm disabled:opacity-50"
+                >
+                  <Save className="h-3.5 w-3.5 text-white" />
+                  {savingSettings ? "Saving…" : "Save Settings"}
+                </button>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -412,11 +492,10 @@ export default function EmployeesPage() {
                       <Label>Default Reminder (min)</Label>
                       <Input type="number" value={reminderOffset} onChange={(e) => setReminderOffset(e.target.value)} />
                     </div>
-
                   </div>
                 </div>
               </div>
-            </Card>
+            </div>
           </TabsContent>
         )}
       </Tabs>

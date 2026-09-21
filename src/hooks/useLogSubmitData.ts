@@ -217,7 +217,7 @@ export function useLogSubmitData() {
 
   // 9. Available tasks query
   const { data: availableTasks = [] } = useQuery({
-    queryKey: ["my-project-tasks", selectedProjectId, user?.id],
+    queryKey: ["my-project-tasks", selectedProjectId, user?.id, workflowStatuses],
     queryFn: async () => {
       const doneStatusIds = (workflowStatuses || [])
         .filter((s: any) => s.category === "done")
@@ -231,12 +231,20 @@ export function useLogSubmitData() {
         .order("title");
 
       if (doneStatusIds.length > 0) {
-        query = query.not.in("status_id", doneStatusIds);
+        query = query.not("status_id", "in", `(${doneStatusIds.join(",")})`);
       }
 
       const { data: tasks } = await query;
       if (!tasks) return [];
-      const taskIds = tasks.map((t: any) => t.id);
+
+      const filteredTasks = tasks.filter((t: any) => {
+        if (t.status_id && doneStatusIds.includes(t.status_id)) return false;
+        if (t.status && ["completed", "done"].includes(String(t.status).toLowerCase())) return false;
+        return true;
+      });
+
+      if (filteredTasks.length === 0) return [];
+      const taskIds = filteredTasks.map((t: any) => t.id);
       const { data: logs } = await supabase
         .from("daily_logs")
         .select("task_id, hours")
@@ -246,12 +254,12 @@ export function useLogSubmitData() {
       (logs || []).forEach((l: any) => {
         loggedMap[l.task_id] = (loggedMap[l.task_id] || 0) + Number(l.hours || 0);
       });
-      return tasks.map((t: any) => ({
+      return filteredTasks.map((t: any) => ({
         ...t,
         logged_hours: loggedMap[t.id] || 0,
       }));
     },
-    enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && !!user?.id,
+    enabled: !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && !!user?.id && workflowStatuses !== undefined,
   });
 
   // 10. Date logs query for currently selected date

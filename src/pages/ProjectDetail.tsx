@@ -701,14 +701,11 @@ export default function ProjectDetailPage() {
     }
     if (editSprintTaskIds.length > 0) {
       const assignTasks = (tasks || []).filter((t: any) => editSprintTaskIds.includes(t.id));
-      const finalAssignTasks = editSprintStatus === 'completed' 
-        ? assignTasks.filter((t: any) => doneStatusIds.has(t.status_id) || t.status === 'complete')
-        : assignTasks;
 
-      if (finalAssignTasks.length > 0) {
+      if (assignTasks.length > 0) {
         const { error: assignErr } = await supabase.from("tasks").update({
           sprint_id: editSprintId,
-        }).in("id", finalAssignTasks.map((t: any) => t.id));
+        }).in("id", assignTasks.map((t: any) => t.id));
         if (assignErr) { toast.error(assignErr.message); return; }
       }
     }
@@ -1376,7 +1373,7 @@ export default function ProjectDetailPage() {
         taskEstimatedHours={taskEstimatedHours}
         setTaskEstimatedHours={setTaskEstimatedHours}
         taskDueDate={taskDueDate}
-        setTaskPlannedStartDate={setTaskDueDate}
+        setTaskDueDate={setTaskDueDate}
         taskClientVisible={taskClientVisible}
         setTaskClientVisible={setTaskClientVisible}
         editTaskTitle={editTaskTitle}
@@ -1392,7 +1389,7 @@ export default function ProjectDetailPage() {
         editTaskEstimatedHours={editTaskEstimatedHours}
         setEditTaskEstimatedHours={setEditTaskEstimatedHours}
         editTaskDueDate={editTaskDueDate}
-        setEditTaskPlannedStartDate={setEditTaskDueDate}
+        setEditTaskDueDate={setEditTaskDueDate}
         editTaskClientVisible={editTaskClientVisible}
         setEditTaskClientVisible={setEditTaskClientVisible}
         descExpanded={descExpanded}

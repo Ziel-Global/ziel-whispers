@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -19,9 +20,11 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, GripVertical, ArrowUpDown } from "lucide-react";
+import { ChevronDown, Download, GitBranch, GripVertical, Loader2, Plus, Trash2 } from "lucide-react";
 import { DataRow, TableHeader, RowPrimary, RowSecondary, RowDataItem, RowActions, editButtonClass } from "@/components/ui/data-row";
 import { getCategoryColor } from "@/lib/workflow";
+import { exportWorkflowPdf } from "@/lib/exportWorkflowPdf";
+import { WorkflowPathPreview } from "@/components/workflow/WorkflowPathPreview";
 
 type Template = {
   id: string;
@@ -57,17 +60,53 @@ const CATEGORY_OPTIONS = [
 ];
 
 const COLOR_OPTIONS = [
-  { value: "bg-gray-100 text-gray-800", label: "Gray" },
-  { value: "bg-blue-100 text-blue-800", label: "Blue" },
-  { value: "bg-yellow-100 text-yellow-800", label: "Yellow" },
-  { value: "bg-green-100 text-green-800", label: "Green" },
-  { value: "bg-red-100 text-red-800", label: "Red" },
-  { value: "bg-purple-100 text-purple-800", label: "Purple" },
-  { value: "bg-pink-100 text-pink-800", label: "Pink" },
-  { value: "bg-indigo-100 text-indigo-800", label: "Indigo" },
-  { value: "bg-orange-100 text-orange-800", label: "Orange" },
-  { value: "bg-teal-100 text-teal-800", label: "Teal" },
+  { value: "bg-gray-100 text-gray-800", label: "Gray", dot: "#6b7280" },
+  { value: "bg-blue-100 text-blue-800", label: "Blue", dot: "#5f7ee2" },
+  { value: "bg-yellow-100 text-yellow-800", label: "Yellow", dot: "#d4a017" },
+  { value: "bg-green-100 text-green-800", label: "Green", dot: "#4cab74" },
+  { value: "bg-red-100 text-red-800", label: "Red", dot: "#d96a6a" },
+  { value: "bg-purple-100 text-purple-800", label: "Purple", dot: "#9b6ac8" },
+  { value: "bg-pink-100 text-pink-800", label: "Pink", dot: "#db5a8c" },
+  { value: "bg-indigo-100 text-indigo-800", label: "Indigo", dot: "#4f46e5" },
+  { value: "bg-orange-100 text-orange-800", label: "Orange", dot: "#f47a2a" },
+  { value: "bg-teal-100 text-teal-800", label: "Teal", dot: "#1aa39a" },
 ];
+
+const DOT_HEX_BY_BG: Record<string, string> = {
+  "bg-gray-100": "#6b7280",
+  "bg-gray-500": "#6b7280",
+  "bg-blue-100": "#5f7ee2",
+  "bg-blue-500": "#5f7ee2",
+  "bg-yellow-100": "#d4a017",
+  "bg-yellow-500": "#d4a017",
+  "bg-green-100": "#4cab74",
+  "bg-green-500": "#4cab74",
+  "bg-red-100": "#d96a6a",
+  "bg-red-500": "#d96a6a",
+  "bg-purple-100": "#9b6ac8",
+  "bg-purple-500": "#9b6ac8",
+  "bg-pink-100": "#db5a8c",
+  "bg-pink-500": "#db5a8c",
+  "bg-indigo-100": "#4f46e5",
+  "bg-indigo-500": "#4f46e5",
+  "bg-orange-100": "#f47a2a",
+  "bg-orange-500": "#f47a2a",
+  "bg-teal-100": "#1aa39a",
+  "bg-teal-500": "#1aa39a",
+};
+
+function statusDotHex(color: string) {
+  const match = COLOR_OPTIONS.find((c) => c.value === color);
+  if (match) return match.dot;
+  const bg = (color || "").split(" ")[0];
+  return DOT_HEX_BY_BG[bg] || "#6b7280";
+}
+
+function normalizeStatusColor(color: string) {
+  if (COLOR_OPTIONS.some((c) => c.value === color)) return color;
+  const hex = statusDotHex(color);
+  return COLOR_OPTIONS.find((c) => c.dot === hex)?.value || COLOR_OPTIONS[0].value;
+}
 
 export default function WorkflowTemplatesPage() {
   const { profile } = useAuth();
@@ -89,6 +128,10 @@ export default function WorkflowTemplatesPage() {
   const [templateDesc, setTemplateDesc] = useState("");
 
   const [statusDialogOpen, setStatusDialogOpen] = useState(false);
+  const [savingTemplate, setSavingTemplate] = useState(false);
+  const [savingStatus, setSavingStatus] = useState(false);
+  const [savingChanges, setSavingChanges] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
   const [editStatusId, setEditStatusId] = useState<string | null>(null);
   const [statusName, setStatusName] = useState("");
   const [statusCategory, setStatusCategory] = useState("todo");
@@ -102,6 +145,12 @@ export default function WorkflowTemplatesPage() {
   const [confirmDelStatusId, setConfirmDelStatusId] = useState<string | null>(null);
   const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
   const [bulkDeleteTemplateOpen, setBulkDeleteTemplateOpen] = useState(false);
+  const [localOrderIds, setLocalOrderIds] = useState<string[] | null>(null);
+  const [draggingStatusId, setDraggingStatusId] = useState<string | null>(null);
+  const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
+  const dragFromHandleRef = useRef(false);
+  const dragOrderRef = useRef<string[] | null>(null);
+  const pathSvgRef = useRef<SVGSVGElement | null>(null);
 
   const { data: templates, isLoading } = useQuery({
     queryKey: ["workflow-templates"],
@@ -142,6 +191,32 @@ export default function WorkflowTemplatesPage() {
   const expandedStatuses = expandedId ? (statusesMap?.[expandedId] || []) : [];
   const expandedTransitions = expandedId ? (transitionsMap?.[expandedId] || []) : [];
 
+  const displayStatuses = useMemo(() => {
+    if (!localOrderIds) return expandedStatuses;
+    const byId = new Map(expandedStatuses.map((s) => [s.id, s]));
+    const ordered: WorkflowStatus[] = [];
+    localOrderIds.forEach((id) => {
+      const status = byId.get(id);
+      if (status) ordered.push(status);
+    });
+    expandedStatuses.forEach((s) => {
+      if (!localOrderIds.includes(s.id)) ordered.push(s);
+    });
+    return ordered.map((s, i) => ({ ...s, sort_order: i }));
+  }, [expandedStatuses, localOrderIds]);
+
+  useEffect(() => {
+    setLocalOrderIds(null);
+    setDraggingStatusId(null);
+    setDragOverStatusId(null);
+  }, [expandedId]);
+
+  useEffect(() => {
+    if (!localOrderIds) return;
+    const serverIds = expandedStatuses.map((s) => s.id);
+    if (serverIds.join() === localOrderIds.join()) setLocalOrderIds(null);
+  }, [expandedStatuses, localOrderIds]);
+
   function openNewTemplate() {
     setEditTemplateId(null);
     setTemplateName("");
@@ -158,6 +233,8 @@ export default function WorkflowTemplatesPage() {
 
   async function saveTemplate() {
     if (!templateName.trim()) { toast.error("Name is required"); return; }
+    setSavingTemplate(true);
+    try {
     if (editTemplateId) {
       const { error } = await supabase
         .from("workflow_templates")
@@ -193,6 +270,9 @@ export default function WorkflowTemplatesPage() {
     queryClient.invalidateQueries({ queryKey: ["workflow-statuses"] });
     setTemplateDialogOpen(false);
     toast.success(editTemplateId ? "Template updated" : "Template created");
+    } finally {
+      setSavingTemplate(false);
+    }
   }
 
   async function deleteTemplate(id: string) {
@@ -230,8 +310,7 @@ export default function WorkflowTemplatesPage() {
     setStatusColor("bg-gray-100 text-gray-800");
     setStatusInitial(false);
     setStatusRetired(false);
-    const maxOrder = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
-    setStatusSortOrder(String(maxOrder + 1));
+    setStatusSortOrder(String(displayStatuses.length + 1));
     setStatusDialogOpen(true);
   }
 
@@ -239,108 +318,65 @@ export default function WorkflowTemplatesPage() {
     setEditStatusId(s.id);
     setStatusName(s.name);
     setStatusCategory(s.category);
-    setStatusColor(s.color);
+    setStatusColor(normalizeStatusColor(s.color));
     setStatusInitial(s.is_initial);
     setStatusRetired(s.retired ?? false);
-    setStatusSortOrder(String(s.sort_order));
+    const visibleIndex = displayStatuses.findIndex((row) => row.id === s.id);
+    setStatusSortOrder(String(visibleIndex >= 0 ? visibleIndex + 1 : displayStatuses.length));
     setStatusDialogOpen(true);
   }
 
   async function saveStatus() {
     if (!statusName.trim() || !expandedId) { toast.error("Name is required"); return; }
-    const targetOrder = parseInt(statusSortOrder, 10);
-    if (isNaN(targetOrder) || targetOrder < 0) { toast.error("Sort order must be a non-negative number"); return; }
+    const parsed = parseInt(statusSortOrder, 10);
+    if (isNaN(parsed)) { toast.error("Order must be a number"); return; }
 
-    const others = expandedStatuses.filter((s) => s.id !== editStatusId);
-    const maxOrderAll = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
-    const tempOrder = maxOrderAll + 1;
-
+    setSavingStatus(true);
+    try {
     if (editStatusId) {
-      const current = expandedStatuses.find((s) => s.id === editStatusId);
-      const oldOrder = current ? current.sort_order : targetOrder;
-
-      if (targetOrder !== oldOrder) {
-        // Park the moved status out of the way first, so no unique-constraint collisions
-        // occur while the other statuses shift.
-        const { error: parkError } = await supabase
-          .from("workflow_statuses")
-          .update({ sort_order: tempOrder })
-          .eq("id", editStatusId);
-        if (parkError) {
-          toast.error(`Could not save status: ${parkError.message}`);
-          return;
-        }
-
-        if (targetOrder < oldOrder) {
-          // Moving up: statuses between target and old shift down by 1 (descending to keep slots free)
-          const toShift = others
-            .filter((s) => s.sort_order >= targetOrder && s.sort_order < oldOrder)
-            .sort((a, b) => b.sort_order - a.sort_order);
-          for (const s of toShift) {
-            const { error } = await supabase.from("workflow_statuses").update({ sort_order: s.sort_order + 1 }).eq("id", s.id);
-            if (error) {
-              toast.error(`Could not save status: ${error.message}`);
-              return;
-            }
-          }
-        } else {
-          // Moving down: statuses between old and target shift up by 1 (ascending to keep slots free)
-          const toShift = others
-            .filter((s) => s.sort_order > oldOrder && s.sort_order <= targetOrder)
-            .sort((a, b) => a.sort_order - b.sort_order);
-          for (const s of toShift) {
-            const { error } = await supabase.from("workflow_statuses").update({ sort_order: s.sort_order - 1 }).eq("id", s.id);
-            if (error) {
-              toast.error(`Could not save status: ${error.message}`);
-              return;
-            }
-          }
-        }
-      }
-
+      const n = displayStatuses.length;
+      const position = Math.min(n, Math.max(1, parsed));
       const { error: updateError } = await supabase.from("workflow_statuses").update({
         name: statusName.trim(),
         category: statusCategory,
         color: statusColor,
         is_initial: statusInitial,
-        sort_order: targetOrder,
-        // B2-A: persist retired flag
         retired: statusRetired,
       } as any).eq("id", editStatusId);
       if (updateError) {
         toast.error(`Could not save status: ${updateError.message}`);
         return;
       }
+      const ids = displayStatuses.map((s) => s.id).filter((id) => id !== editStatusId);
+      ids.splice(position - 1, 0, editStatusId);
+      await persistStatusOrder(ids);
     } else {
-      // Adding: shift everything at target or later down by 1 (descending keeps slots free)
-      const toShift = others
-        .filter((s) => s.sort_order >= targetOrder)
-        .sort((a, b) => b.sort_order - a.sort_order);
-      for (const s of toShift) {
-        const { error } = await supabase.from("workflow_statuses").update({ sort_order: s.sort_order + 1 }).eq("id", s.id);
-        if (error) {
-          toast.error(`Could not save status: ${error.message}`);
-          return;
-        }
-      }
-      const { error: insertError } = await supabase.from("workflow_statuses").insert({
+      const n = displayStatuses.length;
+      const position = Math.min(n + 1, Math.max(1, parsed));
+      const maxOrder = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
+      const { data: created, error: insertError } = await supabase.from("workflow_statuses").insert({
         workflow_template_id: expandedId,
         name: statusName.trim(),
         category: statusCategory,
         color: statusColor,
-        sort_order: targetOrder,
+        sort_order: maxOrder + 100,
         is_initial: statusInitial,
-        // B2-A: new statuses always start non-retired
         retired: false,
-      } as any);
-      if (insertError) {
-        toast.error(`Could not create status: ${insertError.message}`);
+      } as any).select("id").single();
+      if (insertError || !created?.id) {
+        toast.error(`Could not create status: ${insertError?.message || "Unknown error"}`);
         return;
       }
+      const ids = displayStatuses.map((s) => s.id);
+      ids.splice(position - 1, 0, created.id);
+      await persistStatusOrder(ids);
     }
     invalidateWorkflowConsumers();
     setStatusDialogOpen(false);
     toast.success(editStatusId ? "Status updated" : "Status created");
+    } finally {
+      setSavingStatus(false);
+    }
   }
 
   async function deleteStatus(id: string) {
@@ -407,184 +443,396 @@ export default function WorkflowTemplatesPage() {
     }
     invalidateWorkflowConsumers();
   }
+
+  function currentStatusIds() {
+    return displayStatuses.map((s) => s.id);
+  }
+
+  function moveStatusId(ids: string[], fromId: string, toId: string, after: boolean) {
+    if (fromId === toId) return ids;
+    const next = ids.filter((id) => id !== fromId);
+    const toIndex = next.indexOf(toId);
+    if (toIndex === -1) return ids;
+    next.splice(after ? toIndex + 1 : toIndex, 0, fromId);
+    return next;
+  }
+
+  async function persistStatusOrder(ids: string[]) {
+    if (!expandedId || !ids.length) return;
+    const maxOrder = expandedStatuses.reduce((max, s) => Math.max(max, s.sort_order), 0);
+    const parkBase = maxOrder + ids.length + 100;
+    for (let i = 0; i < ids.length; i++) {
+      const { error } = await supabase
+        .from("workflow_statuses")
+        .update({ sort_order: parkBase + i })
+        .eq("id", ids[i]);
+      if (error) {
+        toast.error(`Could not reorder statuses: ${error.message}`);
+        invalidateWorkflowConsumers();
+        return;
+      }
+    }
+    for (let i = 0; i < ids.length; i++) {
+      const { error } = await supabase
+        .from("workflow_statuses")
+        .update({ sort_order: i })
+        .eq("id", ids[i]);
+      if (error) {
+        toast.error(`Could not reorder statuses: ${error.message}`);
+        invalidateWorkflowConsumers();
+        return;
+      }
+    }
+    invalidateWorkflowConsumers();
+  }
+
   const gridCols = "40px 1fr 192px 80px";
-  const gridColsStatus = "1fr 112px 96px 64px 64px 80px";
+  const selectedTemplate = templates?.find(t => t.id === expandedId);
+
+  async function downloadWorkflowPdf() {
+    if (!selectedTemplate || exportingPdf) return;
+    setExportingPdf(true);
+    try {
+      await exportWorkflowPdf({
+        name: selectedTemplate.name,
+        description: selectedTemplate.description,
+        statuses: displayStatuses,
+        transitions: expandedTransitions,
+        svg: pathSvgRef.current,
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not download workflow PDF");
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  async function saveChanges() {
+    if (!selectedTemplate || savingChanges) return;
+    setSavingChanges(true);
+    try {
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["workflow-templates"] }),
+        queryClient.refetchQueries({ queryKey: ["workflow-statuses"] }),
+        queryClient.refetchQueries({ queryKey: ["workflow-transitions"] }),
+      ]);
+      toast.success("Changes saved");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save changes");
+    } finally {
+      setSavingChanges(false);
+    }
+  }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Workflow Templates</h1>
-        <Button onClick={openNewTemplate}><Plus className="h-4 w-4 mr-2" />New Template</Button>
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Workflow Templates</h1>
+            <p className="text-sm text-gray-500 mt-1">Create and manage reusable workflow templates with a cleaner, builder-focused layout.</p>
+          </div>
+          <Button
+            onClick={openNewTemplate}
+            className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] shadow-sm"
+          >
+            <Plus className="h-3.5 w-3.5 text-white" />
+            New Template
+          </Button>
+        </div>
+        
+        {templates && templates.length > 0 && (
+          <div className="flex min-w-0 items-center justify-between gap-4">
+            <div className="flex min-w-0 items-center gap-4">
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <Select value={expandedId || ""} onValueChange={setExpandedId}>
+                    <TooltipTrigger asChild>
+                      <SelectTrigger
+                        className="w-[300px] min-w-0 max-w-full overflow-hidden bg-white border-gray-200 [&>span]:min-w-0 [&>span]:flex-1 [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap [&>span]:text-left [&>svg]:shrink-0"
+                      >
+                        <SelectValue placeholder="Choose which workflow you want to edit" />
+                      </SelectTrigger>
+                    </TooltipTrigger>
+                    <SelectContent className="w-[300px]">
+                      {templates.map(t => (
+                        <SelectItem key={t.id} value={t.id} title={t.name}>
+                          <div className="flex min-w-0 max-w-[220px] items-center gap-2">
+                            <div className="h-2 w-2 shrink-0 rounded-full bg-orange-500" />
+                            <span className="truncate">{t.name}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <TooltipContent side="bottom" align="start" className="max-w-sm">
+                    {selectedTemplate?.name || "Choose which workflow you want to edit"}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <div className="text-xs text-gray-400 shrink-0">Choose which workflow you want to edit</div>
+            </div>
+            {selectedTemplate && (
+              <button
+                type="button"
+                title="Download workflow PDF"
+                aria-label="Download workflow PDF"
+                disabled={exportingPdf}
+                onClick={downloadWorkflowPdf}
+                className="inline-grid h-[38px] w-[38px] min-w-[38px] shrink-0 place-items-center rounded-[10px] border border-[#e7e9ee] bg-white text-[#687282] transition duration-150 hover:-translate-y-px hover:border-[#d8dde5] hover:bg-[#f8f9fb] hover:text-[#1f232b] disabled:pointer-events-none disabled:opacity-60"
+              >
+                {exportingPdf ? <Loader2 className="h-[17px] w-[17px] animate-spin" /> : <Download className="h-[17px] w-[17px]" strokeWidth={1.8} />}
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {isLoading ? (
-        <div className="space-y-2"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
-      ) : (
-        <Card>
-          <TableHeader gridCols={gridCols}>
-            <div className="flex items-center justify-center">
-              <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                checked={selectedTemplateIds.size === (templates || []).length && (templates || []).length > 0}
-                onChange={(e) => {
-                  if (e.target.checked) setSelectedTemplateIds(new Set((templates || []).map((t) => t.id)));
-                  else setSelectedTemplateIds(new Set());
-                }} />
+        <div className="space-y-4"><Skeleton className="h-32 w-full" /></div>
+      ) : selectedTemplate ? (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-5 border-b border-gray-100 flex items-start justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">{selectedTemplate.name}</h2>
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                <span>Workflow template</span>
+                <span>â€¢</span>
+                <span>Updated {new Date(selectedTemplate.created_at).toLocaleDateString()}</span>
+                <span>â€¢</span>
+                <span>{displayStatuses.length} statuses</span>
+              </div>
             </div>
-            <RowDataItem label="Name" />
-            <RowDataItem label="Created" />
-            <RowDataItem label="" />
-          </TableHeader>
-          <div>
-            {selectedTemplateIds.size > 0 && (
-              <div className="flex items-center justify-between px-4 py-2 bg-blue-50 border-b border-blue-100">
-                <span className="text-sm text-blue-700">{selectedTemplateIds.size} template{selectedTemplateIds.size > 1 ? "s" : ""} selected</span>
-                <div className="flex items-center gap-2">
-                  <button onClick={() => setSelectedTemplateIds(new Set())} className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800 border border-gray-300 rounded-lg bg-white">Clear selection</button>
-                  <button onClick={() => setBulkDeleteTemplateOpen(true)} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 flex items-center gap-1">
-                    <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                  </button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => openEditTemplate(selectedTemplate)}>Rename</Button>
+              <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setConfirmDelTemplateId(selectedTemplate.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Flowchart Section */}
+          <div className="p-5 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-semibold text-gray-900">Workflow Path</h3>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 text-xs font-bold">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    Live preview
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Keep the default path easy to follow. You can change the order anytime.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={openNewStatus}>Add Status</Button>
+            </div>
+            
+            <WorkflowPathPreview
+              statuses={displayStatuses}
+              transitions={expandedTransitions}
+              svgRef={pathSvgRef}
+            />
+          </div>
+
+          {/* Statuses Table Section */}
+          <div className="p-5 border-b border-gray-100">
+            <div className="flex flex-col mb-4">
+              <h3 className="font-semibold text-gray-900 mb-0.5">Statuses</h3>
+              <p className="text-xs text-gray-500">Manage the workflow statuses in one simple list.</p>
+            </div>
+            
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+              <div className="grid grid-cols-[30px_1fr_120px_80px_60px_100px] gap-4 p-3 bg-gray-50 border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider items-center">
+                <div></div>
+                <div>Status</div>
+                <div>System State</div>
+                <div>Initial</div>
+                <div>Order</div>
+                <div className="text-right">Actions</div>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {displayStatuses.map((s, index) => (
+                  <div
+                    key={s.id}
+                    draggable
+                    onDragStart={(e) => {
+                      if (!dragFromHandleRef.current) {
+                        e.preventDefault();
+                        return;
+                      }
+                      setDraggingStatusId(s.id);
+                      const ids = currentStatusIds();
+                      dragOrderRef.current = ids;
+                      setLocalOrderIds(ids);
+                      e.dataTransfer.effectAllowed = "move";
+                      e.dataTransfer.setData("text/plain", s.id);
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (!draggingStatusId || draggingStatusId === s.id) return;
+                      setDragOverStatusId(s.id);
+                      const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                      const after = e.clientY > rect.top + rect.height / 2;
+                      const next = moveStatusId(currentStatusIds(), draggingStatusId, s.id, after);
+                      dragOrderRef.current = next;
+                      setLocalOrderIds(next);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverStatusId === s.id) setDragOverStatusId(null);
+                    }}
+                    onDragEnd={async () => {
+                      dragFromHandleRef.current = false;
+                      setDraggingStatusId(null);
+                      setDragOverStatusId(null);
+                      const next = dragOrderRef.current;
+                      const original = expandedStatuses.map((st) => st.id);
+                      if (next && next.join() !== original.join()) {
+                        await persistStatusOrder(next);
+                      }
+                    }}
+                    className={`grid grid-cols-[30px_1fr_120px_80px_60px_100px] gap-4 p-3 items-center ${
+                      draggingStatusId === s.id
+                        ? "opacity-[0.45] bg-[#fff8f3]"
+                        : dragOverStatusId === s.id
+                          ? "shadow-[inset_0_2px_0_#f47a2a]"
+                          : "hover:bg-gray-50/50"
+                    }`}
+                  >
+                    <div
+                      title="Drag to reorder"
+                      aria-label="Drag to reorder"
+                      className="text-gray-400 cursor-grab active:cursor-grabbing flex justify-center"
+                      onMouseDown={() => {
+                        dragFromHandleRef.current = true;
+                      }}
+                      onMouseUp={() => {
+                        dragFromHandleRef.current = false;
+                      }}
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </div>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className="h-[9px] w-[9px] shrink-0 rounded-full"
+                        style={{ backgroundColor: statusDotHex(s.color) }}
+                      />
+                      <span className={`text-[13px] font-bold text-gray-900 truncate ${s.retired ? "line-through opacity-50" : ""}`}>{s.name}</span>
+                    </div>
+                    <div>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                        s.category === "done" ? "bg-green-50 text-green-700" :
+                        s.category === "in_progress" ? "bg-blue-50 text-blue-700" : "bg-gray-100 text-gray-600"
+                      }`}>
+                        {s.category === "todo" ? "To do" : s.category === "in_progress" ? "In progress" : s.category === "done" ? "Done" : s.category.replace("_", " ")}
+                      </span>
+                    </div>
+                    <div>
+                      {s.is_initial ? (
+                        <span className="inline-flex rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-bold text-green-700">Yes</span>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">No</span>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-gray-500">{index + 1}</div>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => openEditStatus(s)} className="h-8 rounded-lg border border-gray-200 bg-white px-2.5 text-[11px] font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-900">Edit</button>
+                      <button
+                        onClick={() => setConfirmDelStatusId(s.id)}
+                        className="grid h-8 w-8 place-items-center rounded-lg border border-gray-200 bg-white text-red-400 hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                        title="Delete status"
+                        aria-label="Delete status"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Advanced Transitions Section */}
+          <div className="p-5">
+            <details className="group rounded-xl border border-[#e7e9ee] bg-white">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 bg-white px-4 py-[14px] [&::-webkit-details-marker]:hidden">
+                <div>
+                  <strong className="block text-[14px] font-semibold text-[#181b22]">Advanced Transition Rules</strong>
+                  <span className="mt-0.5 block text-[11.5px] text-[#6f7785]">Open only when you need custom movement rules between statuses.</span>
+                </div>
+                <ChevronDown className="h-[15px] w-[15px] shrink-0 text-[#8f97a2] transition-transform duration-150 group-open:rotate-180" />
+              </summary>
+              <div className="border-t border-[#e7e9ee] bg-[#fcfcfd] p-[14px]">
+                <div className="overflow-auto rounded-[10px] border border-[#e7e9ee] bg-white">
+                  <table className="w-full min-w-[820px] border-separate border-spacing-0 text-center text-[11.5px]">
+                    <thead>
+                      <tr>
+                        <th className="sticky left-0 top-0 z-[3] min-w-[170px] border-b border-r border-[#e7e9ee] bg-[#fafbfc] px-[11px] py-2.5 text-left font-medium text-[#697180]">From ↓ / To →</th>
+                        {displayStatuses.map((s, i) => (
+                          <th
+                            key={s.id}
+                            className={`sticky top-0 z-[2] min-w-24 border-b border-[#e7e9ee] bg-[#fafbfc] px-[11px] py-2.5 font-medium text-[#697180] ${i === displayStatuses.length - 1 ? "border-r-0" : "border-r"}`}
+                          >
+                            {s.name}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayStatuses.map((from) => (
+                        <tr key={from.id}>
+                          <td className="sticky left-0 z-[1] min-w-[170px] border-b border-r border-[#e7e9ee] bg-white px-[11px] py-2.5 text-left font-semibold text-[#181b22]">{from.name}</td>
+                          {displayStatuses.map((to, i) => {
+                            const isSame = from.id === to.id;
+                            const hasTransition = !!expandedTransitions.find((t) => t.from_status_id === from.id && t.to_status_id === to.id);
+                            return (
+                              <td
+                                key={to.id}
+                                className={`min-w-24 border-b border-[#e7e9ee] px-[11px] py-2.5 ${i === displayStatuses.length - 1 ? "border-r-0" : "border-r"} ${isSame ? "bg-[#fbfcfd] text-[#c2c8d0]" : "bg-white"}`}
+                              >
+                                {isSame ? (
+                                  "—"
+                                ) : (
+                                  <input
+                                    type="checkbox"
+                                    checked={hasTransition}
+                                    onChange={() => toggleTransition(from.id, to.id)}
+                                    className="m-0 inline-grid size-[17px] cursor-pointer appearance-none place-content-center rounded-[4px] border-[1.5px] border-[#b9c1cc] bg-white checked:border-[#f47a2a] checked:bg-[#f47a2a] checked:after:text-[11px] checked:after:font-extrabold checked:after:leading-none checked:after:text-white checked:after:content-['✓'] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#f47a2a]/30"
+                                  />
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            )}
-            {(templates || []).map((t) => (
-              <div key={t.id}>
-                <DataRow
-                  gridCols={gridCols}
-                  className="cursor-pointer"
-                  onClick={() => setExpandedId(expandedId === t.id ? null : t.id)}
-                >
-                  <div className="flex items-center justify-center">
-                    <input type="checkbox" className="h-4 w-4 rounded border-gray-300"
-                      checked={selectedTemplateIds.has(t.id)}
-                      onChange={(e) => {
-                        const next = new Set(selectedTemplateIds);
-                        if (e.target.checked) next.add(t.id); else next.delete(t.id);
-                        setSelectedTemplateIds(next);
-                      }}
-                      onClick={(e) => e.stopPropagation()} />
-                  </div>
-                  <div>
-                    <RowPrimary>{t.name}</RowPrimary>
-                    {t.description && <RowSecondary>{t.description}</RowSecondary>}
-                  </div>
-                  <RowDataItem label="Created">{new Date(t.created_at).toLocaleDateString()}</RowDataItem>
-                  <RowActions>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); openEditTemplate(t); }}
-                      className={editButtonClass}
-                      title="Edit template"
-                    ><Pencil className="h-3.5 w-3.5" /></button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelTemplateId(t.id); }}
-                      className="shrink-0 p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors"
-                      title="Delete template"
-                    ><Trash2 className="h-3.5 w-3.5" /></button>
-                  </RowActions>
-                </DataRow>
-
-                {expandedId === t.id && (
-                  <div className="bg-gray-50 px-6 py-4 border-t border-b space-y-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="text-sm font-semibold uppercase tracking-[0.05em] text-gray-500">Statuses</h3>
-                      <Button size="sm" variant="outline" onClick={openNewStatus}><Plus className="h-3.5 w-3.5 mr-1" />Add Status</Button>
-                    </div>
-
-                    <TableHeader gridCols={gridColsStatus}>
-                      <RowDataItem label="Status" />
-                      <RowDataItem label="Category" />
-                      <RowDataItem label="Initial" />
-                      <RowDataItem label="Sort" />
-                      <RowDataItem label="Retired" />
-                      <RowDataItem label="" />
-                    </TableHeader>
-                    <div>
-                      {expandedStatuses.map((s) => (
-                        <DataRow key={s.id} gridCols={gridColsStatus}>
-                          <div className="flex items-center gap-2">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${s.color} ${s.retired ? "opacity-50 line-through" : ""}`}>{s.name}</span>
-                            {s.retired && <span className="inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">Retired</span>}
-                          </div>
-                          <RowDataItem label="Category">
-                            <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${getCategoryColor(s.category)}`}>
-                              {s.category.replace(/_/g, " ")}
-                            </span>
-                          </RowDataItem>
-                          <RowDataItem label="Initial">{s.is_initial ? <span className="text-green-600 font-bold">Yes</span> : "—"}</RowDataItem>
-                          <RowDataItem label="Sort">{s.sort_order}</RowDataItem>
-                          <RowDataItem label="Retired">
-                            {s.retired ? <span className="text-amber-600 font-semibold text-xs">Yes</span> : <span className="text-gray-400 text-xs">—</span>}
-                          </RowDataItem>
-                          <RowActions>
-                            <button onClick={() => openEditStatus(s)} className={editButtonClass} title="Edit status"><Pencil className="h-3.5 w-3.5" /></button>
-                            <button onClick={() => setConfirmDelStatusId(s.id)} disabled={deletingStatusId === s.id} className="shrink-0 p-1.5 rounded bg-red-500 text-white hover:bg-red-600 transition-colors disabled:opacity-50" title="Delete status"><Trash2 className="h-3.5 w-3.5" /></button>
-                          </RowActions>
-                        </DataRow>
-                      ))}
-                    </div>
-
-                    {expandedStatuses.length > 1 && (
-                      <>
-                        <h3 className="text-sm font-semibold uppercase tracking-[0.05em] text-gray-500 pt-2">Transitions</h3>
-                        <p className="text-xs text-gray-400">Check a cell to allow tasks to move from the row status to the column status. Any checked transition will be available to all project members.</p>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-xs border-collapse">
-                            <thead>
-                              <tr>
-                                <th className="p-2 border text-left font-medium text-gray-500">From \ To</th>
-                                {expandedStatuses.map((s) => (
-                                  <th key={s.id} className="p-2 border text-center font-medium">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${s.color} ${s.retired ? "opacity-50 line-through" : ""}`}>{s.name}</span>
-                                    {s.retired && <span className="block text-[9px] text-amber-600 font-semibold">retired</span>}
-                                  </th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {expandedStatuses.map((from) => (
-                                <tr key={from.id}>
-                                  <td className="p-2 border font-medium break-words">
-                                    <span className={`inline-block px-1.5 py-0.5 rounded text-xs ${from.color} ${from.retired ? "opacity-50 line-through" : ""}`}>{from.name}</span>
-                                    {from.retired && <span className="ml-1 text-[9px] text-amber-600 font-semibold">(retired)</span>}
-                                  </td>
-                                  {expandedStatuses.map((to) => {
-                                    const existingTransition = expandedTransitions.find(
-                                      (tr) => tr.from_status_id === from.id && tr.to_status_id === to.id
-                                    );
-                                    const hasTransition = !!existingTransition;
-                                    return (
-                                      <td key={to.id} className="p-2 border text-center break-words">
-                                        {from.id === to.id ? (
-                                          <span className="text-gray-300">—</span>
-                                        ) : (
-                                          <div className="flex flex-col items-center gap-1">
-                                            <input
-                                              type="checkbox"
-                                              checked={hasTransition}
-                                              onChange={() => toggleTransition(from.id, to.id)}
-                                              className="h-4 w-4 cursor-pointer accent-blue-600"
-                                            />
-                                          </div>
-                                        )}
-                                      </td>
-                                    );
-                                  })}
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
+            </details>
           </div>
-        </Card>
+          
+          <div className="p-4 border-t border-gray-200 bg-white flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" className="font-semibold text-gray-600" onClick={() => setExpandedId(null)} disabled={savingChanges}>Cancel</Button>
+            <Button size="sm" className="bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold" onClick={saveChanges} disabled={savingChanges}>
+              {savingChanges ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              {savingChanges ? "Saving…" : "Save Changes"}
+            </Button>
+          </div>
+
+        </div>
+      ) : (
+        <div className="text-center p-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <GitBranch className="h-6 w-6 text-gray-400" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-1">No template selected</h3>
+          <p className="text-xs">Select a template above or create a new one.</p>
+        </div>
       )}
 
       {/* Template Dialog */}
-      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+      <Dialog open={templateDialogOpen} onOpenChange={(open) => { if (!savingTemplate) setTemplateDialogOpen(open); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editTemplateId ? "Edit Template" : "New Template"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -598,138 +846,110 @@ export default function WorkflowTemplatesPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveTemplate}>Save</Button>
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} disabled={savingTemplate}>Cancel</Button>
+            <Button onClick={saveTemplate} disabled={savingTemplate} className="bg-[#EB5A1E] hover:bg-[#C64715] text-white">
+              {savingTemplate ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              {savingTemplate ? "Saving…" : "Save"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       {/* Status Dialog */}
-      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+      <Dialog open={statusDialogOpen} onOpenChange={(open) => { if (!savingStatus) setStatusDialogOpen(open); }}>
         <DialogContent>
           <DialogHeader><DialogTitle>{editStatusId ? "Edit Status" : "New Status"}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div>
               <Label>Name</Label>
-              <Input value={statusName} onChange={(e) => setStatusName(e.target.value)} placeholder="e.g. in_review" />
+              <Input value={statusName} onChange={(e) => setStatusName(e.target.value)} placeholder="e.g. QA Review" />
             </div>
             <div>
-              <Label>Category</Label>
+              <Label>System State</Label>
               <Select value={statusCategory} onValueChange={setStatusCategory}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {CATEGORY_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
-                  ))}
+                  <SelectItem value="todo">To do</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <Label>Color</Label>
+              <Label>Color Tag</Label>
               <Select value={statusColor} onValueChange={setStatusColor}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger>
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: statusDotHex(statusColor) }}
+                    />
+                    {COLOR_OPTIONS.find((c) => c.value === statusColor)?.label
+                      || COLOR_OPTIONS.find((c) => c.dot === statusDotHex(statusColor))?.label
+                      || "Color"}
+                  </span>
+                </SelectTrigger>
                 <SelectContent>
-                  {COLOR_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value}>
-                      <span className={`inline-block w-3 h-3 rounded-full mr-2 align-middle ${o.value.split(" ")[0]}`} />
-                      {o.label}
+                  {COLOR_OPTIONS.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>
+                      <span className="flex items-center gap-2">
+                        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: c.dot }} />
+                        {c.label}
+                      </span>
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
-              <div className="mt-2">
-                <span className={`inline-block px-3 py-1 rounded text-sm font-medium ${statusColor}`}>Preview</span>
-              </div>
             </div>
             <div>
-              <Label>Sort Order</Label>
-              <Input
-                type="number"
-                min={0}
-                value={statusSortOrder}
-                onChange={(e) => setStatusSortOrder(e.target.value)}
-                placeholder="e.g. 0"
-              />
-              {(() => {
-                const parsed = parseInt(statusSortOrder, 10);
-                const takenBy = !isNaN(parsed) && parsed >= 0
-                  ? expandedStatuses.find((s) => s.id !== editStatusId && s.sort_order === parsed)
-                  : undefined;
-                if (takenBy) {
-                  return (
-                    <p className="text-xs text-amber-600 mt-1">
-                      Sort {parsed} is taken by "{takenBy.name}". It will shift down by 1 to make room
-                      {!editStatusId && " (along with every status after it)"}.
-                    </p>
-                  );
-                }
-                return <p className="text-xs text-muted-foreground mt-1">Determines the column order on the kanban board. Defaults to the next available number.</p>;
-              })()}
+              <Label>Order (1 is first)</Label>
+              <Input type="number" min={1} value={statusSortOrder} onChange={(e) => setStatusSortOrder(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <input type="checkbox" checked={statusInitial} onChange={(e) => setStatusInitial(e.target.checked)} className="h-4 w-4 text-orange-500 rounded border-gray-300" id="initialCheck" />
+              <Label htmlFor="initialCheck" className="cursor-pointer font-normal">Set as the initial status</Label>
             </div>
             <div className="flex items-center gap-2">
-              <input type="checkbox" checked={statusInitial} onChange={(e) => setStatusInitial(e.target.checked)} className="h-4 w-4 accent-blue-600" />
-              <Label className="cursor-pointer">Initial status (default for new tasks)</Label>
+              <input type="checkbox" checked={statusRetired} onChange={(e) => setStatusRetired(e.target.checked)} className="h-4 w-4 text-orange-500 rounded border-gray-300" id="retiredCheck" />
+              <Label htmlFor="retiredCheck" className="cursor-pointer font-normal text-gray-500">Retired (hidden from new tasks)</Label>
             </div>
-            {/* B2-A: Retired flag */}
-            <div className="flex items-center gap-2">
-              <input type="checkbox" checked={statusRetired} onChange={(e) => setStatusRetired(e.target.checked)} className="h-4 w-4 accent-amber-500" />
-              <Label className="cursor-pointer text-amber-700">Retired (hidden from new transitions &amp; task creation)</Label>
-            </div>
-            {statusRetired && (
-              <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded p-2">
-                ⚠ Retired statuses remain valid for existing tasks and history, but will not appear as selectable destinations for new status changes.
-              </p>
-            )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancel</Button>
-            <Button onClick={saveStatus}>Save</Button>
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)} disabled={savingStatus}>Cancel</Button>
+            <Button onClick={saveStatus} disabled={savingStatus} className="bg-[#EB5A1E] hover:bg-[#C64715] text-white">
+              {savingStatus ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+              {savingStatus ? "Saving…" : "Save Status"}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Template Confirmation */}
+      {/* Delete Confirmations */}
       <AlertDialog open={!!confirmDelTemplateId} onOpenChange={(open) => !open && setConfirmDelTemplateId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete workflow template?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete this template and all its statuses and transitions. This cannot be undone.</AlertDialogDescription>
+            <AlertDialogDescription>This will permanently delete this template and all its statuses and transitions.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmDelTemplateId) deleteTemplate(confirmDelTemplateId); setConfirmDelTemplateId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (confirmDelTemplateId) deleteTemplate(confirmDelTemplateId); setConfirmDelTemplateId(null); }} className="bg-red-600">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Delete Status Confirmation */}
       <AlertDialog open={!!confirmDelStatusId} onOpenChange={(open) => !open && setConfirmDelStatusId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Delete status?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete this status and all its transitions. Tasks using this status may need to be updated.</AlertDialogDescription>
+            <AlertDialogDescription>This will permanently delete this status and all its transitions.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => { if (confirmDelStatusId) deleteStatus(confirmDelStatusId); setConfirmDelStatusId(null); }} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+            <AlertDialogAction onClick={() => { if (confirmDelStatusId) deleteStatus(confirmDelStatusId); setConfirmDelStatusId(null); }} className="bg-red-600">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-
-      {/* Bulk Delete Templates Confirmation */}
-      <AlertDialog open={bulkDeleteTemplateOpen} onOpenChange={setBulkDeleteTemplateOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedTemplateIds.size} Template{selectedTemplateIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>This will permanently delete these templates and all their statuses and transitions. This cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDeleteTemplates} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete all</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
     </div>
   );
 }

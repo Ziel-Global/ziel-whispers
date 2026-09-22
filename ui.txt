@@ -1,0 +1,317 @@
+  const selectedTemplate = templates?.find(t => t.id === expandedId);
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Workflow Templates</h1>
+            <p className="text-sm text-gray-500 mt-1">Create and manage reusable workflow templates with a cleaner, builder-focused layout.</p>
+          </div>
+          <Button onClick={openNewTemplate} className="bg-orange-500 hover:bg-orange-600 text-white font-semibold shadow-sm">
+            New Template
+          </Button>
+        </div>
+        
+        {templates && templates.length > 0 && (
+          <div className="flex items-center gap-4">
+            <Select value={expandedId || ""} onValueChange={setExpandedId}>
+              <SelectTrigger className="w-[300px] bg-white border-gray-200">
+                <SelectValue placeholder="Choose which workflow you want to edit" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.map(t => (
+                  <SelectItem key={t.id} value={t.id}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full bg-orange-500" />
+                      {t.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="text-xs text-gray-400">Choose which workflow you want to edit</div>
+          </div>
+        )}
+      </div>
+
+      {isLoading ? (
+        <div className="space-y-4"><Skeleton className="h-32 w-full" /></div>
+      ) : selectedTemplate ? (
+        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
+          {/* Header */}
+          <div className="p-5 border-b border-gray-100 flex items-start justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">{selectedTemplate.name}</h2>
+              <div className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                <span>Workflow template</span>
+                <span>•</span>
+                <span>Updated {new Date(selectedTemplate.created_at).toLocaleDateString()}</span>
+                <span>•</span>
+                <span>{expandedStatuses.length} statuses</span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => openEditTemplate(selectedTemplate)}>Rename</Button>
+              <Button variant="outline" size="sm" className="text-red-500 hover:text-red-600 hover:bg-red-50" onClick={() => setConfirmDelTemplateId(selectedTemplate.id)}>
+                <Trash2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Flowchart Section */}
+          <div className="p-5 border-b border-gray-100">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-3">
+                  <h3 className="font-semibold text-gray-900">Workflow Path</h3>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200 text-xs font-bold">
+                    <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                    Live preview
+                  </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">Keep the default path easy to follow. You can change the order anytime.</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={openNewStatus}>Add Status</Button>
+            </div>
+            
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-6 overflow-x-auto flex items-center justify-center min-h-[160px]">
+              {expandedStatuses.length === 0 ? (
+                <div className="text-sm text-gray-400 italic">No statuses yet. Add one to start building the path.</div>
+              ) : (
+                <div className="flex items-center">
+                  {expandedStatuses.map((status, i) => (
+                    <div key={status.id} className="flex items-center">
+                      <div className={`w-[140px] bg-white border ${status.is_initial ? 'border-orange-200 bg-orange-50/20' : 'border-gray-200'} rounded-xl p-3 shadow-sm`}>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="w-5 h-5 flex items-center justify-center bg-gray-100 text-gray-600 rounded-full text-[10px] font-bold">{i+1}</span>
+                          <span className="text-[10px] px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-semibold capitalize">{status.category.replace('_', ' ')}</span>
+                        </div>
+                        <div className="font-bold text-sm text-gray-900 truncate">{status.name}</div>
+                        <div className="text-[10px] text-gray-500 mt-0.5">{status.is_initial ? 'Initial stage' : 'Stage'}</div>
+                      </div>
+                      {i < expandedStatuses.length - 1 && (
+                        <div className="w-10 border-t-2 border-dashed border-gray-300 mx-2 relative">
+                           <div className="absolute right-[-2px] top-1/2 -translate-y-1/2 w-0 h-0 border-t-[4px] border-t-transparent border-b-[4px] border-b-transparent border-l-[6px] border-l-gray-300" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Statuses Table Section */}
+          <div className="p-5 border-b border-gray-100">
+            <div className="flex flex-col mb-4">
+              <h3 className="font-semibold text-gray-900 mb-0.5">Statuses</h3>
+              <p className="text-xs text-gray-500">Manage the workflow statuses in one simple list.</p>
+            </div>
+            
+            <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+              <div className="grid grid-cols-[30px_1fr_120px_80px_60px_100px] gap-4 p-3 bg-gray-50 border-b border-gray-200 text-[11px] font-bold text-gray-500 uppercase tracking-wider items-center">
+                <div></div>
+                <div>Status</div>
+                <div>System State</div>
+                <div>Initial</div>
+                <div>Order</div>
+                <div className="text-right">Actions</div>
+              </div>
+              <div className="divide-y divide-gray-100">
+                {expandedStatuses.map((s) => (
+                  <div key={s.id} className="grid grid-cols-[30px_1fr_120px_80px_60px_100px] gap-4 p-3 items-center hover:bg-gray-50/50">
+                    <div className="text-gray-300 cursor-grab flex justify-center"><GripVertical className="h-4 w-4" /></div>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${s.color.split(' ')[0]}`} />
+                      <span className={`text-sm font-bold text-gray-900 ${s.retired ? 'line-through opacity-50' : ''}`}>{s.name}</span>
+                    </div>
+                    <div>
+                      <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold capitalize ${
+                        s.category === 'done' ? 'bg-green-50 text-green-700' : 
+                        s.category === 'in_progress' ? 'bg-blue-50 text-blue-700' : 'bg-gray-100 text-gray-600'
+                      }`}>{s.category.replace('_', ' ')}</span>
+                    </div>
+                    <div className="text-[11px] font-bold text-green-600">{s.is_initial ? 'Yes' : <span className="text-gray-400 font-normal">No</span>}</div>
+                    <div className="text-[11px] text-gray-500">{s.sort_order}</div>
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button onClick={() => openEditStatus(s)} className="p-1.5 text-gray-500 hover:text-gray-900 border border-gray-200 rounded bg-white hover:bg-gray-50 text-[11px] font-medium px-2.5">Edit</button>
+                      <button onClick={() => setConfirmDelStatusId(s.id)} className="p-1.5 text-red-400 hover:text-red-600 border border-gray-200 rounded bg-white hover:bg-red-50 text-xs font-medium px-2.5"><Trash2 className="h-3.5 w-3.5" /></button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Advanced Transitions Section */}
+          <div className="p-5">
+            <details className="group border border-gray-200 rounded-xl bg-white overflow-hidden">
+              <summary className="p-4 flex items-center justify-between cursor-pointer list-none [&::-webkit-details-marker]:hidden bg-white hover:bg-gray-50">
+                <div>
+                  <h3 className="font-semibold text-gray-900 text-[13px]">Advanced Transition Rules</h3>
+                  <p className="text-[11px] text-gray-500 mt-0.5">Open only when you need custom movement rules between statuses.</p>
+                </div>
+                <ArrowUpDown className="h-4 w-4 text-gray-400 group-open:rotate-180 transition-transform" />
+              </summary>
+              <div className="p-4 border-t border-gray-100 bg-[#fcfcfd]">
+                <div className="border border-gray-200 rounded-lg overflow-x-auto bg-white">
+                  <table className="w-full text-xs text-center border-collapse">
+                    <thead>
+                      <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-500 font-semibold text-[11px]">
+                        <th className="p-3 text-left border-r border-gray-200 font-medium">From / To</th>
+                        {expandedStatuses.map(s => <th key={s.id} className="p-3 border-r border-gray-200 font-medium">{s.name}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {expandedStatuses.map((from) => (
+                        <tr key={from.id} className="border-b border-gray-100 last:border-b-0">
+                          <td className="p-3 text-left border-r border-gray-200 font-semibold text-gray-700 text-[11.5px]">{from.name}</td>
+                          {expandedStatuses.map((to) => {
+                            const isSame = from.id === to.id;
+                            const hasTransition = !!expandedTransitions.find(t => t.from_status_id === from.id && t.to_status_id === to.id);
+                            return (
+                              <td key={to.id} className={`p-3 border-r border-gray-200 ${isSame ? 'bg-gray-50/80 text-gray-300' : ''}`}>
+                                {isSame ? '—' : (
+                                  <input 
+                                    type="checkbox" 
+                                    checked={hasTransition}
+                                    onChange={() => toggleTransition(from.id, to.id)}
+                                    className="w-4 h-4 rounded-sm border-gray-300 text-orange-500 focus:ring-orange-500 cursor-pointer"
+                                  />
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </details>
+          </div>
+          
+          <div className="p-4 border-t border-gray-200 bg-white flex items-center justify-between">
+             <div className="text-[11px] text-gray-500">The layout is tightened so the page feels more compact and builder-focused.</div>
+             <div className="flex gap-2">
+               <Button variant="outline" size="sm" className="font-semibold text-gray-600" onClick={() => setExpandedId(null)}>Cancel</Button>
+               <Button size="sm" className="bg-orange-500 hover:bg-orange-600 text-white font-semibold">Save Changes</Button>
+             </div>
+          </div>
+
+        </div>
+      ) : (
+        <div className="text-center p-16 text-gray-500 bg-white rounded-xl border border-dashed border-gray-300 flex flex-col items-center justify-center">
+          <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+            <GitBranch className="h-6 w-6 text-gray-400" />
+          </div>
+          <h3 className="text-sm font-semibold text-gray-900 mb-1">No template selected</h3>
+          <p className="text-xs">Select a template above or create a new one.</p>
+        </div>
+      )}
+
+      {/* Template Dialog */}
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editTemplateId ? "Edit Template" : "New Template"}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={templateName} onChange={(e) => setTemplateName(e.target.value)} placeholder="e.g. Standard" />
+            </div>
+            <div>
+              <Label>Description</Label>
+              <Textarea value={templateDesc} onChange={(e) => setTemplateDesc(e.target.value)} placeholder="Optional description" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveTemplate} className="bg-orange-500 hover:bg-orange-600 text-white">Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Status Dialog */}
+      <Dialog open={statusDialogOpen} onOpenChange={setStatusDialogOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{editStatusId ? "Edit Status" : "New Status"}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={statusName} onChange={(e) => setStatusName(e.target.value)} placeholder="e.g. QA Review" />
+            </div>
+            <div>
+              <Label>System State</Label>
+              <Select value={statusCategory} onValueChange={setStatusCategory}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todo">To do</SelectItem>
+                  <SelectItem value="in_progress">In progress</SelectItem>
+                  <SelectItem value="done">Done</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Color Tag</Label>
+              <Select value={statusColor} onValueChange={setStatusColor}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="bg-gray-500 text-white">Gray</SelectItem>
+                  <SelectItem value="bg-blue-500 text-white">Blue</SelectItem>
+                  <SelectItem value="bg-green-500 text-white">Green</SelectItem>
+                  <SelectItem value="bg-purple-500 text-white">Purple</SelectItem>
+                  <SelectItem value="bg-orange-500 text-white">Orange</SelectItem>
+                  <SelectItem value="bg-red-500 text-white">Red</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Sort Order</Label>
+              <Input type="number" min={0} value={statusSortOrder} onChange={(e) => setStatusSortOrder(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2 mt-4">
+              <input type="checkbox" checked={statusInitial} onChange={(e) => setStatusInitial(e.target.checked)} className="h-4 w-4 text-orange-500 rounded border-gray-300" id="initialCheck" />
+              <Label htmlFor="initialCheck" className="cursor-pointer font-normal">Set as the initial status</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" checked={statusRetired} onChange={(e) => setStatusRetired(e.target.checked)} className="h-4 w-4 text-orange-500 rounded border-gray-300" id="retiredCheck" />
+              <Label htmlFor="retiredCheck" className="cursor-pointer font-normal text-gray-500">Retired (hidden from new tasks)</Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStatusDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveStatus} className="bg-orange-500 hover:bg-orange-600 text-white">Save Status</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmations */}
+      <AlertDialog open={!!confirmDelTemplateId} onOpenChange={(open) => !open && setConfirmDelTemplateId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete workflow template?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete this template and all its statuses and transitions.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmDelTemplateId) deleteTemplate(confirmDelTemplateId); setConfirmDelTemplateId(null); }} className="bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!confirmDelStatusId} onOpenChange={(open) => !open && setConfirmDelStatusId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete status?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete this status and all its transitions.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { if (confirmDelStatusId) deleteStatus(confirmDelStatusId); setConfirmDelStatusId(null); }} className="bg-red-600">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}

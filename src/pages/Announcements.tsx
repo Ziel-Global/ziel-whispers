@@ -144,7 +144,15 @@ export default function AnnouncementsPage() {
           <h1 className="text-2xl font-bold tracking-tight">Announcements</h1>
           <p className="text-muted-foreground mt-1">{isAdmin ? "Create and manage company announcements" : "Stay updated with company news"}</p>
         </div>
-        {isAdmin && <Button onClick={openAdd} className="rounded-button"><Plus className="h-4 w-4 mr-2" />New Announcement</Button>}
+        {isAdmin && (
+          <Button
+            onClick={openAdd}
+            className="rounded-[10px] bg-[#EB5A1E] hover:bg-[#C64715] text-white hover:text-white font-semibold shadow-sm [&_svg]:!text-white [&_svg]:!stroke-white"
+          >
+            <Plus className="h-4 w-4 mr-2 text-white" stroke="currentColor" />
+            New Announcement
+          </Button>
+        )}
       </div>
 
       {isLoading && <p className="text-muted-foreground">Loading…</p>}

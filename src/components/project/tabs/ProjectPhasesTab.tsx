@@ -18,6 +18,13 @@ interface ProjectPhasesTabProps {
   setAddPhaseOpen: (open: boolean) => void;
   openPhaseTasks: (phase: any) => void;
   queryClient: any;
+  tasks?: any[];
+  sprintTaskCount?: Record<string, number>;
+}
+
+function formatSprintStatus(status: string | undefined) {
+  if (!status) return "—";
+  return status.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase());
 }
 
 export function ProjectPhasesTab({
@@ -30,9 +37,12 @@ export function ProjectPhasesTab({
   setAddPhaseOpen,
   openPhaseTasks,
   queryClient,
+  tasks = [],
+  sprintTaskCount,
 }: ProjectPhasesTabProps) {
   const navigate = useNavigate();
   const [confirmPhaseDelId, setConfirmPhaseDelId] = useState<string | null>(null);
+  const [expandedPhaseId, setExpandedPhaseId] = useState<string | null>(null);
 
   const deletePhase = async (phaseId: string) => {
     if (!id) return;
@@ -46,10 +56,17 @@ export function ProjectPhasesTab({
     queryClient.invalidateQueries({ queryKey: ["project-phases", id] });
   };
 
+  const taskCountForSprint = (sprintId: string) => {
+    if (sprintTaskCount && sprintTaskCount[sprintId] != null) return sprintTaskCount[sprintId];
+    return (tasks || []).filter((t: any) => t.sprint_id === sprintId).length;
+  };
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Phases</h3>
+        <h3 className={isAdmin ? "text-lg font-semibold" : "client-section-title mb-0"}>
+          Phases
+        </h3>
         {isAdmin && (
           <Button
             size="sm"
@@ -61,8 +78,15 @@ export function ProjectPhasesTab({
         )}
       </div>
       {phases.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No phases yet.</p>
-      ) : (
+        isAdmin ? (
+          <p className="text-sm text-muted-foreground">No phases yet.</p>
+        ) : (
+          <div className="client-empty-state">
+            <div className="text-[12px] font-semibold text-[#3F3F45] mb-1">No phases yet</div>
+            <p className="text-[9.5px] max-w-[360px] mx-auto leading-relaxed">Phase progress will appear here once phases are set up.</p>
+          </div>
+        )
+      ) : isAdmin ? (
         <div>
           <TableHeader gridCols="1fr 112px 192px 80px">
             <span>PHASE</span>
@@ -113,6 +137,106 @@ export function ProjectPhasesTab({
               </RowActions>
             </DataRow>
           ))}
+        </div>
+      ) : (
+        <div className="client-table-card">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[560px] border-collapse">
+              <thead>
+                <tr className="bg-[#F8F8FA] border-b border-[#E2E2E5]">
+                  <th className="w-[62%] px-3.5 py-[11px] text-left text-[8px] font-bold uppercase tracking-[0.065em] text-[#777780]">
+                    Phase
+                  </th>
+                  <th className="px-3.5 py-[11px] text-left text-[8px] font-bold uppercase tracking-[0.065em] text-[#777780]">
+                    Due Date
+                  </th>
+                  <th className="px-3.5 py-[11px] text-left text-[8px] font-bold uppercase tracking-[0.065em] text-[#777780]">
+                    Progress
+                  </th>
+                  <th className="w-[70px] px-3.5 py-[11px] text-left text-[8px] font-bold uppercase tracking-[0.065em] text-[#777780]">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {phases.map((p: any) => {
+                  const phaseSprints = (sprints || []).filter((s: any) => s.phase_id === p.id);
+                  const expanded = expandedPhaseId === p.id;
+                  const pct = phaseProgress[p.id] || 0;
+                  return (
+                    <React.Fragment key={p.id}>
+                      <tr
+                        className="border-b border-[#EFEFF1] hover:bg-[#FAFAFB] cursor-pointer transition-colors"
+                        onClick={() => setExpandedPhaseId(expanded ? null : p.id)}
+                      >
+                        <td className="px-3.5 py-[13px] align-middle">
+                          <div className="text-[10.5px] font-semibold text-[#202024] leading-[1.45]">{p.title}</div>
+                          <div className="text-[8.3px] text-[#96969D] mt-0.5">
+                            {phaseSprints.length} sprint{phaseSprints.length !== 1 ? "s" : ""}
+                          </div>
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle text-[9.5px] text-[#4C4C53]">
+                          {p.due_date ? format(new Date(p.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle">
+                          <div className="flex items-center gap-2">
+                            <div className="w-[72px] h-[7px] rounded-full bg-[#F0F0F2] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-[#EB5A1E] transition-all"
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <span className="text-[9.5px] text-[#4C4C53]">{pct}%</span>
+                          </div>
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle text-[#A0A0A6] text-[12px]">
+                          <span
+                            className={`inline-block transition-transform ${expanded ? "rotate-180" : ""}`}
+                            aria-hidden
+                          >
+                            ⌄
+                          </span>
+                        </td>
+                      </tr>
+                      {expanded && (
+                        <tr className="bg-[#FBFBFC] border-b border-[#EFEFF1]">
+                          <td colSpan={4} className="px-4 py-[13px]">
+                            {phaseSprints.length === 0 ? (
+                              <p className="text-[9.5px] text-[#96969D] m-0">No sprints in this phase.</p>
+                            ) : (
+                              <div className="flex flex-wrap gap-2">
+                                {phaseSprints.map((s: any) => {
+                                  const n = taskCountForSprint(s.id);
+                                  const dates =
+                                    s.start_date && s.end_date
+                                      ? `${format(new Date(s.start_date + "T00:00:00"), "MMM d")} – ${format(new Date(s.end_date + "T00:00:00"), "MMM d")}`
+                                      : "—";
+                                  return (
+                                    <span
+                                      key={s.id}
+                                      className="inline-flex items-center gap-1.5 mr-1 px-2.5 py-1.5 border border-[#E4E4E7] bg-white rounded-lg text-[9.5px] text-[#4C4C53]"
+                                    >
+                                      <i className="w-1.5 h-1.5 rounded-full bg-[#4C8DF5] flex-none not-italic" />
+                                      <b className="font-semibold text-[#17171A]">{s.name}</b>
+                                      <span>{dates}</span>
+                                      <span>
+                                        {n} task{n !== 1 ? "s" : ""}
+                                      </span>
+                                      <span>{formatSprintStatus(s.status)}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

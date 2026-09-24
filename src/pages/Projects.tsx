@@ -17,7 +17,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { PROJECT_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
+import { PROJECT_STATUS_COLORS as STATUS_COLORS, getDoneStatusIds } from "@/lib/workflow";
 
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
@@ -65,6 +65,49 @@ export default function ProjectsPage() {
       return data || [];
     },
     enabled: !isAdmin && !!user?.id,
+  });
+
+  const clientProjectIds = useMemo(() => {
+    if (isAdmin || !projects) return [] as string[];
+    let list = projects;
+    if (myMemberships) {
+      const myProjectIds = new Set(myMemberships.map((m) => m.project_id));
+      const userClientId = (profile as any)?.client_id;
+      list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
+    }
+    return list.map((p) => p.id);
+  }, [isAdmin, projects, myMemberships, profile]);
+
+  const { data: clientTaskProgress } = useQuery({
+    queryKey: ["client-project-task-progress", clientProjectIds.join(",")],
+    queryFn: async () => {
+      if (clientProjectIds.length === 0) return {} as Record<string, number>;
+      const [{ data: tasks }, { data: statuses }] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("id, project_id, status_id, completed_at")
+          .in("project_id", clientProjectIds),
+        supabase.from("workflow_statuses").select("id, category"),
+      ]);
+      const doneIds = getDoneStatusIds((statuses || []) as any);
+      const byProject: Record<string, { total: number; done: number }> = {};
+      for (const id of clientProjectIds) {
+        byProject[id] = { total: 0, done: 0 };
+      }
+      (tasks || []).forEach((t: any) => {
+        if (!t.project_id || !byProject[t.project_id]) return;
+        byProject[t.project_id].total += 1;
+        if ((t.status_id && doneIds.has(t.status_id)) || t.completed_at) {
+          byProject[t.project_id].done += 1;
+        }
+      });
+      const progress: Record<string, number> = {};
+      Object.entries(byProject).forEach(([id, { total, done }]) => {
+        progress[id] = total === 0 ? 0 : Math.round((done / total) * 100);
+      });
+      return progress;
+    },
+    enabled: !isAdmin && clientProjectIds.length > 0,
   });
 
   // For admin: get team sizes & hours
@@ -199,54 +242,64 @@ export default function ProjectsPage() {
   // Employee card view
   if (!isAdmin) {
     return (
-      <div className="space-y-6 font-sans">
-        <div className="flex items-center justify-between pb-1">
-          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">My Projects</h1>
-        </div>
+      <div className="client-page space-y-6">
+        <h1 className="text-[25px] font-bold tracking-[-0.75px] text-[#17171A] m-0">My Projects</h1>
         {isLoading && (
-          <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
-            Loading projects…
-          </div>
+          <div className="client-empty-state">Loading projects…</div>
         )}
         {!isLoading && filtered.length === 0 && (
-          <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
-            You're not assigned to any projects yet.
+          <div className="client-empty-state">
+            <div className="empty-title text-[12px] font-semibold text-[#3F3F45] mb-1">No projects yet</div>
+            <p className="text-[9.5px] max-w-[360px] mx-auto leading-relaxed">You're not assigned to any projects yet.</p>
           </div>
         )}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[18px]">
           {filtered.map((p) => (
             <div
               key={p.id}
-              className="bg-white border border-black/[0.08] rounded-[14px] p-5 cursor-pointer hover:shadow-md transition-all space-y-3"
+              className="relative h-[184px] border border-[#E6E6E9] rounded-[18px] p-5 cursor-pointer overflow-hidden bg-[radial-gradient(circle_at_100%_0%,rgba(235,90,30,0.05),transparent_36%),linear-gradient(180deg,#fff,#FCFCFD)] shadow-[0_8px_26px_rgba(23,23,26,0.035)] transition-all duration-200 hover:-translate-y-1 hover:border-[#E7C6B8] hover:shadow-[0_20px_46px_rgba(23,23,26,0.08)]"
               onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
             >
-              <div className="flex items-start justify-between">
-                <div className="w-8 h-8 rounded-[9px] bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center">
-                  <FolderKanban className="h-4 w-4 text-[#EB5A1E]" />
-                </div>
-                <Badge
-                  className={
-                    p.status === "active"
-                      ? "bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
-                      : p.status === "on_hold"
-                      ? "bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
-                      : p.status === "completed"
-                      ? "bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
-                      : "bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
-                  }
-                >
-                  {p.status}
-                </Badge>
+              <div className="w-[34px] h-[34px] rounded-[10px] bg-gradient-to-br from-[#FF7638] to-[#EB5A1E] text-white flex items-center justify-center mb-[15px] shadow-[0_7px_16px_rgba(235,90,30,0.16)]">
+                <FolderKanban className="h-4 w-4 text-white" />
               </div>
-              <div>
-                <h3 className="font-bold text-[15px] text-[#17171A] truncate">{p.name}</h3>
-                <p className="text-[12.5px] text-[#8B8B92] truncate mt-0.5">{(p.clients as any)?.name || "No Client"}</p>
+              <span
+                className={`absolute right-5 top-5 inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-semibold capitalize ${
+                  p.status === "active"
+                    ? "bg-[#DFF6E4] text-[#168744]"
+                    : p.status === "on_hold"
+                    ? "bg-[#FFF1B8] text-[#A9720B]"
+                    : p.status === "completed"
+                    ? "bg-[#EAF3FF] text-[#1C6FC9]"
+                    : "bg-[#F5F5F6] text-[#8B8B92]"
+                }`}
+              >
+                {p.status}
+              </span>
+              <div className="project-name text-[14px] font-bold tracking-tight text-[#17171A] max-w-[78%] truncate" title={p.name}>
+                {p.name}
               </div>
-              <div className="pt-1">
-                <span className="inline-block bg-[#F6F5F3] text-[#4B4B52] text-[11px] font-bold px-2.5 py-0.5 rounded-full">
-                  {getMemberRole(p.id)}
-                </span>
-              </div>
+              <p className="text-[10px] text-[#8B8B92] mt-[3px] truncate">{(p.clients as any)?.name || "No Client"}</p>
+              <span className="absolute left-5 bottom-[18px] bg-[#F3F3F5] text-[#5D5D64] text-[8.5px] font-semibold px-2.5 py-0.5 rounded-full">
+                {getMemberRole(p.id)}
+              </span>
+              {(() => {
+                const pct = clientTaskProgress?.[p.id] ?? 0;
+                return (
+                  <div className="absolute right-5 bottom-5 w-[108px]">
+                    <div className="flex justify-between text-[8px] text-[#96969D] mb-1.5">
+                      <span>Project progress</span>
+                      <b className="text-[#3F3F45] font-semibold">{pct}%</b>
+                    </div>
+                    <div className="h-[5px] rounded-full bg-[#EDEDEF] overflow-hidden">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-[#FF8A54] to-[#EB5A1E] transition-all"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           ))}
         </div>
@@ -367,8 +420,8 @@ export default function ProjectsPage() {
               <div className="text-[13.5px] font-bold text-[#4B4B52]">{projectStats?.teamSize[p.id] || 0}</div>
 
               {/* DEADLINE */}
-              <div className="text-[13px] text-[#B0B0B6]">
-                {p.deadline ? format(new Date(p.deadline + "T00:00:00"), "MMM d, yyyy") : "—"}
+              <div className={`text-[13px] ${p.end_date ? "text-[#4B4B52]" : "text-[#B0B0B6]"}`}>
+                {p.end_date ? format(new Date(p.end_date + "T00:00:00"), "MMM d, yyyy") : "—"}
               </div>
 
               {/* CREATED */}

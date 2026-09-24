@@ -870,8 +870,8 @@ export default function ProjectDetailPage() {
   if (!project) return <div className="text-center py-12 text-muted-foreground">Project not found</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3">
+    <div className={isClient ? "client-page space-y-6" : "space-y-6"}>
+      <div className={`flex items-center gap-3 ${isClient ? "items-start mb-1" : ""}`}>
         <Button
           variant="ghost"
           size="icon"
@@ -879,14 +879,43 @@ export default function ProjectDetailPage() {
             if (window.history.length > 1) navigate(-1);
             else navigate("/projects");
           }}
+          className={
+            isClient
+              ? "h-[34px] w-[34px] rounded-lg bg-transparent border-0 shadow-none hover:bg-[#F6F6F7] -ml-2 mt-1 shrink-0"
+              : ""
+          }
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className={isClient ? "h-4 w-4 text-[#17171A]" : "h-4 w-4"} />
         </Button>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold tracking-tight">{project.name}</h1>
-          <div className="flex items-center gap-2 mt-1">
-            <Badge className={STATUS_COLORS[project.status] || ""}>{project.status}</Badge>
-            <span className="text-muted-foreground text-sm">{(project.clients as any)?.name}</span>
+        <div className="flex-1 min-w-0">
+          <h1
+            className={
+              isClient
+                ? "text-[22px] font-bold tracking-[-0.55px] text-[#17171A] leading-tight m-0"
+                : "text-2xl font-bold tracking-tight"
+            }
+          >
+            {project.name}
+          </h1>
+          <div className={`flex items-center gap-2 ${isClient ? "mt-[5px] flex-wrap gap-2.5" : "mt-1"}`}>
+            <Badge
+              className={
+                isClient
+                  ? project.status === "active"
+                    ? "bg-[#DFF6E4] text-[#168744] hover:bg-[#DFF6E4] border-0 shadow-none text-[9px] font-semibold px-2.5 py-[3px] rounded-full capitalize"
+                    : project.status === "on_hold"
+                    ? "bg-[#FFF1B8] text-[#A9720B] hover:bg-[#FFF1B8] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                    : project.status === "completed"
+                    ? "bg-[#EAF3FF] text-[#1C6FC9] hover:bg-[#EAF3FF] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                    : "bg-[#F5F5F6] text-[#8B8B92] hover:bg-[#F5F5F6] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                  : STATUS_COLORS[project.status] || ""
+              }
+            >
+              {project.status}
+            </Badge>
+            <span className={isClient ? "text-[12px] text-[#8B8B92] font-medium" : "text-muted-foreground text-sm"}>
+              {(project.clients as any)?.name}
+            </span>
           </div>
         </div>
         {isAdmin && (
@@ -925,6 +954,7 @@ export default function ProjectDetailPage() {
             project={project}
             latestHealth={latestHealth}
             workflowTemplate={workflowTemplate}
+            workflowStatuses={workflowStatuses}
             isAdmin={isAdmin}
             isClient={isClient}
             STATUS_OPTIONS={STATUS_OPTIONS}
@@ -947,6 +977,24 @@ export default function ProjectDetailPage() {
             newStatusUpdateVisible={newStatusUpdateVisible}
             setNewStatusUpdateVisible={setNewStatusUpdateVisible}
             addStatusUpdate={addStatusUpdate}
+            blockerCount={(projectBlockers || []).filter((b: any) => b.status !== "resolved").length}
+            openBlockers={(projectBlockers || []).filter((b: any) => {
+              if (b.status === "resolved") return false;
+              if (isClient && b.client_visible === false) return false;
+              return true;
+            })}
+            resourceCount={resourceMembers.length}
+            progressPct={
+              phases.length > 0
+                ? Math.round(
+                    phases.reduce((sum: number, p: any) => sum + (phaseProgress[p.id] || 0), 0) / phases.length
+                  )
+                : 0
+            }
+            inDevelopmentCount={(tasks || []).filter((t: any) => {
+              const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
+              return st?.category === "in_progress";
+            }).length}
           />
         </TabsContent>
 
@@ -956,6 +1004,7 @@ export default function ProjectDetailPage() {
             type="resource"
             members={resourceMembers}
             isAdmin={isAdmin}
+            isClient={isClient}
             profile={profile}
             queryClient={queryClient}
             setAddMemberMode={setAddMemberMode}
@@ -1198,6 +1247,8 @@ export default function ProjectDetailPage() {
             setAddPhaseOpen={setAddPhaseOpen}
             openPhaseTasks={openPhaseTasks}
             queryClient={queryClient}
+            tasks={tasks}
+            sprintTaskCount={sprintTaskCount}
           />
         </TabsContent>
 

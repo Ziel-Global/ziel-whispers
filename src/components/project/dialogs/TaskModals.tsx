@@ -504,7 +504,239 @@ export function TaskModals(props: TaskModalsProps) {
           setViewAddDepType("finish_to_start");
         }
       }}>
-        <DialogContent>
+        <DialogContent
+          className={cn(
+            isClient &&
+              "sm:w-[min(94vw,880px)] max-w-[880px] max-h-[88vh] p-0 gap-0 overflow-hidden border-[#DCDCE1] rounded-2xl shadow-[0_24px_72px_rgba(20,20,24,0.22)]"
+          )}
+        >
+          {isClient ? (
+            <>
+              <div className="px-[26px] pt-[22px] pb-0 border-b border-[#E8E8EB] bg-white">
+                <div className="flex items-start gap-3.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="text-[10px] font-bold tracking-[0.055em] uppercase text-[#929299]">
+                      Task Detail
+                    </div>
+                    <DialogTitle className="mt-1 pr-10 text-[23px] leading-[1.3] tracking-[-0.55px] font-bold text-[#17171A]">
+                      {viewTaskData?.title || "Task Details"}
+                      {viewTaskData?.is_flagged && <Flag className="h-4 w-4 text-red-500 inline-block ml-2 align-middle" />}
+                    </DialogTitle>
+                    <div className="flex flex-wrap gap-1.5 mt-2.5 pb-4">
+                      {viewTaskData?.priority && (
+                        <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>
+                      )}
+                      {viewTaskData?.status_id && (
+                        <Badge className={statusColor(viewTaskData.status_id) || ""}>
+                          {getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}
+                        </Badge>
+                      )}
+                      {viewTaskData?.sprint_id && (() => {
+                        const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id);
+                        return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] border-0">{s.name}</Badge> : null;
+                      })()}
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 border-t border-[#E8E8EB] -mx-[26px] px-[26px]">
+                  {[
+                    { label: "Owner", value: viewTaskData?.users?.full_name || "—" },
+                    {
+                      label: "Sprint",
+                      value: viewTaskData?.sprint_id
+                        ? sprints.find((sp: any) => sp.id === viewTaskData.sprint_id)?.name || "—"
+                        : "—",
+                    },
+                    {
+                      label: "Due",
+                      value: viewTaskData?.due_date
+                        ? format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d, yyyy")
+                        : "—",
+                    },
+                    {
+                      label: "Estimate",
+                      value: viewTaskData?.estimated_hours ? `${viewTaskData.estimated_hours}h` : "—",
+                    },
+                  ].map((item) => (
+                    <div key={item.label} className="py-3.5 sm:border-r sm:border-[#E8E8EB] sm:last:border-0 sm:pr-3 sm:last:pr-0">
+                      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8B8B92]">{item.label}</div>
+                      <div className="text-[13px] font-semibold text-[#17171A] mt-1 truncate" title={item.value}>
+                        {item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] min-h-0 overflow-hidden">
+                <div className="p-6 space-y-5 overflow-y-auto max-h-[calc(88vh-180px)] border-r border-[#E8E8EB]">
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2">Overview</h4>
+                    {viewTaskData?.description ? (
+                      <div>
+                        <p className="text-[13px] text-[#3F3F45] leading-relaxed whitespace-pre-wrap">
+                          {descExpanded ? viewTaskData.description : truncateWords(viewTaskData.description, 40)}
+                        </p>
+                        {viewTaskData.description.split(/\s+/).length > 40 && (
+                          <Button
+                            type="button"
+                            variant="link"
+                            size="sm"
+                            className="h-auto p-0 text-xs text-[#EB5A1E]"
+                            onClick={() => setDescExpanded(!descExpanded)}
+                          >
+                            {descExpanded ? "Show less" : "Show more"}
+                          </Button>
+                        )}
+                      </div>
+                    ) : (
+                      <p className="text-[13px] text-[#8B8B92]">No description.</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2">Dependencies</h4>
+                    {viewDepsLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading...</p>
+                    ) : viewDeps.length === 0 ? (
+                      <p className="text-[13px] text-[#8B8B92]">No dependencies.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {viewDeps.map((d: any) => (
+                          <div key={d.id} className="flex items-center gap-2 bg-[#F7F7F8] rounded-[9px] p-2.5">
+                            <span className="text-[13px] text-[#17171A] truncate">{d.depends_on?.title || "Unknown"}</span>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              {d.dependency_type.replace(/_/g, " ")}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2">Blockers</h4>
+                    {viewBlockersLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading...</p>
+                    ) : viewBlockers.length === 0 ? (
+                      <p className="text-[13px] text-[#8B8B92]">No blockers reported.</p>
+                    ) : (
+                      <div className="space-y-2">
+                        {viewBlockers.map((b: any) => (
+                          <div key={b.id} className="bg-[#F7F7F8] rounded-[9px] p-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[13px] font-medium text-[#17171A]">{b.description}</span>
+                              {b.status === "resolved" ? (
+                                <Badge className="bg-green-100 text-green-700 text-[10px] border-0">Resolved</Badge>
+                              ) : (
+                                <Badge className="bg-red-100 text-red-700 text-[10px] border-0">Open</Badge>
+                              )}
+                            </div>
+                            <div className="text-[10px] text-[#8B8B92] mt-1">
+                              by {b.raiser?.full_name || "Unknown"} · {format(new Date(b.raised_at), "MMM d")}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2 flex items-center gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5" /> Comments
+                    </h4>
+                    {viewCommentsLoading ? (
+                      <p className="text-xs text-muted-foreground">Loading...</p>
+                    ) : viewComments.length === 0 ? (
+                      <p className="text-[13px] text-[#8B8B92]">No comments yet.</p>
+                    ) : (
+                      <div className="space-y-2 max-h-48 overflow-y-auto">
+                        {viewComments.map((c: any) => (
+                          <div key={c.id} className="flex gap-2 bg-[#F7F7F8] rounded-[9px] p-2.5">
+                            <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                              <AvatarImage src={getAvatarUrl(c.author?.full_name)} />
+                              <AvatarFallback className="text-[10px] bg-[#FFF0E9] text-[#EB5A1E]">
+                                {c.author?.full_name?.charAt(0) || "?"}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-semibold text-[#17171A]">
+                                  {c.author?.full_name ||
+                                    (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}
+                                </span>
+                                <span className="text-[10px] text-[#8B8B92]">
+                                  {format(new Date(c.created_at), "MMM d, h:mm a")}
+                                </span>
+                              </div>
+                              <p className="text-[13px] whitespace-pre-wrap break-words text-[#3F3F45]">{c.body}</p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="p-5 space-y-5 overflow-y-auto max-h-[calc(88vh-180px)] bg-[#FAFAFB]">
+                  <div>
+                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-3">Properties</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Status</div>
+                        <div className="mt-1">
+                          {viewTaskData?.status_id ? (
+                            <Badge className={statusColor(viewTaskData.status_id) || ""}>
+                              {getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}
+                            </Badge>
+                          ) : (
+                            <span className="text-[13px] text-[#8B8B92]">—</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Priority</div>
+                        <div className="mt-1">
+                          {viewTaskData?.priority ? (
+                            <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>
+                          ) : (
+                            <span className="text-[13px] text-[#8B8B92]">—</span>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Due date</div>
+                        <div className="text-[13px] font-medium text-[#17171A] mt-1">
+                          {viewTaskData?.due_date
+                            ? format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d, yyyy")
+                            : "—"}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Estimate</div>
+                        <div className="text-[13px] font-medium text-[#17171A] mt-1">
+                          {viewTaskData?.estimated_hours ? `${viewTaskData.estimated_hours}h` : "—"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  {viewTaskData?.id && (
+                    <div>
+                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-3">People</h4>
+                      <TaskCollaboratorsSection
+                        taskId={viewTaskData.id}
+                        projectMembers={resourceMembers}
+                        primaryOwnerId={viewTaskData.assigned_to}
+                        readOnly
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </>
+          ) : (
+            <>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               {viewTaskData?.title || "Task Details"}
@@ -809,6 +1041,8 @@ export function TaskModals(props: TaskModalsProps) {
                   </div>
                 )}
               </div>
+            </>
+          )}
             </>
           )}
         </DialogContent>

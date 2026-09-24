@@ -1,17 +1,33 @@
-import React from 'react';
-import { Card, CardContent } from "@/components/ui/card";
+import React, { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Play, Square, Pause, ExternalLink, Calendar as CalendarIcon, MessageSquare } from "lucide-react";
 import { format } from "date-fns";
-
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Upload, Plus, Trash2, Flag, Eye, EyeOff, Info, Pencil } from "lucide-react";
+import {
+  Upload,
+  Plus,
+  Trash2,
+  Flag,
+  Eye,
+  EyeOff,
+  Info,
+  Pencil,
+  List,
+  Columns3,
+  Search,
+} from "lucide-react";
 import { editButtonClass } from "@/components/ui/data-row";
 import { truncateWords } from "@/lib/utils";
 import { getStatusDisplay } from "@/lib/workflow";
+import {
+  bucketTaskState,
+  TASK_STATE_BUCKETS,
+  TASK_STATE_KANBAN_DOT,
+  PRIORITY_PILL_CLASS,
+  STATUS_PILL_CLASS,
+  type TaskStateBucket,
+} from "@/lib/clientTaskBuckets";
 
 export interface ProjectTasksTabProps {
   tasks: any[];
@@ -36,6 +52,376 @@ export interface ProjectTasksTabProps {
   isClient: boolean;
   doneStatusIds: Set<string>;
   statusColor: (id: string | null) => string;
+}
+
+function ClientTasksPanel({
+  tasks,
+  sprints,
+  workflowStatuses,
+  setViewTaskData,
+}: {
+  tasks: any[];
+  sprints: any[];
+  workflowStatuses: any[];
+  setViewTaskData: (data: any) => void;
+}) {
+  const [taskView, setTaskView] = useState<"list" | "kanban">("list");
+  const [search, setSearch] = useState("");
+  const [sprintFilter, setSprintFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | TaskStateBucket>("all");
+
+  const sprintName = (sprintId: string | null | undefined) => {
+    if (!sprintId) return null;
+    return (sprints || []).find((s: any) => s.id === sprintId)?.name || null;
+  };
+
+  const filteredTasks = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return (tasks || []).filter((t: any) => {
+      const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
+      const bucket = bucketTaskState(st);
+      if (statusFilter !== "all" && bucket !== statusFilter) return false;
+
+      if (sprintFilter === "unassigned") {
+        if (t.sprint_id) return false;
+      } else if (sprintFilter !== "all") {
+        if (t.sprint_id !== sprintFilter) return false;
+      }
+
+      if (q) {
+        const assignee = ((t as any).users?.full_name || "").toLowerCase();
+        const sprint = (sprintName(t.sprint_id) || "").toLowerCase();
+        const title = (t.title || "").toLowerCase();
+        if (!title.includes(q) && !assignee.includes(q) && !sprint.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [tasks, workflowStatuses, search, sprintFilter, statusFilter, sprints]);
+
+  const sprintLabel =
+    sprintFilter === "all"
+      ? "All sprints"
+      : sprintFilter === "unassigned"
+        ? "Unassigned"
+        : sprintName(sprintFilter) || "Sprint";
+
+  const statusBadgeLabel = statusFilter === "all" ? "All statuses" : statusFilter;
+
+  const initials = (name: string) =>
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((w) => w[0]?.toUpperCase() || "")
+      .join("");
+
+  return (
+    <div className="space-y-3.5">
+      <div className="flex items-center justify-between gap-3.5 flex-wrap">
+        <h2 className="client-section-title mb-0">Tasks</h2>
+        <div className="flex items-center border border-[#DEDEE1] rounded-[9px] p-0.5 bg-white">
+          <button
+            type="button"
+            onClick={() => setTaskView("list")}
+            className={`h-7 px-2.5 rounded-[7px] text-[9.8px] font-semibold inline-flex items-center gap-1.5 ${
+              taskView === "list" ? "bg-[#17171A] text-white" : "bg-transparent text-[#7B7B82]"
+            }`}
+          >
+            <List className="h-3.5 w-3.5" />
+            List
+          </button>
+          <button
+            type="button"
+            onClick={() => setTaskView("kanban")}
+            className={`h-7 px-2.5 rounded-[7px] text-[9.8px] font-semibold inline-flex items-center gap-1.5 ${
+              taskView === "kanban" ? "bg-[#17171A] text-white" : "bg-transparent text-[#7B7B82]"
+            }`}
+          >
+            <Columns3 className="h-3.5 w-3.5" />
+            Kanban
+          </button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-2.5 flex-wrap">
+        <div className="h-[34px] min-w-[240px] flex-1 max-w-[410px] border border-[#DEDEE1] rounded-[9px] flex items-center gap-2 px-2.5 bg-white">
+          <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0" />
+          <input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search tasks..."
+            className="border-0 outline-none w-full text-[10.5px] bg-transparent text-[#313136] placeholder:text-[#A0A0A6]"
+          />
+        </div>
+        <Select value={sprintFilter} onValueChange={setSprintFilter}>
+          <SelectTrigger className="h-[30px] min-w-[145px] rounded-lg border-[#DCDCE0] bg-white text-[10.5px] text-[#313136]">
+            <SelectValue placeholder="All Sprints" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sprints</SelectItem>
+            {(sprints || []).map((s: any) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name}
+              </SelectItem>
+            ))}
+            <SelectItem value="unassigned">Unassigned</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(v as "all" | TaskStateBucket)}
+        >
+          <SelectTrigger className="h-[30px] min-w-[145px] rounded-lg border-[#DCDCE0] bg-white text-[10.5px] text-[#313136]">
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All</SelectItem>
+            <SelectItem value="Unlinked">Unlinked</SelectItem>
+            <SelectItem value="Development">Development</SelectItem>
+            <SelectItem value="Returned">Returned</SelectItem>
+            <SelectItem value="Complete">Complete</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="flex items-center gap-3 text-[9px] text-[#8B8B92]">
+        <span>
+          <strong className="text-[#4B4B52] font-semibold">{filteredTasks.length}</strong> visible task
+          {filteredTasks.length === 1 ? "" : "s"}
+        </span>
+        <span>•</span>
+        <span>{sprintLabel}</span>
+        <span>•</span>
+        <span>{taskView === "kanban" ? "Board view" : "List view"}</span>
+      </div>
+
+      {taskView === "list" ? (
+        <div className="client-table-card">
+          <div className="flex items-center justify-between gap-3 px-3.5 py-3 border-b border-[#E9E9EC]">
+            <div>
+              <div className="text-[10.5px] font-semibold text-[#17171A]">Task list</div>
+              <div className="text-[8.5px] text-[#8F8F96] mt-0.5">
+                {filteredTasks.length} visible task{filteredTasks.length === 1 ? "" : "s"} · {sprintLabel}
+              </div>
+            </div>
+            <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[8.5px] font-semibold bg-[#F2F2F4] text-[#5D5D64]">
+              {statusBadgeLabel}
+            </span>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1080px] border-collapse">
+              <thead>
+                <tr className="bg-[#F8F8FA] border-b border-[#E2E2E5]">
+                  {["Task", "Assignee", "Priority", "Status", "Estimate", "Due date", "Signal", "View"].map(
+                    (h, i) => (
+                      <th
+                        key={h}
+                        className={`px-3.5 py-[11px] text-left text-[8px] font-bold uppercase tracking-[0.065em] text-[#777780] whitespace-nowrap ${
+                          i === 7 ? "w-[60px] text-center" : ""
+                        }`}
+                      >
+                        {h}
+                      </th>
+                    )
+                  )}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredTasks.length === 0 ? (
+                  <tr>
+                    <td colSpan={8} className="px-5 py-[38px] text-center text-[9.5px] text-[#96969D]">
+                      No tasks match the current filters.
+                    </td>
+                  </tr>
+                ) : (
+                  filteredTasks.map((t: any) => {
+                    const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
+                    const bucket = bucketTaskState(st);
+                    const sprint = sprintName(t.sprint_id);
+                    const assignee = (t as any).users?.full_name;
+                    return (
+                      <tr key={t.id} className="border-b border-[#EFEFF1] last:border-0 hover:bg-[#FAFAFB]">
+                        <td className="px-3.5 py-[13px] align-middle">
+                          <div className="flex items-start gap-2.5 min-w-[190px]">
+                            <div className="w-7 h-7 rounded-[8px] bg-[#FFF1EA] text-[#EB5A1E] flex items-center justify-center flex-none mt-0.5">
+                              <List className="h-3.5 w-3.5" />
+                            </div>
+                            <div className="min-w-0">
+                              <div className="text-[10.5px] font-semibold text-[#202024] leading-[1.45]">
+                                {t.title}
+                              </div>
+                              <div className="text-[8.3px] text-[#96969D] mt-0.5">
+                                {sprint || "Not linked to a sprint"}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle text-[9.5px] text-[#4C4C53]">
+                          {assignee ? (
+                            <div className="flex items-center gap-2">
+                              <span className="w-5 h-5 rounded-full bg-[#EEF1F5] text-[#5E6470] text-[7px] font-bold flex items-center justify-center flex-none">
+                                {initials(assignee)}
+                              </span>
+                              <span>{assignee}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[#A0A0A6]">Unassigned</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold capitalize ${
+                              PRIORITY_PILL_CLASS[t.priority] || "bg-[#F0F0F2] text-[#55555B]"
+                            }`}
+                          >
+                            {t.priority || "—"}
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold ${STATUS_PILL_CLASS[bucket]}`}
+                          >
+                            {bucket}
+                          </span>
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle text-[9.5px] text-[#4C4C53]">
+                          {t.estimated_hours != null ? (
+                            `${t.estimated_hours}h`
+                          ) : (
+                            <span className="text-[#A0A0A6]">Not estimated</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle text-[9.5px] text-[#4C4C53]">
+                          {t.due_date ? (
+                            format(new Date(t.due_date + "T00:00:00"), "MMM d")
+                          ) : (
+                            <span className="text-[#A0A0A6]">No due date</span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle">
+                          {t.is_flagged ? (
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold bg-[#FDE9E9] text-[#B93F3F]">
+                              Flagged
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold bg-[#F2F2F4] text-[#5D5D64]">
+                              Normal
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3.5 py-[13px] align-middle text-center">
+                          <button
+                            type="button"
+                            onClick={() => setViewTaskData(t)}
+                            className="w-6 h-6 rounded bg-[#EB5A1E] text-white inline-flex items-center justify-center hover:bg-[#D84E16] mx-auto"
+                            title="View task details"
+                            aria-label="View task details"
+                          >
+                            <Info className="h-3.5 w-3.5 text-white" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-x-auto pb-1">
+          <div className="grid grid-cols-[repeat(4,285px)] gap-3.5 min-w-[1182px]">
+            {TASK_STATE_BUCKETS.map((col) => {
+              const colTasks = filteredTasks.filter((t: any) => {
+                const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
+                return bucketTaskState(st) === col;
+              });
+              return (
+                <div
+                  key={col}
+                  className="bg-gradient-to-b from-[#FAFAFB] to-[#F6F6F7] border border-[#E9E9EC] rounded-[15px] p-3 min-h-[450px]"
+                >
+                  <div className="flex items-center justify-between mb-2.5 px-0.5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#17171A]">
+                      <span
+                        className="w-[7px] h-[7px] rounded-full flex-none"
+                        style={{ background: TASK_STATE_KANBAN_DOT[col] }}
+                      />
+                      {col}
+                    </div>
+                    <span className="bg-white border border-[#E3E3E6] rounded-full px-1.5 py-0.5 text-[8.5px] text-[#77777E] font-semibold">
+                      {colTasks.length}
+                    </span>
+                  </div>
+                  <div className="flex flex-col gap-2.5">
+                    {colTasks.length === 0 ? (
+                      <div className="h-[90px] border border-dashed border-[#DCDCE1] rounded-[9px] flex items-center justify-center text-center text-[9px] text-[#A1A1A7] px-3">
+                        No tasks in this column
+                      </div>
+                    ) : (
+                      colTasks.map((t: any) => {
+                        const sprint = sprintName(t.sprint_id);
+                        const assignee = (t as any).users?.full_name;
+                        return (
+                          <div
+                            key={t.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={() => setViewTaskData(t)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") setViewTaskData(t);
+                            }}
+                            className="bg-white border border-[#E4E4E7] rounded-[13px] p-3 cursor-pointer shadow-[0_5px_16px_rgba(20,20,24,0.035)] hover:border-[#E3C8BC] hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(20,20,24,0.075)] transition-all"
+                          >
+                            <div className="flex items-start gap-2">
+                              <div className="flex-1 text-[10.7px] font-semibold leading-[1.45] text-[#17171A] mb-2">
+                                {t.title}
+                              </div>
+                              <span
+                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[8.5px] font-semibold capitalize flex-none ${
+                                  PRIORITY_PILL_CLASS[t.priority] || "bg-[#F0F0F2] text-[#55555B]"
+                                }`}
+                              >
+                                {t.priority || "—"}
+                              </span>
+                            </div>
+                            {sprint && (
+                              <span className="inline-flex items-center rounded-full px-2 py-0.5 bg-[#DDEBFF] text-[#3873C9] text-[8px] font-semibold mt-1">
+                                {sprint}
+                              </span>
+                            )}
+                            <div className="flex items-center justify-between gap-2 mt-2 text-[8.5px] text-[#8B8B92]">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                {assignee ? (
+                                  <>
+                                    <span className="w-5 h-5 rounded-full bg-[#EEF1F5] text-[#5E6470] text-[7px] font-bold flex items-center justify-center flex-none">
+                                      {initials(assignee)}
+                                    </span>
+                                    <span className="truncate">{assignee}</span>
+                                  </>
+                                ) : (
+                                  <span>Unassigned</span>
+                                )}
+                              </div>
+                              <span className="flex-none">
+                                {t.due_date
+                                  ? format(new Date(t.due_date + "T00:00:00"), "MMM d")
+                                  : "—"}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function ProjectTasksTab({
@@ -64,273 +450,329 @@ export function ProjectTasksTab({
 }: ProjectTasksTabProps) {
   return (
     <>
-          {isAdmin ? (
-            /* ── Admin full Tasks layout ── */
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Tasks</h2>
-                <div className="flex gap-2">
-                  <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
-                    <SelectTrigger className="w-[140px] h-9">
-                      <SelectValue placeholder="All" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All</SelectItem>
-                      {(workflowStatuses || []).map((s: any) => (
-                        <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button"><Upload className="h-4 w-4 mr-1" />Bulk Add Tasks</Button>
-                  <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button"><Plus className="h-4 w-4 mr-1" />Add Task</Button>
-                </div>
-              </div>
-              {(() => {
-                const filteredTasks = (tasks || []).filter(
-                  (t: any) => (isAdmin || t.assigned_to === profile?.id || t.created_by === profile?.id) &&
-                    (taskStatusFilter === "all" || t.status_id === taskStatusFilter)
-                );
-                return filteredTasks.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No tasks yet.</p>
-                ) : (
-                  <>
-                  {selectedTaskIds.size > 0 && (
-                    <div className="flex items-center gap-3 bg-muted rounded-md px-4 py-2 mb-2">
-                      <span className="text-sm font-medium">{selectedTaskIds.size} selected</span>
-                      <Button variant="destructive" size="sm" onClick={() => setBulkTaskDeleteOpen(true)} className="rounded-button"><Trash2 className="h-4 w-4 mr-1" />Delete Selected</Button>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedTaskIds(new Set())}>Clear</Button>
-                    </div>
-                  )}
-                  <table className="w-full">
-                    <thead>
-                      <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
-                        <th className="px-4 py-2 text-left w-10">
-                          <input type="checkbox" className="rounded" checked={selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0} onChange={(e) => { if (e.target.checked) setSelectedTaskIds(new Set(filteredTasks.map((t: any) => t.id))); else setSelectedTaskIds(new Set()); }} />
-                        </th>
-                        <th className="px-4 py-2 text-left">TASK</th>
-                        <th className="px-4 py-2 text-left">ASSIGNED TO</th>
-                        <th className="px-4 py-2 text-left">PRIORITY</th>
-                        <th className="px-4 py-2 text-left">STATUS</th>
-                        <th className="px-4 py-2 text-left">EST. HOURS</th>
-                        <th className="px-4 py-2 text-left">DUE DATE</th>
-                        <th className="px-4 py-2 text-left">FLAGGED</th>
-                        <th className="px-4 py-2 text-left">VISIBLE</th>
-                        <th className="px-4 py-2 text-right">ACTIONS</th>
-                      </tr>
-                    </thead>
-                    <tbody>
+      {isAdmin ? (
+        <>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Tasks</h2>
+            <div className="flex gap-2">
+              <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+                <SelectTrigger className="w-[140px] h-9">
+                  <SelectValue placeholder="All" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {(workflowStatuses || []).map((s: any) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.name.replace(/_/g, " ")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={() => setBulkTaskOpen(true)} className="rounded-button">
+                <Upload className="h-4 w-4 mr-1" />
+                Bulk Add Tasks
+              </Button>
+              <Button size="sm" onClick={() => setAddTaskOpen(true)} className="rounded-button">
+                <Plus className="h-4 w-4 mr-1" />
+                Add Task
+              </Button>
+            </div>
+          </div>
+          {(() => {
+            const filteredTasks = (tasks || []).filter(
+              (t: any) =>
+                (isAdmin || t.assigned_to === profile?.id || t.created_by === profile?.id) &&
+                (taskStatusFilter === "all" || t.status_id === taskStatusFilter)
+            );
+            return filteredTasks.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No tasks yet.</p>
+            ) : (
+              <>
+                {selectedTaskIds.size > 0 && (
+                  <div className="flex items-center gap-3 bg-muted rounded-md px-4 py-2 mb-2">
+                    <span className="text-sm font-medium">{selectedTaskIds.size} selected</span>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setBulkTaskDeleteOpen(true)}
+                      className="rounded-button"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete Selected
+                    </Button>
+                    <Button variant="ghost" size="sm" onClick={() => setSelectedTaskIds(new Set())}>
+                      Clear
+                    </Button>
+                  </div>
+                )}
+                <table className="w-full">
+                  <thead>
+                    <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                      <th className="px-4 py-2 text-left w-10">
+                        <input
+                          type="checkbox"
+                          className="rounded"
+                          checked={selectedTaskIds.size === filteredTasks.length && filteredTasks.length > 0}
+                          onChange={(e) => {
+                            if (e.target.checked) setSelectedTaskIds(new Set(filteredTasks.map((t: any) => t.id)));
+                            else setSelectedTaskIds(new Set());
+                          }}
+                        />
+                      </th>
+                      <th className="px-4 py-2 text-left">TASK</th>
+                      <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                      <th className="px-4 py-2 text-left">PRIORITY</th>
+                      <th className="px-4 py-2 text-left">STATUS</th>
+                      <th className="px-4 py-2 text-left">EST. HOURS</th>
+                      <th className="px-4 py-2 text-left">DUE DATE</th>
+                      <th className="px-4 py-2 text-left">FLAGGED</th>
+                      <th className="px-4 py-2 text-left">VISIBLE</th>
+                      <th className="px-4 py-2 text-right">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
                     {filteredTasks.map((t: any) => (
-                      <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                      <tr
+                        key={t.id}
+                        className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors"
+                      >
                         <td className="px-4 py-3 break-words">
-                          <input type="checkbox" className="rounded" checked={selectedTaskIds.has(t.id)} onChange={(e) => { const next = new Set(selectedTaskIds); if (e.target.checked) next.add(t.id); else next.delete(t.id); setSelectedTaskIds(next); }} />
+                          <input
+                            type="checkbox"
+                            className="rounded"
+                            checked={selectedTaskIds.has(t.id)}
+                            onChange={(e) => {
+                              const next = new Set(selectedTaskIds);
+                              if (e.target.checked) next.add(t.id);
+                              else next.delete(t.id);
+                              setSelectedTaskIds(next);
+                            }}
+                          />
                         </td>
                         <td className="px-4 py-3 break-words">
                           <div className="font-semibold text-[15px] text-[#111827] break-words">
                             {t.title}
-                            {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
-                            {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
-                            {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />}
+                            {criticalTaskIds.has(t.id) && (
+                              <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">
+                                Critical Path
+                              </Badge>
+                            )}
+                            {t.sprint_id &&
+                              (() => {
+                                const s = sprints.find((sp: any) => sp.id === t.sprint_id);
+                                return s ? (
+                                  <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge>
+                                ) : null;
+                              })()}
+                            {t.is_flagged && (
+                              <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5 shrink-0" />
+                            )}
                           </div>
-                          <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                          <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">
+                            {truncateWords(t.description, 4) || "—"}
+                          </div>
                         </td>
                         <td className="px-4 py-3 break-words">
-                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">ASSIGNED TO</div>
-                          <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            ASSIGNED TO
+                          </div>
+                          <span className="text-[13px] text-[#374151]">
+                            {(t as any).users?.full_name || "—"}
+                          </span>
                         </td>
                         <td className="px-4 py-3 break-words">
-                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            PRIORITY
+                          </div>
                           <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
                         </td>
                         <td className="px-4 py-3 break-words">
-                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
-                          <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            STATUS
+                          </div>
+                          <Badge className={statusColor(t.status_id) || ""}>
+                            {getStatusDisplay(workflowStatuses || [], t.status_id).name}
+                          </Badge>
                         </td>
                         <td className="px-4 py-3 break-words">
-                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
-                          <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            EST. HOURS
+                          </div>
+                          <span className="text-[13px] text-[#374151]">
+                            {t.estimated_hours ? `${t.estimated_hours}h` : "—"}
+                          </span>
                         </td>
                         <td className="px-4 py-3 break-words">
-                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
-                          <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            DUE DATE
+                          </div>
+                          <span className="text-[13px] text-[#374151]">
+                            {t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}
+                          </span>
                         </td>
                         <td className="px-4 py-3 break-words">
-                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">FLAGGED</div>
-                          {t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            FLAGGED
+                          </div>
+                          {t.is_flagged ? (
+                            <Badge className="bg-red-100 text-red-700">Flagged</Badge>
+                          ) : (
+                            <span className="text-[13px] text-[#374151]">—</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 break-words">
-                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">VISIBLE</div>
-                          {t.client_visible !== false ? <Eye className="h-4 w-4 text-muted-foreground" /> : <EyeOff className="h-4 w-4 text-muted-foreground" />}
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            VISIBLE
+                          </div>
+                          {t.client_visible !== false ? (
+                            <Eye className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <EyeOff className="h-4 w-4 text-muted-foreground" />
+                          )}
                         </td>
                         <td className="px-4 py-3 break-words text-right flex gap-2">
-                          <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                          <button
+                            onClick={() => setViewTaskData(t)}
+                            className={editButtonClass}
+                            title="View Details"
+                          >
                             <Info className="h-4 w-4" />
                           </button>
                           <button onClick={() => openEditTask(t)} className={editButtonClass} title="Edit Task">
                             <Pencil className="h-4 w-4" />
                           </button>
                           {profile?.role === "admin" && (
-                            <button onClick={() => setDeleteTaskConfirmId(t.id)} className={editButtonClass} title="Delete Task">
+                            <button
+                              onClick={() => setDeleteTaskConfirmId(t.id)}
+                              className={editButtonClass}
+                              title="Delete Task"
+                            >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           )}
                         </td>
                       </tr>
                     ))}
-                    </tbody>
-                  </table>
-                  </>
-                );
-              })()}
-            </>
-          ) : isClient ? (
-            /* ── Client read-only task list ── */
-            <>
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-semibold">Tasks</h2>
-                <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
-                  <SelectTrigger className="w-[140px] h-9">
-                    <SelectValue placeholder="All" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All</SelectItem>
-                    {(workflowStatuses || []).map((s: any) => (
-                      <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
+                  </tbody>
+                </table>
+              </>
+            );
+          })()}
+        </>
+      ) : isClient ? (
+        <ClientTasksPanel
+          tasks={tasks}
+          sprints={sprints}
+          workflowStatuses={workflowStatuses}
+          setViewTaskData={setViewTaskData}
+        />
+      ) : (
+        <>
+          <h2 className="text-lg font-semibold">My Tasks</h2>
+          {(() => {
+            const myTasks = (tasks || []).filter(
+              (t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id
+            );
+            if (myTasks.length === 0)
+              return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
+            return (
+              <TooltipProvider>
+                <table className="w-full">
+                  <thead>
+                    <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                      <th className="px-4 py-2 text-left">TASK</th>
+                      <th className="px-4 py-2 text-left">STATUS</th>
+                      <th className="px-4 py-2 text-left">EST. HOURS</th>
+                      <th className="px-4 py-2 text-left">PRIORITY</th>
+                      <th className="px-4 py-2 text-left">DUE DATE</th>
+                      <th className="px-4 py-2 text-right">ACTIONS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myTasks.map((t: any) => (
+                      <tr
+                        key={t.id}
+                        className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors"
+                      >
+                        <td className="px-4 py-3 break-words">
+                          <div className="flex items-center gap-2">
+                            <div
+                              className={
+                                "font-semibold text-[15px] text-[#111827] break-words" +
+                                (t.status_id && doneStatusIds.has(t.status_id)
+                                  ? " line-through text-muted-foreground"
+                                  : "")
+                              }
+                            >
+                              {t.title}
+                              {criticalTaskIds.has(t.id) && (
+                                <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">
+                                  Critical Path
+                                </Badge>
+                              )}
+                              {t.sprint_id &&
+                                (() => {
+                                  const s = sprints.find((sp: any) => sp.id === t.sprint_id);
+                                  return s ? (
+                                    <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">
+                                      {s.name}
+                                    </Badge>
+                                  ) : null;
+                                })()}
+                              {t.is_flagged && (
+                                <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            STATUS
+                          </div>
+                          <Badge className={statusColor(t.status_id) || ""}>
+                            {getStatusDisplay(workflowStatuses || [], t.status_id).name}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            EST. HOURS
+                          </div>
+                          <span className="text-[13px] text-[#374151]">
+                            {t.estimated_hours ? `${t.estimated_hours}h` : "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            PRIORITY
+                          </div>
+                          <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                        </td>
+                        <td className="px-4 py-3 break-words">
+                          <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">
+                            DUE DATE
+                          </div>
+                          <span className="text-[13px] text-[#374151]">
+                            {t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 break-words text-right">
+                          <button
+                            onClick={() => setViewTaskData(t)}
+                            className={editButtonClass}
+                            title="View Details"
+                          >
+                            <Info className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
                     ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              {(() => {
-                const filteredTasks = (tasks || []).filter(
-                  (t: any) => taskStatusFilter === "all" || t.status_id === taskStatusFilter
-                );
-                if (filteredTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks yet.</p>;
-                return (
-                  <TooltipProvider>
-                    <table className="w-full">
-                      <thead>
-                        <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
-                          <th className="px-4 py-2 text-left">TASK</th>
-                          <th className="px-4 py-2 text-left">ASSIGNED TO</th>
-                          <th className="px-4 py-2 text-left">PRIORITY</th>
-                          <th className="px-4 py-2 text-left">STATUS</th>
-                          <th className="px-4 py-2 text-left">EST. HOURS</th>
-                          <th className="px-4 py-2 text-left">DUE DATE</th>
-                          <th className="px-4 py-2 text-left">FLAGGED</th>
-                          <th className="px-4 py-2 text-right">ACTIONS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredTasks.map((t: any) => (
-                          <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                            <td className="px-4 py-3 break-words">
-                              <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status_id && doneStatusIds.has(t.status_id) ? " line-through text-muted-foreground" : "")}>
-                                {t.title}
-                                {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
-                                {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
-                                {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
-                              </div>
-                              <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">ASSIGNED TO</div>
-                              <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
-                              <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
-                              <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
-                              <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
-                              <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">FLAGGED</div>
-                              {t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}
-                            </td>
-                            <td className="px-4 py-3 break-words text-right">
-                              <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
-                                <Info className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </TooltipProvider>
-                );
-              })()}
-            </>
-          ) : (
-            /* ── Employee "My Tasks" clean layout ── */
-            <>
-              <h2 className="text-lg font-semibold">My Tasks</h2>
-              {(() => {
-                const myTasks = (tasks || []).filter((t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id);
-                if (myTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
-                return (
-                  <TooltipProvider>
-                    <table className="w-full">
-                      <thead>
-                        <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
-                          <th className="px-4 py-2 text-left">TASK</th>
-                          <th className="px-4 py-2 text-left">STATUS</th>
-                          <th className="px-4 py-2 text-left">EST. HOURS</th>
-                          <th className="px-4 py-2 text-left">PRIORITY</th>
-                          <th className="px-4 py-2 text-left">DUE DATE</th>
-                          <th className="px-4 py-2 text-right">ACTIONS</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {myTasks.map((t: any) => (
-                          <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
-                            <td className="px-4 py-3 break-words">
-                              <div className="flex items-center gap-2">
-                                <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status_id && doneStatusIds.has(t.status_id) ? " line-through text-muted-foreground" : "")}>
-                                  {t.title}
-                                  {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
-                                  {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
-                                  {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
-                              <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
-                              <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
-                              <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                            </td>
-                            <td className="px-4 py-3 break-words">
-                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
-                              <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
-                            </td>
-                            <td className="px-4 py-3 break-words text-right">
-                              <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
-                                <Info className="h-4 w-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </TooltipProvider>
-                );
-              })()}
-            </>
-          )}
+                  </tbody>
+                </table>
+              </TooltipProvider>
+            );
+          })()}
+        </>
+      )}
     </>
   );
 }

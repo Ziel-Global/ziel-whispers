@@ -130,60 +130,83 @@ export function ProjectActionItemsTab({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Action Items</h3>
+        <h3 className={isClient ? "client-section-title mb-0" : "text-lg font-semibold"}>Action Items</h3>
       </div>
 
       {relevantItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <CheckCircle2 className="h-12 w-12 text-muted-foreground/40 mb-3" />
-          <p className="text-sm text-muted-foreground">No action items for this project.</p>
-        </div>
+        isClient ? (
+          <div className="client-empty-state">
+            <CheckCircle2 className="h-10 w-10 text-[#D0D0D4] mx-auto mb-3" />
+            <div className="text-[12px] font-semibold text-[#3F3F45] mb-1">No action items</div>
+            <p className="text-[9.5px] max-w-[360px] mx-auto leading-relaxed">No action items for this project.</p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <CheckCircle2 className="h-12 w-12 text-muted-foreground/40 mb-3" />
+            <p className="text-sm text-muted-foreground">No action items for this project.</p>
+          </div>
+        )
       ) : (
         <div className="space-y-4">
-          {/* Sub-tabs header */}
-          <div className="flex items-center gap-2 border-b border-gray-200 pb-2">
-            <button
-              type="button"
-              onClick={() => setActionItemSubTab("blockers")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${
-                actionItemSubTab === "blockers"
-                  ? "bg-rose-50 text-rose-700 border border-rose-200 shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              ⚠️ Task Blockers
-              <Badge className={actionItemSubTab === "blockers" ? "bg-rose-600 text-white hover:bg-rose-600" : "bg-gray-200 text-gray-700"}>
-                {blockerItems.length}
-              </Badge>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActionItemSubTab("dependencies")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${
-                actionItemSubTab === "dependencies"
-                  ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              🔗 Task Dependencies
-              <Badge className={actionItemSubTab === "dependencies" ? "bg-blue-600 text-white hover:bg-blue-600" : "bg-gray-200 text-gray-700"}>
-                {dependencyItems.length}
-              </Badge>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setActionItemSubTab("all")}
-              className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${
-                actionItemSubTab === "all" ? "bg-gray-800 text-white shadow-sm" : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              All Items
-              <Badge className={actionItemSubTab === "all" ? "bg-gray-700 text-white hover:bg-gray-700" : "bg-gray-200 text-gray-700"}>
-                {relevantItems.length}
-              </Badge>
-            </button>
+          <div className={`flex items-center gap-2 flex-wrap ${isClient ? "" : "border-b border-gray-200 pb-2"}`}>
+            {(
+              [
+                { key: "blockers" as const, label: "Task Blockers", count: blockerItems.length },
+                { key: "dependencies" as const, label: "Task Dependencies", count: dependencyItems.length },
+                { key: "all" as const, label: "All Items", count: relevantItems.length },
+              ] as const
+            ).map((tab) => {
+              const active = actionItemSubTab === tab.key;
+              return (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setActionItemSubTab(tab.key)}
+                  className={
+                    isClient
+                      ? `px-3 py-1.5 text-[11px] font-semibold rounded-full transition-all flex items-center gap-1.5 border ${
+                          active
+                            ? tab.key === "all"
+                              ? "bg-[#17171A] text-white border-[#17171A]"
+                              : "bg-[#FFF4EE] text-[#EB5A1E] border-[#F5D5C4]"
+                            : "bg-white text-[#5D5D64] border-[#E6E6E9] hover:bg-[#FAFAFB]"
+                        }`
+                      : `px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${
+                          active
+                            ? tab.key === "blockers"
+                              ? "bg-rose-50 text-rose-700 border border-rose-200 shadow-sm"
+                              : tab.key === "dependencies"
+                              ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
+                              : "bg-gray-800 text-white shadow-sm"
+                            : "text-gray-600 hover:bg-gray-100"
+                        }`
+                  }
+                >
+                  {!isClient && tab.key === "blockers" ? "⚠️ " : ""}
+                  {!isClient && tab.key === "dependencies" ? "🔗 " : ""}
+                  {tab.label}
+                  <Badge
+                    className={
+                      isClient
+                        ? active
+                          ? tab.key === "all"
+                            ? "bg-white/20 text-white hover:bg-white/20 border-0 text-[9px]"
+                            : "bg-[#EB5A1E] text-white hover:bg-[#EB5A1E] border-0 text-[9px]"
+                          : "bg-[#F3F3F5] text-[#5D5D64] border-0 text-[9px]"
+                        : active
+                        ? tab.key === "blockers"
+                          ? "bg-rose-600 text-white hover:bg-rose-600"
+                          : tab.key === "dependencies"
+                          ? "bg-blue-600 text-white hover:bg-blue-600"
+                          : "bg-gray-700 text-white hover:bg-gray-700"
+                        : "bg-gray-200 text-gray-700"
+                    }
+                  >
+                    {tab.count}
+                  </Badge>
+                </button>
+              );
+            })}
           </div>
 
           {activeTabItems.length === 0 ? (
@@ -194,9 +217,87 @@ export function ProjectActionItemsTab({
                 ? "No task dependencies."
                 : "No action items for this project."}
             </p>
+          ) : isClient ? (
+            <div className="client-table-card overflow-x-auto">
+              <table className="w-full min-w-[720px]">
+                <thead>
+                  <tr className="border-b border-[#E9E9EC] text-[10px] uppercase tracking-[0.05em] text-[#9ca3af] font-semibold">
+                    <th className="px-4 py-2.5 text-left">Title</th>
+                    <th className="px-4 py-2.5 text-left">Priority</th>
+                    <th className="px-4 py-2.5 text-left">Status</th>
+                    <th className="px-4 py-2.5 text-left">Due</th>
+                    <th className="px-4 py-2.5 text-left">Requested</th>
+                    <th className="px-4 py-2.5 text-left">Assigned</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeTabItems.map((a: any) => {
+                    const isExpanded = expandedActionItemId === a.id;
+                    return (
+                      <React.Fragment key={a.id}>
+                        <tr
+                          className="border-b border-[#F3F3F5] hover:bg-[#FAFAFB] cursor-pointer"
+                          onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}
+                        >
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              {isExpanded ? (
+                                <ChevronDown className="h-4 w-4 text-[#8B8B92] shrink-0" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-[#8B8B92] shrink-0" />
+                              )}
+                              <div>
+                                <div className="text-[13px] font-semibold text-[#17171A]">{a.title}</div>
+                                {a.description && (
+                                  <div className="text-[11px] text-[#8B8B92] mt-0.5">{truncateWords(a.description, 6)}</div>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge className={PRIORITY_COLORS[a.priority] || "bg-gray-100 text-gray-800"}>{a.priority || "medium"}</Badge>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Badge
+                              className={
+                                a.status === "completed"
+                                  ? "bg-green-100 text-green-800 border-0"
+                                  : a.status === "waived"
+                                  ? "bg-gray-100 text-gray-800 border-0"
+                                  : "bg-yellow-100 text-yellow-800 border-0"
+                              }
+                            >
+                              {a.status}
+                            </Badge>
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-[#374151]">
+                            {a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}
+                          </td>
+                          <td className="px-4 py-3 text-[13px] text-[#374151]">{a.requested_by_user?.full_name || "—"}</td>
+                          <td className="px-4 py-3 text-[13px] text-[#374151]">{a.assigned_to_user?.full_name || "—"}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr>
+                            <td colSpan={6} className="px-4 py-4 bg-[#FAFAFB]">
+                              {a.description && <p className="text-[13px] text-[#5D5D64] whitespace-pre-wrap mb-3">{a.description}</p>}
+                              {a.status === "completed" && a.resolver && (
+                                <div className="bg-green-50 border border-green-200 rounded-[9px] px-3 py-2 text-sm text-green-800">
+                                  Resolved by {a.resolver.full_name}
+                                  {a.completed_at ? ` on ${format(new Date(a.completed_at), "MMM d, yyyy")}` : ""}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           ) : (
             <div>
-              <TableHeader gridCols={isClient ? "1fr 80px 100px 96px 96px 80px 80px 80px 100px" : "1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px"}>
+              <TableHeader gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
                 <span>TITLE</span>
                 <span>PRIORITY</span>
                 <span>STATUS</span>
@@ -206,14 +307,14 @@ export function ProjectActionItemsTab({
                 <span>BLOCKER</span>
                 <span>RELATED TASK</span>
                 <span>ASSIGNED</span>
-                {!isClient && <span className="text-right">ACTIONS</span>}
+                <span className="text-right">ACTIONS</span>
               </TableHeader>
               {activeTabItems.map((a: any) => {
                 const isExpanded = expandedActionItemId === a.id;
                 const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
                 return (
                   <div key={a.id}>
-                    <DataRow gridCols={isClient ? "1fr 80px 100px 96px 96px 80px 80px 80px 100px" : "1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px"}>
+                    <DataRow gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
                       <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -257,7 +358,6 @@ export function ProjectActionItemsTab({
                       </RowBadgeItem>
                       <RowDataItem label="RELATED TASK">{linkedTask?.title || "—"}</RowDataItem>
                       <RowDataItem label="ASSIGNED">{a.assigned_to_user?.full_name || "—"}</RowDataItem>
-                      {!isClient && (
                       <div style={{ justifySelf: "end" }} className="flex items-center gap-1">
                         {a.status === "pending" && (
                           <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
@@ -265,7 +365,6 @@ export function ProjectActionItemsTab({
                           </button>
                         )}
                       </div>
-                      )}
                     </DataRow>
                     {isExpanded && (
                       <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
@@ -309,7 +408,7 @@ export function ProjectActionItemsTab({
                             ))
                           )}
                         </div>
-                        {a.status === "pending" && !isClient && (
+                        {a.status === "pending" && (
                           <div className="flex gap-2">
                             <Textarea
                               value={newActionItemMessage}

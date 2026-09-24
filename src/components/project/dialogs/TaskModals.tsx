@@ -539,6 +539,7 @@ export function TaskModals(props: TaskModalsProps) {
                 taskId={viewTaskData.id}
                 projectMembers={resourceMembers}
                 primaryOwnerId={viewTaskData.assigned_to}
+                readOnly={isClient}
               />
               <Separator className="my-4" />
             </>
@@ -570,6 +571,7 @@ export function TaskModals(props: TaskModalsProps) {
                 ))}
               </div>
             )}
+            {!isClient && (
             <div className="flex gap-2">
               <Textarea
                 value={newViewComment}
@@ -580,6 +582,7 @@ export function TaskModals(props: TaskModalsProps) {
               />
               <Button type="button" size="sm" onClick={addViewComment} disabled={!newViewComment.trim()} className="shrink-0 self-end">Comment</Button>
             </div>
+            )}
           </div>
 
           <Separator className="my-4" />
@@ -599,6 +602,7 @@ export function TaskModals(props: TaskModalsProps) {
                       <span className="text-sm truncate">{d.depends_on?.title || "Unknown"}</span>
                       <Badge variant="outline" className="text-[10px]">{d.dependency_type.replace(/_/g, " ")}</Badge>
                     </div>
+                    {!isClient && (
                     <button
                       type="button"
                       onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(viewTaskData?.id); }}
@@ -607,11 +611,12 @@ export function TaskModals(props: TaskModalsProps) {
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
+                    )}
                   </div>
                 ))}
               </div>
             )}
-            {viewAddDepOpen ? (
+            {!isClient && (viewAddDepOpen ? (
               <div className="space-y-2 border rounded-md p-3">
                 <div className="space-y-2">
                   <label className="text-xs font-medium">Depends on</label>
@@ -653,7 +658,7 @@ export function TaskModals(props: TaskModalsProps) {
               <Button type="button" variant="outline" size="sm" onClick={() => setViewAddDepOpen(true)} className="w-full">
                 <Plus className="h-3.5 w-3.5 mr-1" /> Add Dependency
               </Button>
-            )}
+            ))}
           </div>
 
           <Separator className="my-4" />
@@ -686,7 +691,7 @@ export function TaskModals(props: TaskModalsProps) {
                         )}
                       </div>
                     </div>
-                    {b.status !== "resolved" && (
+                    {b.status !== "resolved" && !isClient && (
                       <Button type="button" size="sm" variant="ghost" onClick={() => resolveBlocker(b.id, viewTaskData?.id)} className="shrink-0 h-7 px-2" title="Resolve">
                         <CheckCircle2 className="h-4 w-4 text-green-600" />
                       </Button>
@@ -695,7 +700,7 @@ export function TaskModals(props: TaskModalsProps) {
                 ))}
               </div>
             )}
-            {showViewAddBlocker ? (
+            {!isClient && (showViewAddBlocker ? (
               <div className="space-y-3 border rounded-md p-3">
                 <Textarea value={newViewBlockerDescription} onChange={(e) => setNewViewBlockerDescription(e.target.value)} placeholder="Describe the blocker..." rows={2} className="text-sm resize-none" />
                 <div className="space-y-1">
@@ -743,10 +748,10 @@ export function TaskModals(props: TaskModalsProps) {
               <Button type="button" variant="outline" size="sm" onClick={() => setShowViewAddBlocker(true)} className="w-full">
                 <Plus className="h-3.5 w-3.5 mr-1" /> Report Blocker
               </Button>
-            )}
+            ))}
           </div>
 
-          {(viewTaskData?.assigned_to === profile?.id || isAdmin || viewTaskData?.created_by === profile?.id) && viewTaskData?.status_id && workflowStatuses && (
+          {(viewTaskData?.assigned_to === profile?.id || isAdmin || viewTaskData?.created_by === profile?.id) && viewTaskData?.status_id && workflowStatuses && !isClient && (
             <>
               <Separator className="my-4" />
               <div className="space-y-3">

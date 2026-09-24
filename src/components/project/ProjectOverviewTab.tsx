@@ -148,9 +148,8 @@ export function ProjectOverviewTab({
           </div>
         )}
 
-        {/* Burndown Chart — admin/employee only (hours-based) */}
-        {!isClient && (
-          <>
+        {/* Burndown Chart */}
+        <>
             <Separator className="my-6" />
 
             <div className="space-y-4">
@@ -231,7 +230,6 @@ export function ProjectOverviewTab({
               })()}
             </div>
           </>
-        )}
 
         {/* Status Updates — admin/employee only */}
         {!isClient && (

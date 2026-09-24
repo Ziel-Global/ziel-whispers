@@ -182,7 +182,93 @@ export function ProjectTasksTab({
                 );
               })()}
             </>
-          ) : !isClient ? (
+          ) : isClient ? (
+            /* ── Client read-only task list ── */
+            <>
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-semibold">Tasks</h2>
+                <Select value={taskStatusFilter} onValueChange={setTaskStatusFilter}>
+                  <SelectTrigger className="w-[140px] h-9">
+                    <SelectValue placeholder="All" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All</SelectItem>
+                    {(workflowStatuses || []).map((s: any) => (
+                      <SelectItem key={s.id} value={s.id}>{s.name.replace(/_/g, " ")}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(() => {
+                const filteredTasks = (tasks || []).filter(
+                  (t: any) => taskStatusFilter === "all" || t.status_id === taskStatusFilter
+                );
+                if (filteredTasks.length === 0) return <p className="text-sm text-muted-foreground">No tasks yet.</p>;
+                return (
+                  <TooltipProvider>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
+                          <th className="px-4 py-2 text-left">TASK</th>
+                          <th className="px-4 py-2 text-left">ASSIGNED TO</th>
+                          <th className="px-4 py-2 text-left">PRIORITY</th>
+                          <th className="px-4 py-2 text-left">STATUS</th>
+                          <th className="px-4 py-2 text-left">EST. HOURS</th>
+                          <th className="px-4 py-2 text-left">DUE DATE</th>
+                          <th className="px-4 py-2 text-left">FLAGGED</th>
+                          <th className="px-4 py-2 text-right">ACTIONS</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredTasks.map((t: any) => (
+                          <tr key={t.id} className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors">
+                            <td className="px-4 py-3 break-words">
+                              <div className={"font-semibold text-[15px] text-[#111827] break-words" + (t.status_id && doneStatusIds.has(t.status_id) ? " line-through text-muted-foreground" : "")}>
+                                {t.title}
+                                {criticalTaskIds.has(t.id) && <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">Critical Path</Badge>}
+                                {t.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === t.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] ml-1.5">{s.name}</Badge> : null; })()}
+                                {t.is_flagged && <Flag className="h-3.5 w-3.5 text-red-500 inline-block ml-1.5" />}
+                              </div>
+                              <div className="text-[12px] text-[#6b7280] mt-0.5 truncate">{truncateWords(t.description, 4) || "—"}</div>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">ASSIGNED TO</div>
+                              <span className="text-[13px] text-[#374151]">{(t as any).users?.full_name || "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">PRIORITY</div>
+                              <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">STATUS</div>
+                              <Badge className={statusColor(t.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">EST. HOURS</div>
+                              <span className="text-[13px] text-[#374151]">{t.estimated_hours ? `${t.estimated_hours}h` : "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">DUE DATE</div>
+                              <span className="text-[13px] text-[#374151]">{t.due_date ? format(new Date(t.due_date + "T00:00:00"), "MMM d") : "—"}</span>
+                            </td>
+                            <td className="px-4 py-3 break-words">
+                              <div className="text-[10px] uppercase tracking-wider text-[#9ca3af] font-medium md:hidden">FLAGGED</div>
+                              {t.is_flagged ? <Badge className="bg-red-100 text-red-700">Flagged</Badge> : <span className="text-[13px] text-[#374151]">—</span>}
+                            </td>
+                            <td className="px-4 py-3 break-words text-right">
+                              <button onClick={() => setViewTaskData(t)} className={editButtonClass} title="View Details">
+                                <Info className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </TooltipProvider>
+                );
+              })()}
+            </>
+          ) : (
             /* ── Employee "My Tasks" clean layout ── */
             <>
               <h2 className="text-lg font-semibold">My Tasks</h2>
@@ -244,7 +330,7 @@ export function ProjectTasksTab({
                 );
               })()}
             </>
-          ) : null}
+          )}
     </>
   );
 }

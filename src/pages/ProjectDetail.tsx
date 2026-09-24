@@ -29,6 +29,8 @@ import { ProjectActionItemsTab } from "@/components/project/tabs/ProjectActionIt
 import { ProjectResourcesTab } from "@/components/project/tabs/ProjectResourcesTab";
 import { ProjectPhasesTab } from "@/components/project/tabs/ProjectPhasesTab";
 import { ProjectSkillsTab } from "@/components/project/tabs/ProjectSkillsTab";
+import { ProjectBlockersTab } from "@/components/project/tabs/ProjectBlockersTab";
+import { ProjectStatusUpdatesTab } from "@/components/project/tabs/ProjectStatusUpdatesTab";
 
 import { TaskModals } from "@/components/project/dialogs/TaskModals";
 import { AutomationRuleModal } from "@/components/project/dialogs/AutomationRuleModal";
@@ -1185,6 +1187,32 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
+        <TabsContent value="phase-progress">
+          <ProjectPhasesTab
+            id={id!}
+            slug={slug}
+            phases={phases}
+            sprints={sprints}
+            phaseProgress={phaseProgress}
+            isAdmin={false}
+            setAddPhaseOpen={setAddPhaseOpen}
+            openPhaseTasks={openPhaseTasks}
+            queryClient={queryClient}
+          />
+        </TabsContent>
+
+        <TabsContent value="blockers" className="space-y-4">
+          <ProjectBlockersTab blockers={projectBlockers} tasks={tasks || []} />
+        </TabsContent>
+
+        <TabsContent value="status-updates" className="space-y-4">
+          <ProjectStatusUpdatesTab
+            statusUpdates={statusUpdates}
+            statusUpdatesLoading={statusUpdatesLoading}
+            getAvatarUrl={getAvatarUrl}
+          />
+        </TabsContent>
+
         {isAdmin && (
           <TabsContent value="phases">
             <ProjectPhasesTab
@@ -1216,8 +1244,7 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
-        {!isClient && (
-          <TabsContent value="action-items" className="space-y-4">
+        <TabsContent value="action-items" className="space-y-4">
             <ProjectActionItemsTab
               id={id!}
               actionItems={actionItems}
@@ -1233,7 +1260,6 @@ export default function ProjectDetailPage() {
               project={project}
             />
           </TabsContent>
-        )}
 
         {isAdmin && (
           <TabsContent value="automation-rules" className="space-y-4">

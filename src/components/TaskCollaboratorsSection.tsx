@@ -11,12 +11,14 @@ interface TaskCollaboratorsSectionProps {
   taskId: string;
   projectMembers?: any[];
   primaryOwnerId?: string | null;
+  readOnly?: boolean;
 }
 
 export function TaskCollaboratorsSection({
   taskId,
   projectMembers = [],
   primaryOwnerId,
+  readOnly = false,
 }: TaskCollaboratorsSectionProps) {
   const { collaborators, loading, addCollaborator, removeCollaborator } = useTaskCollaborators(taskId);
   const [adding, setAdding] = useState(false);
@@ -76,6 +78,7 @@ export function TaskCollaboratorsSection({
                   <AvatarFallback className="text-[8px]">{userName.charAt(0)}</AvatarFallback>
                 </Avatar>
                 <span>{userName}</span>
+                {!readOnly && (
                 <button
                   type="button"
                   onClick={() => removeCollaborator(collab.user_id)}
@@ -84,13 +87,14 @@ export function TaskCollaboratorsSection({
                 >
                   <X className="h-3 w-3" />
                 </button>
+                )}
               </Badge>
             );
           })}
         </div>
       )}
 
-      {adding ? (
+      {!readOnly && (adding ? (
         <div className="space-y-2 border rounded-md p-3">
           <div className="space-y-2">
             <label className="text-xs font-medium">Select Collaborator</label>
@@ -146,7 +150,7 @@ export function TaskCollaboratorsSection({
         >
           <Plus className="h-3.5 w-3.5 mr-1" /> Add Collaborator
         </Button>
-      )}
+      ))}
     </div>
   );
 }

@@ -113,9 +113,7 @@ export function ProjectActionItemsTab({
   // Filter items according to role and subtab
   const relevantItems = actionItems.filter((a: any) => {
     if (isClient) {
-      if (a.visible_to_client === false) return false;
-      if (a.assigned_to) return a.assigned_to === profile?.id;
-      return true;
+      return a.visible_to_client !== false;
     }
     if (!isAdmin) {
       return a.assigned_to === profile?.id || a.requested_by === profile?.id;
@@ -138,7 +136,7 @@ export function ProjectActionItemsTab({
       {relevantItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <CheckCircle2 className="h-12 w-12 text-muted-foreground/40 mb-3" />
-          <p className="text-sm text-muted-foreground">No action items found.</p>
+          <p className="text-sm text-muted-foreground">No action items for this project.</p>
         </div>
       ) : (
         <div className="space-y-4">
@@ -194,11 +192,11 @@ export function ProjectActionItemsTab({
                 ? "No active task blockers."
                 : actionItemSubTab === "dependencies"
                 ? "No task dependencies."
-                : "No action items found."}
+                : "No action items for this project."}
             </p>
           ) : (
             <div>
-              <TableHeader gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
+              <TableHeader gridCols={isClient ? "1fr 80px 100px 96px 96px 80px 80px 80px 100px" : "1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px"}>
                 <span>TITLE</span>
                 <span>PRIORITY</span>
                 <span>STATUS</span>
@@ -208,14 +206,14 @@ export function ProjectActionItemsTab({
                 <span>BLOCKER</span>
                 <span>RELATED TASK</span>
                 <span>ASSIGNED</span>
-                <span className="text-right">ACTIONS</span>
+                {!isClient && <span className="text-right">ACTIONS</span>}
               </TableHeader>
               {activeTabItems.map((a: any) => {
                 const isExpanded = expandedActionItemId === a.id;
                 const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
                 return (
                   <div key={a.id}>
-                    <DataRow gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
+                    <DataRow gridCols={isClient ? "1fr 80px 100px 96px 96px 80px 80px 80px 100px" : "1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px"}>
                       <div className="flex items-center gap-2 cursor-pointer" onClick={() => setExpandedActionItemId(isExpanded ? null : a.id)}>
                         {isExpanded ? (
                           <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
@@ -259,6 +257,7 @@ export function ProjectActionItemsTab({
                       </RowBadgeItem>
                       <RowDataItem label="RELATED TASK">{linkedTask?.title || "—"}</RowDataItem>
                       <RowDataItem label="ASSIGNED">{a.assigned_to_user?.full_name || "—"}</RowDataItem>
+                      {!isClient && (
                       <div style={{ justifySelf: "end" }} className="flex items-center gap-1">
                         {a.status === "pending" && (
                           <button onClick={() => completeActionItem(a.id)} className={editButtonClass} title="Mark Resolved">
@@ -266,6 +265,7 @@ export function ProjectActionItemsTab({
                           </button>
                         )}
                       </div>
+                      )}
                     </DataRow>
                     {isExpanded && (
                       <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
@@ -309,7 +309,7 @@ export function ProjectActionItemsTab({
                             ))
                           )}
                         </div>
-                        {a.status === "pending" && (
+                        {a.status === "pending" && !isClient && (
                           <div className="flex gap-2">
                             <Textarea
                               value={newActionItemMessage}

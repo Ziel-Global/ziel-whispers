@@ -171,16 +171,16 @@ export function ProjectResourcesTab({
           <div className="py-8 text-center text-muted-foreground text-sm">No resources assigned</div>
         ) : (
           <div>
-            <TableHeader gridCols="1fr 112px 112px 80px">
+            <TableHeader gridCols={isAdmin ? "1fr 112px 112px 80px" : "1fr 112px 112px"}>
               <span>RESOURCE</span>
               <span>HOURS SPENT</span>
               <span>ASSIGNED</span>
-              <span className="text-right">ACTIONS</span>
+              {isAdmin && <span className="text-right">ACTIONS</span>}
             </TableHeader>
             {members
               .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""))
               .map((m) => (
-                <DataRow key={m.id} gridCols="1fr 112px 112px 80px">
+                <DataRow key={m.id} gridCols={isAdmin ? "1fr 112px 112px 80px" : "1fr 112px 112px"}>
                   <div className="flex items-center gap-2">
                     <Avatar className="h-7 w-7 shrink-0">
                       <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
@@ -192,9 +192,11 @@ export function ProjectResourcesTab({
                     </div>
                   </div>
                   <RowDataItem label="HOURS SPENT">{m._hoursSpent}h</RowDataItem>
-                  <RowDataItem label="ASSIGNED">{isAdmin ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}</RowDataItem>
-                  <RowActions className="justify-self-end">
-                    {isAdmin && (
+                  <RowDataItem label="ASSIGNED">
+                    {m.assigned_at ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}
+                  </RowDataItem>
+                  {isAdmin && (
+                    <RowActions className="justify-self-end">
                       <button
                         onClick={() => {
                           setConfirmMemberDelId(m.id);
@@ -205,8 +207,8 @@ export function ProjectResourcesTab({
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
-                    )}
-                  </RowActions>
+                    </RowActions>
+                  )}
                 </DataRow>
               ))}
           </div>

@@ -18,7 +18,7 @@ import {
   Bell,
   ChevronRight,
 } from "lucide-react";
-import { useLocation } from "react-router-dom";
+import { useLocation, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useState, useEffect, useMemo } from "react";
 import { NavLink } from "@/components/NavLink";
@@ -271,7 +271,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-black/10 bg-white">
       {/* Brand Header */}
       <div className="flex items-center justify-between p-4 pb-3 border-b border-black/5">
-        <div className="flex items-center gap-2.5">
+        <Link to="/projects" className="flex items-center gap-2.5 min-w-0 rounded-[9px] outline-none focus-visible:ring-2 focus-visible:ring-[#EB5A1E]/40">
           <div className="w-[34px] h-[34px] rounded-[9px] bg-[#17171A] flex items-center justify-center shrink-0">
             <span className="text-[#EB5A1E] font-extrabold text-[15px] tracking-tight">Zi</span>
           </div>
@@ -281,7 +281,7 @@ export function AppSidebar() {
               <div className="text-[11.5px] text-[#8B8B92] font-medium">{portalSubtitle}</div>
             </div>
           )}
-        </div>
+        </Link>
       </div>
 
       <SidebarContent className="px-4 py-3 space-y-4">

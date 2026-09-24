@@ -153,57 +153,80 @@ export function ProjectResourcesTab({
       {isClient ? (
         <div>
           <h3 className="client-section-title">Resources</h3>
-          {members.length === 0 ? (
-            <div className="client-empty-state">
-              <div className="text-[12px] font-semibold text-[#3F3F45] mb-1">No resources assigned</div>
-              <p className="text-[9.5px] max-w-[360px] mx-auto leading-relaxed">Team members assigned to this project will appear here.</p>
-            </div>
-          ) : (
-            <div className="client-table-card">
-              <div className="client-table-summary">
-                <span className="text-[12px] font-semibold text-[#17171A]">
-                  {members.length} resource{members.length !== 1 ? "s" : ""}
-                </span>
+          <div className="client-table-card">
+            <div className="flex items-center justify-between gap-3 px-3.5 py-[11px] border-b border-[#E9E9EC] bg-[#FCFCFD]">
+              <div>
+                <div className="text-[10.5px] font-semibold text-[#17171A]">
+                  {members.length} project resource{members.length !== 1 ? "s" : ""}
+                </div>
+                <div className="text-[8.5px] text-[#8F8F96] mt-0.5">
+                  People currently visible to the client for this project
+                </div>
               </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[520px]">
-                  <thead>
-                    <tr className="border-b border-[#E9E9EC] text-[10px] uppercase tracking-[0.05em] text-[#9ca3af] font-semibold">
-                      <th className="px-4 py-2.5 text-left">Resource</th>
-                      <th className="px-4 py-2.5 text-left">Hours</th>
-                      <th className="px-4 py-2.5 text-left">Assigned</th>
+              <span className="inline-flex items-center min-h-[22px] px-2 rounded-md text-[8px] font-semibold bg-[#F2F2F4] text-[#5D5D64]">
+                Client view
+              </span>
+            </div>
+            <div className="overflow-hidden">
+              <table className="w-full table-fixed border-collapse">
+                <thead>
+                  <tr>
+                    <th className="text-left text-[#9595A0] text-[9px] font-medium tracking-[0.02em] uppercase px-3.5 py-2.5 border-b border-[#E2E2E5] bg-white w-[50%]">
+                      Resource
+                    </th>
+                    <th className="text-left text-[#9595A0] text-[9px] font-medium tracking-[0.02em] uppercase px-3.5 py-2.5 border-b border-[#E2E2E5] bg-white w-[25%]">
+                      Hours spent
+                    </th>
+                    <th className="text-left text-[#9595A0] text-[9px] font-medium tracking-[0.02em] uppercase px-3.5 py-2.5 border-b border-[#E2E2E5] bg-white w-[25%]">
+                      Assigned since
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {members.length === 0 ? (
+                    <tr>
+                      <td colSpan={3} className="px-5 py-[38px] text-center text-[9.5px] text-[#96969D]">
+                        No resources assigned
+                      </td>
                     </tr>
-                  </thead>
-                  <tbody>
-                    {members
+                  ) : (
+                    members
+                      .slice()
                       .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""))
-                      .map((m) => (
-                        <tr key={m.id} className="border-b border-[#F3F3F5] last:border-0 hover:bg-[#FAFAFB]">
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2.5">
-                              <Avatar className="h-7 w-7 shrink-0">
-                                <AvatarImage src={getAvatarUrl((m.users as any)?.avatar_url)} />
-                                <AvatarFallback className="text-xs bg-[#FFF0E9] text-[#EB5A1E]">
-                                  {((m.users as any)?.full_name || "?")[0]}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <div className="text-[13px] font-semibold text-[#17171A]">{(m.users as any)?.full_name}</div>
-                                <div className="text-[11px] text-[#8B8B92]">{(m.users as any)?.designation}</div>
+                      .map((m) => {
+                        const name = (m.users as any)?.full_name || "Unknown";
+                        const role = (m.users as any)?.designation || "—";
+                        return (
+                          <tr key={m.id} className="border-b border-[#F3F3F5] last:border-0 hover:bg-[#FAFAFB]">
+                            <td className="px-3.5 py-3">
+                              <div className="flex items-center gap-[7px] min-w-0">
+                                <span className="w-6 h-6 rounded-[7px] bg-[#F1F1F3] text-[#4E4E55] text-[7.5px] font-bold flex items-center justify-center shrink-0">
+                                  {name.charAt(0).toUpperCase()}
+                                </span>
+                                <div className="min-w-0 overflow-hidden">
+                                  <div className="text-[10.7px] font-semibold text-[#17171A] leading-[1.45] truncate" title={name}>
+                                    {name}
+                                  </div>
+                                  <div className="text-[8.4px] text-[#97979E] mt-0.5 truncate" title={role}>
+                                    {role}
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-[13px] text-[#374151]">{m._hoursSpent}h</td>
-                          <td className="px-4 py-3 text-[13px] text-[#374151]">
-                            {m.assigned_at ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
+                            </td>
+                            <td className="px-3.5 py-3 text-[10.5px] text-[#4C4C53]">
+                              {m._hoursSpent != null ? `${m._hoursSpent}h` : "0h"}
+                            </td>
+                            <td className="px-3.5 py-3 text-[10.5px] text-[#4C4C53]">
+                              {m.assigned_at ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}
+                            </td>
+                          </tr>
+                        );
+                      })
+                  )}
+                </tbody>
+              </table>
             </div>
-          )}
+          </div>
         </div>
       ) : (
       <Card>

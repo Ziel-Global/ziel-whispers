@@ -71,6 +71,12 @@ export default function ProjectDetailPage() {
     workflowTemplate,
     viewTaskData,
     setViewTaskData,
+    viewComments,
+    viewCommentsLoading,
+    viewBlockers,
+    viewBlockersLoading,
+    viewDeps,
+    viewDepsLoading,
     criticalTaskIds,
     latestHealth,
     healthTrend,
@@ -1493,6 +1499,14 @@ export default function ProjectDetailPage() {
         isClient={isClient}
         PRIORITY_COLORS={PRIORITY_COLORS}
         doneStatusIds={doneStatusIds}
+        tasks={tasks}
+        project={project}
+        viewCommentsData={viewComments}
+        viewCommentsLoadingData={viewCommentsLoading}
+        viewDepsData={viewDeps}
+        viewDepsLoadingData={viewDepsLoading}
+        viewBlockersData={viewBlockers}
+        viewBlockersLoadingData={viewBlockersLoading}
       />
 
       <PhaseModals

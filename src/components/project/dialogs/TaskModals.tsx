@@ -2,7 +2,7 @@ import { TaskCollaboratorsSection } from "@/components/TaskCollaboratorsSection"
 import { StageOutcomeSelector } from "@/components/StageOutcomeSelector";
 import { getStatusDisplay, getStatusColor } from "@/lib/workflow";
 import React, { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,11 +17,24 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Flag, Paperclip, Send, Trash2, Download, Upload, FileText, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, MessageSquare, Plus, Search, Eye, EyeOff, XCircle, Pencil, ArrowRightCircle } from "lucide-react";
+import { Flag, Paperclip, Send, Trash2, Download, Upload, FileText, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, MessageSquare, Plus, Search, Eye, EyeOff, XCircle, Pencil, ArrowRightCircle, Info, List, Link2, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
 import { truncateWords, cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import {
+  bucketTaskState,
+  PRIORITY_PILL_CLASS,
+  STATUS_PILL_CLASS,
+  type TaskStateBucket,
+} from "@/lib/clientTaskBuckets";
+
+const PROGRESS_BY_BUCKET: Record<TaskStateBucket, number> = {
+  Unlinked: 0,
+  Development: 50,
+  Returned: 25,
+  Complete: 100,
+};
 
 export interface TaskModalsProps {
   addTaskOpen: boolean;
@@ -61,13 +74,13 @@ export interface TaskModalsProps {
   handleEditTaskSave: (e: React.FormEvent) => void;
   handleBulkUpload: () => void;
   handleCSVUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  toggleFlag: (taskId: string, current: boolean) => void;
+  toggleFlag?: (taskId: string, current: boolean) => void;
   openEditTask: (task: any) => void;
   
   members: any[];
   sprints: any[];
   phases: any[];
-  taskTypes: any[];
+  taskTypes?: any[];
   workflowStatuses: any[];
   profile: any;
   isAdmin: boolean;
@@ -75,6 +88,13 @@ export interface TaskModalsProps {
   PRIORITY_COLORS: Record<string, string>;
   doneStatusIds: string[];
   tasks?: any[];
+  project?: any;
+  viewCommentsData?: any[];
+  viewCommentsLoadingData?: boolean;
+  viewDepsData?: any[];
+  viewDepsLoadingData?: boolean;
+  viewBlockersData?: any[];
+  viewBlockersLoadingData?: boolean;
 }
 
 export function TaskModals(props: TaskModalsProps) {
@@ -139,6 +159,21 @@ export function TaskModals(props: TaskModalsProps) {
     };
   }, [props.viewTaskData?.id, props.viewTaskData?.project_id]);
 
+  React.useEffect(() => {
+    if (props.viewCommentsData !== undefined) setViewComments(props.viewCommentsData);
+    if (props.viewCommentsLoadingData !== undefined) setViewCommentsLoading(props.viewCommentsLoadingData);
+  }, [props.viewTaskData?.id, props.viewCommentsData, props.viewCommentsLoadingData]);
+
+  React.useEffect(() => {
+    if (props.viewDepsData !== undefined) setViewDeps(props.viewDepsData);
+    if (props.viewDepsLoadingData !== undefined) setViewDepsLoading(props.viewDepsLoadingData);
+  }, [props.viewTaskData?.id, props.viewDepsData, props.viewDepsLoadingData]);
+
+  React.useEffect(() => {
+    if (props.viewBlockersData !== undefined) setViewBlockers(props.viewBlockersData);
+    if (props.viewBlockersLoadingData !== undefined) setViewBlockersLoading(props.viewBlockersLoadingData);
+  }, [props.viewTaskData?.id, props.viewBlockersData, props.viewBlockersLoadingData]);
+
   const resourceMembers = (props.members || []).map((m: any) => m.users).filter(Boolean);
 
   const addViewComment = () => {
@@ -201,10 +236,56 @@ export function TaskModals(props: TaskModalsProps) {
     handleCreateTask, handleEditTaskSave, handleBulkUpload, handleCSVUpload,
     toggleFlag, openEditTask,
     members, sprints, phases, taskTypes, workflowStatuses,
-    profile, isAdmin, isClient, PRIORITY_COLORS, doneStatusIds, tasks
+    profile, isAdmin, isClient, PRIORITY_COLORS, doneStatusIds, tasks, project
   } = props;
   const [taskDateOpen, setTaskDateOpen] = useState(false);
   const [editTaskDateOpen, setEditTaskDateOpen] = useState(false);
+
+  const getInitials = (name: string) =>
+    (name || "")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
+
+  const clientStatusInfo = viewTaskData?.status_id
+    ? getStatusDisplay(workflowStatuses || [], viewTaskData.status_id)
+    : undefined;
+  const clientBucket = bucketTaskState(clientStatusInfo);
+  const clientProgress = PROGRESS_BY_BUCKET[clientBucket];
+  const clientOwnerName = viewTaskData?.users?.full_name || "Unassigned";
+  const clientSprintName = viewTaskData?.sprint_id
+    ? sprints.find((sp: any) => sp.id === viewTaskData.sprint_id)?.name || "Unassigned"
+    : "Unassigned";
+  const clientShortId = (viewTaskData?.id || "").replace(/-/g, "").slice(0, 6).toUpperCase() || "???";
+  const clientActivity = (() => {
+    if (!viewTaskData) return [] as { text: string; time: string; primary?: boolean }[];
+    const items: { text: string; time: string; primary?: boolean }[] = [];
+    if (viewTaskData.created_at) {
+      items.push({
+        text: "Task created",
+        time: format(new Date(viewTaskData.created_at), "MMM d, h:mm a"),
+        primary: true,
+      });
+    }
+    if (viewTaskData.status_id) {
+      items.push({
+        text: `Status set to ${clientBucket}`,
+        time: viewTaskData.updated_at
+          ? format(new Date(viewTaskData.updated_at), "MMM d, h:mm a")
+          : "",
+      });
+    }
+    viewComments.forEach((c: any) => {
+      items.push({
+        text: `${c.author?.full_name || (c.author_type === "ai" ? "AI" : "Someone")} commented`,
+        time: c.created_at ? format(new Date(c.created_at), "MMM d, h:mm a") : "",
+      });
+    });
+    return items;
+  })();
 
   return (
     <>
@@ -507,233 +588,448 @@ export function TaskModals(props: TaskModalsProps) {
         <DialogContent
           className={cn(
             isClient &&
-              "sm:w-[min(94vw,880px)] max-w-[880px] max-h-[88vh] p-0 gap-0 overflow-hidden border-[#DCDCE1] rounded-2xl shadow-[0_24px_72px_rgba(20,20,24,0.22)]"
+              "flex flex-col !w-[min(1100px,calc(100vw-36px))] sm:!w-[min(1100px,calc(100vw-36px))] h-[min(860px,calc(100vh-36px))] max-w-none max-h-none p-0 gap-0 overflow-hidden rounded-2xl border-[#DCDCE1] shadow-[0_24px_72px_rgba(20,20,24,0.22)] [&>button.absolute]:hidden"
           )}
         >
           {isClient ? (
             <>
-              <div className="px-[26px] pt-[22px] pb-0 border-b border-[#E8E8EB] bg-white">
+              <header className="flex-none px-[26px] pt-[22px] pb-0 bg-white border-b border-[#E8E8EB]">
                 <div className="flex items-start gap-3.5">
+                  <div className="w-[38px] h-[38px] rounded-[12px] bg-gradient-to-br from-[#FF7638] to-[#EB5A1E] text-white flex items-center justify-center shadow-[0_8px_18px_rgba(235,90,30,0.20)] shrink-0">
+                    <Info className="h-4 w-4 text-white" strokeWidth={2} />
+                  </div>
                   <div className="min-w-0 flex-1">
                     <div className="text-[10px] font-bold tracking-[0.055em] uppercase text-[#929299]">
-                      Task Detail
+                      TASK-{clientShortId} · {project?.name || "Project"}
                     </div>
                     <DialogTitle className="mt-1 pr-10 text-[23px] leading-[1.3] tracking-[-0.55px] font-bold text-[#17171A]">
                       {viewTaskData?.title || "Task Details"}
-                      {viewTaskData?.is_flagged && <Flag className="h-4 w-4 text-red-500 inline-block ml-2 align-middle" />}
                     </DialogTitle>
-                    <div className="flex flex-wrap gap-1.5 mt-2.5 pb-4">
+                    <div className="flex flex-wrap gap-[7px] mt-[11px] pb-0">
+                      <span
+                        className={cn(
+                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold",
+                          STATUS_PILL_CLASS[clientBucket]
+                        )}
+                      >
+                        {clientBucket}
+                      </span>
                       {viewTaskData?.priority && (
-                        <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>
+                        <span
+                          className={cn(
+                            "inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold capitalize",
+                            PRIORITY_PILL_CLASS[viewTaskData.priority] || "bg-[#F0F0F2] text-[#55555B]"
+                          )}
+                        >
+                          {viewTaskData.priority}
+                        </span>
                       )}
-                      {viewTaskData?.status_id && (
-                        <Badge className={statusColor(viewTaskData.status_id) || ""}>
-                          {getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}
-                        </Badge>
+                      {clientSprintName !== "Unassigned" && (
+                        <span className="inline-flex items-center rounded-full px-2 py-0.5 bg-[#DDEBFF] text-[#3873C9] text-[8px] font-semibold">
+                          {clientSprintName}
+                        </span>
                       )}
-                      {viewTaskData?.sprint_id && (() => {
-                        const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id);
-                        return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px] border-0">{s.name}</Badge> : null;
-                      })()}
+                      {viewTaskData?.is_flagged && (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 bg-[#FDE1E1] text-[#D04A4A] text-[8.5px] font-semibold">
+                          Flagged
+                        </span>
+                      )}
+                      {(viewTaskData?.client_visible !== false) && (
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 bg-[#EAF1FF] text-[#3B68B5] text-[8.5px] font-semibold">
+                          Client visible
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <DialogClose asChild>
+                    <button
+                      type="button"
+                      aria-label="Close task details"
+                      className="w-[34px] h-[34px] border border-[#E2E2E6] rounded-[9px] bg-white text-[#64646B] text-[20px] leading-none hover:bg-[#F5F5F7] hover:text-[#17171A] shrink-0 flex items-center justify-center"
+                    >
+                      ×
+                    </button>
+                  </DialogClose>
+                </div>
+
+                <div className="mt-5 grid grid-cols-2 lg:grid-cols-[1.2fr_1.35fr_1fr_1fr_1.3fr] border-t border-[#ECECEF]">
+                  <div className="py-3.5 pr-[18px] min-w-0 border-t border-[#ECECEF] lg:border-t-0 first:border-t-0">
+                    <div className="text-[8.5px] font-semibold text-[#97979E] mb-[5px]">Owner</div>
+                    <div className="flex items-center gap-[7px] text-[11px] font-semibold text-[#2B2B30] truncate">
+                      <span className="w-[25px] h-[25px] rounded-[7px] bg-[#F0F0F2] text-[#4B4B52] flex items-center justify-center text-[7.5px] font-bold shrink-0">
+                        {getInitials(clientOwnerName)}
+                      </span>
+                      <span className="truncate">{clientOwnerName}</span>
+                    </div>
+                  </div>
+                  <div className="py-3.5 px-0 lg:pl-[18px] lg:pr-[18px] min-w-0 border-t border-[#ECECEF] lg:border-t-0 lg:border-l lg:border-[#ECECEF]">
+                    <div className="text-[8.5px] font-semibold text-[#97979E] mb-[5px]">Sprint</div>
+                    <div className="text-[11px] font-semibold text-[#2B2B30] truncate">{clientSprintName}</div>
+                  </div>
+                  <div className="py-3.5 px-0 lg:pl-[18px] lg:pr-[18px] min-w-0 border-t border-[#ECECEF] lg:border-t-0 lg:border-l lg:border-[#ECECEF]">
+                    <div className="text-[8.5px] font-semibold text-[#97979E] mb-[5px]">Due date</div>
+                    <div className="text-[11px] font-semibold text-[#2B2B30] truncate">
+                      {viewTaskData?.due_date
+                        ? format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d, yyyy")
+                        : "Not set"}
+                    </div>
+                  </div>
+                  <div className="py-3.5 px-0 lg:pl-[18px] lg:pr-[18px] min-w-0 border-t border-[#ECECEF] lg:border-t-0 lg:border-l lg:border-[#ECECEF]">
+                    <div className="text-[8.5px] font-semibold text-[#97979E] mb-[5px]">Estimate</div>
+                    <div className="text-[11px] font-semibold text-[#2B2B30] truncate">
+                      {viewTaskData?.estimated_hours ? `${viewTaskData.estimated_hours}h` : "—"}
+                    </div>
+                  </div>
+                  <div className="py-3.5 px-0 lg:pl-[18px] min-w-0 border-t border-[#ECECEF] lg:border-t-0 lg:border-l lg:border-[#ECECEF] col-span-2 lg:col-span-1">
+                    <div className="text-[8.5px] font-semibold text-[#97979E] mb-[5px]">Progress</div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-[78px] h-1.5 rounded-full bg-[#ECECEF] overflow-hidden shrink-0">
+                        <div
+                          className="h-full rounded-full bg-[#EB5A1E]"
+                          style={{ width: `${clientProgress}%` }}
+                        />
+                      </div>
+                      <div className="text-[11px] font-semibold text-[#2B2B30]">{clientProgress}%</div>
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-0 border-t border-[#E8E8EB] -mx-[26px] px-[26px]">
-                  {[
-                    { label: "Owner", value: viewTaskData?.users?.full_name || "—" },
-                    {
-                      label: "Sprint",
-                      value: viewTaskData?.sprint_id
-                        ? sprints.find((sp: any) => sp.id === viewTaskData.sprint_id)?.name || "—"
-                        : "—",
-                    },
-                    {
-                      label: "Due",
-                      value: viewTaskData?.due_date
-                        ? format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d, yyyy")
-                        : "—",
-                    },
-                    {
-                      label: "Estimate",
-                      value: viewTaskData?.estimated_hours ? `${viewTaskData.estimated_hours}h` : "—",
-                    },
-                  ].map((item) => (
-                    <div key={item.label} className="py-3.5 sm:border-r sm:border-[#E8E8EB] sm:last:border-0 sm:pr-3 sm:last:pr-0">
-                      <div className="text-[9px] font-semibold uppercase tracking-wider text-[#8B8B92]">{item.label}</div>
-                      <div className="text-[13px] font-semibold text-[#17171A] mt-1 truncate" title={item.value}>
-                        {item.value}
+              </header>
+
+              <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px]">
+                <main className="min-w-0 min-h-0 overflow-y-auto px-8 py-[25px] pb-[34px]">
+                  {/* Overview */}
+                  <section className="pb-[25px] mb-[25px] border-b border-[#ECECEF]">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-[9px] text-[12px] font-bold text-[#242428]">
+                        <span className="w-7 h-7 rounded-lg bg-[#FFF1EA] text-[#C95627] flex items-center justify-center shrink-0">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </span>
+                        Overview
                       </div>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    <div className="px-4 py-[15px] border border-[#E9E9EC] bg-[#FCFCFD] rounded-[11px] text-[11px] leading-[1.75] text-[#5E5E65] whitespace-pre-wrap">
+                      {viewTaskData?.description || "No description provided for this task."}
+                    </div>
+                  </section>
 
-              <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] min-h-0 overflow-hidden">
-                <div className="p-6 space-y-5 overflow-y-auto max-h-[calc(88vh-180px)] border-r border-[#E8E8EB]">
-                  <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2">Overview</h4>
-                    {viewTaskData?.description ? (
-                      <div>
-                        <p className="text-[13px] text-[#3F3F45] leading-relaxed whitespace-pre-wrap">
-                          {descExpanded ? viewTaskData.description : truncateWords(viewTaskData.description, 40)}
+                  {/* Acceptance criteria */}
+                  <section className="pb-[25px] mb-[25px] border-b border-[#ECECEF]">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-[9px] text-[12px] font-bold text-[#242428]">
+                        <span className="w-7 h-7 rounded-lg bg-[#FFF1EA] text-[#C95627] flex items-center justify-center shrink-0">
+                          <Info className="h-3.5 w-3.5" />
+                        </span>
+                        Acceptance criteria
+                      </div>
+                      <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#F1F1F3] text-[#6C6C73] text-[8px] font-bold inline-flex items-center justify-center">
+                        0
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-[#9A9AA0] leading-relaxed">
+                      No acceptance criteria have been defined for this task yet.
+                    </p>
+                  </section>
+
+                  {/* Delivery */}
+                  <section className="pb-[25px] mb-[25px] border-b border-[#ECECEF]">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-[9px] text-[12px] font-bold text-[#242428]">
+                        <span className="w-7 h-7 rounded-lg bg-[#FFF1EA] text-[#C95627] flex items-center justify-center shrink-0">
+                          <List className="h-3.5 w-3.5" />
+                        </span>
+                        Delivery
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="border border-[#E8E8EB] rounded-[11px] bg-white p-[13px] min-w-0">
+                        <div className="flex items-center gap-2 text-[9.5px] font-bold text-[#414147] mb-2.5">
+                          <List className="h-[13px] w-[13px] text-[#77777E]" /> Checklist
+                        </div>
+                        <p className="text-[9px] text-[#9A9AA0] leading-relaxed">
+                          No checklist items for this task.
                         </p>
-                        {viewTaskData.description.split(/\s+/).length > 40 && (
-                          <Button
-                            type="button"
-                            variant="link"
-                            size="sm"
-                            className="h-auto p-0 text-xs text-[#EB5A1E]"
-                            onClick={() => setDescExpanded(!descExpanded)}
-                          >
-                            {descExpanded ? "Show less" : "Show more"}
-                          </Button>
+                      </div>
+                      <div className="border border-[#E8E8EB] rounded-[11px] bg-white p-[13px] min-w-0">
+                        <div className="flex items-center gap-2 text-[9.5px] font-bold text-[#414147] mb-2.5">
+                          <Link2 className="h-[13px] w-[13px] text-[#77777E]" /> Dependencies
+                        </div>
+                        {viewDepsLoading ? (
+                          <p className="text-[9px] text-[#9A9AA0]">Loading...</p>
+                        ) : viewDeps.length === 0 ? (
+                          <p className="text-[9px] text-[#9A9AA0] leading-relaxed">
+                            No dependencies linked to this task.
+                          </p>
+                        ) : (
+                          <div className="flex flex-col gap-2">
+                            {viewDeps.map((d: any) => (
+                              <div key={d.id} className="flex items-start gap-2 min-w-0">
+                                <span className="w-[7px] h-[7px] rounded-full bg-[#E1A52D] mt-1 shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="text-[9px] font-semibold text-[#4C4C53] leading-snug">
+                                    {d.depends_on?.title || "Unknown"}
+                                  </div>
+                                  <div className="text-[8px] text-[#98989F] mt-0.5 leading-snug">
+                                    {(d.dependency_type || "").replace(/_/g, " ")}
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                    ) : (
-                      <p className="text-[13px] text-[#8B8B92]">No description.</p>
-                    )}
-                  </div>
+                    </div>
+                  </section>
 
-                  <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2">Dependencies</h4>
-                    {viewDepsLoading ? (
-                      <p className="text-xs text-muted-foreground">Loading...</p>
-                    ) : viewDeps.length === 0 ? (
-                      <p className="text-[13px] text-[#8B8B92]">No dependencies.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {viewDeps.map((d: any) => (
-                          <div key={d.id} className="flex items-center gap-2 bg-[#F7F7F8] rounded-[9px] p-2.5">
-                            <span className="text-[13px] text-[#17171A] truncate">{d.depends_on?.title || "Unknown"}</span>
-                            <Badge variant="outline" className="text-[10px] shrink-0">
-                              {d.dependency_type.replace(/_/g, " ")}
-                            </Badge>
-                          </div>
-                        ))}
+                  {/* Discussion */}
+                  <section className="pb-[25px] mb-[25px] border-b border-[#ECECEF]">
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-[9px] text-[12px] font-bold text-[#242428]">
+                        <span className="w-7 h-7 rounded-lg bg-[#FFF1EA] text-[#C95627] flex items-center justify-center shrink-0">
+                          <MessageSquare className="h-3.5 w-3.5" />
+                        </span>
+                        Discussion
                       </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2">Blockers</h4>
-                    {viewBlockersLoading ? (
-                      <p className="text-xs text-muted-foreground">Loading...</p>
-                    ) : viewBlockers.length === 0 ? (
-                      <p className="text-[13px] text-[#8B8B92]">No blockers reported.</p>
-                    ) : (
-                      <div className="space-y-2">
-                        {viewBlockers.map((b: any) => (
-                          <div key={b.id} className="bg-[#F7F7F8] rounded-[9px] p-2.5">
-                            <div className="flex items-center gap-2">
-                              <span className="text-[13px] font-medium text-[#17171A]">{b.description}</span>
-                              {b.status === "resolved" ? (
-                                <Badge className="bg-green-100 text-green-700 text-[10px] border-0">Resolved</Badge>
-                              ) : (
-                                <Badge className="bg-red-100 text-red-700 text-[10px] border-0">Open</Badge>
-                              )}
-                            </div>
-                            <div className="text-[10px] text-[#8B8B92] mt-1">
-                              by {b.raiser?.full_name || "Unknown"} · {format(new Date(b.raised_at), "MMM d")}
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-2 flex items-center gap-1.5">
-                      <MessageSquare className="h-3.5 w-3.5" /> Comments
-                    </h4>
-                    {viewCommentsLoading ? (
-                      <p className="text-xs text-muted-foreground">Loading...</p>
-                    ) : viewComments.length === 0 ? (
-                      <p className="text-[13px] text-[#8B8B92]">No comments yet.</p>
-                    ) : (
-                      <div className="space-y-2 max-h-48 overflow-y-auto">
-                        {viewComments.map((c: any) => (
-                          <div key={c.id} className="flex gap-2 bg-[#F7F7F8] rounded-[9px] p-2.5">
-                            <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                              <AvatarImage src={getAvatarUrl(c.author?.full_name)} />
-                              <AvatarFallback className="text-[10px] bg-[#FFF0E9] text-[#EB5A1E]">
-                                {c.author?.full_name?.charAt(0) || "?"}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs font-semibold text-[#17171A]">
-                                  {c.author?.full_name ||
-                                    (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}
-                                </span>
-                                <span className="text-[10px] text-[#8B8B92]">
-                                  {format(new Date(c.created_at), "MMM d, h:mm a")}
-                                </span>
+                      <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#F1F1F3] text-[#6C6C73] text-[8px] font-bold inline-flex items-center justify-center">
+                        {viewComments.length}
+                      </span>
+                    </div>
+                    <div className="border border-[#E8E8EB] rounded-[11px] overflow-hidden bg-white">
+                      <div className="px-3.5">
+                        {viewCommentsLoading ? (
+                          <p className="text-[9px] text-[#9A9AA0] py-3.5">Loading...</p>
+                        ) : viewComments.length === 0 ? (
+                          <p className="text-[9px] text-[#9A9AA0] py-3.5">No comments yet.</p>
+                        ) : (
+                          viewComments.map((c: any) => {
+                            const authorName =
+                              c.author?.full_name ||
+                              (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown");
+                            return (
+                              <div
+                                key={c.id}
+                                className="grid grid-cols-[30px_minmax(0,1fr)] gap-2.5 py-3.5 border-b border-[#EFEFF1] last:border-0"
+                              >
+                                <div className="w-[30px] h-[30px] rounded-lg bg-[#F0F0F2] text-[#4C4C53] flex items-center justify-center text-[8px] font-bold">
+                                  {getInitials(authorName)}
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-[7px]">
+                                    <span className="text-[9.5px] font-bold text-[#333338]">{authorName}</span>
+                                    <span className="text-[8px] text-[#9A9AA1]">
+                                      {c.created_at ? format(new Date(c.created_at), "MMM d, h:mm a") : ""}
+                                    </span>
+                                  </div>
+                                  <p className="text-[9.5px] text-[#64646B] leading-[1.6] mt-[5px] whitespace-pre-wrap break-words">
+                                    {c.body}
+                                  </p>
+                                </div>
                               </div>
-                              <p className="text-[13px] whitespace-pre-wrap break-words text-[#3F3F45]">{c.body}</p>
-                            </div>
+                            );
+                          })
+                        )}
+                      </div>
+                      <div className="grid grid-cols-[30px_minmax(0,1fr)] gap-2.5 px-3.5 py-3 bg-[#FAFAFB] border-t border-[#E9E9EC]">
+                        <div className="w-[30px] h-[30px] rounded-lg bg-[#F0F0F2] text-[#4C4C53] flex items-center justify-center text-[8px] font-bold">
+                          {getInitials(profile?.full_name || "CT")}
+                        </div>
+                        <div>
+                          <textarea
+                            value={newViewComment}
+                            onChange={(e) => setNewViewComment(e.target.value)}
+                            placeholder="Add a client-visible comment…"
+                            className="w-full min-h-[64px] resize-y box-border border border-[#DCDCE1] rounded-[9px] bg-white outline-none px-[11px] py-2.5 text-[9.5px] text-[#333338] focus:border-[#B8B8BF]"
+                          />
+                          <div className="flex justify-end mt-[7px]">
+                            <button
+                              type="button"
+                              disabled={!newViewComment.trim()}
+                              onClick={addViewComment}
+                              className="h-[30px] px-3 rounded-[7px] bg-[#17171A] text-white text-[8.5px] font-semibold disabled:bg-[#D7D7DC] disabled:cursor-not-allowed"
+                            >
+                              Send comment
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  {/* Activity */}
+                  <section>
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-[9px] text-[12px] font-bold text-[#242428]">
+                        <span className="w-7 h-7 rounded-lg bg-[#FFF1EA] text-[#C95627] flex items-center justify-center shrink-0">
+                          <LayoutGrid className="h-3.5 w-3.5" />
+                        </span>
+                        Activity
+                      </div>
+                      <span className="min-w-[22px] h-[22px] px-1.5 rounded-full bg-[#F1F1F3] text-[#6C6C73] text-[8px] font-bold inline-flex items-center justify-center">
+                        {clientActivity.length}
+                      </span>
+                    </div>
+                    {clientActivity.length === 0 ? (
+                      <p className="text-[9px] text-[#9A9AA0]">No activity recorded for this task yet.</p>
+                    ) : (
+                      <div className="relative pl-0.5">
+                        {clientActivity.map((a, idx) => (
+                          <div
+                            key={`${a.text}-${idx}`}
+                            className={cn(
+                              "grid grid-cols-[18px_minmax(0,1fr)_auto] gap-[9px] py-2 relative",
+                              a.primary && "primary"
+                            )}
+                          >
+                            {idx < clientActivity.length - 1 && (
+                              <span className="absolute left-[6px] top-[19px] bottom-[-8px] w-px bg-[#E5E5E8]" />
+                            )}
+                            <span
+                              className={cn(
+                                "w-[13px] h-[13px] rounded-full bg-white border-2 border-[#C9C9CF] box-border z-[1] mt-0.5",
+                                a.primary && "border-[#EB5A1E] bg-[#FFF1EA]"
+                              )}
+                            />
+                            <span className="text-[9px] text-[#606067] leading-[1.5]">{a.text}</span>
+                            <span className="text-[8px] text-[#A0A0A7] whitespace-nowrap">{a.time}</span>
                           </div>
                         ))}
                       </div>
                     )}
-                  </div>
-                </div>
+                  </section>
+                </main>
 
-                <div className="p-5 space-y-5 overflow-y-auto max-h-[calc(88vh-180px)] bg-[#FAFAFB]">
-                  <div>
-                    <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-3">Properties</h4>
-                    <div className="space-y-3">
-                      <div>
-                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Status</div>
-                        <div className="mt-1">
-                          {viewTaskData?.status_id ? (
-                            <Badge className={statusColor(viewTaskData.status_id) || ""}>
-                              {getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}
-                            </Badge>
-                          ) : (
-                            <span className="text-[13px] text-[#8B8B92]">—</span>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Priority</div>
-                        <div className="mt-1">
-                          {viewTaskData?.priority ? (
-                            <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>
-                          ) : (
-                            <span className="text-[13px] text-[#8B8B92]">—</span>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Due date</div>
-                        <div className="text-[13px] font-medium text-[#17171A] mt-1">
-                          {viewTaskData?.due_date
-                            ? format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d, yyyy")
-                            : "—"}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-[9px] font-semibold uppercase text-[#8B8B92]">Estimate</div>
-                        <div className="text-[13px] font-medium text-[#17171A] mt-1">
-                          {viewTaskData?.estimated_hours ? `${viewTaskData.estimated_hours}h` : "—"}
-                        </div>
-                      </div>
+                <aside className="min-w-0 min-h-0 overflow-y-auto px-5 py-[22px] pb-[30px] bg-[#FAFAFB] border-t lg:border-t-0 lg:border-l border-[#E8E8EB]">
+                  {/* Properties */}
+                  <section className="mb-[21px] pb-5 border-b border-[#E7E7EA]">
+                    <div className="text-[8px] font-extrabold tracking-[0.075em] uppercase text-[#96969D] mb-[9px]">
+                      Properties
                     </div>
-                  </div>
-                  {viewTaskData?.id && (
-                    <div>
-                      <h4 className="text-[11px] font-bold uppercase tracking-wider text-[#8B8B92] mb-3">People</h4>
-                      <TaskCollaboratorsSection
-                        taskId={viewTaskData.id}
-                        projectMembers={resourceMembers}
-                        primaryOwnerId={viewTaskData.assigned_to}
-                        readOnly
-                      />
+                    <div className="border border-[#E5E5E8] rounded-[10px] overflow-hidden bg-white">
+                      {[
+                        { label: "Status", value: clientBucket },
+                        {
+                          label: "Priority",
+                          value: viewTaskData?.priority
+                            ? String(viewTaskData.priority).charAt(0).toUpperCase() +
+                              String(viewTaskData.priority).slice(1)
+                            : "—",
+                        },
+                        { label: "Task type", value: "—" },
+                        { label: "Component", value: "—" },
+                        { label: "Milestone", value: "—" },
+                        { label: "Reference", value: "—" },
+                        {
+                          label: "Created",
+                          value: viewTaskData?.created_at
+                            ? format(new Date(viewTaskData.created_at), "MMM d, yyyy")
+                            : "—",
+                        },
+                        {
+                          label: "Updated",
+                          value: viewTaskData?.updated_at
+                            ? format(new Date(viewTaskData.updated_at), "MMM d, yyyy")
+                            : "—",
+                        },
+                      ].map((row) => (
+                        <div
+                          key={row.label}
+                          className="grid grid-cols-[92px_minmax(0,1fr)] gap-2.5 items-center min-h-[38px] px-2.5 py-[7px] border-b border-[#EFEFF1] last:border-0"
+                        >
+                          <span className="text-[8px] text-[#96969D]">{row.label}</span>
+                          <span className="text-[8.8px] font-semibold text-[#404046] truncate" title={row.value}>
+                            {row.value}
+                          </span>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
+                  </section>
+
+                  {/* People */}
+                  <section className="mb-[21px] pb-5 border-b border-[#E7E7EA]">
+                    <div className="text-[8px] font-extrabold tracking-[0.075em] uppercase text-[#96969D] mb-[9px]">
+                      People
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {viewTaskData?.users?.full_name ? (
+                        <div className="flex items-center gap-[9px] p-[9px] border border-[#E7E7EA] rounded-[9px] bg-white">
+                          <div className="w-7 h-7 rounded-lg bg-[#F0F0F2] text-[#48484F] flex items-center justify-center text-[7.5px] font-bold shrink-0">
+                            {getInitials(viewTaskData.users.full_name)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="text-[8.8px] font-bold text-[#414147] truncate">
+                              {viewTaskData.users.full_name}
+                            </div>
+                            <div className="text-[7.8px] text-[#9999A0] mt-px">Owner</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-[9px] text-[#9A9AA0]">No owner assigned.</p>
+                      )}
+                    </div>
+                  </section>
+
+                  {/* Blockers */}
+                  <section className="mb-[21px] pb-5 border-b border-[#E7E7EA]">
+                    <div className="text-[8px] font-extrabold tracking-[0.075em] uppercase text-[#96969D] mb-[9px]">
+                      Blockers
+                    </div>
+                    {viewBlockersLoading ? (
+                      <p className="text-[9px] text-[#9A9AA0]">Loading...</p>
+                    ) : viewBlockers.length === 0 ? (
+                      <div className="p-[9px] border border-[#E7E7EA] rounded-[9px] bg-white">
+                        <div className="text-[8.5px] font-semibold text-[#48484F] leading-snug">
+                          No active blockers
+                        </div>
+                        <div className="text-[7.6px] text-[#9999A0] mt-[3px]">
+                          Nothing is currently preventing this task from progressing.
+                        </div>
+                      </div>
+                    ) : (
+                      viewBlockers.map((b: any) => (
+                        <div
+                          key={b.id}
+                          className="p-[9px] border border-[#E7E7EA] rounded-[9px] bg-white mb-[7px] last:mb-0"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-[8.5px] font-semibold text-[#48484F] leading-snug">
+                              {b.description}
+                            </div>
+                            <span
+                              className={cn(
+                                "inline-flex items-center rounded-full px-2 py-0.5 text-[7.5px] font-semibold shrink-0",
+                                b.status === "resolved"
+                                  ? "bg-[#E5F7EA] text-[#188344]"
+                                  : "bg-[#FFF4D8] text-[#8F6811]"
+                              )}
+                            >
+                              {b.status === "resolved" ? "Resolved" : "Open"}
+                            </span>
+                          </div>
+                          <div className="text-[7.6px] text-[#9999A0] mt-[3px]">
+                            by {b.raiser?.full_name || "Unknown"}
+                            {b.raised_at ? ` · ${format(new Date(b.raised_at), "MMM d")}` : ""}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </section>
+
+                  {/* Attachments */}
+                  <section className="mb-[21px] pb-5 border-b border-[#E7E7EA]">
+                    <div className="text-[8px] font-extrabold tracking-[0.075em] uppercase text-[#96969D] mb-[9px]">
+                      Attachments
+                    </div>
+                    <p className="text-[9px] text-[#9A9AA0]">No attachments yet.</p>
+                  </section>
+
+                  {/* Labels */}
+                  <section>
+                    <div className="text-[8px] font-extrabold tracking-[0.075em] uppercase text-[#96969D] mb-[9px]">
+                      Labels
+                    </div>
+                    <p className="text-[9px] text-[#9A9AA0]">No labels.</p>
+                  </section>
+                </aside>
               </div>
-
             </>
           ) : (
             <>

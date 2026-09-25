@@ -10,6 +10,7 @@ import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, TableHead
 import { ChevronDown, ChevronRight, CheckCircle2, Send } from "lucide-react";
 import { getAvatarUrl, truncateWords } from "@/lib/utils";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
+import { AdminActionItemsPanel } from "@/components/project/AdminActionItemsPanel";
 
 interface ProjectActionItemsTabProps {
   id: string;
@@ -24,6 +25,8 @@ interface ProjectActionItemsTabProps {
   actionItemMessages: any[];
   PRIORITY_COLORS: Record<string, string>;
   project?: any;
+  setAddTaskOpen?: (b: boolean) => void;
+  setTaskTitle?: (s: string) => void;
 }
 
 function initials(name: string) {
@@ -50,6 +53,8 @@ export function ProjectActionItemsTab({
   setExpandedActionItemId,
   actionItemMessages,
   PRIORITY_COLORS,
+  setAddTaskOpen,
+  setTaskTitle,
 }: ProjectActionItemsTabProps) {
   const [actionItemSubTab, setActionItemSubTab] = useState<"all" | "blockers" | "dependencies">("all");
   const [newActionItemMessage, setNewActionItemMessage] = useState("");
@@ -153,6 +158,28 @@ export function ProjectActionItemsTab({
       : actionItemSubTab === "dependencies"
       ? "No client-visible dependency action items."
       : "No action items for this project.";
+
+  if (isAdmin && !isClient && setAddTaskOpen && setTaskTitle) {
+    return (
+      <AdminActionItemsPanel
+        id={id}
+        actionItems={relevantItems}
+        tasks={tasks}
+        profile={profile}
+        queryClient={queryClient}
+        expandedActionItemId={expandedActionItemId}
+        setExpandedActionItemId={setExpandedActionItemId}
+        actionItemMessages={actionItemMessages}
+        setAddTaskOpen={setAddTaskOpen}
+        setTaskTitle={setTaskTitle}
+        completeActionItem={completeActionItem}
+        sendActionItemMessage={sendActionItemMessage}
+        newActionItemMessage={newActionItemMessage}
+        setNewActionItemMessage={setNewActionItemMessage}
+        renderMessageContent={renderMessageContent}
+      />
+    );
+  }
 
   if (isClient) {
     return (

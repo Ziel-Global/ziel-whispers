@@ -8,25 +8,32 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
-import { TableHeader, DataRow, RowPrimary, RowSecondary, RowDataItem } from "@/components/ui/data-row";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Download, Settings } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
 import { getAvatarUrl, parseCSVLine } from "@/lib/utils";
 
 import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
 import { BlockerAlertModal, BlockerDetail } from "@/components/BlockerAlertModal";
 import { useProjectDetailData } from "@/hooks/useProjectDetailData";
+import { AdminProjectDetailChrome } from "@/components/project/AdminProjectDetailChrome";
 import { ProjectOverviewTab } from "@/components/project/ProjectOverviewTab";
 import { ProjectTasksTab } from "@/components/project/ProjectTasksTab";
 import { ProjectSprintsTab } from "@/components/project/ProjectSprintsTab";
 import { ProjectKanbanTab } from "@/components/project/ProjectKanbanTab";
-import { ProjectAutomationTab } from "@/components/project/ProjectAutomationTab";
+import { AdminAutomationRulesPanel } from "@/components/project/AdminAutomationRulesPanel";
+import { AdminAutomationTemplatesPanel } from "@/components/project/AdminAutomationTemplatesPanel";
+import { AdminAutomationRunHistoryPanel } from "@/components/project/AdminAutomationRunHistoryPanel";
 import { ProjectStatsTab } from "@/components/project/ProjectStatsTab";
+import { AdminProgressPanel } from "@/components/project/AdminProgressPanel";
+import { AdminTimePanel } from "@/components/project/AdminTimePanel";
+import { AdminWorkloadPanel } from "@/components/project/AdminWorkloadPanel";
+import { AdminDeliveryPanel } from "@/components/project/AdminDeliveryPanel";
 import { ProjectMembersSheet } from "@/components/project/sheets/ProjectMembersSheet";
 import { ProjectActionItemsTab } from "@/components/project/tabs/ProjectActionItemsTab";
 import { ProjectResourcesTab } from "@/components/project/tabs/ProjectResourcesTab";
+import { AdminProjectActivityPanel } from "@/components/project/AdminProjectActivityPanel";
+import { AdminTimeLogsPanel } from "@/components/project/AdminTimeLogsPanel";
 import { ProjectPhasesTab } from "@/components/project/tabs/ProjectPhasesTab";
 import { ProjectSkillsTab } from "@/components/project/tabs/ProjectSkillsTab";
 import { ProjectBlockersTab } from "@/components/project/tabs/ProjectBlockersTab";
@@ -89,6 +96,7 @@ export default function ProjectDetailPage() {
     actionItemMessages,
     portalMessages,
     automationRules,
+    automationRuleRuns,
     projectBlockers,
     sprints,
     sprintTaskCount,
@@ -786,6 +794,7 @@ export default function ProjectDetailPage() {
     }
     setAutomationRulesOpen(false);
     queryClient.invalidateQueries({ queryKey: ["project-automation-rules", id] });
+    queryClient.invalidateQueries({ queryKey: ["project-automation-rule-runs", id] });
   };
 
   const toggleRuleStatus = async (ruleId: string, enabled: boolean) => {
@@ -811,6 +820,7 @@ export default function ProjectDetailPage() {
     setDeleteRuleConfirmId(null);
     toast.success("Automation rule deleted");
     queryClient.invalidateQueries({ queryKey: ["project-automation-rules", id] });
+    queryClient.invalidateQueries({ queryKey: ["project-automation-rule-runs", id] });
   };
 
   const saveProjectSettings = async (vals: any) => {
@@ -875,83 +885,127 @@ export default function ProjectDetailPage() {
   if (isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
   if (!project) return <div className="text-center py-12 text-muted-foreground">Project not found</div>;
 
+  const goBack = () => {
+    if (window.history.length > 1) navigate(-1);
+    else navigate("/projects");
+  };
+  const setTab = (tab: string) => setSearchParams({ tab });
+  const ownerMember =
+    resourceMembers.find((m: any) => m.users?.role === "admin" || m.users?.role === "manager") ||
+    resourceMembers[0];
+  const ownerName = ownerMember?.users?.full_name || profile?.full_name || null;
+
   return (
     <div className={isClient ? "client-page space-y-6" : "space-y-6"}>
-      <div className={`flex items-center gap-3 ${isClient ? "items-start mb-1" : ""}`}>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={() => {
-            if (window.history.length > 1) navigate(-1);
-            else navigate("/projects");
+      {isAdmin && !isClient ? (
+        <AdminProjectDetailChrome
+          project={project}
+          latestHealth={latestHealth}
+          ownerName={ownerName}
+          activeTab={activeTab}
+          onTabChange={setTab}
+          onBack={goBack}
+          statusOptions={STATUS_OPTIONS}
+          changeStatus={changeStatus}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onAddTask={() => setAddTaskOpen(true)}
+          onAddPhase={() => setAddPhaseOpen(true)}
+          onAddSprint={() => setAddSprintOpen(true)}
+          onAddTeamMember={() => {
+            setAddMemberMode("resource");
+            setAddMemberOpen(true);
           }}
-          className={
-            isClient
-              ? "h-[34px] w-[34px] rounded-lg bg-transparent border-0 shadow-none hover:bg-[#F6F6F7] -ml-2 mt-1 shrink-0"
-              : ""
+          onAddClientMember={() => {
+            setAddMemberMode("client");
+            setAddMemberOpen(true);
+          }}
+          onAddActionItem={() => setTab("action-items")}
+          onArchive={() => changeStatus("archived")}
+          counts={{
+            tasks: tasks?.length ?? 0,
+            actionItems: actionItems?.length ?? 0,
+            sprints: sprints?.length ?? 0,
+            resources: resourceMembers?.length ?? 0,
+            clients: clientMembers?.length ?? 0,
+            automation: automationRules?.length ?? 0,
+          }}
+          onExport={() =>
+            exportCSV(
+              (tasks || []).map((t: any) => ({
+                title: t.title,
+                status: t.status_id,
+                priority: t.priority,
+                due_date: t.due_date,
+                assigned_to: t.users?.full_name || t.assigned_to,
+              })),
+              `${project.name}-tasks.csv`
+            )
           }
-        >
-          <ArrowLeft className={isClient ? "h-4 w-4 text-[#17171A]" : "h-4 w-4"} />
-        </Button>
-        <div className="flex-1 min-w-0">
-          <h1
+        />
+      ) : (
+        <div className={`flex items-center gap-3 ${isClient ? "items-start mb-1" : ""}`}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={goBack}
             className={
               isClient
-                ? "text-[22px] font-bold tracking-[-0.55px] text-[#17171A] leading-tight m-0"
-                : "text-2xl font-bold tracking-tight"
+                ? "h-[34px] w-[34px] rounded-lg bg-transparent border-0 shadow-none hover:bg-[#F6F6F7] -ml-2 mt-1 shrink-0"
+                : ""
             }
           >
-            {project.name}
-          </h1>
-          <div className={`flex items-center gap-2 ${isClient ? "mt-[5px] flex-wrap gap-2.5" : "mt-1"}`}>
-            <Badge
+            <ArrowLeft className={isClient ? "h-4 w-4 text-[#17171A]" : "h-4 w-4"} />
+          </Button>
+          <div className="flex-1 min-w-0">
+            <h1
               className={
                 isClient
-                  ? project.status === "active"
-                    ? "bg-[#DFF6E4] text-[#168744] hover:bg-[#DFF6E4] border-0 shadow-none text-[9px] font-semibold px-2.5 py-[3px] rounded-full capitalize"
-                    : project.status === "on_hold"
-                    ? "bg-[#FFF1B8] text-[#A9720B] hover:bg-[#FFF1B8] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
-                    : project.status === "completed"
-                    ? "bg-[#EAF3FF] text-[#1C6FC9] hover:bg-[#EAF3FF] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
-                    : "bg-[#F5F5F6] text-[#8B8B92] hover:bg-[#F5F5F6] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
-                  : STATUS_COLORS[project.status] || ""
+                  ? "text-[22px] font-bold tracking-[-0.55px] text-[#17171A] leading-tight m-0"
+                  : "text-2xl font-bold tracking-tight"
               }
             >
-              {project.status}
-            </Badge>
-            <span className={isClient ? "text-[12px] text-[#8B8B92] font-medium" : "text-muted-foreground text-sm"}>
-              {(project.clients as any)?.name}
-            </span>
+              {project.name}
+            </h1>
+            <div className={`flex items-center gap-2 ${isClient ? "mt-[5px] flex-wrap gap-2.5" : "mt-1"}`}>
+              <Badge
+                className={
+                  isClient
+                    ? project.status === "active"
+                      ? "bg-[#DFF6E4] text-[#168744] hover:bg-[#DFF6E4] border-0 shadow-none text-[9px] font-semibold px-2.5 py-[3px] rounded-full capitalize"
+                      : project.status === "on_hold"
+                      ? "bg-[#FFF1B8] text-[#A9720B] hover:bg-[#FFF1B8] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                      : project.status === "completed"
+                      ? "bg-[#EAF3FF] text-[#1C6FC9] hover:bg-[#EAF3FF] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                      : "bg-[#F5F5F6] text-[#8B8B92] hover:bg-[#F5F5F6] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                    : STATUS_COLORS[project.status] || ""
+                }
+              >
+                {project.status}
+              </Badge>
+              <span className={isClient ? "text-[12px] text-[#8B8B92] font-medium" : "text-muted-foreground text-sm"}>
+                {(project.clients as any)?.name}
+              </span>
+            </div>
           </div>
         </div>
-        {isAdmin && (
-          <Button variant="ghost" size="icon" onClick={() => setSettingsOpen(true)} title="Project Settings">
-            <Settings className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
+      )}
 
-      <Tabs value={activeTab} onValueChange={(tab) => setSearchParams({ tab })}>
-        {!isClient && (
+      <Tabs value={activeTab} onValueChange={setTab}>
+        {!isClient && !isAdmin && (
           <TabsList className="overflow-x-auto">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="skills">Skills & Matching</TabsTrigger>
             <TabsTrigger value="resources">Resources ({resourceMembers.length})</TabsTrigger>
             <TabsTrigger value="clients">Client's Member ({clientMembers.length})</TabsTrigger>
-            {isAdmin && <TabsTrigger value="logs">Logs</TabsTrigger>}
             <TabsTrigger value="stats">Stats</TabsTrigger>
             <TabsTrigger value="tasks">
-              Tasks ({isAdmin ? tasks?.length || 0 : (tasks || []).filter((t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id).length})
+              Tasks ({(tasks || []).filter((t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id).length})
             </TabsTrigger>
             <TabsTrigger value="kanban">Kanban</TabsTrigger>
-            {isAdmin && <TabsTrigger value="phases">Phases</TabsTrigger>}
             <TabsTrigger value="sprints">Sprints ({sprints?.length || 0})</TabsTrigger>
-            {!isClient && (
-              <TabsTrigger value="action-items">
-                Action Items ({isAdmin ? actionItems.length : actionItems.filter((a: any) => a.assigned_to === profile?.id || a.requested_by === profile?.id).length})
-              </TabsTrigger>
-            )}
-            {isAdmin && <TabsTrigger value="automation-rules">Automation ({automationRules.length})</TabsTrigger>}
+            <TabsTrigger value="action-items">
+              Action Items ({actionItems.filter((a: any) => a.assigned_to === profile?.id || a.requested_by === profile?.id).length})
+            </TabsTrigger>
           </TabsList>
         )}
 
@@ -990,6 +1044,9 @@ export default function ProjectDetailPage() {
               return true;
             })}
             resourceCount={resourceMembers.length}
+            resourceMembers={resourceMembers}
+            actionItems={actionItems}
+            onNavigateTab={setTab}
             progressPct={
               phases.length > 0
                 ? Math.round(
@@ -1015,10 +1072,13 @@ export default function ProjectDetailPage() {
             queryClient={queryClient}
             setAddMemberMode={setAddMemberMode}
             setAddMemberOpen={setAddMemberOpen}
+            employeeProjects={employeeProjects}
+            projectName={project?.name}
           />
         </TabsContent>
 
         <TabsContent value="skills">
+          {!isAdmin && (
           <ProjectSkillsTab
             projectId={project.id}
             projectName={project.name}
@@ -1083,7 +1143,39 @@ export default function ProjectDetailPage() {
               queryClient.invalidateQueries({ queryKey: ["resource-recommendations"] });
             }}
           />
+          )}
         </TabsContent>
+
+        {isAdmin && (
+          <>
+            <TabsContent value="workload">
+              <AdminWorkloadPanel
+                resourceMembers={resourceMembers || []}
+                hoursByMember={hoursByMember as { name: string; hours: number }[]}
+              />
+            </TabsContent>
+            <TabsContent value="time">
+              <AdminTimePanel
+                categoryBreakdown={categoryBreakdown as { name: string; value: number }[]}
+                weeklyLogs={weeklyLogs as { week: string; hours: number }[]}
+              />
+            </TabsContent>
+            <TabsContent value="delivery">
+              <AdminDeliveryPanel
+                project={project}
+                burndownScope={burndownScope}
+                setBurndownScope={setBurndownScope}
+                sprints={sprints || []}
+                tasks={tasks || []}
+                logs={logs || []}
+                phases={phases || []}
+                workflowStatuses={workflowStatuses || []}
+                projectBlockers={projectBlockers || []}
+                PRIORITY_COLORS={PRIORITY_COLORS}
+              />
+            </TabsContent>
+          </>
+        )}
 
         <TabsContent value="clients">
           <ProjectResourcesTab
@@ -1100,103 +1192,58 @@ export default function ProjectDetailPage() {
 
         {isAdmin && (
           <TabsContent value="logs">
-            <Card className="p-0 overflow-hidden">
-              <div className="p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b bg-muted/30">
-                <div className="flex items-center gap-4">
-                  <div className="space-y-1">
-                    <span className="text-[10px] uppercase font-bold tracking-wider text-muted-foreground">Filter by Date</span>
-                    <Input
-                      type="date"
-                      value={logFilterDate}
-                      onChange={(e) => setLogFilterDate(e.target.value)}
-                      className="h-9 w-[180px] bg-background"
-                    />
-                  </div>
-                  <div className="pt-5">
-                    <span className="text-sm font-medium">
-                      {(logs || []).filter((l) => !logFilterDate || l.log_date === logFilterDate).length} logs found
-                    </span>
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    exportCSV(
-                      (logs || [])
-                        .filter((l) => !logFilterDate || l.log_date === logFilterDate)
-                        .map((l) => ({
-                          Date: l.log_date,
-                          Employee: (l.users as any)?.full_name,
-                          Category: l.category,
-                          Hours: l.hours,
-                          Description: l.description,
-                        })),
-                      `${project.name}-logs-${logFilterDate || "all"}.csv`
-                    )
-                  }
-                >
-                  <Download className="h-4 w-4 mr-1" />
-                  Export CSV
-                </Button>
-              </div>
-
-              <div>
-                {(() => {
-                  const filtered = (logs || []).filter((l) => !logFilterDate || l.log_date === logFilterDate);
-                  if (filtered.length === 0) {
-                    return <div className="py-12 text-center text-muted-foreground">No logs found for this date</div>;
-                  }
-
-                  return (
-                    <>
-                      <TableHeader gridCols="1fr 112px 80px 1fr">
-                        <span>EMPLOYEE</span>
-                        <span>DATE</span>
-                        <span>HOURS</span>
-                        <span>DESCRIPTION</span>
-                      </TableHeader>
-                      {filtered.map((log: any) => (
-                        <DataRow key={log.id} gridCols="1fr 112px 80px 1fr">
-                          <div>
-                            <RowPrimary>{(log.users as any)?.full_name || "Unknown"}</RowPrimary>
-                            <RowSecondary>{log.category}</RowSecondary>
-                          </div>
-                          <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                          <RowDataItem label="HOURS">{formatHours(Number(log.hours))}</RowDataItem>
-                          <RowDataItem label="DESCRIPTION">
-                            <p className="truncate">{log.description || "—"}</p>
-                          </RowDataItem>
-                        </DataRow>
-                      ))}
-                    </>
-                  );
-                })()}
-              </div>
-            </Card>
+            <AdminTimeLogsPanel
+              logs={logs || []}
+              projectName={project.name}
+              logFilterDate={logFilterDate}
+              setLogFilterDate={setLogFilterDate}
+              exportCSV={exportCSV}
+              formatHours={formatHours}
+            />
           </TabsContent>
         )}
 
         <TabsContent value="stats" className="space-y-6">
-          <ProjectStatsTab
-            latestHealth={latestHealth}
-            logs={logs}
-            tasks={tasks}
-            project={project}
-            workflowStatuses={workflowStatuses}
-            healthTrend={healthTrend}
-            projectBlockers={projectBlockers}
-            phases={phases}
-            sprints={sprints}
-            burndownScope={burndownScope}
-            setBurndownScope={setBurndownScope}
-            isAdmin={isAdmin}
-            hoursByMember={hoursByMember}
-            categoryBreakdown={categoryBreakdown}
-            weeklyLogs={weeklyLogs}
-            CHART_COLORS={CHART_COLORS}
-            PRIORITY_COLORS={PRIORITY_COLORS}
-          />
+          {isAdmin ? (
+            <AdminProgressPanel
+              latestHealth={latestHealth}
+              hoursByMember={hoursByMember as { name: string; hours: number }[]}
+              healthTrend={healthTrend || []}
+              progressPct={
+                phases.length > 0
+                  ? Math.round(
+                      phases.reduce((sum: number, p: any) => sum + (phaseProgress[p.id] || 0), 0) /
+                        phases.length
+                    )
+                  : latestHealth?.tasks_total
+                    ? Math.round(
+                        (100 * Number(latestHealth.tasks_complete || 0)) /
+                          Math.max(1, Number(latestHealth.tasks_total))
+                      )
+                    : 0
+              }
+            />
+          ) : (
+            <ProjectStatsTab
+              latestHealth={latestHealth}
+              logs={logs}
+              tasks={tasks}
+              project={project}
+              workflowStatuses={workflowStatuses}
+              healthTrend={healthTrend}
+              projectBlockers={projectBlockers}
+              phases={phases}
+              sprints={sprints}
+              burndownScope={burndownScope}
+              setBurndownScope={setBurndownScope}
+              isAdmin={isAdmin}
+              hoursByMember={hoursByMember}
+              categoryBreakdown={categoryBreakdown}
+              weeklyLogs={weeklyLogs}
+              CHART_COLORS={CHART_COLORS}
+              PRIORITY_COLORS={PRIORITY_COLORS}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="tasks" className="space-y-4">
@@ -1230,6 +1277,7 @@ export default function ProjectDetailPage() {
           <ProjectKanbanTab
             tasks={tasks}
             sprints={sprints}
+            phases={phases}
             workflowStatuses={workflowStatuses}
             isAdmin={isAdmin}
             setViewTaskData={setViewTaskData}
@@ -1263,11 +1311,22 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="status-updates" className="space-y-4">
-          <ProjectStatusUpdatesTab
-            statusUpdates={statusUpdates}
-            statusUpdatesLoading={statusUpdatesLoading}
-            getAvatarUrl={getAvatarUrl}
-          />
+          {isAdmin ? (
+            <AdminProjectActivityPanel
+              tasks={tasks || []}
+              workflowStatuses={workflowStatuses || []}
+              openBlockers={(projectBlockers || []).filter((b: any) => b.status !== "resolved")}
+              statusUpdates={statusUpdates || []}
+              sprints={sprints || []}
+              resourceMembers={resourceMembers || []}
+            />
+          ) : (
+            <ProjectStatusUpdatesTab
+              statusUpdates={statusUpdates}
+              statusUpdatesLoading={statusUpdatesLoading}
+              getAvatarUrl={getAvatarUrl}
+            />
+          )}
         </TabsContent>
 
         {isAdmin && (
@@ -1315,30 +1374,40 @@ export default function ProjectDetailPage() {
               actionItemMessages={actionItemMessages}
               PRIORITY_COLORS={PRIORITY_COLORS}
               project={project}
+              setAddTaskOpen={setAddTaskOpen}
+              setTaskTitle={setTaskTitle}
             />
           </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="automation-rules" className="space-y-4">
-            <ProjectAutomationTab
-              automationRules={automationRules}
-              openAddRule={() => setAutomationRulesOpen(true)}
-              openEditRule={(rule) => {
-                setEditRuleId(rule.id);
-                setRuleName(rule.name);
-                setRuleDescription(rule.description || "");
-                setRuleStatus(rule.status);
-                setRuleTriggerType(rule.trigger_type);
-                setRulePriority(rule.priority);
-                setRuleAllowTriggering(rule.allow_triggering_other_rules);
-                setRuleConditions(rule.conditions || []);
-                setRuleActions(rule.actions || []);
-                setAutomationRulesOpen(true);
-              }}
-              toggleRuleStatus={toggleRuleStatus}
-              setDeleteRuleConfirmId={setDeleteRuleConfirmId}
-            />
-          </TabsContent>
+          <>
+            <TabsContent value="automation-rules" className="space-y-4">
+              <AdminAutomationRulesPanel
+                automationRules={automationRules}
+                openAddRule={() => setAutomationRulesOpen(true)}
+                openEditRule={(rule) => {
+                  setEditRuleId(rule.id);
+                  setRuleName(rule.name);
+                  setRuleDescription(rule.description || "");
+                  setRuleStatus(rule.status);
+                  setRuleTriggerType(rule.trigger_type);
+                  setRulePriority(rule.priority);
+                  setRuleAllowTriggering(rule.allow_triggering_other_rules);
+                  setRuleConditions(rule.conditions || []);
+                  setRuleActions(rule.actions || []);
+                  setAutomationRulesOpen(true);
+                }}
+                toggleRuleStatus={toggleRuleStatus}
+                setDeleteRuleConfirmId={setDeleteRuleConfirmId}
+              />
+            </TabsContent>
+            <TabsContent value="automation-templates">
+              <AdminAutomationTemplatesPanel />
+            </TabsContent>
+            <TabsContent value="automation-run-history">
+              <AdminAutomationRunHistoryPanel runs={automationRuleRuns || []} />
+            </TabsContent>
+          </>
         )}
       </Tabs>
 

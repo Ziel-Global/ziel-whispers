@@ -68,22 +68,41 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
 
   return (
       <Dialog open={automationRulesOpen} onOpenChange={(o) => { if (!o) { resetRuleForm(); } setAutomationRulesOpen(o); }}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>{editRuleId ? "Edit Automation Rule" : "Add Automation Rule"}</DialogTitle></DialogHeader>
-          <form onSubmit={saveAutomationRule} className="space-y-4">
+        <DialogContent className="sm:max-w-[640px] max-h-[90vh] overflow-y-auto rounded-[20px] border-black/[0.08] p-0 gap-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-black/[0.06]">
+            <DialogTitle className="text-[17px] font-bold text-[#17171A]">
+              {editRuleId ? "Edit Automation Rule" : "Add Automation Rule"}
+            </DialogTitle>
+          </DialogHeader>
+          <form onSubmit={saveAutomationRule} className="space-y-5 px-6 py-5">
             <div className="space-y-2">
-              <Label htmlFor="ruleName">Name *</Label>
-              <Input id="ruleName" value={ruleName} onChange={(e) => setRuleName(e.target.value)} placeholder="e.g. Block critical task on blocker" required />
+              <Label htmlFor="ruleName" className="text-[13px] font-semibold text-[#4B4B52]">Name *</Label>
+              <Input
+                id="ruleName"
+                value={ruleName}
+                onChange={(e) => setRuleName(e.target.value)}
+                placeholder="e.g. Block critical task on blocker"
+                required
+                className="rounded-[10px] border-black/10 text-[13.5px] shadow-none"
+              />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="ruleDescription">Description *</Label>
-              <Textarea id="ruleDescription" value={ruleDescription} onChange={(e) => setRuleDescription(e.target.value)} placeholder="Describe what this rule does" rows={2} required />
+              <Label htmlFor="ruleDescription" className="text-[13px] font-semibold text-[#4B4B52]">Description *</Label>
+              <Textarea
+                id="ruleDescription"
+                value={ruleDescription}
+                onChange={(e) => setRuleDescription(e.target.value)}
+                placeholder="Describe what this rule does"
+                rows={2}
+                required
+                className="rounded-[10px] border-black/10 text-[13.5px] shadow-none resize-y"
+              />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Status</Label>
+                <Label className="text-[13px] font-semibold text-[#4B4B52]">Status</Label>
                 <Select value={ruleStatus} onValueChange={setRuleStatus}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-[10px] border-black/10 shadow-none"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">Draft</SelectItem>
                     <SelectItem value="enabled">Enabled</SelectItem>
@@ -92,9 +111,9 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Trigger</Label>
+                <Label className="text-[13px] font-semibold text-[#4B4B52]">Trigger</Label>
                 <Select value={ruleTriggerType} onValueChange={setRuleTriggerType}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="rounded-[10px] border-black/10 shadow-none"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="status_change">Status Change</SelectItem>
                     <SelectItem value="blocker_raised">Blocker Raised</SelectItem>
@@ -106,13 +125,24 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="rulePriority">Priority (higher = runs first)</Label>
-                <Input id="rulePriority" type="number" value={rulePriority} onChange={(e) => setRulePriority(Number(e.target.value))} />
+                <Label htmlFor="rulePriority" className="text-[13px] font-semibold text-[#4B4B52]">Priority (higher = runs first)</Label>
+                <Input
+                  id="rulePriority"
+                  type="number"
+                  value={rulePriority}
+                  onChange={(e) => setRulePriority(Number(e.target.value))}
+                  className="rounded-[10px] border-black/10 shadow-none"
+                />
               </div>
               <div className="flex items-end pb-2">
                 <div className="flex items-center gap-2">
-                  <Switch id="ruleAllowTriggering" checked={ruleAllowTriggering} onCheckedChange={setRuleAllowTriggering} />
-                  <Label htmlFor="ruleAllowTriggering" className="text-sm">Allow triggering other rules</Label>
+                  <Switch
+                    id="ruleAllowTriggering"
+                    checked={ruleAllowTriggering}
+                    onCheckedChange={setRuleAllowTriggering}
+                    className="data-[state=checked]:bg-[#EB5A1E]"
+                  />
+                  <Label htmlFor="ruleAllowTriggering" className="text-[13px] text-[#4B4B52]">Allow triggering other rules</Label>
                 </div>
               </div>
             </div>
@@ -328,9 +358,21 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
                 <Plus className="h-4 w-4" /> Add Action
               </Button>
             </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => { resetRuleForm(); setAutomationRulesOpen(false); }}>Cancel</Button>
-              <Button type="submit">{editRuleId ? "Update Rule" : "Create Rule"}</Button>
+            <DialogFooter className="px-0 pt-2 pb-1 gap-2 sm:gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => { resetRuleForm(); setAutomationRulesOpen(false); }}
+                className="rounded-[10px] border-black/10"
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                className="rounded-[10px] bg-[#EB5A1E] text-white hover:bg-[#d64f18]"
+              >
+                {editRuleId ? "Save Rule" : "Create Rule"}
+              </Button>
             </DialogFooter>
           </form>
         </DialogContent>

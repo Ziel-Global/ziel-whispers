@@ -6,10 +6,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toSlug } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { Plus, Search, FolderKanban, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -17,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { PROJECT_STATUS_COLORS as STATUS_COLORS, getDoneStatusIds } from "@/lib/workflow";
+import { getDoneStatusIds } from "@/lib/workflow";
 
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
@@ -309,27 +306,25 @@ export default function ProjectsPage() {
 
   // Admin table view
   return (
-    <div className="space-y-6 font-sans">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Projects</h1>
-        </div>
+    <div className="font-sans pb-8">
+      <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A] m-0">Projects</h1>
         <button
           type="button"
           onClick={() => navigate("/projects/new")}
-          className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
+          className="flex items-center gap-[7px] bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2.5 text-[13px] transition-colors whitespace-nowrap"
         >
-          <Plus className="h-3.5 w-3.5 text-white" />
+          <Plus className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
           New Project
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2.5 items-center">
-        <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
-          <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
+      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+        <div className="flex-1 min-w-[220px] flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2.5">
+          <Search className="h-[15px] w-[15px] text-[#8B8B92] shrink-0" strokeWidth={2} />
           <input
             type="text"
-            placeholder="Search projects…"
+            placeholder="Search projects..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
@@ -337,8 +332,8 @@ export default function ProjectsPage() {
         </div>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
-            <SelectValue placeholder="Status" />
+          <SelectTrigger className="w-auto min-w-[120px] bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2.5 text-[13px] font-semibold text-[#4B4B52] h-auto gap-2 shadow-none hover:bg-[#F6F5F3]">
+            <SelectValue placeholder="All Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
@@ -350,7 +345,7 @@ export default function ProjectsPage() {
         </Select>
 
         <Select value={clientFilter} onValueChange={setClientFilter}>
-          <SelectTrigger className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+          <SelectTrigger className="w-auto min-w-[130px] bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2.5 text-[13px] font-semibold text-[#4B4B52] h-auto gap-2 shadow-none hover:bg-[#F6F5F3]">
             <SelectValue placeholder="All Clients" />
           </SelectTrigger>
           <SelectContent>
@@ -365,70 +360,66 @@ export default function ProjectsPage() {
       </div>
 
       {isLoading && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
           Loading projects…
         </div>
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
           No projects found
         </div>
       )}
 
       {!isLoading && filtered.length > 0 && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans">
-          <div className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_0.8fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
+        <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden">
+          <div className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 px-[22px] py-[13px] border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
             <span>PROJECT</span>
             <span>STATUS</span>
             <span>MEMBERS</span>
             <span>DEADLINE</span>
             <span>CREATED</span>
-            <span className="text-right pr-2">ACTIONS</span>
+            <span className="w-[72px]" aria-hidden />
           </div>
 
           {filtered.map((p) => (
             <div
               key={p.id}
               onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
-              className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_0.8fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors"
+              className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 items-center px-[22px] py-3.5 border-b border-black/[0.05] last:border-b-0 cursor-pointer hover:bg-[#F6F5F3] transition-colors"
             >
-              {/* PROJECT */}
               <div className="min-w-0">
-                <p className="text-[13.5px] font-bold text-[#17171A] truncate">{p.name}</p>
-                <p className="text-[12px] text-[#8B8B92] truncate">{(p.clients as any)?.name || "—"}</p>
+                <div className="text-[13.5px] font-bold text-[#17171A] truncate whitespace-nowrap">{p.name}</div>
+                <div className="text-[12px] text-[#8B8B92] truncate whitespace-nowrap">
+                  {(p.clients as any)?.name || "—"}
+                </div>
               </div>
 
-              {/* STATUS */}
               <div>
-                <Badge
+                <span
                   className={
                     p.status === "active"
-                      ? "bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      ? "inline-block bg-[#DFF6E4] text-[#1B8A46] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
                       : p.status === "on_hold"
-                      ? "bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      ? "inline-block bg-[#FDF3E3] text-[#A9720B] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
                       : p.status === "completed"
-                      ? "bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
-                      : "bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                      ? "inline-block bg-[#EAF3FF] text-[#1C6FC9] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
+                      : "inline-block bg-[#F6F5F3] text-[#8B8B92] text-[11.5px] font-semibold px-[11px] py-1 rounded-full capitalize"
                   }
                 >
-                  {p.status}
-                </Badge>
+                  {p.status === "on_hold" ? "on hold" : p.status}
+                </span>
               </div>
 
-              {/* MEMBERS */}
-              <div className="text-[13.5px] font-bold text-[#4B4B52]">{projectStats?.teamSize[p.id] || 0}</div>
+              <div className="text-[13px] text-[#4B4B52]">{projectStats?.teamSize[p.id] || 0}</div>
 
-              {/* DEADLINE */}
               <div className={`text-[13px] ${p.end_date ? "text-[#4B4B52]" : "text-[#B0B0B6]"}`}>
                 {p.end_date ? format(new Date(p.end_date + "T00:00:00"), "MMM d, yyyy") : "—"}
               </div>
 
-              {/* CREATED */}
               <div className="text-[13px] text-[#4B4B52]">{format(new Date(p.created_at), "MMM d, yyyy")}</div>
 
-              {/* ACTIONS */}
-              <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-end gap-1.5 w-[72px]" onClick={(e) => e.stopPropagation()}>
                 <button
                   type="button"
                   onClick={() => openEdit(p)}

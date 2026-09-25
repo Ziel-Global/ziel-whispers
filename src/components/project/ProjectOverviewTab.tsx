@@ -25,6 +25,8 @@ import {
   TASK_STATE_COLORS,
   type TaskStateBucket,
 } from "@/lib/clientTaskBuckets";
+import { AdminProjectOverview } from "@/components/project/AdminProjectOverview";
+import { computeBurndownData } from "@/lib/projectBurndown";
 
 export interface ProjectOverviewTabProps {
   project: any;
@@ -58,68 +60,9 @@ export interface ProjectOverviewTabProps {
   progressPct?: number;
   inDevelopmentCount?: number;
   openBlockers?: { description?: string | null; client_visible?: boolean | null; status?: string }[];
-}
-
-function computeBurndownData({
-  burndownScope,
-  phases,
-  tasks,
-  sprints,
-  logs,
-  project,
-}: {
-  burndownScope: string;
-  phases: any[];
-  tasks: any[];
-  sprints: any[];
-  logs: any[];
-  project: any;
-}) {
-  const scopeTasks =
-    burndownScope === "project"
-      ? tasks || []
-      : (tasks || []).filter((t: any) => {
-          const taskSprint = (sprints || []).find((s: any) => s.id === t.sprint_id);
-          return taskSprint?.phase_id === burndownScope;
-        });
-  const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
-  const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
-  const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
-  const logged = scopeTasks.reduce((s: number, t: any) => {
-    const taskLogs = (logs || []).filter((l: any) => l.task_id === t.id);
-    return s + taskLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
-  }, 0);
-  const remaining = Math.max(0, totalEst - logged);
-  const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
-  const endDate = scopePhase?.due_date || project?.end_date;
-  const startDate = project?.start_date;
-
-  if (estimated.length === 0) {
-    return { error: "No estimated tasks to show burndown." as const };
-  }
-  if (!endDate || !startDate) {
-    return { error: "Project needs start and end dates for burndown." as const };
-  }
-
-  const daysTotal = Math.max(
-    1,
-    Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000)
-  );
-  const daysElapsed = Math.max(0, Math.round((Date.now() - new Date(startDate).getTime()) / 86400000));
-  const idealPerDay = totalEst / daysTotal;
-  const idealRemaining = Math.max(0, totalEst - idealPerDay * Math.min(daysElapsed, daysTotal));
-
-  return {
-    totalEst,
-    logged,
-    remaining,
-    unestimated,
-    burndownData: [
-      { name: "Start", ideal: totalEst, actual: totalEst },
-      { name: "Now", ideal: idealRemaining, actual: remaining },
-      { name: "Due", ideal: 0, actual: null as number | null },
-    ],
-  };
+  resourceMembers?: any[];
+  actionItems?: any[];
+  onNavigateTab?: (tab: string) => void;
 }
 
 function ClientDeliveryBurndown({
@@ -610,11 +553,43 @@ export function ProjectOverviewTab({
   progressPct: progressPctProp,
   inDevelopmentCount = 0,
   openBlockers = [],
+  resourceMembers = [],
+  actionItems = [],
+  onNavigateTab,
 }: ProjectOverviewTabProps) {
   const taskCount = (tasks || []).length;
   const doneCount = (tasks || []).filter((t: any) => t.completed_at).length;
   const progressPct = progressPctProp ?? (taskCount > 0 ? Math.round((doneCount / taskCount) * 100) : 0);
   const assignedCount = (tasks || []).filter((t: any) => !!t.assigned_to).length;
+
+  if (isAdmin && !isClient && onNavigateTab) {
+    return (
+      <AdminProjectOverview
+        project={project}
+        latestHealth={latestHealth}
+        workflowTemplate={workflowTemplate}
+        workflowStatuses={workflowStatuses}
+        tasks={tasks}
+        sprints={sprints}
+        phases={phases}
+        logs={logs}
+        resourceMembers={resourceMembers}
+        openBlockers={openBlockers}
+        actionItems={actionItems}
+        statusUpdates={statusUpdates}
+        statusUpdatesLoading={statusUpdatesLoading}
+        progressPct={progressPct}
+        onNavigateTab={onNavigateTab}
+        burndownScope={burndownScope}
+        setBurndownScope={setBurndownScope}
+        newStatusUpdate={newStatusUpdate}
+        setNewStatusUpdate={setNewStatusUpdate}
+        newStatusUpdateVisible={newStatusUpdateVisible}
+        setNewStatusUpdateVisible={setNewStatusUpdateVisible}
+        addStatusUpdate={addStatusUpdate}
+      />
+    );
+  }
 
   if (isClient) {
     return (

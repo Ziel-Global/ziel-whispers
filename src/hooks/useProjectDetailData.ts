@@ -124,7 +124,7 @@ export function useProjectDetailData() {
     queryFn: async () => {
       const { data } = await supabase
         .from("daily_logs")
-        .select("*, users(full_name)")
+        .select("*, users(full_name), tasks(title)")
         .eq("project_id", id!)
         .eq("status", "submitted")
         .order("log_date", { ascending: false });
@@ -450,6 +450,27 @@ export function useProjectDetailData() {
     enabled: !!id,
   });
 
+  const { data: automationRuleRuns = [] } = useQuery({
+    queryKey: ["project-automation-rule-runs", id],
+    queryFn: async () => {
+      if (!id) return [];
+      const { data: rules } = await supabase
+        .from("automation_rules")
+        .select("id")
+        .eq("project_id", id);
+      const ruleIds = (rules || []).map((r: any) => r.id);
+      if (ruleIds.length === 0) return [];
+      const { data } = await (supabase as any)
+        .from("automation_rule_runs")
+        .select("id, result, triggered_at, error_message, automation_rule_id, automation_rules(name)")
+        .in("automation_rule_id", ruleIds)
+        .order("triggered_at", { ascending: false })
+        .limit(100);
+      return data || [];
+    },
+    enabled: !!id && isAdmin,
+  });
+
   const { data: projectBlockers = [] } = useQuery({
     queryKey: ["project-blockers-all", id],
     queryFn: async () => {
@@ -629,6 +650,7 @@ export function useProjectDetailData() {
     eligibleBlockers,
     portalMessages,
     automationRules,
+    automationRuleRuns,
     projectBlockers,
     sprints,
     sprintTaskCount,

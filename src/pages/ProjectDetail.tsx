@@ -1037,7 +1037,13 @@ export default function ProjectDetailPage() {
             newStatusUpdateVisible={newStatusUpdateVisible}
             setNewStatusUpdateVisible={setNewStatusUpdateVisible}
             addStatusUpdate={addStatusUpdate}
-            blockerCount={(projectBlockers || []).filter((b: any) => b.status !== "resolved").length}
+            blockerCount={
+              (projectBlockers || []).filter((b: any) => {
+                if (b.status === "resolved") return false;
+                if (isClient && b.client_visible === false) return false;
+                return true;
+              }).length
+            }
             openBlockers={(projectBlockers || []).filter((b: any) => {
               if (b.status === "resolved") return false;
               if (isClient && b.client_visible === false) return false;
@@ -1576,6 +1582,8 @@ export default function ProjectDetailPage() {
         viewDepsLoadingData={viewDepsLoading}
         viewBlockersData={viewBlockers}
         viewBlockersLoadingData={viewBlockersLoading}
+        queryClient={queryClient}
+        checkAndTriggerBlockerAlert={checkAndTriggerBlockerAlert}
       />
 
       <PhaseModals

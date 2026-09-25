@@ -125,6 +125,7 @@ export function ProjectActionItemsTab({
 
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
     queryClient.invalidateQueries({ queryKey: ["project-blockers-all", id] });
+    queryClient.invalidateQueries({ queryKey: ["client-sidebar-nav-counts", id] });
     queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
   };
 

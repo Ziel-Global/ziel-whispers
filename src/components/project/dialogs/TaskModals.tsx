@@ -95,6 +95,12 @@ export interface TaskModalsProps {
   viewDepsLoadingData?: boolean;
   viewBlockersData?: any[];
   viewBlockersLoadingData?: boolean;
+  queryClient?: { invalidateQueries: (arg: any) => void };
+  checkAndTriggerBlockerAlert?: (
+    taskId: string,
+    title: string,
+    actionType?: "status" | "assignee" | "drag" | "log"
+  ) => Promise<boolean>;
 }
 
 export function TaskModals(props: TaskModalsProps) {
@@ -190,21 +196,125 @@ export function TaskModals(props: TaskModalsProps) {
     setViewAddDepTaskId("");
   };
 
-  const addViewBlocker = () => {
-    if (!newViewBlockerDescription.trim()) return;
-    setViewBlockers([...viewBlockers, { id: Date.now().toString(), description: newViewBlockerDescription, status: "open", raised_at: new Date().toISOString(), raiser: props.profile }]);
+  const queryClient = props.queryClient || { invalidateQueries: (_arg: any) => {} };
+
+  const addViewBlocker = async () => {
+    const task = props.viewTaskData;
+    const profile = props.profile;
+    if (!newViewBlockerDescription.trim() || !task?.id || !profile?.id) return;
+    const projectId = task.project_id || props.project?.id;
+    if (!projectId) {
+      toast.error("Missing project for this task");
+      return;
+    }
+
+    const clientVisible = newBlockerVisibility === "all";
+    const description = newViewBlockerDescription.trim();
+
+    // Columns must match live task_blockers schema (no title / requires_client_action).
+    const { data: blocker, error } = await supabase
+      .from("task_blockers")
+      .insert({
+        project_id: projectId,
+        task_id: task.id,
+        description,
+        raised_by: profile.id,
+        client_visible: clientVisible,
+      })
+      .select("*, raiser:users!task_blockers_raised_by_fkey(full_name)")
+      .single();
+
+    if (error || !blocker) {
+      toast.error(error?.message || "Failed to create blocker");
+      return;
+    }
+
+    if (newBlockerAssignUserId) {
+      const { error: actionError } = await supabase.from("client_action_items").insert({
+        project_id: projectId,
+        title: `Resolve Blocker: ${description}`,
+        description: null,
+        status: "pending",
+        priority: "medium",
+        requested_by: profile.id,
+        assigned_to: newBlockerAssignUserId,
+        blocker_id: blocker.id,
+        visible_to_client: clientVisible,
+      } as any);
+
+      if (actionError) {
+        toast.error(actionError.message);
+      } else {
+        toast.success("Blocker reported");
+      }
+    } else {
+      toast.success("Blocker reported");
+    }
+
+    setViewBlockers([blocker, ...viewBlockers]);
     setShowViewAddBlocker(false);
     setNewViewBlockerDescription("");
+    setNewBlockerVisibility("all");
+    setNewBlockerAssignType("employee");
+    setNewBlockerAssignUserId("");
+
+    queryClient.invalidateQueries({ queryKey: ["task-blockers-view", task.id] });
+    queryClient.invalidateQueries({ queryKey: ["project-blockers-all", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["client-sidebar-nav-counts", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-action-items", projectId] });
+    queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
   };
 
-  const resolveBlocker = (blockerId: string, _taskId?: string) => {
-    setViewBlockers(viewBlockers.map((b: any) => b.id === blockerId ? { ...b, status: "resolved", resolver: props.profile } : b));
+  const resolveBlocker = async (blockerId: string, taskId?: string) => {
+    const profile = props.profile;
+    if (!profile?.id) return;
+    const projectId = props.viewTaskData?.project_id || props.project?.id || "";
+
+    const { error: rpcErr } = await supabase.rpc("resolve_blocker_cascade", {
+      p_blocker_id: blockerId,
+      p_resolved_by: profile.id,
+    });
+
+    if (rpcErr) {
+      const { error } = await supabase
+        .from("task_blockers")
+        .update({
+          status: "resolved",
+          resolved_at: new Date().toISOString(),
+          resolved_by: profile.id,
+        })
+        .eq("id", blockerId);
+      if (error) {
+        toast.error(error.message);
+        return;
+      }
+    }
+
+    toast.success("Blocker resolved");
+    setViewBlockers(
+      viewBlockers.map((b: any) =>
+        b.id === blockerId
+          ? { ...b, status: "resolved", resolved_at: new Date().toISOString(), resolver: profile }
+          : b
+      )
+    );
+
+    if (taskId) {
+      queryClient.invalidateQueries({ queryKey: ["task-blockers-view", taskId] });
+    }
+    if (projectId) {
+      queryClient.invalidateQueries({ queryKey: ["project-blockers-all", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["client-sidebar-nav-counts", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-action-items", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+    }
   };
 
-  const checkAndTriggerBlockerAlert = async (_taskId: string, _title: string, _type: string) => false;
+  const checkAndTriggerBlockerAlert =
+    props.checkAndTriggerBlockerAlert ||
+    (async (_taskId: string, _title: string, _type?: string) => false);
   const isDependencyWarnTarget = (_category: string) => false;
   const getUnfinishedDependencies = async (_taskId: string, _statuses: any[]) => [];
-  const queryClient = { invalidateQueries: (_arg: any) => {} };
   const id = props.viewTaskData?.project_id || "";
 
   const {

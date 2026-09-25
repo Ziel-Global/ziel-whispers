@@ -293,8 +293,7 @@ export function AppSidebar() {
         supabase
           .from("task_blockers")
           .select("id", { count: "exact", head: true })
-          .eq("project_id", pid)
-          .neq("status", "resolved"),
+          .eq("project_id", pid),
         supabase
           .from("client_action_items")
           .select("id", { count: "exact", head: true })

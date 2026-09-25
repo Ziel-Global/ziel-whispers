@@ -171,6 +171,12 @@ function ClientTaskStateDistribution({
   const p2 = p1 + (counts.Development / denom) * 100;
   const p3 = p2 + (counts.Complete / denom) * 100;
   const legend: TaskStateBucket[] = ["Unlinked", "Development", "Complete", "Returned"];
+  const legendLabel: Record<TaskStateBucket, string> = {
+    Unlinked: "Open",
+    Development: "Inprogress",
+    Complete: "Complete",
+    Returned: "Returned",
+  };
 
   return (
     <div className="border border-[#E7E7EA] rounded-[14px] bg-white p-[18px] min-w-0">
@@ -206,7 +212,7 @@ function ClientTaskStateDistribution({
                 className="w-[7px] h-[7px] rounded-full flex-none not-italic"
                 style={{ background: TASK_STATE_COLORS[label] }}
               />
-              {label}
+              {legendLabel[label]}
               <b className="ml-auto text-[9px] text-[#333338] font-semibold">{counts[label]}</b>
             </div>
           ))}

@@ -570,6 +570,8 @@ export function useProjectDetailData() {
         () => {
           queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
           queryClient.invalidateQueries({ queryKey: ["project-blockers", id] });
+          queryClient.invalidateQueries({ queryKey: ["project-blockers-all", id] });
+          queryClient.invalidateQueries({ queryKey: ["client-sidebar-nav-counts", id] });
           queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
           if (viewTaskData?.id) {
             queryClient.invalidateQueries({ queryKey: ["task-blockers-view", viewTaskData.id] });

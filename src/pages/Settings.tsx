@@ -78,8 +78,13 @@ export default function SettingsPage() {
     <div className="max-w-2xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <Button onClick={handleSave} disabled={saving} className="rounded-button">
-          <Save className="h-4 w-4 mr-2" />{saving ? "Saving…" : "Save All"}
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="rounded-[10px] bg-[#EB5A1E] hover:bg-[#C64715] text-white hover:text-white font-semibold shadow-sm [&_svg]:!text-white [&_svg]:!stroke-white"
+        >
+          <Save className="h-4 w-4 mr-2 text-white" stroke="currentColor" />
+          {saving ? "Saving…" : "Save All"}
         </Button>
       </div>
 

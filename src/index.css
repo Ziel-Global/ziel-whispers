@@ -112,4 +112,24 @@
   .rounded-button:hover svg {
     @apply text-white !important;
   }
+
+  /* Client portal visual tokens (HTML mock) */
+  .client-page {
+    @apply max-w-[1480px] mx-auto font-sans;
+  }
+  .client-table-card {
+    @apply bg-white border border-[#E6E6E8] rounded-[11px] overflow-hidden shadow-[0_8px_26px_rgba(23,23,26,0.035)];
+  }
+  .client-table-summary {
+    @apply flex items-center justify-between gap-3 px-3.5 py-3 border-b border-[#E9E9EC];
+  }
+  .client-section-title {
+    @apply text-[15px] font-bold tracking-tight text-[#17171A] m-0 mb-4;
+  }
+  .client-pill-active {
+    @apply inline-flex items-center rounded-full bg-[#DFF6E4] text-[#168744] text-[9px] font-semibold px-2.5 py-0.5 capitalize;
+  }
+  .client-empty-state {
+    @apply border border-[#E5E5E8] rounded-[11px] bg-white px-5 py-12 text-center text-[#8B8B92];
+  }
 }

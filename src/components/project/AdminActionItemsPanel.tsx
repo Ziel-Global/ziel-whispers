@@ -154,6 +154,8 @@ export function AdminActionItemsPanel({
             const av = owner ? avatarStyleFor(owner) : null;
             const st = statusPill(a);
             const source = sourceLabel(a, tasks);
+            const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
+            const due = a.due_date || linkedTask?.due_date;
 
             return (
               <div key={a.id}>
@@ -196,7 +198,7 @@ export function AdminActionItemsPanel({
                     )}
                   </div>
                   <div className="text-[13px] text-[#4B4B52]">
-                    {a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d") : "—"}
+                    {due ? format(new Date(due + "T00:00:00"), "MMM d") : "—"}
                   </div>
                   <div className="text-[12.5px] text-[#8B8B92] truncate" title={source}>
                     {source}

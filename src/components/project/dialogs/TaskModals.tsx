@@ -240,6 +240,7 @@ export function TaskModals(props: TaskModalsProps) {
         assigned_to: newBlockerAssignUserId,
         blocker_id: blocker.id,
         visible_to_client: clientVisible,
+        due_date: task.due_date || null,
       } as any);
 
       if (actionError) {

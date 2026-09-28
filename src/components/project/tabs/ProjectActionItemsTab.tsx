@@ -261,6 +261,7 @@ export function ProjectActionItemsTab({
                   activeTabItems.map((a: any) => {
                     const isExpanded = expandedActionItemId === a.id;
                     const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
+                    const due = a.due_date || linkedTask?.due_date;
                     const assignedName = a.assigned_to_user?.full_name;
                     const statusTone =
                       a.status === "completed"
@@ -311,8 +312,8 @@ export function ProjectActionItemsTab({
                             </span>
                           </td>
                           <td className="px-2.5 py-3 align-middle text-[9px] text-[#4C4C53] truncate">
-                            {a.due_date ? (
-                              format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")
+                            {due ? (
+                              format(new Date(due + "T00:00:00"), "MMM d, yyyy")
                             ) : (
                               <span className="text-[#A0A0A6]">No date</span>
                             )}
@@ -473,6 +474,7 @@ export function ProjectActionItemsTab({
               {activeTabItems.map((a: any) => {
                 const isExpanded = expandedActionItemId === a.id;
                 const linkedTask = (tasks || []).find((t: any) => t.id === a.blockers?.task_id);
+                const due = a.due_date || linkedTask?.due_date;
                 return (
                   <div key={a.id}>
                     <DataRow gridCols="1fr 80px 100px 96px 96px 80px 80px 80px 100px 80px">
@@ -503,7 +505,7 @@ export function ProjectActionItemsTab({
                           {a.status}
                         </Badge>
                       </RowBadgeItem>
-                      <RowDataItem label="DUE DATE">{a.due_date ? format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
+                      <RowDataItem label="DUE DATE">{due ? format(new Date(due + "T00:00:00"), "MMM d, yyyy") : "—"}</RowDataItem>
                       <RowDataItem label="REQUESTED">{a.requested_by_user?.full_name || "—"}</RowDataItem>
                       <RowBadgeItem label="VISIBLE">
                         {a.visible_to_client ? <Badge className="bg-blue-100 text-blue-800">Client</Badge> : <span className="text-muted-foreground">—</span>}
@@ -531,9 +533,9 @@ export function ProjectActionItemsTab({
                       <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
                         {a.description && <div className="text-sm text-muted-foreground">{a.description}</div>}
                         <div className="flex flex-wrap gap-3 text-sm">
-                          {a.due_date && (
+                          {due && (
                             <span className="text-muted-foreground">
-                              Due: <span className="text-foreground font-medium">{format(new Date(a.due_date + "T00:00:00"), "MMM d, yyyy")}</span>
+                              Due: <span className="text-foreground font-medium">{format(new Date(due + "T00:00:00"), "MMM d, yyyy")}</span>
                             </span>
                           )}
                           {a.completed_at && (

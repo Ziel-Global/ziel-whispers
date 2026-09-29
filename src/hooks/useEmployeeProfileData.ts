@@ -60,6 +60,7 @@ export function useEmployeeProfileData(id: string | undefined) {
   // Work Logs filters
   const [logDateFilter, setLogDateFilter] = useState("");
   const [logProjectFilter, setLogProjectFilter] = useState("all");
+  const [logActivityFilter, setLogActivityFilter] = useState("all");
 
   // Logged Hours tab state
   const [loggedHoursMonth, setLoggedHoursMonth] = useState(() => getPKTDateString().slice(0, 7));
@@ -92,11 +93,11 @@ export function useEmployeeProfileData(id: string | undefined) {
 
   // Work Logs for this employee
   const { data: workLogs = [] } = useQuery({
-    queryKey: ["employee-work-logs", id, logDateFilter, logProjectFilter],
+    queryKey: ["employee-work-logs", id, logDateFilter, logProjectFilter, logActivityFilter],
     queryFn: async () => {
       let query = supabase
         .from("daily_logs")
-        .select("*, projects(name)")
+        .select("*, projects(name), tasks(title)")
         .eq("user_id", id!)
         .eq("status", "submitted")
         .order("log_date", { ascending: false })
@@ -106,6 +107,9 @@ export function useEmployeeProfileData(id: string | undefined) {
         query = query.is("project_id", null);
       } else if (logProjectFilter !== "all") {
         query = query.eq("project_id", logProjectFilter);
+      }
+      if (logActivityFilter !== "all") {
+        query = query.eq("category", logActivityFilter);
       }
       const { data } = await query;
       return data || [];
@@ -119,14 +123,38 @@ export function useEmployeeProfileData(id: string | undefined) {
     queryFn: async () => {
       const { data } = await supabase
         .from("project_members")
-        .select("assigned_at, projects(id, name, status), project_roles(name)")
+        .select("assigned_at, projects(id, name, status, clients(name)), project_roles(name)")
         .eq("user_id", id!)
         .is("removed_at", null);
-      return (data || []).map((m: any) => ({
-        ...m.projects,
-        project_role: m.project_roles?.name,
-        assigned_at: m.assigned_at
-      })).filter(p => p.id);
+
+      const mapped = (data || [])
+        .map((m: any) => ({
+          ...m.projects,
+          client_name: m.projects?.clients?.name || null,
+          project_role: m.project_roles?.name,
+          assigned_at: m.assigned_at,
+          logged_hours: 0,
+        }))
+        .filter((p: any) => p.id);
+
+      if (mapped.length === 0) return mapped;
+
+      const projectIds = mapped.map((p: any) => p.id);
+      const { data: logs } = await supabase
+        .from("daily_logs")
+        .select("project_id, hours")
+        .eq("user_id", id!)
+        .in("project_id", projectIds);
+
+      const hoursByProject: Record<string, number> = {};
+      (logs || []).forEach((l: any) => {
+        hoursByProject[l.project_id] = (hoursByProject[l.project_id] || 0) + Number(l.hours || 0);
+      });
+
+      return mapped.map((p: any) => ({
+        ...p,
+        logged_hours: Math.round((hoursByProject[p.id] || 0) * 10) / 10,
+      }));
     },
     enabled: !!id && isAdmin,
   });
@@ -199,7 +227,7 @@ export function useEmployeeProfileData(id: string | undefined) {
     queryFn: async () => {
       const { data } = await supabase
         .from("daily_logs")
-        .select("hours, is_overtime")
+        .select("hours, is_overtime, log_date")
         .eq("user_id", id!)
         .eq("status", "submitted")
         .gte("log_date", monthStart)
@@ -265,30 +293,62 @@ export function useEmployeeProfileData(id: string | undefined) {
       }
     }
 
-    let workingDayCount = 0;
+    const hoursByDate: Record<string, number> = {};
+    let logged = 0;
+    let overtime = 0;
+    let overtimeEntryCount = 0;
+    for (const log of monthlyLogs) {
+      const h = Number(log.hours);
+      logged += h;
+      if (log.is_overtime) {
+        overtime += h;
+        overtimeEntryCount += 1;
+      }
+      const dateKey = log.log_date as string;
+      if (dateKey) hoursByDate[dateKey] = (hoursByDate[dateKey] || 0) + h;
+    }
+
+    const workingDates: string[] = [];
     const cur = new Date(rangeStart);
     while (cur <= rangeEnd) {
       const day = cur.getDay();
       const isWeekend = day === 0 || (wd === 5 && day === 6);
-      if (!isWeekend && !leaveDates.has(format(cur, "yyyy-MM-dd"))) workingDayCount++;
+      const dateKey = format(cur, "yyyy-MM-dd");
+      if (!isWeekend && !leaveDates.has(dateKey)) workingDates.push(dateKey);
       cur.setDate(cur.getDate() + 1);
     }
 
+    const workingDayCount = workingDates.length;
     const expected = workingDayCount * expectedDailyHours;
-    let logged = 0;
-    let overtime = 0;
-    for (const log of monthlyLogs) {
-      const h = Number(log.hours);
-      logged += h;
-      if (log.is_overtime) overtime += h;
-    }
+    const unloggedHours = Math.max(0, expected - logged);
+    const coveragePct = expected > 0 ? Math.round((logged / expected) * 100) : 0;
+
+    const peakDay = Math.max(expectedDailyHours, ...workingDates.map((d) => hoursByDate[d] || 0), 0);
+    const scale = peakDay > 0 ? peakDay : expectedDailyHours || 8;
+
+    const dailyBars = workingDates.map((dateKey) => {
+      const hours = hoursByDate[dateKey] || 0;
+      const heightPct = Math.max(2, Math.round((hours / scale) * 100));
+      return {
+        date: dateKey,
+        dayLabel: format(new Date(dateKey + "T00:00:00"), "d"),
+        hours,
+        heightPct: hours === 0 ? 2 : heightPct,
+        isZero: hours === 0,
+      };
+    });
 
     return {
       expectedHours: expected,
       loggedHours: logged,
-      unloggedHours: Math.max(0, expected - logged),
+      unloggedHours,
       overtimeHours: overtime,
       overtimeEnabled: otEnabled,
+      workingDayCount,
+      coveragePct,
+      overtimeEntryCount,
+      expectedDailyHours,
+      dailyBars,
     };
   }, [monthStart, monthEnd, monthlyLogs, monthlyLeaves, employee, expectedDailyHours]);
 
@@ -783,6 +843,8 @@ export function useEmployeeProfileData(id: string | undefined) {
     setLogDateFilter,
     logProjectFilter,
     setLogProjectFilter,
+    logActivityFilter,
+    setLogActivityFilter,
     exportWorkLogs,
     deleteLogId,
     setDeleteLogId,

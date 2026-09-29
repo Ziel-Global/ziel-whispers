@@ -8,7 +8,6 @@ import { ArrowLeft, Shield, ShieldOff } from "lucide-react";
 
 import { useEmployeeProfileData } from "@/hooks/useEmployeeProfileData";
 import { ClientMemberProfileCard } from "@/components/employee/ClientMemberProfileCard";
-import { EmployeeChangePasswordCard } from "@/components/employee/EmployeeChangePasswordCard";
 import { EmployeeProfileTab } from "@/components/employee/tabs/EmployeeProfileTab";
 import { EmployeeWorkLogsTab } from "@/components/employee/tabs/EmployeeWorkLogsTab";
 import { EmployeeProjectsTab } from "@/components/employee/tabs/EmployeeProjectsTab";
@@ -36,7 +35,8 @@ export default function EmployeeProfilePage() {
   };
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6">
+    <div className="w-full space-y-6">
+      {/* Header chrome left as-is (ud-* header restyle deferred). */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/employees"); }}>
@@ -123,18 +123,64 @@ export default function EmployeeProfilePage() {
           saving={data.saving}
         />
       ) : (
-        <Tabs defaultValue="profile">
-          <TabsList>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="skills">Skills</TabsTrigger>
-            {data.isAdmin && <TabsTrigger value="projects">Projects</TabsTrigger>}
-            {data.isAdmin && <TabsTrigger value="logs">Work Logs</TabsTrigger>}
-            {data.isAdmin && <TabsTrigger value="logged-hours">Logged Hours</TabsTrigger>}
-            {data.isAdmin && <TabsTrigger value="log-edit-days">Log Edit Days</TabsTrigger>}
-            {data.isAdmin && <TabsTrigger value="access-controls">Access Controls</TabsTrigger>}
+        <Tabs defaultValue="profile" className="w-full min-w-0">
+          {/* ud-tabs strip — matches zielAdmin user-detail tab row */}
+          <TabsList className="flex h-auto w-full min-h-[46px] items-center gap-1 bg-[#F6F5F3] border border-black/[0.06] rounded-[11px] p-[5px] overflow-x-auto scrollbar-none mb-4 shadow-none">
+            <TabsTrigger
+              value="profile"
+              className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
+            >
+              Profile
+            </TabsTrigger>
+            <TabsTrigger
+              value="skills"
+              className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
+            >
+              Skills
+            </TabsTrigger>
+            {data.isAdmin && (
+              <TabsTrigger
+                value="projects"
+                className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
+              >
+                Projects
+              </TabsTrigger>
+            )}
+            {data.isAdmin && (
+              <TabsTrigger
+                value="logs"
+                className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
+              >
+                Work Logs
+              </TabsTrigger>
+            )}
+            {data.isAdmin && (
+              <TabsTrigger
+                value="logged-hours"
+                className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
+              >
+                Logged Hours
+              </TabsTrigger>
+            )}
+            {data.isAdmin && (
+              <TabsTrigger
+                value="log-edit-days"
+                className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
+              >
+                Log Edit Days
+              </TabsTrigger>
+            )}
+            {data.isAdmin && (
+              <TabsTrigger
+                value="access-controls"
+                className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
+              >
+                Access Controls
+              </TabsTrigger>
+            )}
           </TabsList>
 
-          <TabsContent value="profile">
+          <TabsContent value="profile" className="mt-0">
             <EmployeeProfileTab
               employee={data.employee}
               avatarUrl={data.avatarUrl}
@@ -144,6 +190,8 @@ export default function EmployeeProfilePage() {
               setAvatarFile={data.setAvatarFile}
               form={data.form}
               onSubmit={data.onSubmit}
+              employeeProjects={data.employeeProjects}
+              monthlyStats={data.monthlyStats}
             />
           </TabsContent>
 
@@ -169,6 +217,8 @@ export default function EmployeeProfilePage() {
                 setLogDateFilter={data.setLogDateFilter}
                 logProjectFilter={data.logProjectFilter}
                 setLogProjectFilter={data.setLogProjectFilter}
+                logActivityFilter={data.logActivityFilter}
+                setLogActivityFilter={data.setLogActivityFilter}
                 employeeProjects={data.employeeProjects}
                 exportWorkLogs={data.exportWorkLogs}
                 workLogs={data.workLogs}
@@ -227,18 +277,6 @@ export default function EmployeeProfilePage() {
             </TabsContent>
           )}
         </Tabs>
-      )}
-
-      {data.isAdmin && !data.isOwnProfile && (
-        <EmployeeChangePasswordCard
-          adminNewPassword={data.adminNewPassword}
-          setAdminNewPassword={data.setAdminNewPassword}
-          adminConfirmPassword={data.adminConfirmPassword}
-          setAdminConfirmPassword={data.setAdminConfirmPassword}
-          adminPwError={data.adminPwError}
-          settingPassword={data.settingPassword}
-          handleUpdatePassword={data.handleUpdatePassword}
-        />
       )}
 
       <Dialog open={data.emailWarningOpen} onOpenChange={data.setEmailWarningOpen}>

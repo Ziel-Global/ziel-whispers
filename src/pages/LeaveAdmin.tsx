@@ -15,8 +15,8 @@ export default function LeaveAdminPage() {
   const pendingWfhCount = data.wfhRequests.filter((r: any) => r.status === "pending").length;
 
   return (
-    <div className="space-y-6 font-sans">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
         <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Leave Management</h1>
         <button
           type="button"
@@ -31,8 +31,8 @@ export default function LeaveAdminPage() {
         </button>
       </div>
 
-      <Tabs defaultValue="requests">
-        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit">
+      <Tabs defaultValue="requests" className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
           <TabsTrigger
             value="requests"
             className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none flex items-center gap-2"
@@ -72,7 +72,7 @@ export default function LeaveAdminPage() {
         </TabsList>
 
         {/* Tab 1: Leave Requests */}
-        <TabsContent value="requests" className="space-y-4">
+        <TabsContent value="requests" className="mt-0 flex-1 min-h-0 overflow-hidden data-[state=inactive]:hidden">
           <LeaveRequestsTab
             statusFilter={data.statusFilter}
             setStatusFilter={data.setStatusFilter}
@@ -93,7 +93,7 @@ export default function LeaveAdminPage() {
         </TabsContent>
 
         {/* Tab 2: WFH / Remote Requests */}
-        <TabsContent value="wfh" className="space-y-4">
+        <TabsContent value="wfh" className="mt-0 flex-1 min-h-0 overflow-hidden data-[state=inactive]:hidden">
           <WFHRequestsTab
             wfhStatusFilter={data.wfhStatusFilter}
             setWfhStatusFilter={data.setWfhStatusFilter}
@@ -109,7 +109,7 @@ export default function LeaveAdminPage() {
         </TabsContent>
 
         {/* Tab 3: Leave Calendar */}
-        <TabsContent value="calendar" className="space-y-4">
+        <TabsContent value="calendar" className="mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
           <LeaveCalendarTab
             calMonth={data.calMonth}
             setCalMonth={data.setCalMonth}
@@ -123,7 +123,7 @@ export default function LeaveAdminPage() {
         </TabsContent>
 
         {/* Tab 4: Leave Settings */}
-        <TabsContent value="settings" className="space-y-4">
+        <TabsContent value="settings" className="mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
           <LeaveSettingsTab
             annualEntitlement={data.annualEntitlement}
             setAnnualEntitlement={data.setAnnualEntitlement}

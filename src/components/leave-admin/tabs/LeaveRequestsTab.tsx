@@ -73,9 +73,9 @@ export function LeaveRequestsTab({
   };
 
   return (
-    <div className="space-y-5 font-sans">
+    <div className="flex flex-col h-full min-h-0 gap-4 font-sans overflow-hidden">
       {/* Summary KPI Cards Grid */}
-      <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm">
+      <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm shrink-0">
         <div className="p-5 flex items-center gap-3.5">
           <div className="w-[38px] h-[38px] rounded-[10px] bg-[#EAF3FF] text-[#1C6FC9] flex items-center justify-center shrink-0">
             <CalendarCheck className="h-4.5 w-4.5 text-[#1C6FC9]" />
@@ -114,7 +114,7 @@ export function LeaveRequestsTab({
       </div>
 
       {/* Filter Toolbar */}
-      <div className="flex flex-wrap gap-2.5 items-center">
+      <div className="flex flex-wrap gap-2.5 items-center shrink-0">
         <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
           <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
           <input
@@ -176,12 +176,13 @@ export function LeaveRequestsTab({
 
       {/* Leave Requests Table */}
       {displayedList.length === 0 ? (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">
           No leave requests found for the selected filters
         </div>
       ) : (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm">
-          <div className="grid grid-cols-[40px_2fr_1fr_1fr_0.7fr_1fr_1fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="sticky top-0 z-10 bg-white grid grid-cols-[40px_2fr_1fr_1fr_0.7fr_1fr_1fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
             <div className="flex items-center justify-center">
               <input
                 type="checkbox"
@@ -202,7 +203,7 @@ export function LeaveRequestsTab({
           </div>
 
           {selectedLeaveIds.size > 0 && (
-            <div className="flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+            <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
               <span className="text-xs font-semibold">
                 {selectedLeaveIds.size} leave request{selectedLeaveIds.size > 1 ? "s" : ""} selected
               </span>
@@ -316,6 +317,7 @@ export function LeaveRequestsTab({
               )}
             </div>
           ))}
+          </div>
         </div>
       )}
     </div>

@@ -444,8 +444,8 @@ export default function LogsAdminPage() {
   };
 
   return (
-    <div className="space-y-6 font-sans">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
         <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Daily Logs</h1>
         <div className="flex items-center gap-2.5">
           <button
@@ -460,8 +460,8 @@ export default function LogsAdminPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="logs">
-        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit">
+      <Tabs defaultValue="logs" className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
           <TabsTrigger
             value="logs"
             className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
@@ -478,8 +478,8 @@ export default function LogsAdminPage() {
           )}
         </TabsList>
 
-        <TabsContent value="logs" className="space-y-6 mt-6">
-          <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm">
+        <TabsContent value="logs" className="mt-0 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden">
+          <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm shrink-0">
             <div className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors" onClick={() => setModalType("missed")}>
               <div className="w-[38px] h-[38px] rounded-[10px] bg-[#FDECEC] text-[#E5484D] flex items-center justify-center shrink-0">
                 <FileX className="h-4.5 w-4.5 text-[#E5484D]" />
@@ -531,7 +531,7 @@ export default function LogsAdminPage() {
             </DialogContent>
           </Dialog>
 
-          <div className="flex flex-wrap gap-2.5 items-center">
+          <div className="flex flex-wrap gap-2.5 items-center shrink-0">
             <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
               <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
               <input
@@ -574,12 +574,13 @@ export default function LogsAdminPage() {
           </div>
 
           {isLoading ? (
-            <div className="bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">Loading…</div>
+            <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">Loading…</div>
           ) : groupedRows.length === 0 ? (
-            <div className="bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">No logs found for the selected filters</div>
+            <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">No logs found for the selected filters</div>
           ) : (
-            <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm">
-              <div className="grid grid-cols-[40px_2.2fr_0.9fr_0.7fr_1fr_0.7fr_0.8fr_1fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
+            <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
+              <div className="flex-1 min-h-0 overflow-y-auto">
+              <div className="sticky top-0 z-10 bg-white grid grid-cols-[40px_2.2fr_0.9fr_0.7fr_1fr_0.7fr_0.8fr_1fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
                 <div />
                 <span>EMPLOYEE</span>
                 <span>DATE</span>
@@ -591,7 +592,7 @@ export default function LogsAdminPage() {
               </div>
 
               {selectedLogIds.size > 0 && (
-                <div className="flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+                <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
                   <span className="text-xs font-semibold">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
                   <div className="flex items-center gap-2">
                     <button
@@ -769,12 +770,13 @@ export default function LogsAdminPage() {
                   </div>
                 );
               })}
+              </div>
             </div>
           )}
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="rules" className="mt-6">
+          <TabsContent value="rules" className="mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
             <div className="bg-white border border-black/[0.08] rounded-[14px] p-[22px] space-y-6 shadow-sm font-sans">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">

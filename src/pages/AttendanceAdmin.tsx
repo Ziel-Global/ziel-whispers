@@ -233,8 +233,8 @@ export default function AttendanceAdminPage() {
   const staleOpenSessions = openSessions.filter((s: any) => s.date < today);
 
   return (
-    <div className="space-y-6 font-sans">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
         <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Attendance Management</h1>
         <button
           type="button"
@@ -247,12 +247,12 @@ export default function AttendanceAdminPage() {
       </div>
 
       {staleOpenSessions.length > 0 && (
-        <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-[14px] p-4 shadow-sm">
+        <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-[14px] p-4 shadow-sm shrink-0">
           <div className="flex items-center gap-2 mb-2">
             <AlertTriangle className="h-4 w-4 text-[#D97706]" />
             <h3 className="text-sm font-bold text-[#92400E]">Open Sessions</h3>
           </div>
-          <div className="divide-y divide-black/10">
+          <div className="divide-y divide-black/10 max-h-24 overflow-y-auto">
             {staleOpenSessions.map((s: any) => (
               <p key={s.id} className="text-xs text-[#B45309] py-2 first:pt-0 last:pb-0">
                 <strong>{s.users?.full_name}</strong> — Open session since {formatPKTTime(s.clock_in)} on {format(new Date(s.clock_in), "MMM d")}
@@ -262,7 +262,7 @@ export default function AttendanceAdminPage() {
         </div>
       )}
 
-      <div className="flex gap-2.5 items-center flex-wrap">
+      <div className="flex gap-2.5 items-center flex-wrap shrink-0">
         <div className="flex-1 min-w-[200px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
           <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
           <input
@@ -311,14 +311,14 @@ export default function AttendanceAdminPage() {
         )}
       </div>
 
-      <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm">
+      <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
         {isLoading ? (
           <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">Loading…</div>
         ) : filtered.length === 0 ? (
           <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">No records for this date</div>
         ) : (
-          <div>
-            <TableHeader gridCols="1.6fr 0.8fr 0.8fr 0.9fr 0.8fr 0.8fr 0.6fr" className="px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <TableHeader gridCols="1.6fr 0.8fr 0.8fr 0.9fr 0.8fr 0.8fr 0.6fr" className="sticky top-0 z-10 bg-white px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
               <span>EMPLOYEE</span>
               <span>CLOCK IN</span>
               <span>CLOCK OUT</span>

@@ -894,9 +894,12 @@ export default function ProjectDetailPage() {
     resourceMembers.find((m: any) => m.users?.role === "admin" || m.users?.role === "manager") ||
     resourceMembers[0];
   const ownerName = ownerMember?.users?.full_name || profile?.full_name || null;
+  const tabBodyClass =
+    "mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
 
   return (
-    <div className={isClient ? "client-page space-y-6" : "space-y-6"}>
+    <div className={isClient ? "client-page flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4" : "flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4"}>
+      <div className="shrink-0">
       {isAdmin && !isClient ? (
         <AdminProjectDetailChrome
           project={project}
@@ -989,10 +992,11 @@ export default function ProjectDetailPage() {
           </div>
         </div>
       )}
+      </div>
 
-      <Tabs value={activeTab} onValueChange={setTab}>
+      <Tabs value={activeTab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {!isClient && !isAdmin && (
-          <TabsList className="overflow-x-auto">
+          <TabsList className="overflow-x-auto shrink-0">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="skills">Skills & Matching</TabsTrigger>
             <TabsTrigger value="resources">Resources ({resourceMembers.length})</TabsTrigger>
@@ -1009,7 +1013,7 @@ export default function ProjectDetailPage() {
           </TabsList>
         )}
 
-        <TabsContent value="overview">
+        <TabsContent value="overview" className={tabBodyClass}>
           <ProjectOverviewTab
             project={project}
             latestHealth={latestHealth}
@@ -1067,7 +1071,7 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="resources">
+        <TabsContent value="resources" className={tabBodyClass}>
           <ProjectResourcesTab
             id={id!}
             type="resource"
@@ -1083,7 +1087,7 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="skills">
+        <TabsContent value="skills" className={tabBodyClass}>
           {!isAdmin && (
           <ProjectSkillsTab
             projectId={project.id}
@@ -1154,19 +1158,19 @@ export default function ProjectDetailPage() {
 
         {isAdmin && (
           <>
-            <TabsContent value="workload">
+            <TabsContent value="workload" className={tabBodyClass}>
               <AdminWorkloadPanel
                 resourceMembers={resourceMembers || []}
                 hoursByMember={hoursByMember as { name: string; hours: number }[]}
               />
             </TabsContent>
-            <TabsContent value="time">
+            <TabsContent value="time" className={tabBodyClass}>
               <AdminTimePanel
                 categoryBreakdown={categoryBreakdown as { name: string; value: number }[]}
                 weeklyLogs={weeklyLogs as { week: string; hours: number }[]}
               />
             </TabsContent>
-            <TabsContent value="delivery">
+            <TabsContent value="delivery" className={tabBodyClass}>
               <AdminDeliveryPanel
                 project={project}
                 burndownScope={burndownScope}
@@ -1183,7 +1187,7 @@ export default function ProjectDetailPage() {
           </>
         )}
 
-        <TabsContent value="clients">
+        <TabsContent value="clients" className={tabBodyClass}>
           <ProjectResourcesTab
             id={id!}
             type="client"
@@ -1197,7 +1201,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="logs">
+          <TabsContent value="logs" className={tabBodyClass}>
             <AdminTimeLogsPanel
               logs={logs || []}
               projectName={project.name}
@@ -1209,7 +1213,7 @@ export default function ProjectDetailPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="stats" className="space-y-6">
+        <TabsContent value="stats" className={`${tabBodyClass} space-y-6`}>
           {isAdmin ? (
             <AdminProgressPanel
               latestHealth={latestHealth}
@@ -1252,7 +1256,7 @@ export default function ProjectDetailPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="tasks" className="space-y-4">
+        <TabsContent value="tasks" className={`${tabBodyClass} space-y-4`}>
           <ProjectTasksTab
             tasks={tasks}
             sprints={sprints}
@@ -1279,7 +1283,7 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="kanban" className="space-y-4">
+        <TabsContent value="kanban" className={`${tabBodyClass} space-y-4`}>
           <ProjectKanbanTab
             tasks={tasks}
             sprints={sprints}
@@ -1296,7 +1300,7 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="phase-progress">
+        <TabsContent value="phase-progress" className={tabBodyClass}>
           <ProjectPhasesTab
             id={id!}
             slug={slug}
@@ -1312,11 +1316,11 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="blockers" className="space-y-4">
+        <TabsContent value="blockers" className={`${tabBodyClass} space-y-4`}>
           <ProjectBlockersTab blockers={projectBlockers} tasks={tasks || []} />
         </TabsContent>
 
-        <TabsContent value="status-updates" className="space-y-4">
+        <TabsContent value="status-updates" className={`${tabBodyClass} space-y-4`}>
           {isAdmin ? (
             <AdminProjectActivityPanel
               tasks={tasks || []}
@@ -1336,7 +1340,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         {isAdmin && (
-          <TabsContent value="phases">
+          <TabsContent value="phases" className={tabBodyClass}>
             <ProjectPhasesTab
               id={id!}
               slug={slug}
@@ -1351,7 +1355,7 @@ export default function ProjectDetailPage() {
           </TabsContent>
         )}
 
-        <TabsContent value="sprints" className="space-y-4">
+        <TabsContent value="sprints" className={`${tabBodyClass} space-y-4`}>
           <ProjectSprintsTab
             phases={phases}
             sprints={sprints}
@@ -1366,7 +1370,7 @@ export default function ProjectDetailPage() {
           />
         </TabsContent>
 
-        <TabsContent value="action-items" className="space-y-4">
+        <TabsContent value="action-items" className={`${tabBodyClass} space-y-4`}>
             <ProjectActionItemsTab
               id={id!}
               actionItems={actionItems}
@@ -1387,7 +1391,7 @@ export default function ProjectDetailPage() {
 
         {isAdmin && (
           <>
-            <TabsContent value="automation-rules" className="space-y-4">
+            <TabsContent value="automation-rules" className={`${tabBodyClass} space-y-4`}>
               <AdminAutomationRulesPanel
                 automationRules={automationRules}
                 openAddRule={() => setAutomationRulesOpen(true)}
@@ -1407,10 +1411,10 @@ export default function ProjectDetailPage() {
                 setDeleteRuleConfirmId={setDeleteRuleConfirmId}
               />
             </TabsContent>
-            <TabsContent value="automation-templates">
+            <TabsContent value="automation-templates" className={tabBodyClass}>
               <AdminAutomationTemplatesPanel />
             </TabsContent>
-            <TabsContent value="automation-run-history">
+            <TabsContent value="automation-run-history" className={tabBodyClass}>
               <AdminAutomationRunHistoryPanel runs={automationRuleRuns || []} />
             </TabsContent>
           </>

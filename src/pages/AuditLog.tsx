@@ -174,9 +174,9 @@ export default function AuditLogPage() {
   };
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Audit Log</h1>
           <p className="text-[13px] text-[#8B8B92] font-normal mt-0.5">Immutable record of all system events</p>
@@ -192,7 +192,7 @@ export default function AuditLogPage() {
       </div>
 
       {/* Toolbar */}
-      <div className="flex flex-wrap gap-2.5 items-center">
+      <div className="flex flex-wrap gap-2.5 items-center shrink-0">
         <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
           <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
           <input
@@ -220,16 +220,7 @@ export default function AuditLogPage() {
       </div>
 
       {/* Table Container */}
-      <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans">
-        <div className="grid grid-cols-[1.1fr_1.4fr_1.4fr_1fr_1.4fr_0.4fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
-          <span>TIMESTAMP</span>
-          <span>ACTOR</span>
-          <span>ACTION</span>
-          <span>TARGET</span>
-          <span>DETAILS</span>
-          <span className="text-right pr-2">ACTIONS</span>
-        </div>
-
+      <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans flex flex-col">
         {isLoading ? (
           <div className="p-8 text-center text-[#8B8B92] text-sm">Loading audit logs…</div>
         ) : filtered.length === 0 ? (
@@ -239,69 +230,80 @@ export default function AuditLogPage() {
             <p className="text-[12px] text-[#8B8B92] mt-0.5">System events will appear here</p>
           </div>
         ) : (
-          filtered.map((l) => {
-            const actorName = (l as any).users?.full_name || "System";
-            const initials = getInitials(actorName);
-            const metadataStr = formatMetadata(l.metadata, userNamesMap);
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <div className="sticky top-0 z-10 bg-white grid grid-cols-[1.1fr_1.4fr_1.4fr_1fr_1.4fr_0.4fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
+              <span>TIMESTAMP</span>
+              <span>ACTOR</span>
+              <span>ACTION</span>
+              <span>TARGET</span>
+              <span>DETAILS</span>
+              <span className="text-right pr-2">ACTIONS</span>
+            </div>
 
-            return (
-              <div
-                key={l.id}
-                className="grid grid-cols-[1.1fr_1.4fr_1.4fr_1fr_1.4fr_0.4fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] hover:bg-[#F6F5F3]/50 transition-colors"
-              >
-                {/* TIMESTAMP */}
-                <div>
-                  <p className="text-[13px] font-bold text-[#17171A] whitespace-nowrap">
-                    {format(new Date(l.created_at), "MMM d, yyyy")}
-                  </p>
-                  <p className="text-[11.5px] text-[#8B8B92]">{format(new Date(l.created_at), "h:mm:ss a")}</p>
-                </div>
+            {filtered.map((l) => {
+              const actorName = (l as any).users?.full_name || "System";
+              const initials = getInitials(actorName);
+              const metadataStr = formatMetadata(l.metadata, userNamesMap);
 
-                {/* ACTOR */}
-                <div className="flex items-center gap-2.5 min-w-0">
-                  <div className="h-6 w-6 rounded-full bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center text-[10.5px] font-bold shrink-0">
-                    {initials}
+              return (
+                <div
+                  key={l.id}
+                  className="grid grid-cols-[1.1fr_1.4fr_1.4fr_1fr_1.4fr_0.4fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] hover:bg-[#F6F5F3]/50 transition-colors"
+                >
+                  {/* TIMESTAMP */}
+                  <div>
+                    <p className="text-[13px] font-bold text-[#17171A] whitespace-nowrap">
+                      {format(new Date(l.created_at), "MMM d, yyyy")}
+                    </p>
+                    <p className="text-[11.5px] text-[#8B8B92]">{format(new Date(l.created_at), "h:mm:ss a")}</p>
                   </div>
-                  <span className="text-[13px] font-bold text-[#17171A] truncate">{actorName}</span>
+
+                  {/* ACTOR */}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="h-6 w-6 rounded-full bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center text-[10.5px] font-bold shrink-0">
+                      {initials}
+                    </div>
+                    <span className="text-[13px] font-bold text-[#17171A] truncate">{actorName}</span>
+                  </div>
+
+                  {/* ACTION */}
+                  <div>{getActionBadge(l.action)}</div>
+
+                  {/* TARGET */}
+                  <div className="text-[13px] text-[#4B4B52] font-mono truncate">{l.target_entity || "—"}</div>
+
+                  {/* DETAILS */}
+                  <div className="text-[12.5px] text-[#8B8B92] truncate" title={metadataStr}>
+                    {metadataStr}
+                  </div>
+
+                  {/* ACTIONS / MORE */}
+                  <div className="flex items-center justify-end">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          type="button"
+                          className="w-7 h-7 rounded-[8px] hover:bg-[#F6F5F3] flex items-center justify-center text-[#8B8B92] transition-colors"
+                        >
+                          <MoreHorizontal className="h-4 w-4 text-[#8B8B92]" />
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="font-sans">
+                        <DropdownMenuItem onClick={() => setSelectedLog(l)} className="text-[12.5px] cursor-pointer">
+                          <Eye className="mr-2 h-3.5 w-3.5 text-[#4B4B52]" /> View Details
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
-
-                {/* ACTION */}
-                <div>{getActionBadge(l.action)}</div>
-
-                {/* TARGET */}
-                <div className="text-[13px] text-[#4B4B52] font-mono truncate">{l.target_entity || "—"}</div>
-
-                {/* DETAILS */}
-                <div className="text-[12.5px] text-[#8B8B92] truncate" title={metadataStr}>
-                  {metadataStr}
-                </div>
-
-                {/* ACTIONS / MORE */}
-                <div className="flex items-center justify-end">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <button
-                        type="button"
-                        className="w-7 h-7 rounded-[8px] hover:bg-[#F6F5F3] flex items-center justify-center text-[#8B8B92] transition-colors"
-                      >
-                        <MoreHorizontal className="h-4 w-4 text-[#8B8B92]" />
-                      </button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="font-sans">
-                      <DropdownMenuItem onClick={() => setSelectedLog(l)} className="text-[12.5px] cursor-pointer">
-                        <Eye className="mr-2 h-3.5 w-3.5 text-[#4B4B52]" /> View Details
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </div>
-            );
-          })
+              );
+            })}
+          </div>
         )}
       </div>
 
       {/* Pagination Footer */}
-      <div className="flex justify-center gap-2 pt-1">
+      <div className="flex justify-center gap-2 pt-1 shrink-0">
         {page > 0 && (
           <button
             type="button"

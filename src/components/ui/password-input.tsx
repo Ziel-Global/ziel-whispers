@@ -18,8 +18,10 @@ const PasswordInput = React.forwardRef<HTMLInputElement, PasswordInputProps>(
       if (/[0-9]/.test(v)) score++;
       if (/[^a-zA-Z0-9]/.test(v)) score++;
       if (v.length >= 12) score++;
+      // Any non-empty password is at least Weak (score 0 was incorrectly labeled "Strong")
+      score = Math.max(1, Math.min(4, score));
       const labels = ["", "Weak", "Fair", "Good", "Strong"];
-      return { level: score, label: labels[score] || "Strong" };
+      return { level: score, label: labels[score] };
     }, [value]);
 
     const strengthColors = ["", "bg-red-500", "bg-yellow-500", "bg-blue-500", "bg-green-500"];

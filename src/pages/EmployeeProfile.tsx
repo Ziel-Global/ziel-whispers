@@ -275,6 +275,14 @@ export default function EmployeeProfilePage() {
                 handleSaveAccessControls={data.handleSaveAccessControls}
                 employee={data.employee}
                 logEditDays={data.logEditDays}
+                showPasswordCard={data.isAdmin && !data.isOwnProfile}
+                adminNewPassword={data.adminNewPassword}
+                setAdminNewPassword={data.setAdminNewPassword}
+                adminConfirmPassword={data.adminConfirmPassword}
+                setAdminConfirmPassword={data.setAdminConfirmPassword}
+                adminPwError={data.adminPwError}
+                settingPassword={data.settingPassword}
+                handleUpdatePassword={data.handleUpdatePassword}
               />
             </TabsContent>
           )}

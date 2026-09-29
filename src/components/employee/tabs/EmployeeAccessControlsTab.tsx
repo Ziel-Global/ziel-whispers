@@ -5,16 +5,15 @@
  *   - Remote Access toggle + From/To dates
  *   - Mark as On Leave toggle + From/To dates
  *   - Save Changes → handleSaveAccessControls
+ *   - Security & Password → handleUpdatePassword (admin editing others only)
  *
  * READ-ONLY (display only; edit elsewhere):
  *   - Overtime Logging badge ← Profile → Work Schedule (overtime_enabled)
  *   - Historical Log Editing badge ← Log Edit Days tab (log_edit_days)
- *
- * OMITTED FROM MOCK:
- *   - Security & Password card (removed from profile earlier; not remounted here)
  */
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { cn } from "@/lib/utils";
 
 export interface EmployeeAccessControlsTabProps {
@@ -39,6 +38,15 @@ export interface EmployeeAccessControlsTabProps {
     overtime_enabled?: boolean | null;
   } | null;
   logEditDays?: string;
+  /** Password reset — only when showPasswordCard */
+  showPasswordCard?: boolean;
+  adminNewPassword?: string;
+  setAdminNewPassword?: (v: string) => void;
+  adminConfirmPassword?: string;
+  setAdminConfirmPassword?: (v: string) => void;
+  adminPwError?: string;
+  settingPassword?: boolean;
+  handleUpdatePassword?: () => Promise<void>;
 }
 
 function UdToggle({
@@ -100,6 +108,14 @@ export function EmployeeAccessControlsTab({
   handleSaveAccessControls,
   employee,
   logEditDays = "",
+  showPasswordCard = false,
+  adminNewPassword = "",
+  setAdminNewPassword,
+  adminConfirmPassword = "",
+  setAdminConfirmPassword,
+  adminPwError = "",
+  settingPassword = false,
+  handleUpdatePassword,
 }: EmployeeAccessControlsTabProps) {
   const otAllowed = !!employee?.overtime_enabled;
   const effectiveEditDays = logEditDays === "" ? 1 : Number(logEditDays) || 0;
@@ -237,6 +253,53 @@ export function EmployeeAccessControlsTab({
             </div>
           </div>
         </section>
+
+        {showPasswordCard && setAdminNewPassword && setAdminConfirmPassword && handleUpdatePassword && (
+          <section className="bg-white border border-black/[0.08] rounded-[14px] p-[18px] min-w-0">
+            <div className="mb-[17px]">
+              <div className="text-[14px] font-bold tracking-[-0.15px] text-[#252529]">Security & Password</div>
+              <div className="text-[11.5px] text-[#8B8B92] leading-normal mt-[3px]">
+                Reset credentials without exposing the current password.
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+              <div>
+                <div className="text-[9px] font-semibold text-[#A0A0A7] mb-1 uppercase tracking-wide">New Password</div>
+                <PasswordInput
+                  value={adminNewPassword}
+                  onChange={(e) => setAdminNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  showStrength
+                  className="h-9 rounded-[9px] border-black/10 bg-[#FBFBFA] text-[12.5px]"
+                />
+              </div>
+              <div>
+                <div className="text-[9px] font-semibold text-[#A0A0A7] mb-1 uppercase tracking-wide">
+                  Confirm Password
+                </div>
+                <PasswordInput
+                  value={adminConfirmPassword}
+                  onChange={(e) => setAdminConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                  className="h-9 rounded-[9px] border-black/10 bg-[#FBFBFA] text-[12.5px]"
+                />
+              </div>
+            </div>
+            {adminPwError ? (
+              <p className="text-[11px] text-[#C23A3A] mt-2.5">{adminPwError}</p>
+            ) : null}
+            <div className="flex justify-end mt-3.5">
+              <Button
+                type="button"
+                onClick={handleUpdatePassword}
+                disabled={settingPassword}
+                className="h-[38px] rounded-[9px] px-3.5 bg-[#17171A] hover:bg-[#2C2C31] text-white text-[12px] font-semibold"
+              >
+                {settingPassword ? "Updating…" : "Update Password"}
+              </Button>
+            </div>
+          </section>
+        )}
       </div>
 
       <div className="flex flex-col gap-4 min-w-0">

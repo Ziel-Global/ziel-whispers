@@ -129,18 +129,20 @@ const REPORT_TABS = [
 
 export default function ReportsPage() {
   const [tab, setTab] = useState("utilization");
+  const tabBodyClass =
+    "mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
 
   return (
-    <div className="space-y-4">
-      <div>
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 overflow-hidden">
+      <div className="shrink-0">
         <h1 className="text-[26px] font-bold tracking-[-0.55px] leading-[1.15] text-[#17171A]">Reports</h1>
         <p className="text-[12px] text-[#8B8B92] mt-[5px] leading-relaxed">
           Workforce, attendance, leave and logging intelligence
         </p>
       </div>
 
-      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList className="flex w-full h-auto gap-1 bg-[#F6F5F3] border border-black/[0.06] rounded-[11px] p-[5px] overflow-x-auto justify-start scrollbar-none">
+      <Tabs value={tab} onValueChange={setTab} className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
+        <TabsList className="flex w-full h-auto gap-1 bg-[#F6F5F3] border border-black/[0.06] rounded-[11px] p-[5px] overflow-x-auto justify-start scrollbar-none shrink-0">
           {REPORT_TABS.map((t) => (
             <TabsTrigger
               key={t.value}
@@ -156,13 +158,13 @@ export default function ReportsPage() {
           ))}
         </TabsList>
 
-        <TabsContent value="utilization" className="mt-0"><UtilizationReport /></TabsContent>
-        <TabsContent value="heatmap" className="mt-0"><HeatmapReport /></TabsContent>
-        <TabsContent value="monthly" className="mt-0"><MonthlySummaryReport /></TabsContent>
-        <TabsContent value="attendance" className="mt-0"><AttendanceTrendReport /></TabsContent>
-        <TabsContent value="logs" className="mt-0"><DailyLogsReport /></TabsContent>
-        <TabsContent value="leave" className="mt-0"><LeaveReport /></TabsContent>
-        <TabsContent value="missed" className="mt-0"><MissedLogsReport /></TabsContent>
+        <TabsContent value="utilization" className={tabBodyClass}><UtilizationReport /></TabsContent>
+        <TabsContent value="heatmap" className={tabBodyClass}><HeatmapReport /></TabsContent>
+        <TabsContent value="monthly" className={tabBodyClass}><MonthlySummaryReport /></TabsContent>
+        <TabsContent value="attendance" className={tabBodyClass}><AttendanceTrendReport /></TabsContent>
+        <TabsContent value="logs" className={tabBodyClass}><DailyLogsReport /></TabsContent>
+        <TabsContent value="leave" className={tabBodyClass}><LeaveReport /></TabsContent>
+        <TabsContent value="missed" className={tabBodyClass}><MissedLogsReport /></TabsContent>
       </Tabs>
     </div>
   );

@@ -184,8 +184,8 @@ export default function EmployeesPage() {
   };
 
   return (
-    <div className="space-y-6 font-sans">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Users</h1>
           <p className="text-[13.5px] text-[#8B8B92] mt-0.5">{employees.length} total users</p>
@@ -195,7 +195,7 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={() => setCsvOpen(true)}
-              className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text.5 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors"
+              className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors"
             >
               <Upload className="h-3.5 w-3.5 text-[#4B4B52]" />
               Import CSV
@@ -203,7 +203,7 @@ export default function EmployeesPage() {
             <button
               type="button"
               onClick={() => navigate("/employees/new")}
-              className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white rounded-[10px] px-4 py-2 text.5 text-[13px] font-semibold transition-colors shadow-sm"
+              className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors shadow-sm"
             >
               <Plus className="h-3.5 w-3.5 text-white" />
               Add New User
@@ -212,8 +212,8 @@ export default function EmployeesPage() {
         )}
       </div>
 
-      <Tabs defaultValue="list">
-        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit">
+      <Tabs defaultValue="list" className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
           <TabsTrigger
             value="list"
             className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
@@ -230,8 +230,8 @@ export default function EmployeesPage() {
           )}
         </TabsList>
 
-        <TabsContent value="list" className="space-y-6 mt-6">
-          <div className="flex flex-wrap gap-2.5 items-center">
+        <TabsContent value="list" className="mt-4 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden">
+          <div className="flex flex-wrap gap-2.5 items-center shrink-0">
             <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
               <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
               <input
@@ -287,14 +287,14 @@ export default function EmployeesPage() {
             </Select>
           </div>
 
-          <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm">
+          <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
             {isLoading ? (
               <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">Loading…</div>
             ) : filtered.length === 0 ? (
               <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">No employees found</div>
             ) : (
-              <div>
-                <TableHeader gridCols="40px 2fr 1.7fr 1fr 0.8fr 1fr 0.7fr" className="px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <TableHeader gridCols="40px 2fr 1.7fr 1fr 0.8fr 1fr 0.7fr" className="sticky top-0 z-10 bg-white px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
                   <div className="flex items-center justify-center">
                     <input
                       type="checkbox"
@@ -314,7 +314,7 @@ export default function EmployeesPage() {
                   <span className="text-right">ACTIONS</span>
                 </TableHeader>
                 {selectedEmployeeIds.size > 0 && (
-                  <div className="flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+                  <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
                     <span className="text-xs font-semibold">{selectedEmployeeIds.size} user{selectedEmployeeIds.size > 1 ? "s" : ""} selected</span>
                     <div className="flex items-center gap-2">
                       <button onClick={() => setSelectedEmployeeIds(new Set())} className="px-3 py-1 text-xs font-medium text-white/80 hover:text-white border border-white/20 rounded-md bg-transparent">Clear selection</button>

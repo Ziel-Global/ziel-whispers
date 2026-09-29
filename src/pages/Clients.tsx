@@ -197,8 +197,8 @@ export default function ClientsPage() {
   };
 
   return (
-    <div className="space-y-6 font-sans">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Clients</h1>
           <p className="text-[13px] text-[#8B8B92] font-normal mt-0.5">Manage your clients and their contact information</p>
@@ -213,7 +213,7 @@ export default function ClientsPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2.5 items-center">
+      <div className="flex flex-wrap gap-2.5 items-center shrink-0">
         <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
           <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
           <input
@@ -237,20 +237,21 @@ export default function ClientsPage() {
       </div>
 
       {isLoading && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
           Loading clients…
         </div>
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
           No clients found
         </div>
       )}
 
       {!isLoading && filtered.length > 0 && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans">
-          <div className="grid grid-cols-[40px_2.2fr_0.8fr_0.9fr_1fr_0.9fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="sticky top-0 z-10 bg-white grid grid-cols-[40px_2.2fr_0.8fr_0.9fr_1fr_0.9fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
             <div className="flex items-center justify-center">
               <input
                 type="checkbox"
@@ -270,7 +271,7 @@ export default function ClientsPage() {
           </div>
 
           {selectedClientIds.size > 0 && (
-            <div className="flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+            <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
               <span className="text-xs font-semibold">
                 {selectedClientIds.size} client{selectedClientIds.size > 1 ? "s" : ""} selected
               </span>
@@ -378,6 +379,7 @@ export default function ClientsPage() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 

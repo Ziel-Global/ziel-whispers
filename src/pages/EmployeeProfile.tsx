@@ -21,9 +21,9 @@ export default function EmployeeProfilePage() {
   const navigate = useNavigate();
   const data = useEmployeeProfileData(id);
 
-  if (data.isLoading) return <div className="flex items-center justify-center py-12 text-muted-foreground">Loading…</div>;
-  if (data.employeeError) return <div className="text-center py-12 text-muted-foreground">Failed to load employee. {(data.employeeError as any)?.message}</div>;
-  if (!data.employee) return <div className="text-center py-12 text-muted-foreground">Employee not found</div>;
+  if (data.isLoading) return <div className="flex flex-1 items-center justify-center py-12 text-muted-foreground">Loading…</div>;
+  if (data.employeeError) return <div className="flex flex-1 items-center justify-center text-center py-12 text-muted-foreground">Failed to load employee. {(data.employeeError as any)?.message}</div>;
+  if (!data.employee) return <div className="flex flex-1 items-center justify-center text-center py-12 text-muted-foreground">Employee not found</div>;
 
   const statusBadge = (status: string) => {
     const variants: Record<string, string> = {
@@ -34,10 +34,13 @@ export default function EmployeeProfilePage() {
     return <Badge className={`${variants[status] || ""} capitalize`}>{status}</Badge>;
   };
 
+  const tabBodyClass =
+    "mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
+
   return (
-    <div className="w-full space-y-6">
+    <div className="flex flex-col flex-1 h-full min-h-0 w-full gap-4 overflow-hidden">
       {/* Header chrome left as-is (ud-* header restyle deferred). */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between shrink-0">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="icon" onClick={() => { if (window.history.length > 1) navigate(-1); else navigate("/employees"); }}>
             <ArrowLeft className="h-4 w-4" />
@@ -114,18 +117,20 @@ export default function EmployeeProfilePage() {
       </div>
 
       {data.isClientMember ? (
-        <ClientMemberProfileCard
-          employee={data.employee}
-          avatarUrl={data.avatarUrl}
-          clientProjects={data.clientProjects}
-          clientEditForm={data.clientEditForm}
-          clientEditOnSubmit={data.clientEditOnSubmit}
-          saving={data.saving}
-        />
+        <div className="flex-1 min-h-0 overflow-y-auto">
+          <ClientMemberProfileCard
+            employee={data.employee}
+            avatarUrl={data.avatarUrl}
+            clientProjects={data.clientProjects}
+            clientEditForm={data.clientEditForm}
+            clientEditOnSubmit={data.clientEditOnSubmit}
+            saving={data.saving}
+          />
+        </div>
       ) : (
-        <Tabs defaultValue="profile" className="w-full min-w-0">
+        <Tabs defaultValue="profile" className="flex flex-col flex-1 min-h-0 w-full min-w-0 gap-4 overflow-hidden">
           {/* ud-tabs strip — matches zielAdmin user-detail tab row */}
-          <TabsList className="flex h-auto w-full min-h-[46px] items-center gap-1 bg-[#F6F5F3] border border-black/[0.06] rounded-[11px] p-[5px] overflow-x-auto scrollbar-none mb-4 shadow-none">
+          <TabsList className="flex h-auto w-full min-h-[46px] items-center gap-1 bg-[#F6F5F3] border border-black/[0.06] rounded-[11px] p-[5px] overflow-x-auto scrollbar-none shrink-0 shadow-none">
             <TabsTrigger
               value="profile"
               className="h-[34px] px-2.5 rounded-lg flex-1 min-w-[108px] text-[12px] font-medium text-[#7D7D84] data-[state=active]:bg-[#17171A] data-[state=active]:text-white data-[state=active]:font-bold data-[state=active]:shadow-none hover:text-[#3F3F45] hover:bg-white/55"
@@ -180,7 +185,7 @@ export default function EmployeeProfilePage() {
             )}
           </TabsList>
 
-          <TabsContent value="profile" className="mt-0">
+          <TabsContent value="profile" className={tabBodyClass}>
             <EmployeeProfileTab
               employee={data.employee}
               avatarUrl={data.avatarUrl}
@@ -195,7 +200,7 @@ export default function EmployeeProfilePage() {
             />
           </TabsContent>
 
-          <TabsContent value="skills">
+          <TabsContent value="skills" className={tabBodyClass}>
             <EmployeeSkillsTab
               userId={data.employee.id}
               isAdmin={data.isAdmin}
@@ -204,13 +209,13 @@ export default function EmployeeProfilePage() {
           </TabsContent>
 
           {data.isAdmin && (
-            <TabsContent value="projects">
+            <TabsContent value="projects" className={tabBodyClass}>
               <EmployeeProjectsTab employeeProjects={data.employeeProjects} />
             </TabsContent>
           )}
 
           {data.isAdmin && (
-            <TabsContent value="logs">
+            <TabsContent value="logs" className={tabBodyClass}>
               <EmployeeWorkLogsTab
                 totalLoggedHours={data.totalLoggedHours}
                 logDateFilter={data.logDateFilter}
@@ -235,7 +240,7 @@ export default function EmployeeProfilePage() {
           )}
 
           {data.isAdmin && (
-            <TabsContent value="logged-hours">
+            <TabsContent value="logged-hours" className={tabBodyClass}>
               <EmployeeLoggedHoursTab
                 loggedHoursMonth={data.loggedHoursMonth}
                 setLoggedHoursMonth={data.setLoggedHoursMonth}
@@ -246,7 +251,7 @@ export default function EmployeeProfilePage() {
           )}
 
           {data.isAdmin && (
-            <TabsContent value="log-edit-days">
+            <TabsContent value="log-edit-days" className={tabBodyClass}>
               <EmployeeLogEditDaysTab
                 logEditDays={data.logEditDays}
                 setLogEditDays={data.setLogEditDays}
@@ -257,7 +262,7 @@ export default function EmployeeProfilePage() {
           )}
 
           {data.isAdmin && (
-            <TabsContent value="access-controls">
+            <TabsContent value="access-controls" className={tabBodyClass}>
               <EmployeeAccessControlsTab
                 employeeRemoteAccess={data.employeeRemoteAccess}
                 setEmployeeRemoteAccess={data.setEmployeeRemoteAccess}

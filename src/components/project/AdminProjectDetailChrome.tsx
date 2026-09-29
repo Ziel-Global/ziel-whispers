@@ -342,8 +342,7 @@ export function AdminProjectDetailChrome({
         </div>
       </div>
 
-      <div className="sticky top-0 z-[15] bg-white -mx-1 px-1 pt-1">
-        <div className="pt-3.5 pb-3.5">
+      <div className="pt-3.5 pb-3.5">
           <div className="inline-flex items-center gap-1 overflow-x-auto max-w-full bg-[#F6F5F3] rounded-[11px] p-[5px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
             {ADMIN_PRIMARY_TABS.map((t) => {
               const active = primary === t.key;
@@ -390,7 +389,6 @@ export function AdminProjectDetailChrome({
             })}
           </div>
         )}
-      </div>
     </>
   );
 }

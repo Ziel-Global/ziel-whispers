@@ -306,8 +306,8 @@ export default function ProjectsPage() {
 
   // Admin table view
   return (
-    <div className="font-sans pb-8">
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
+      <div className="flex items-center justify-between flex-wrap gap-3 shrink-0">
         <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A] m-0">Projects</h1>
         <button
           type="button"
@@ -319,7 +319,7 @@ export default function ProjectsPage() {
         </button>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2.5 mb-5">
+      <div className="flex flex-wrap items-center gap-2.5 shrink-0">
         <div className="flex-1 min-w-[220px] flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2.5">
           <Search className="h-[15px] w-[15px] text-[#8B8B92] shrink-0" strokeWidth={2} />
           <input
@@ -360,20 +360,21 @@ export default function ProjectsPage() {
       </div>
 
       {isLoading && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
           Loading projects…
         </div>
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
           No projects found
         </div>
       )}
 
       {!isLoading && filtered.length > 0 && (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden">
-          <div className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 px-[22px] py-[13px] border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden flex flex-col">
+          <div className="flex-1 min-h-0 overflow-y-auto">
+          <div className="sticky top-0 z-10 bg-white grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 px-[22px] py-[13px] border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
             <span>PROJECT</span>
             <span>STATUS</span>
             <span>MEMBERS</span>
@@ -439,6 +440,7 @@ export default function ProjectsPage() {
               </div>
             </div>
           ))}
+          </div>
         </div>
       )}
 

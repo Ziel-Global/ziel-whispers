@@ -67,9 +67,9 @@ export default function NotificationsPage() {
   const paginatedNotifications = notifications?.slice(startIndex, endIndex) || [];
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
       {/* Page Header */}
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3">
+      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Notifications</h1>
           <p className="text-[13px] text-[#8B8B92] font-normal mt-0.5">
@@ -89,11 +89,12 @@ export default function NotificationsPage() {
 
       {/* Notifications List */}
       {isLoading ? (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
           Loading notifications…
         </div>
       ) : totalItems > 0 ? (
-        <div className="space-y-3">
+        <div className="flex flex-col flex-1 min-h-0 gap-3 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5">
           {paginatedNotifications.map((notification) => {
             const meta = notification.metadata as { title?: string; message?: string; project_id?: string; is_bulk?: boolean };
             const badge = getNotificationBadge(notification.type, meta?.is_bulk);
@@ -141,10 +142,11 @@ export default function NotificationsPage() {
               </div>
             );
           })}
+          </div>
 
           {/* Pagination Toolbar */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-between bg-white border border-black/[0.08] rounded-[14px] px-5 py-3 shadow-sm text-[13px] text-[#4B4B52] mt-4">
+            <div className="shrink-0 flex items-center justify-between bg-white border border-black/[0.08] rounded-[14px] px-5 py-3 shadow-sm text-[13px] text-[#4B4B52]">
               <span className="text-[#8B8B92]">
                 Showing <span className="font-semibold text-[#17171A]">{startIndex + 1}</span> to{" "}
                 <span className="font-semibold text-[#17171A]">{endIndex}</span> of{" "}
@@ -193,8 +195,8 @@ export default function NotificationsPage() {
           )}
         </div>
       ) : (
-        <div className="bg-white border border-black/[0.08] rounded-[14px] p-16 text-center shadow-sm">
-          <div className="w-12 h-12 rounded-[12px] bg-[#F6F5F3] text-[#8B8B92] flex items-center justify-center mx-auto mb-3">
+        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-16 text-center shadow-sm flex flex-col items-center justify-center">
+          <div className="w-12 h-12 rounded-[12px] bg-[#F6F5F3] text-[#8B8B92] flex items-center justify-center mb-3">
             <Bell className="h-6 w-6 text-[#8B8B92]" />
           </div>
           <p className="text-[14px] font-semibold text-[#17171A]">No notifications</p>

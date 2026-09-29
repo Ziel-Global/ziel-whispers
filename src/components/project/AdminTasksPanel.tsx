@@ -166,7 +166,7 @@ export function AdminTasksPanel({
                 <div>FLAGGED</div>
                 <div className="text-right">ACTIONS</div>
               </div>
-              <div className="max-h-[min(520px,calc(100vh-360px))] overflow-y-auto overscroll-contain">
+              <div className="max-h-[calc(6*4rem)] overflow-y-auto overscroll-contain">
                 {filteredTasks.map((t: any) => {
                   const assignee = (t as any).users?.full_name as string | undefined;
                   const av = assignee ? avatarStyleFor(assignee) : null;

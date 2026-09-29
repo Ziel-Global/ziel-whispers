@@ -273,6 +273,8 @@ export default function EmployeeProfilePage() {
                 setEmployeeIsOnLeaveTo={data.setEmployeeIsOnLeaveTo}
                 savingAccessControls={data.savingAccessControls}
                 handleSaveAccessControls={data.handleSaveAccessControls}
+                employee={data.employee}
+                logEditDays={data.logEditDays}
               />
             </TabsContent>
           )}

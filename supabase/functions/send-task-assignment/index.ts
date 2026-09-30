@@ -41,6 +41,7 @@ function buildTaskAssignmentHtml({
   dueDate,
   priority,
   portalUrl,
+  event,
 }: {
   fullName: string;
   taskTitle: string;
@@ -49,6 +50,7 @@ function buildTaskAssignmentHtml({
   dueDate?: string | null;
   priority?: string | null;
   portalUrl: string;
+  event: "assigned" | "updated";
 }) {
   const dueLabel = dueDate
     ? new Date(dueDate + "T00:00:00").toLocaleDateString("en-US", {
@@ -61,12 +63,23 @@ function buildTaskAssignmentHtml({
     ? priority.charAt(0).toUpperCase() + priority.slice(1)
     : "—";
 
+  const pageTitle = event === "updated" ? "Task updated" : "New task assigned";
+  const introHtml =
+    event === "updated"
+      ? `A task assigned to you in <strong style="color:#000000;">${escapeHtml(projectName)}</strong>
+                was updated by <strong style="color:#000000;">${escapeHtml(assignedBy)}</strong>.
+                Open the client portal to review the latest details.`
+      : `You have been assigned a new task in <strong style="color:#000000;">${escapeHtml(projectName)}</strong>
+                by <strong style="color:#000000;">${escapeHtml(assignedBy)}</strong>.
+                Open the client portal to review the details and track progress.`;
+  const ctaLabel = event === "updated" ? "View Updated Task →" : "View Task in Portal →";
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>New task assigned</title>
+  <title>${pageTitle}</title>
 </head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;color:#000000;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:40px 0;">
@@ -89,9 +102,7 @@ function buildTaskAssignmentHtml({
             <td style="padding:36px 40px;">
               <h2 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#000000;">Hi ${escapeHtml(fullName)},</h2>
               <p style="margin:0 0 20px;font-size:14px;color:#737373;line-height:1.6;">
-                You have been assigned a new task in <strong style="color:#000000;">${escapeHtml(projectName)}</strong>
-                by <strong style="color:#000000;">${escapeHtml(assignedBy)}</strong>.
-                Open the client portal to review the details and track progress.
+                ${introHtml}
               </p>
 
               <table cellpadding="0" cellspacing="0" style="background:#f0f7ff;border-radius:8px;border:1px solid #cfe0f5;width:100%;margin-bottom:20px;">
@@ -131,7 +142,7 @@ function buildTaskAssignmentHtml({
                     <a href="${escapeHtml(portalUrl)}" target="_blank"
                       style="display:inline-block;padding:14px 36px;font-size:15px;font-weight:700;color:#000000;text-decoration:none;letter-spacing:-0.2px;border-radius:8px;"
                     >
-                      View Task in Portal →
+                      ${ctaLabel}
                     </a>
                   </td>
                 </tr>
@@ -182,7 +193,10 @@ Deno.serve(async (req) => {
       due_date,
       priority,
       app_url,
+      event: rawEvent,
     } = body;
+
+    const event: "assigned" | "updated" = rawEvent === "updated" ? "updated" : "assigned";
 
     if (!assignee_user_id || !task_title || !project_name) {
       return jsonResponse({
@@ -226,12 +240,16 @@ Deno.serve(async (req) => {
       dueDate: due_date || null,
       priority: priority || null,
       portalUrl,
+      event,
     });
+
+    const subject =
+      event === "updated" ? `Task updated: ${task_title}` : `New task assigned: ${task_title}`;
 
     const { data, error } = await supabase.functions.invoke("send-email", {
       body: {
         to: assignee.email,
-        subject: `New task assigned: ${task_title}`,
+        subject,
         html,
         fromName: "Ziel Logs",
         fromEmail: "noreply@zielglobal.com",

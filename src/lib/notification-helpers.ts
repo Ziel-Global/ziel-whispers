@@ -128,7 +128,7 @@ function isClientMemberUser(user: { role?: string | null; designation?: string |
   );
 }
 
-/** In-app notify assignee; if they are a client member, also email their login address. */
+/** In-app notify assignee (on assign); if client member, also email their login address. */
 export async function notifyTaskAssigned({
   assigneeUserId,
   taskTitle,
@@ -137,6 +137,7 @@ export async function notifyTaskAssigned({
   assignedByName,
   dueDate,
   priority,
+  event = "assigned",
   appUrl = typeof window !== "undefined" ? window.location.origin : undefined,
 }: {
   assigneeUserId: string;
@@ -146,15 +147,20 @@ export async function notifyTaskAssigned({
   assignedByName?: string;
   dueDate?: string | null;
   priority?: string | null;
+  /** assigned = new assignment; updated = task edit while still assigned */
+  event?: "assigned" | "updated";
   appUrl?: string;
 }) {
-  await createNotification({
-    userId: assigneeUserId,
-    type: "task_assigned",
-    title: "Task Assigned",
-    message: `You have been assigned to task "${taskTitle}" in project "${projectName}"`,
-    projectId,
-  });
+  // In-app "Task Assigned" only on new assignment; edit already fans out "Task Updated".
+  if (event === "assigned") {
+    await createNotification({
+      userId: assigneeUserId,
+      type: "task_assigned",
+      title: "Task Assigned",
+      message: `You have been assigned to task "${taskTitle}" in project "${projectName}"`,
+      projectId,
+    });
+  }
 
   const { data: assignee, error: assigneeError } = await supabase
     .from("users")
@@ -172,6 +178,7 @@ export async function notifyTaskAssigned({
       assigneeUserId,
       role: assignee?.role,
       designation: assignee?.designation,
+      event,
     });
     return;
   }
@@ -186,6 +193,7 @@ export async function notifyTaskAssigned({
       assigneeUserId,
       email: assignee.email,
       taskTitle,
+      event,
     });
     const { data, error } = await supabase.functions.invoke("send-task-assignment", {
       body: {
@@ -197,6 +205,7 @@ export async function notifyTaskAssigned({
         due_date: dueDate || null,
         priority: priority || null,
         app_url: appUrl,
+        event,
       },
     });
     if (error) {

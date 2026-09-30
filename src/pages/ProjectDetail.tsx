@@ -431,7 +431,8 @@ export default function ProjectDetailPage() {
       toast.success("Task updated");
 
       const newAssignedTo = updates.assigned_to;
-      if (newAssignedTo && oldAssignedTo !== newAssignedTo) {
+      if (newAssignedTo) {
+        const assigneeChanged = oldAssignedTo !== newAssignedTo;
         await notifyTaskAssigned({
           assigneeUserId: newAssignedTo,
           taskTitle: editTaskTitle.trim(),
@@ -440,6 +441,7 @@ export default function ProjectDetailPage() {
           assignedByName: profile?.full_name || "an administrator",
           dueDate: editTaskDueDate || null,
           priority: editTaskPriority || null,
+          event: assigneeChanged ? "assigned" : "updated",
         });
       }
 

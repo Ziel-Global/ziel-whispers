@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
-import { createNotification, createProjectRelatedNotifications, getAdminManagerIds } from "@/lib/notification-helpers";
+import { createProjectRelatedNotifications, getAdminManagerIds, notifyTaskAssigned } from "@/lib/notification-helpers";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -331,6 +331,12 @@ export default function ProjectDetailPage() {
         created_by: profile?.id,
       });
       if (error) throw error;
+
+      const createdTitle = taskTitle.trim();
+      const createdAssignee = taskAssignedTo || null;
+      const createdDueDate = taskDueDate || null;
+      const createdPriority = taskPriority || null;
+
       toast.success("Task created");
       setAddTaskOpen(false);
       setTaskTitle("");
@@ -347,8 +353,20 @@ export default function ProjectDetailPage() {
         projectId: id,
         type: "task_created",
         title: "Task Created",
-        message: `${profile?.full_name || "A user"} created task "${taskTitle.trim()}" in project "${project?.name}"`,
+        message: `${profile?.full_name || "A user"} created task "${createdTitle}" in project "${project?.name}"`,
       });
+
+      if (createdAssignee) {
+        await notifyTaskAssigned({
+          assigneeUserId: createdAssignee,
+          taskTitle: createdTitle,
+          projectId: id,
+          projectName: project?.name || "Project",
+          assignedByName: profile?.full_name || "an administrator",
+          dueDate: createdDueDate,
+          priority: createdPriority,
+        });
+      }
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -414,12 +432,14 @@ export default function ProjectDetailPage() {
 
       const newAssignedTo = updates.assigned_to;
       if (newAssignedTo && oldAssignedTo !== newAssignedTo) {
-        await createNotification({
-          userId: newAssignedTo,
-          type: "task_assigned",
-          title: "Task Assigned",
-          message: `You have been assigned to task "${editTaskTitle.trim()}" in project "${project?.name}"`,
+        await notifyTaskAssigned({
+          assigneeUserId: newAssignedTo,
+          taskTitle: editTaskTitle.trim(),
           projectId: id,
+          projectName: project?.name || "Project",
+          assignedByName: profile?.full_name || "an administrator",
+          dueDate: editTaskDueDate || null,
+          priority: editTaskPriority || null,
         });
       }
 

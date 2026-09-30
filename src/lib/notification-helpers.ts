@@ -115,3 +115,104 @@ export async function getClientMemberIds(projectId: string) {
   if (error) throw error;
   return data?.map(member => member.user_id) || [];
 }
+
+function isClientMemberUser(user: { role?: string | null; designation?: string | null } | null | undefined) {
+  if (!user) return false;
+  const role = (user.role || "").toLowerCase().trim();
+  const designation = (user.designation || "").toLowerCase().trim();
+  return (
+    role === "client" ||
+    role === "client member" ||
+    designation === "client" ||
+    designation === "client member"
+  );
+}
+
+/** In-app notify assignee; if they are a client member, also email their login address. */
+export async function notifyTaskAssigned({
+  assigneeUserId,
+  taskTitle,
+  projectId,
+  projectName,
+  assignedByName,
+  dueDate,
+  priority,
+  appUrl = typeof window !== "undefined" ? window.location.origin : undefined,
+}: {
+  assigneeUserId: string;
+  taskTitle: string;
+  projectId: string;
+  projectName: string;
+  assignedByName?: string;
+  dueDate?: string | null;
+  priority?: string | null;
+  appUrl?: string;
+}) {
+  await createNotification({
+    userId: assigneeUserId,
+    type: "task_assigned",
+    title: "Task Assigned",
+    message: `You have been assigned to task "${taskTitle}" in project "${projectName}"`,
+    projectId,
+  });
+
+  const { data: assignee, error: assigneeError } = await supabase
+    .from("users")
+    .select("id, email, role, designation")
+    .eq("id", assigneeUserId)
+    .maybeSingle();
+
+  if (assigneeError) {
+    console.error("notifyTaskAssigned: failed to load assignee", assigneeError);
+    return;
+  }
+
+  if (!isClientMemberUser(assignee)) {
+    console.warn("notifyTaskAssigned: skipped email (not a client member)", {
+      assigneeUserId,
+      role: assignee?.role,
+      designation: assignee?.designation,
+    });
+    return;
+  }
+
+  if (!assignee?.email) {
+    console.error("notifyTaskAssigned: client member has no login email", { assigneeUserId });
+    return;
+  }
+
+  try {
+    console.info("notifyTaskAssigned: invoking send-task-assignment", {
+      assigneeUserId,
+      email: assignee.email,
+      taskTitle,
+    });
+    const { data, error } = await supabase.functions.invoke("send-task-assignment", {
+      body: {
+        assignee_user_id: assigneeUserId,
+        task_title: taskTitle,
+        project_name: projectName,
+        project_id: projectId,
+        assigned_by_name: assignedByName || "an administrator",
+        due_date: dueDate || null,
+        priority: priority || null,
+        app_url: appUrl,
+      },
+    });
+    if (error) {
+      console.error("notifyTaskAssigned email error:", error);
+      return;
+    }
+    if (data?.ok === false) {
+      console.error("notifyTaskAssigned email failed:", data?.error);
+      return;
+    }
+    if (data?.skipped) {
+      console.warn("notifyTaskAssigned email skipped by edge function:", data);
+      return;
+    }
+    console.info("notifyTaskAssigned email ok:", data);
+  } catch (err) {
+    console.error("notifyTaskAssigned email exception:", err);
+  }
+}

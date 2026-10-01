@@ -63,7 +63,8 @@ export interface TaskModalsProps {
   editTaskEstimatedHours: string; setEditTaskEstimatedHours: (v: string) => void;
   editTaskDueDate: string; setEditTaskDueDate: (v: string) => void;
   editTaskClientVisible: boolean; setEditTaskClientVisible: (v: boolean) => void;
-  
+  editTaskIsContainer?: boolean;
+
   descExpanded: boolean; setDescExpanded: (v: boolean) => void;
   csvRows: any[]; setCsvRows: (rows: any[]) => void;
   csvFileName: string; setCsvFileName: (name: string) => void;
@@ -86,7 +87,7 @@ export interface TaskModalsProps {
   isAdmin: boolean;
   isClient: boolean;
   PRIORITY_COLORS: Record<string, string>;
-  doneStatusIds: string[];
+  doneStatusIds: Set<string> | string[];
   tasks?: any[];
   project?: any;
   viewCommentsData?: any[];
@@ -101,6 +102,7 @@ export interface TaskModalsProps {
     title: string,
     actionType?: "status" | "assignee" | "drag" | "log"
   ) => Promise<boolean>;
+  onAddSubtasks?: (parentTask: any) => void;
 }
 
 export function TaskModals(props: TaskModalsProps) {
@@ -339,6 +341,7 @@ export function TaskModals(props: TaskModalsProps) {
     editTaskEstimatedHours, setEditTaskEstimatedHours,
     editTaskDueDate, setEditTaskDueDate,
     editTaskClientVisible, setEditTaskClientVisible,
+    editTaskIsContainer,
     descExpanded, setDescExpanded,
     csvRows, setCsvRows,
     csvFileName, setCsvFileName,
@@ -625,7 +628,14 @@ export function TaskModals(props: TaskModalsProps) {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Estimated Time (hours)</label>
-              <Input type="number" min="0" step="0.5" value={editTaskEstimatedHours} onChange={(e) => setEditTaskEstimatedHours(e.target.value)} placeholder="e.g. 4" />
+              {editTaskIsContainer ? (
+                <>
+                  <Input type="number" value={editTaskEstimatedHours} readOnly disabled className="bg-muted" />
+                  <p className="text-xs text-muted-foreground">Sum of subtask estimates (auto-calculated).</p>
+                </>
+              ) : (
+                <Input type="number" min="0" step="0.5" value={editTaskEstimatedHours} onChange={(e) => setEditTaskEstimatedHours(e.target.value)} placeholder="e.g. 4" />
+              )}
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Due Date</label>
@@ -645,33 +655,37 @@ export function TaskModals(props: TaskModalsProps) {
               <Checkbox id="edit-task-client-visible" checked={editTaskClientVisible} onCheckedChange={(v) => setEditTaskClientVisible(v === true)} />
               <label htmlFor="edit-task-client-visible" className="text-sm font-medium cursor-pointer">Visible to client</label>
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Assign To</label>
-              <Select value={editTaskAssignedTo} onValueChange={setEditTaskAssignedTo}>
-                <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
-                <SelectContent>
-                  {members?.map((m: any) => (
-                    <SelectItem key={m.user_id} value={m.user_id}>
-                      {(m as any).users?.full_name || "Unknown"}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Sprint</label>
-              <Select value={editTaskSprintId || "__backlog__"} onValueChange={(v) => setEditTaskSprintId(v === "__backlog__" ? "" : v)}>
-                <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__backlog__">Backlog</SelectItem>
-                  {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name} ({s.status})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {!editTaskIsContainer && (
+              <>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Assign To</label>
+                  <Select value={editTaskAssignedTo} onValueChange={setEditTaskAssignedTo}>
+                    <SelectTrigger><SelectValue placeholder="Unassigned" /></SelectTrigger>
+                    <SelectContent>
+                      {members?.map((m: any) => (
+                        <SelectItem key={m.user_id} value={m.user_id}>
+                          {(m as any).users?.full_name || "Unknown"}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Sprint</label>
+                  <Select value={editTaskSprintId || "__backlog__"} onValueChange={(v) => setEditTaskSprintId(v === "__backlog__" ? "" : v)}>
+                    <SelectTrigger><SelectValue placeholder="Backlog" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__backlog__">Backlog</SelectItem>
+                      {sprints.filter((s: any) => s.status !== "completed").map((s: any) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.name} ({s.status})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditTaskOpen(false)}>Cancel</Button>
               <Button type="submit">Save</Button>
@@ -1164,10 +1178,96 @@ export function TaskModals(props: TaskModalsProps) {
           <div className="flex flex-wrap gap-2 mt-2">
             {viewTaskData?.priority && <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>}
             {viewTaskData?.status_id && <Badge className={statusColor(viewTaskData.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}</Badge>}
+            {viewTaskData?.parent_id && <Badge variant="outline">Subtask</Badge>}
             {viewTaskData?.estimated_hours && <span className="text-xs text-muted-foreground">{viewTaskData.estimated_hours}h est.</span>}
             {viewTaskData?.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d")}</span>}
             {viewTaskData?.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null; })()}
           </div>
+
+          {viewTaskData?.parent_id && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Subtask of{" "}
+              <button
+                type="button"
+                className="underline font-medium text-foreground"
+                onClick={() => {
+                  const parent = (tasks || []).find((t: any) => t.id === viewTaskData.parent_id);
+                  if (parent) setViewTaskData(parent);
+                }}
+              >
+                {(tasks || []).find((t: any) => t.id === viewTaskData.parent_id)?.title || "parent task"}
+              </button>
+            </p>
+          )}
+
+          {!viewTaskData?.parent_id && viewTaskData?.id && (
+            <>
+              <Separator className="my-4" />
+              <div className="space-y-3">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h4 className="text-sm font-semibold">Subtasks</h4>
+                  {isAdmin && props.onAddSubtasks && (
+                    <Button type="button" size="sm" variant="outline" onClick={() => props.onAddSubtasks?.(viewTaskData)}>
+                      Add subtasks (CSV)
+                    </Button>
+                  )}
+                </div>
+                {(() => {
+                  const children = (tasks || []).filter((t: any) => t.parent_id === viewTaskData.id);
+                  const doneSet = doneStatusIds instanceof Set ? doneStatusIds : new Set(doneStatusIds || []);
+                  const doneN = children.filter((t: any) => (t.status_id && doneSet.has(t.status_id)) || !!t.completed_at).length;
+                  return (
+                    <>
+                      <p className="text-xs text-muted-foreground">
+                        {children.length === 0 ? "No subtasks yet." : `${doneN} of ${children.length} done`}
+                      </p>
+                      {isAdmin && (
+                        <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                          <div>
+                            <p className="text-sm font-medium">Require all subtasks done before closing</p>
+                            <p className="text-xs text-muted-foreground">Blocks moving this parent to Done while subtasks are open.</p>
+                          </div>
+                          <Switch
+                            checked={!!viewTaskData.require_subtasks_done}
+                            onCheckedChange={async (checked) => {
+                              const { error } = await supabase
+                                .from("tasks")
+                                .update({ require_subtasks_done: checked })
+                                .eq("id", viewTaskData.id);
+                              if (error) {
+                                toast.error(error.message);
+                                return;
+                              }
+                              setViewTaskData({ ...viewTaskData, require_subtasks_done: checked });
+                              props.queryClient?.invalidateQueries({ queryKey: ["project-tasks"] });
+                              toast.success(checked ? "Close gate enabled" : "Close gate disabled");
+                            }}
+                          />
+                        </div>
+                      )}
+                      {children.length > 0 && (
+                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                          {children.map((c: any) => (
+                            <button
+                              key={c.id}
+                              type="button"
+                              className="w-full text-left flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-sm hover:bg-muted/40"
+                              onClick={() => setViewTaskData(c)}
+                            >
+                              <span className="truncate font-medium">{c.title}</span>
+                              <span className="text-xs text-muted-foreground shrink-0">
+                                {c.users?.full_name || "Unassigned"} · {getStatusDisplay(workflowStatuses || [], c.status_id).name}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </>
+          )}
 
           <Separator className="my-4" />
 

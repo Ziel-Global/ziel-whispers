@@ -142,6 +142,11 @@ export function AdminKanbanPanel({
                           <div className="flex items-start justify-between gap-2 mb-2">
                             <div className="text-[13.5px] font-bold text-[#17171A] truncate min-w-0">
                               {t.title}
+                              {t.parent_id ? (
+                                <span className="ml-1.5 inline-flex align-middle bg-[#F0F0F2] text-[#55555B] text-[10px] font-bold px-1.5 py-0.5 rounded-xl">
+                                  Subtask
+                                </span>
+                              ) : null}
                             </div>
                             <span
                               className="text-[10.5px] font-bold px-2 py-0.5 rounded-full shrink-0 capitalize"

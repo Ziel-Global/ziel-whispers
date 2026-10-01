@@ -264,11 +264,14 @@ export function isAttendanceLate(clockIn: string, shiftStart: string, graceMinut
   };
 }
 
+/** Grace minutes after shift end before a same-day log submission counts as late. */
+export const LOG_SUBMISSION_GRACE_MINUTES = 30;
+
 /**
  * Checks whether a daily log submission was late.
  * If a logDate is provided and is before the submission date, it is always late
  * (the log was due on its log_date and was submitted on a later day).
- * Otherwise, compares the submitted_at time against the shift end deadline (in PKT).
+ * Otherwise, compares the submitted_at time against shift end + grace (in PKT).
  */
 export function isLogSubmissionLate(submittedAt: string, shiftEnd: string, logDate?: string): boolean {
   if (!submittedAt || !shiftEnd) return false;
@@ -287,6 +290,7 @@ export function isLogSubmissionLate(submittedAt: string, shiftEnd: string, logDa
 
   const deadline = new Date(pktTime);
   deadline.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
+  deadline.setMinutes(deadline.getMinutes() + LOG_SUBMISSION_GRACE_MINUTES);
 
   return pktTime.getTime() > deadline.getTime();
 }

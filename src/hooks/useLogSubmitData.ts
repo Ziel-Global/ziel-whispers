@@ -225,7 +225,7 @@ export function useLogSubmitData() {
 
       let query = supabase
         .from("tasks")
-        .select("id, title, priority, estimated_hours, status, status_id, is_flagged")
+        .select("id, title, priority, estimated_hours, status, status_id, is_flagged, parent_id, parent:tasks!tasks_parent_id_fkey(title)")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
         .order("title");

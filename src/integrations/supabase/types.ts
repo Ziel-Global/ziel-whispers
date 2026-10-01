@@ -1728,9 +1728,11 @@ export type Database = {
           goal_id: string | null
           id: string
           is_flagged: boolean | null
+          parent_id: string | null
           phase_id: string | null
           priority: string
           project_id: string
+          require_subtasks_done: boolean
           sprint_id: string | null
           status: string
           status_id: string | null
@@ -1749,9 +1751,11 @@ export type Database = {
           goal_id?: string | null
           id?: string
           is_flagged?: boolean | null
+          parent_id?: string | null
           phase_id?: string | null
           priority: string
           project_id: string
+          require_subtasks_done?: boolean
           sprint_id?: string | null
           status?: string
           status_id?: string | null
@@ -1770,9 +1774,11 @@ export type Database = {
           goal_id?: string | null
           id?: string
           is_flagged?: boolean | null
+          parent_id?: string | null
           phase_id?: string | null
           priority?: string
           project_id?: string
+          require_subtasks_done?: boolean
           sprint_id?: string | null
           status?: string
           status_id?: string | null
@@ -1799,6 +1805,13 @@ export type Database = {
             columns: ["goal_id"]
             isOneToOne: false
             referencedRelation: "goals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
             referencedColumns: ["id"]
           },
           {

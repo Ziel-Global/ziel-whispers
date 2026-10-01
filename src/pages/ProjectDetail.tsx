@@ -917,10 +917,10 @@ export default function ProjectDetailPage() {
     resourceMembers[0];
   const ownerName = ownerMember?.users?.full_name || profile?.full_name || null;
   const tabBodyClass =
-    "mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
+    "mt-0 w-full min-w-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
 
   return (
-    <div className={isClient ? "client-page flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4" : "flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4"}>
+    <div className={isClient ? "client-page w-full min-w-0 flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4" : "flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4"}>
       <div className="shrink-0">
       {isAdmin && !isClient ? (
         <AdminProjectDetailChrome

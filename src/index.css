@@ -115,7 +115,7 @@
 
   /* Client portal visual tokens (HTML mock) */
   .client-page {
-    @apply max-w-[1480px] mx-auto font-sans;
+    @apply w-full min-w-0 font-sans;
   }
   .client-table-card {
     @apply bg-white border border-[#E6E6E8] rounded-[11px] overflow-hidden shadow-[0_8px_26px_rgba(23,23,26,0.035)];

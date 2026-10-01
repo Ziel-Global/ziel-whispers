@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, getPKTISOString, LOG_SUBMISSION_GRACE_MINUTES } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -485,6 +485,7 @@ export function useLogSubmitData() {
           if (shiftStart && resolvedShiftEnd < shiftStart) {
             todayDeadline.setDate(todayDeadline.getDate() + 1);
           }
+          todayDeadline.setMinutes(todayDeadline.getMinutes() + LOG_SUBMISSION_GRACE_MINUTES);
           return nowPKT.getTime() > todayDeadline.getTime();
         }
         return false;

@@ -254,7 +254,9 @@ export function LogSubmissionFormCard({
                       >
                         {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                       </div>
-                      <span className="text-sm font-medium truncate">{t.title}</span>
+                      <span className="text-sm font-medium truncate">
+                        {t.parent?.title ? `${t.parent.title} / ${t.title}` : t.title}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2 shrink-0 ml-2">
                       {t.remaining_hours !== null && (
@@ -322,7 +324,11 @@ export function LogSubmissionFormCard({
                 <div className="ml-7 space-y-2">
                   <p className="text-sm">
                     <span className="text-muted-foreground">Your log will move</span>{" "}
-                    <span className="font-medium">{selectedTask.title}</span>{" "}
+                    <span className="font-medium">
+                      {selectedTask.parent?.title
+                        ? `${selectedTask.parent.title} / ${selectedTask.title}`
+                        : selectedTask.title}
+                    </span>{" "}
                     <span className="text-muted-foreground">to the next stage:</span>
                   </p>
                   <div className="flex items-center gap-2">

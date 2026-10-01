@@ -40,6 +40,7 @@ import { ProjectBlockersTab } from "@/components/project/tabs/ProjectBlockersTab
 import { ProjectStatusUpdatesTab } from "@/components/project/tabs/ProjectStatusUpdatesTab";
 
 import { TaskModals } from "@/components/project/dialogs/TaskModals";
+import { ParentTaskModal } from "@/components/project/dialogs/ParentTaskModal";
 import { AutomationRuleModal } from "@/components/project/dialogs/AutomationRuleModal";
 import { PhaseModals } from "@/components/project/dialogs/PhaseModals";
 import { SprintModals } from "@/components/project/dialogs/SprintModals";
@@ -134,8 +135,12 @@ export default function ProjectDetailPage() {
   const [editTaskClientVisible, setEditTaskClientVisible] = useState(true);
   const [editTaskAssignedTo, setEditTaskAssignedTo] = useState("");
   const [editTaskSprintId, setEditTaskSprintId] = useState("");
+  const [editTaskParentId, setEditTaskParentId] = useState<string | null>(null);
+  const [editTaskIsContainer, setEditTaskIsContainer] = useState(false);
 
   const [bulkTaskOpen, setBulkTaskOpen] = useState(false);
+  const [parentTaskOpen, setParentTaskOpen] = useState(false);
+  const [addSubtasksParent, setAddSubtasksParent] = useState<any>(null);
   const [csvRows, setCsvRows] = useState<any[]>([]);
   const [csvFileName, setCsvFileName] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -382,11 +387,28 @@ export default function ProjectDetailPage() {
     setEditTaskTitle(task.title);
     setEditTaskDescription(task.description || "");
     setEditTaskPriority(task.priority);
-    setEditTaskEstimatedHours(task.estimated_hours ? String(task.estimated_hours) : "");
+    const isContainer =
+      !task.parent_id && (tasks || []).some((t: any) => t.parent_id === task.id);
+    const childSum = isContainer
+      ? (tasks || [])
+          .filter((t: any) => t.parent_id === task.id)
+          .reduce((acc: number, t: any) => acc + (Number(t.estimated_hours) || 0), 0)
+      : null;
+    setEditTaskEstimatedHours(
+      isContainer
+        ? childSum && childSum > 0
+          ? String(childSum)
+          : ""
+        : task.estimated_hours
+          ? String(task.estimated_hours)
+          : ""
+    );
     setEditTaskDueDate(task.due_date || "");
     setEditTaskClientVisible(task.client_visible !== false);
-    setEditTaskAssignedTo(task.assigned_to || "");
-    setEditTaskSprintId(task.sprint_id || "");
+    setEditTaskAssignedTo(isContainer ? "" : task.assigned_to || "");
+    setEditTaskSprintId(isContainer ? "" : task.sprint_id || "");
+    setEditTaskParentId(task.parent_id || null);
+    setEditTaskIsContainer(isContainer);
     setEditTaskOpen(true);
   };
 
@@ -394,18 +416,32 @@ export default function ProjectDetailPage() {
     e.preventDefault();
     if (!editTaskTitle.trim() || !editTaskId || !id) return;
     try {
-      const { data: oldTask } = await supabase.from("tasks").select("assigned_to, completed_at, status_id").eq("id", editTaskId).single();
+      const { data: oldTask } = await supabase
+        .from("tasks")
+        .select("assigned_to, completed_at, status_id, parent_id")
+        .eq("id", editTaskId)
+        .single();
 
       const updates: any = {
         title: editTaskTitle.trim(),
         description: editTaskDescription.trim() || null,
         priority: editTaskPriority,
-        estimated_hours: editTaskEstimatedHours ? parseFloat(editTaskEstimatedHours) : null,
         due_date: editTaskDueDate || null,
         client_visible: editTaskClientVisible,
-        assigned_to: editTaskAssignedTo || null,
-        sprint_id: editTaskSprintId || null,
       };
+
+      if (editTaskIsContainer) {
+        const childSum = (tasks || [])
+          .filter((t: any) => t.parent_id === editTaskId)
+          .reduce((acc: number, t: any) => acc + (Number(t.estimated_hours) || 0), 0);
+        updates.estimated_hours = childSum > 0 ? childSum : null;
+        updates.assigned_to = null;
+        updates.sprint_id = null;
+      } else {
+        updates.estimated_hours = editTaskEstimatedHours ? parseFloat(editTaskEstimatedHours) : null;
+        updates.assigned_to = editTaskAssignedTo || null;
+        updates.sprint_id = editTaskSprintId || null;
+      }
 
       const oldAssignedTo = oldTask?.assigned_to;
       const wasCompleted = !!oldTask?.completed_at;
@@ -415,7 +451,7 @@ export default function ProjectDetailPage() {
         return;
       }
 
-      if (oldAssignedTo !== editTaskAssignedTo) {
+      if (!editTaskIsContainer && oldAssignedTo !== editTaskAssignedTo) {
         const isBlocked = await checkAndTriggerBlockerAlert(editTaskId, editTaskTitle.trim(), "assignee");
         if (isBlocked) return;
       }
@@ -428,6 +464,24 @@ export default function ProjectDetailPage() {
         }
         throw error;
       }
+
+      // Keep parent estimate in sync when a subtask's hours change
+      const parentId = editTaskParentId || oldTask?.parent_id;
+      if (parentId && !editTaskIsContainer) {
+        const { data: siblings } = await supabase
+          .from("tasks")
+          .select("estimated_hours")
+          .eq("parent_id", parentId);
+        const sum = (siblings || []).reduce(
+          (acc: number, c: any) => acc + (Number(c.estimated_hours) || 0),
+          0
+        );
+        await supabase
+          .from("tasks")
+          .update({ estimated_hours: sum > 0 ? sum : null })
+          .eq("id", parentId);
+      }
+
       toast.success("Task updated");
 
       const newAssignedTo = updates.assigned_to;
@@ -476,6 +530,9 @@ export default function ProjectDetailPage() {
       setEditTaskDueDate("");
       setEditTaskClientVisible(true);
       setEditTaskAssignedTo("");
+      setEditTaskSprintId("");
+      setEditTaskParentId(null);
+      setEditTaskIsContainer(false);
       setViewTaskData(null);
       queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
     } catch (err: any) {
@@ -485,14 +542,33 @@ export default function ProjectDetailPage() {
 
   const deleteTask = async () => {
     if (!deleteTaskConfirmId || !id) return;
-    const { data: delTask } = await supabase.from("tasks").select("status_id, title").eq("id", deleteTaskConfirmId).single();
+    const { data: delTask } = await supabase
+      .from("tasks")
+      .select("status_id, title, parent_id")
+      .eq("id", deleteTaskConfirmId)
+      .single();
     if (delTask?.status_id && doneStatusIds.has(delTask.status_id)) {
       toast.warning("Deleting a completed task — this will remove history");
     }
+    const parentId = delTask?.parent_id || null;
     const { error } = await supabase.from("tasks").delete().eq("id", deleteTaskConfirmId);
     if (error) {
       toast.error(error.message);
       return;
+    }
+    if (parentId) {
+      const { data: siblings } = await supabase
+        .from("tasks")
+        .select("estimated_hours")
+        .eq("parent_id", parentId);
+      const sum = (siblings || []).reduce(
+        (acc: number, c: any) => acc + (Number(c.estimated_hours) || 0),
+        0
+      );
+      await supabase
+        .from("tasks")
+        .update({ estimated_hours: sum > 0 ? sum : null })
+        .eq("id", parentId);
     }
     setDeleteTaskConfirmId(null);
     toast.success("Task deleted");
@@ -917,10 +993,10 @@ export default function ProjectDetailPage() {
     resourceMembers[0];
   const ownerName = ownerMember?.users?.full_name || profile?.full_name || null;
   const tabBodyClass =
-    "mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
+    "mt-0 w-full min-w-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
 
   return (
-    <div className={isClient ? "client-page flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4" : "flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4"}>
+    <div className={isClient ? "client-page w-full min-w-0 flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4" : "flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4"}>
       <div className="shrink-0">
       {isAdmin && !isClient ? (
         <AdminProjectDetailChrome
@@ -1292,6 +1368,7 @@ export default function ProjectDetailPage() {
             workflowStatuses={workflowStatuses}
             setBulkTaskOpen={setBulkTaskOpen}
             setAddTaskOpen={setAddTaskOpen}
+            setParentTaskOpen={setParentTaskOpen}
             profile={profile}
             selectedTaskIds={selectedTaskIds}
             setSelectedTaskIds={setSelectedTaskIds}
@@ -1576,6 +1653,7 @@ export default function ProjectDetailPage() {
         setEditTaskDueDate={setEditTaskDueDate}
         editTaskClientVisible={editTaskClientVisible}
         setEditTaskClientVisible={setEditTaskClientVisible}
+        editTaskIsContainer={editTaskIsContainer}
         descExpanded={descExpanded}
         setDescExpanded={setDescExpanded}
         csvRows={csvRows}
@@ -1610,6 +1688,30 @@ export default function ProjectDetailPage() {
         viewBlockersLoadingData={viewBlockersLoading}
         queryClient={queryClient}
         checkAndTriggerBlockerAlert={checkAndTriggerBlockerAlert}
+        onAddSubtasks={(parent) => {
+          setViewTaskData(null);
+          setAddSubtasksParent(parent);
+        }}
+      />
+
+      <ParentTaskModal
+        open={parentTaskOpen || !!addSubtasksParent}
+        onOpenChange={(open) => {
+          if (!open) {
+            setParentTaskOpen(false);
+            setAddSubtasksParent(null);
+          }
+        }}
+        projectId={id!}
+        profileId={profile?.id}
+        allEmployees={allEmployees || []}
+        initialStatusId={initialStatus?.id || null}
+        existingParentId={addSubtasksParent?.id || null}
+        existingParentTitle={addSubtasksParent?.title || null}
+        defaultClientVisible={addSubtasksParent?.client_visible !== false}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+        }}
       />
 
       <PhaseModals

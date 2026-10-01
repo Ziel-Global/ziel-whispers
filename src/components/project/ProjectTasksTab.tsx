@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import {
+  ChevronRight,
   Flag,
   Info,
   List,
@@ -12,7 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { editButtonClass } from "@/components/ui/data-row";
-import { truncateWords } from "@/lib/utils";
+import { cn, truncateWords } from "@/lib/utils";
 import { getStatusDisplay } from "@/lib/workflow";
 import {
   bucketTaskState,
@@ -37,6 +38,7 @@ export interface ProjectTasksTabProps {
   workflowStatuses: any[];
   setBulkTaskOpen: (b: boolean) => void;
   setAddTaskOpen: (b: boolean) => void;
+  setParentTaskOpen?: (b: boolean) => void;
   profile: any;
   selectedTaskIds: Set<string>;
   setSelectedTaskIds: (ids: Set<string> | ((prev: Set<string>) => Set<string>)) => void;
@@ -69,34 +71,105 @@ function ClientTasksPanel({
   const [search, setSearch] = useState("");
   const [sprintFilter, setSprintFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState<"all" | TaskStateBucket>("all");
+  const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
 
   const sprintName = (sprintId: string | null | undefined) => {
     if (!sprintId) return null;
     return (sprints || []).find((s: any) => s.id === sprintId)?.name || null;
   };
 
-  const filteredTasks = useMemo(() => {
+  const matchesFilters = (t: any) => {
+    const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
+    const bucket = bucketTaskState(st);
+    if (statusFilter !== "all" && bucket !== statusFilter) return false;
+
+    if (sprintFilter === "unassigned") {
+      if (t.sprint_id) return false;
+    } else if (sprintFilter !== "all") {
+      if (t.sprint_id !== sprintFilter) return false;
+    }
+
     const q = search.trim().toLowerCase();
-    return (tasks || []).filter((t: any) => {
-      const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
-      const bucket = bucketTaskState(st);
-      if (statusFilter !== "all" && bucket !== statusFilter) return false;
+    if (q) {
+      const assignee = ((t as any).users?.full_name || "").toLowerCase();
+      const sprint = (sprintName(t.sprint_id) || "").toLowerCase();
+      const title = (t.title || "").toLowerCase();
+      if (!title.includes(q) && !assignee.includes(q) && !sprint.includes(q)) return false;
+    }
+    return true;
+  };
 
-      if (sprintFilter === "unassigned") {
-        if (t.sprint_id) return false;
-      } else if (sprintFilter !== "all") {
-        if (t.sprint_id !== sprintFilter) return false;
-      }
-
-      if (q) {
-        const assignee = ((t as any).users?.full_name || "").toLowerCase();
-        const sprint = (sprintName(t.sprint_id) || "").toLowerCase();
-        const title = (t.title || "").toLowerCase();
-        if (!title.includes(q) && !assignee.includes(q) && !sprint.includes(q)) return false;
-      }
-      return true;
+  const childrenByParent = useMemo(() => {
+    const map = new Map<string, any[]>();
+    (tasks || []).forEach((t: any) => {
+      if (!t.parent_id) return;
+      const list = map.get(t.parent_id) || [];
+      list.push(t);
+      map.set(t.parent_id, list);
     });
+    return map;
+  }, [tasks]);
+
+  const filteredTasks = useMemo(() => {
+    return (tasks || []).filter(matchesFilters);
   }, [tasks, workflowStatuses, search, sprintFilter, statusFilter, sprints]);
+
+  const filteredIds = useMemo(() => new Set(filteredTasks.map((t: any) => t.id)), [filteredTasks]);
+
+  const topLevelRows = useMemo(() => {
+    return (tasks || []).filter((t: any) => {
+      if (t.parent_id) return false;
+      if (filteredIds.has(t.id)) return true;
+      const kids = childrenByParent.get(t.id) || [];
+      return kids.some((c) => filteredIds.has(c.id));
+    });
+  }, [tasks, filteredIds, childrenByParent]);
+
+  // Auto-expand parents when search/filter matches a visible subtask
+  useEffect(() => {
+    const hasActiveFilter =
+      search.trim() !== "" || sprintFilter !== "all" || statusFilter !== "all";
+    if (!hasActiveFilter) return;
+    setExpandedParentIds((prev) => {
+      const next = new Set(prev);
+      let changed = false;
+      childrenByParent.forEach((kids, parentId) => {
+        if (kids.some((c) => filteredIds.has(c.id)) && !next.has(parentId)) {
+          next.add(parentId);
+          changed = true;
+        }
+      });
+      return changed ? next : prev;
+    });
+  }, [search, sprintFilter, statusFilter, filteredIds, childrenByParent]);
+
+  const listRows = useMemo(() => {
+    const rows: { task: any; kind: "parent" | "subtask" | "standalone"; childCount: number }[] = [];
+    for (const parent of topLevelRows) {
+      const allKids = childrenByParent.get(parent.id) || [];
+      const matchingKids = allKids.filter((c) => filteredIds.has(c.id));
+      const kidsToShow = matchingKids.length > 0 ? matchingKids : allKids;
+      if (allKids.length === 0) {
+        rows.push({ task: parent, kind: "standalone", childCount: 0 });
+        continue;
+      }
+      rows.push({ task: parent, kind: "parent", childCount: allKids.length });
+      if (!expandedParentIds.has(parent.id)) continue;
+      for (const child of kidsToShow) {
+        rows.push({ task: child, kind: "subtask", childCount: 0 });
+      }
+    }
+    return rows;
+  }, [topLevelRows, childrenByParent, expandedParentIds, filteredIds]);
+
+  const toggleExpand = (parentId: string) => {
+    setExpandedParentIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(parentId)) next.delete(parentId);
+      else next.add(parentId);
+      return next;
+    });
+  };
 
   const sprintLabel =
     sprintFilter === "all"
@@ -186,8 +259,8 @@ function ClientTasksPanel({
 
       <div className="flex items-center gap-3 text-[9px] text-[#8B8B92]">
         <span>
-          <strong className="text-[#4B4B52] font-semibold">{filteredTasks.length}</strong> visible task
-          {filteredTasks.length === 1 ? "" : "s"}
+          <strong className="text-[#4B4B52] font-semibold">{listRows.length}</strong> visible task
+          {listRows.length === 1 ? "" : "s"}
         </span>
         <span>•</span>
         <span>{sprintLabel}</span>
@@ -201,7 +274,7 @@ function ClientTasksPanel({
             <div>
               <div className="text-[10.5px] font-semibold text-[#17171A]">Task list</div>
               <div className="text-[8.5px] text-[#8F8F96] mt-0.5">
-                {filteredTasks.length} visible task{filteredTasks.length === 1 ? "" : "s"} · {sprintLabel}
+                {listRows.length} visible task{listRows.length === 1 ? "" : "s"} · {sprintLabel}
               </div>
             </div>
             <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[8.5px] font-semibold bg-[#F2F2F4] text-[#5D5D64]">
@@ -209,7 +282,7 @@ function ClientTasksPanel({
             </span>
           </div>
 
-          {filteredTasks.length === 0 ? (
+          {listRows.length === 0 ? (
             <div className="px-5 py-[38px] text-center text-[9.5px] text-[#96969D]">
               No tasks match the current filters.
             </div>
@@ -217,20 +290,60 @@ function ClientTasksPanel({
             <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
               {/* Mobile / tablet: stacked cards — no horizontal scroll */}
               <div className="lg:hidden divide-y divide-[#EFEFF1]">
-                {filteredTasks.map((t: any) => {
+                {listRows.map(({ task: t, kind, childCount }) => {
                   const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
                   const bucket = bucketTaskState(st);
                   const sprint = sprintName(t.sprint_id);
                   const assignee = (t as any).users?.full_name;
+                  const expanded = expandedParentIds.has(t.id);
                   return (
-                    <div key={t.id} className="p-3.5 space-y-3">
+                    <div
+                      key={t.id}
+                      className={cn(
+                        "p-3.5 space-y-3",
+                        kind === "parent" && "bg-primary/10",
+                        kind === "subtask" && "bg-muted pl-8"
+                      )}
+                    >
                       <div className="flex items-start gap-2.5">
-                        <div className="w-7 h-7 rounded-lg bg-[#F3F3F5] text-[#66666D] flex items-center justify-center flex-none mt-0.5">
-                          <List className="h-[13px] w-[13px]" />
-                        </div>
+                        {kind === "parent" ? (
+                          <button
+                            type="button"
+                            onClick={() => toggleExpand(t.id)}
+                            className="w-7 h-7 rounded-lg bg-white border border-[#E2E2E6] text-[#66666D] flex items-center justify-center flex-none mt-0.5"
+                            aria-expanded={expanded}
+                            aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
+                          >
+                            <ChevronRight
+                              className={cn(
+                                "h-[13px] w-[13px] transition-transform duration-150",
+                                expanded && "rotate-90"
+                              )}
+                            />
+                          </button>
+                        ) : (
+                          <div className="w-7 h-7 rounded-lg bg-[#F3F3F5] text-[#66666D] flex items-center justify-center flex-none mt-0.5">
+                            <List className="h-[13px] w-[13px]" />
+                          </div>
+                        )}
                         <div className="min-w-0 flex-1">
                           <div className="text-[10.5px] font-semibold text-[#202024] leading-[1.45] break-words">
                             {t.title}
+                            {kind === "parent" ? (
+                              <>
+                                <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-primary/20 text-primary">
+                                  Parent
+                                </span>
+                                <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-[#F0F0F2] text-[#55555B] border border-[#E2E2E6]">
+                                  {childCount} {childCount === 1 ? "subtask" : "subtasks"}
+                                </span>
+                              </>
+                            ) : null}
+                            {kind === "subtask" ? (
+                              <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-[#F0F0F2] text-[#55555B]">
+                                Sub
+                              </span>
+                            ) : null}
                           </div>
                           <div className="text-[8.3px] text-[#96969D] mt-0.5">
                             {sprint || "Not linked to a sprint"}
@@ -250,7 +363,13 @@ function ClientTasksPanel({
                         <div>
                           <div className="text-[8px] uppercase tracking-[0.05em] text-[#A0A0A6] mb-0.5">Assignee</div>
                           <div className="text-[9.5px] text-[#4C4C53]">
-                            {assignee || <span className="text-[#A0A0A6]">Unassigned</span>}
+                            {kind === "parent" ? (
+                              <span className="text-[#A0A0A6]">—</span>
+                            ) : assignee ? (
+                              assignee
+                            ) : (
+                              <span className="text-[#A0A0A6]">Unassigned</span>
+                            )}
                           </div>
                         </div>
                         <div>
@@ -341,21 +460,66 @@ function ClientTasksPanel({
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredTasks.map((t: any) => {
+                    {listRows.map(({ task: t, kind, childCount }) => {
                       const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
                       const bucket = bucketTaskState(st);
                       const sprint = sprintName(t.sprint_id);
                       const assignee = (t as any).users?.full_name;
+                      const expanded = expandedParentIds.has(t.id);
                       return (
-                        <tr key={t.id} className="border-b border-[#EFEFF1] last:border-0 hover:bg-[#FAFAFB]">
+                        <tr
+                          key={t.id}
+                          className={cn(
+                            "border-b border-[#EFEFF1] last:border-0 hover:bg-[#FAFAFB]",
+                            kind === "parent" && "bg-primary/10 hover:bg-primary/15",
+                            kind === "subtask" && "bg-muted/80"
+                          )}
+                        >
                           <td className="px-3 py-[13px] align-middle">
-                            <div className="flex items-start gap-2.5 min-w-0">
-                              <div className="w-7 h-7 rounded-lg bg-[#F3F3F5] text-[#66666D] flex items-center justify-center flex-none mt-0.5">
-                                <List className="h-[13px] w-[13px]" />
-                              </div>
+                            <div
+                              className={cn(
+                                "flex items-start gap-2.5 min-w-0",
+                                kind === "subtask" && "pl-6"
+                              )}
+                            >
+                              {kind === "parent" ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleExpand(t.id)}
+                                  className="w-7 h-7 rounded-lg bg-white border border-[#E2E2E6] text-[#66666D] flex items-center justify-center flex-none mt-0.5"
+                                  aria-expanded={expanded}
+                                  aria-label={expanded ? "Collapse subtasks" : "Expand subtasks"}
+                                >
+                                  <ChevronRight
+                                    className={cn(
+                                      "h-[13px] w-[13px] transition-transform duration-150",
+                                      expanded && "rotate-90"
+                                    )}
+                                  />
+                                </button>
+                              ) : (
+                                <div className="w-7 h-7 rounded-lg bg-[#F3F3F5] text-[#66666D] flex items-center justify-center flex-none mt-0.5">
+                                  <List className="h-[13px] w-[13px]" />
+                                </div>
+                              )}
                               <div className="min-w-0">
                                 <div className="text-[10.5px] font-semibold text-[#202024] leading-[1.45] break-words whitespace-normal">
                                   {t.title}
+                                  {kind === "parent" ? (
+                                    <>
+                                      <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-primary/20 text-primary">
+                                        Parent
+                                      </span>
+                                      <span className="ml-1 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-[#F0F0F2] text-[#55555B] border border-[#E2E2E6]">
+                                        {childCount} {childCount === 1 ? "subtask" : "subtasks"}
+                                      </span>
+                                    </>
+                                  ) : null}
+                                  {kind === "subtask" ? (
+                                    <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-[#F0F0F2] text-[#55555B]">
+                                      Sub
+                                    </span>
+                                  ) : null}
                                 </div>
                                 <div className="text-[8.3px] text-[#96969D] mt-0.5 truncate">
                                   {sprint || "Not linked to a sprint"}
@@ -364,7 +528,9 @@ function ClientTasksPanel({
                             </div>
                           </td>
                           <td className="px-3 py-[13px] align-middle text-[9.5px] text-[#4C4C53]">
-                            {assignee ? (
+                            {kind === "parent" ? (
+                              <span className="text-[#A0A0A6]">—</span>
+                            ) : assignee ? (
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="w-5 h-5 rounded-full bg-[#EEF1F5] text-[#5E6470] text-[7px] font-bold flex items-center justify-center flex-none">
                                   {initials(assignee)}
@@ -484,6 +650,11 @@ function ClientTasksPanel({
                             <div className="flex items-start gap-2">
                               <div className="flex-1 text-[10.7px] font-semibold leading-[1.45] text-[#17171A] mb-2">
                                 {t.title}
+                                {t.parent_id ? (
+                                  <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-[#F0F0F2] text-[#55555B]">
+                                    Subtask
+                                  </span>
+                                ) : null}
                               </div>
                               <span
                                 className={`inline-flex items-center rounded-full px-2 py-0.5 text-[8.5px] font-semibold capitalize flex-none ${
@@ -545,6 +716,7 @@ export function ProjectTasksTab({
   workflowStatuses,
   setBulkTaskOpen,
   setAddTaskOpen,
+  setParentTaskOpen,
   profile,
   selectedTaskIds,
   setSelectedTaskIds,
@@ -566,6 +738,7 @@ export function ProjectTasksTab({
           workflowStatuses={workflowStatuses}
           setBulkTaskOpen={setBulkTaskOpen}
           setAddTaskOpen={setAddTaskOpen}
+          setParentTaskOpen={setParentTaskOpen}
           profile={profile}
           selectedTaskIds={selectedTaskIds}
           setSelectedTaskIds={setSelectedTaskIds}
@@ -622,6 +795,11 @@ export function ProjectTasksTab({
                               }
                             >
                               {t.title}
+                              {t.parent_id && (
+                                <Badge variant="outline" className="text-[10px] ml-1.5">
+                                  Subtask
+                                </Badge>
+                              )}
                               {criticalTaskIds.has(t.id) && (
                                 <Badge className="bg-purple-100 text-purple-800 text-[10px] ml-1.5">
                                   Critical Path

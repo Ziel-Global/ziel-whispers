@@ -223,9 +223,12 @@ export function useLogSubmitData() {
         .filter((s: any) => s.category === "done")
         .map((s: any) => s.id);
 
+      // Do not embed parent via PostgREST (PGRST200 / schema-cache issues).
+      // Fetch assigned tasks, then load parent titles in a second query (RLS allows
+      // reading parents when the user is assigned to a child).
       let query = supabase
         .from("tasks")
-        .select("id, title, priority, estimated_hours, status, status_id, is_flagged, parent_id, parent:tasks!tasks_parent_id_fkey(title)")
+        .select("id, title, priority, estimated_hours, status, status_id, is_flagged, parent_id")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
         .order("title");
@@ -234,7 +237,12 @@ export function useLogSubmitData() {
         query = query.not("status_id", "in", `(${doneStatusIds.join(",")})`);
       }
 
-      const { data: tasks } = await query;
+      const { data: tasks, error: tasksError } = await query;
+      if (tasksError) {
+        console.error("my-project-tasks", tasksError);
+        toast.error(tasksError.message || "Failed to load tasks");
+        return [];
+      }
       if (!tasks) return [];
 
       const filteredTasks = tasks.filter((t: any) => {
@@ -244,6 +252,27 @@ export function useLogSubmitData() {
       });
 
       if (filteredTasks.length === 0) return [];
+
+      const parentIds = [
+        ...new Set(
+          filteredTasks.map((t: any) => t.parent_id).filter((id: string | null): id is string => !!id)
+        ),
+      ];
+      const parentTitleById: Record<string, string> = {};
+      if (parentIds.length > 0) {
+        const { data: parents, error: parentsError } = await supabase
+          .from("tasks")
+          .select("id, title")
+          .in("id", parentIds);
+        if (parentsError) {
+          console.error("my-project-tasks parents", parentsError);
+        } else {
+          (parents || []).forEach((p: any) => {
+            parentTitleById[p.id] = p.title;
+          });
+        }
+      }
+
       const taskIds = filteredTasks.map((t: any) => t.id);
       const { data: logs } = await supabase
         .from("daily_logs")
@@ -256,6 +285,9 @@ export function useLogSubmitData() {
       });
       return filteredTasks.map((t: any) => ({
         ...t,
+        parent: t.parent_id && parentTitleById[t.parent_id]
+          ? { title: parentTitleById[t.parent_id] }
+          : null,
         logged_hours: loggedMap[t.id] || 0,
       }));
     },

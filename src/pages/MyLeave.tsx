@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -484,13 +485,28 @@ export default function MyLeavePage() {
           </TableHeader>
           {filteredRequests.map((r: any) => (
             <DataRow key={r.id} gridCols="1fr 112px 112px 80px 96px 112px 80px">
-              <div>
+              <div className="min-w-0">
                 <RowPrimary>
                   {r.hours
                     ? `Hourly Leave — ${r.hours} hours`
                     : (r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual")}
                 </RowPrimary>
-                <RowSecondary>{r.reason || "—"}</RowSecondary>
+                {r.reason ? (
+                  <TooltipProvider delayDuration={200}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div className="min-w-0 max-w-full">
+                          <RowSecondary>{r.reason}</RowSecondary>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent side="bottom" className="max-w-sm break-words">
+                        {r.reason}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                ) : (
+                  <RowSecondary>—</RowSecondary>
+                )}
               </div>
               <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
               <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
@@ -590,13 +606,28 @@ export default function MyLeavePage() {
             </TableHeader>
             {wfhRequests.map((r: any) => (
               <DataRow key={r.id} gridCols="1fr 80px 96px 160px">
-                <div>
+                <div className="min-w-0">
                   <RowPrimary>
                     {r.start_date === r.end_date
                       ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
                       : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} – ${format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}`}
                   </RowPrimary>
-                  <RowSecondary>{r.reason}</RowSecondary>
+                  {r.reason ? (
+                    <TooltipProvider delayDuration={200}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div className="min-w-0 max-w-full">
+                            <RowSecondary>{r.reason}</RowSecondary>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom" className="max-w-sm break-words">
+                          {r.reason}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  ) : (
+                    <RowSecondary>—</RowSecondary>
+                  )}
                 </div>
                 <RowDataItem label="DAYS">{r.days_count ?? 1}</RowDataItem>
                 <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>

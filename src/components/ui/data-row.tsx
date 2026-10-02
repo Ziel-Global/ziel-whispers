@@ -15,7 +15,7 @@ export function DataRow({ children, onClick, className, gridCols }: DataRowProps
       className={cn(
         "bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] px-4 py-3 transition-colors",
         onClick && "cursor-pointer",
-        gridCols && "md:grid md:gap-4 md:items-center",
+        gridCols && "md:grid md:gap-4 md:items-center md:[&>*]:min-w-0",
         className,
       )}
       onClick={onClick}
@@ -78,7 +78,7 @@ export function TableHeader({ children, className, gridCols }: { children: React
   return (
     <div className={cn(
       "hidden md:flex md:items-center px-4 py-2 border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium",
-      gridCols && "md:grid md:gap-4",
+      gridCols && "md:grid md:gap-4 md:[&>*]:min-w-0",
       className
     )}
     style={gridCols ? { gridTemplateColumns: gridCols } as React.CSSProperties : undefined}

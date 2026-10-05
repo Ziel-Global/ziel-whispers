@@ -14,7 +14,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { Checkbox } from "@/components/ui/checkbox";
+// import { Checkbox } from "@/components/ui/checkbox"; // used by commented "Visible to client"
 import {
   Select,
   SelectContent,
@@ -92,8 +92,8 @@ export function AdminProjectOverview({
   setBurndownScope,
   newStatusUpdate,
   setNewStatusUpdate,
-  newStatusUpdateVisible,
-  setNewStatusUpdateVisible,
+  newStatusUpdateVisible: _newStatusUpdateVisible,
+  setNewStatusUpdateVisible: _setNewStatusUpdateVisible,
   addStatusUpdate,
 }: Props) {
   const list = tasks || [];
@@ -736,7 +736,8 @@ export function AdminProjectOverview({
             placeholder="Post a status update..."
             className="min-h-[70px] rounded-[10px] border-black/10 text-[13.5px] resize-y px-3 py-3 shadow-none focus-visible:ring-[#EB5A1E]/30"
           />
-          <div className="flex items-center justify-between mt-2.5 gap-3 flex-wrap">
+          <div className="flex items-center justify-end mt-2.5 gap-3 flex-wrap">
+            {/* Not wired up — hidden for now
             <label className="inline-flex items-center gap-[7px] text-[13px] text-[#4B4B52] cursor-pointer">
               <Checkbox
                 checked={newStatusUpdateVisible}
@@ -745,6 +746,7 @@ export function AdminProjectOverview({
               />
               Visible to client
             </label>
+            */}
             <button
               type="button"
               onClick={addStatusUpdate}

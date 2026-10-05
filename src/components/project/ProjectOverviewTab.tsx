@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+// import { Checkbox } from "@/components/ui/checkbox"; // used by commented "Visible to client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -872,10 +872,12 @@ export function ProjectOverviewTab({
                   className="text-sm resize-none flex-1"
                 />
                 <div className="flex flex-col gap-2 shrink-0">
+                  {/* Not wired up — hidden for now
                   <div className="flex items-center gap-1.5">
                     <Checkbox id="status-update-visible" checked={newStatusUpdateVisible} onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)} />
                     <label htmlFor="status-update-visible" className="text-[10px] cursor-pointer text-muted-foreground">Visible to client</label>
                   </div>
+                  */}
                   <Button type="button" size="sm" onClick={addStatusUpdate} disabled={!newStatusUpdate.trim()} className="shrink-0">Post</Button>
                 </div>
               </div>

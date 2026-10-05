@@ -21,10 +21,9 @@ import {
 } from "recharts";
 
 import {
-  bucketTaskState,
-  TASK_STATE_COLORS,
-  type TaskStateBucket,
-} from "@/lib/clientTaskBuckets";
+  getDisplayWorkflowStatuses,
+  workflowStatusDotColor,
+} from "@/lib/workflow";
 import { AdminProjectOverview } from "@/components/project/AdminProjectOverview";
 import { computeBurndownData } from "@/lib/projectBurndown";
 
@@ -155,35 +154,47 @@ function ClientTaskStateDistribution({
   tasks: any[];
   workflowStatuses: any[];
 }) {
-  const counts: Record<TaskStateBucket, number> = {
-    Unlinked: 0,
-    Development: 0,
-    Complete: 0,
-    Returned: 0,
-  };
+  const statuses = getDisplayWorkflowStatuses(workflowStatuses || []);
+  const countsById = new Map<string, number>();
   (tasks || []).forEach((t: any) => {
-    const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
-    counts[bucketTaskState(st)]++;
+    if (!t.status_id) return;
+    countsById.set(t.status_id, (countsById.get(t.status_id) || 0) + 1);
   });
+  const segments = statuses.map((s, idx) => ({
+    status: s,
+    count: countsById.get(s.id) || 0,
+    color: workflowStatusDotColor(s, idx),
+    label: s.name.replace(/_/g, " "),
+  }));
+  countsById.forEach((count, id) => {
+    if (count <= 0 || statuses.some((s) => s.id === id)) return;
+    const st = (workflowStatuses || []).find((s: any) => s.id === id);
+    segments.push({
+      status: st || { id, name: "Unknown", color: "" },
+      count,
+      color: workflowStatusDotColor(st || {}, segments.length),
+      label: st?.name?.replace(/_/g, " ") || "Unknown",
+    });
+  });
+
   const total = (tasks || []).length;
   const denom = total || 1;
-  const p1 = (counts.Unlinked / denom) * 100;
-  const p2 = p1 + (counts.Development / denom) * 100;
-  const p3 = p2 + (counts.Complete / denom) * 100;
-  const legend: TaskStateBucket[] = ["Unlinked", "Development", "Complete", "Returned"];
-  const legendLabel: Record<TaskStateBucket, string> = {
-    Unlinked: "Open",
-    Development: "Inprogress",
-    Complete: "Complete",
-    Returned: "Returned",
-  };
+  let cursor = 0;
+  const gradientStops = segments
+    .filter((seg) => seg.count > 0)
+    .map((seg) => {
+      const start = cursor;
+      cursor += (seg.count / denom) * 100;
+      return `${seg.color} ${start}% ${cursor}%`;
+    })
+    .join(", ");
 
   return (
     <div className="border border-[#E7E7EA] rounded-[14px] bg-white p-[18px] min-w-0">
       <div className="flex items-start justify-between gap-3 mb-3.5">
         <div>
           <div className="text-[12px] font-bold tracking-[-0.15px] text-[#17171A]">Task state distribution</div>
-          <div className="text-[8.7px] text-[#96969D] mt-0.5">Current workflow position across visible tasks</div>
+          <div className="text-[8.7px] text-[#96969D] mt-0.5">Counts by workflow status across visible tasks</div>
         </div>
         <span className="text-[8px] font-semibold px-[7px] py-1 rounded-full bg-[#FFF1EA] text-[#C95627] whitespace-nowrap">
           {total} tasks
@@ -193,10 +204,7 @@ function ClientTaskStateDistribution({
         <div
           className="relative w-[150px] h-[150px] rounded-full flex-none"
           style={{
-            background:
-              total === 0
-                ? "#EFEFF2"
-                : `conic-gradient(${TASK_STATE_COLORS.Unlinked} 0 ${p1}%, ${TASK_STATE_COLORS.Development} ${p1}% ${p2}%, ${TASK_STATE_COLORS.Complete} ${p2}% ${p3}%, ${TASK_STATE_COLORS.Returned} ${p3}% 100%)`,
+            background: total === 0 || !gradientStops ? "#EFEFF2" : `conic-gradient(${gradientStops})`,
           }}
         >
           <div className="absolute inset-[23px] rounded-full bg-white shadow-[inset_0_0_0_1px_#F0F0F2]" />
@@ -205,15 +213,15 @@ function ClientTaskStateDistribution({
             <span className="text-[8px] text-[#8B8B92] mt-0.5">total tasks</span>
           </div>
         </div>
-        <div className="flex flex-col gap-2.5 min-w-[130px]">
-          {legend.map((label) => (
-            <div key={label} className="flex items-center gap-2 text-[9px] text-[#77777E]">
+        <div className="flex flex-col gap-2.5 min-w-[130px] max-h-[220px] overflow-y-auto">
+          {segments.map((seg) => (
+            <div key={seg.status.id} className="flex items-center gap-2 text-[9px] text-[#77777E]">
               <i
                 className="w-[7px] h-[7px] rounded-full flex-none not-italic"
-                style={{ background: TASK_STATE_COLORS[label] }}
+                style={{ background: seg.color }}
               />
-              {legendLabel[label]}
-              <b className="ml-auto text-[9px] text-[#333338] font-semibold">{counts[label]}</b>
+              <span className="truncate max-w-[100px]">{seg.label}</span>
+              <b className="ml-auto text-[9px] text-[#333338] font-semibold">{seg.count}</b>
             </div>
           ))}
         </div>
@@ -384,7 +392,7 @@ function ClientDeliverySignals({
   const estimatedCount = list.filter((t: any) => t.estimated_hours != null).length;
   const returnedCount = list.filter((t: any) => {
     const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
-    return bucketTaskState(st) === "Returned";
+    return /return/i.test(st?.name || "");
   }).length;
 
   const clientFacing = openBlockers.filter(

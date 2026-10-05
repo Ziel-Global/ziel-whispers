@@ -24,6 +24,7 @@ import {
   type TaskStateBucket,
 } from "@/lib/clientTaskBuckets";
 import { AdminTasksPanel } from "@/components/project/AdminTasksPanel";
+import { KanbanTaskCard } from "@/components/project/KanbanTaskCard";
 
 export interface ProjectTasksTabProps {
   tasks: any[];
@@ -633,64 +634,15 @@ function ClientTasksPanel({
                         No tasks in this column
                       </div>
                     ) : (
-                      colTasks.map((t: any) => {
-                        const sprint = sprintName(t.sprint_id);
-                        const assignee = (t as any).users?.full_name;
-                        return (
-                          <div
-                            key={t.id}
-                            role="button"
-                            tabIndex={0}
-                            onClick={() => setViewTaskData(t)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") setViewTaskData(t);
-                            }}
-                            className="bg-white border border-[#E4E4E7] rounded-[13px] p-3 cursor-pointer shadow-[0_5px_16px_rgba(20,20,24,0.035)] hover:border-[#E3C8BC] hover:-translate-y-0.5 hover:shadow-[0_12px_26px_rgba(20,20,24,0.075)] transition-all"
-                          >
-                            <div className="flex items-start gap-2">
-                              <div className="flex-1 text-[10.7px] font-semibold leading-[1.45] text-[#17171A] mb-2">
-                                {t.title}
-                                {t.parent_id ? (
-                                  <span className="ml-1.5 inline-flex items-center rounded-full px-1.5 py-0.5 text-[8px] font-semibold bg-[#F0F0F2] text-[#55555B]">
-                                    Subtask
-                                  </span>
-                                ) : null}
-                              </div>
-                              <span
-                                className={`inline-flex items-center rounded-full px-2 py-0.5 text-[8.5px] font-semibold capitalize flex-none ${
-                                  PRIORITY_PILL_CLASS[t.priority] || "bg-[#F0F0F2] text-[#55555B]"
-                                }`}
-                              >
-                                {t.priority || "—"}
-                              </span>
-                            </div>
-                            {sprint && (
-                              <span className="inline-flex items-center rounded-full px-2 py-0.5 bg-[#DDEBFF] text-[#3873C9] text-[8px] font-semibold mt-1">
-                                {sprint}
-                              </span>
-                            )}
-                            <div className="flex items-center justify-between gap-2 mt-2 text-[8.5px] text-[#8B8B92]">
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                {assignee ? (
-                                  <>
-                                    <span className="w-5 h-5 rounded-full bg-[#EEF1F5] text-[#5E6470] text-[7px] font-bold flex items-center justify-center flex-none">
-                                      {initials(assignee)}
-                                    </span>
-                                    <span className="truncate">{assignee}</span>
-                                  </>
-                                ) : (
-                                  <span>Unassigned</span>
-                                )}
-                              </div>
-                              <span className="flex-none">
-                                {t.due_date
-                                  ? format(new Date(t.due_date + "T00:00:00"), "MMM d")
-                                  : "—"}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      })
+                      colTasks.map((t: any) => (
+                        <KanbanTaskCard
+                          key={t.id}
+                          task={t}
+                          sprints={sprints}
+                          showProgressBar={col === "Development"}
+                          onClick={() => setViewTaskData(t)}
+                        />
+                      ))
                     )}
                   </div>
                 </div>

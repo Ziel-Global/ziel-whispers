@@ -14,15 +14,14 @@ import {
 } from "lucide-react";
 import { editButtonClass } from "@/components/ui/data-row";
 import { cn, truncateWords } from "@/lib/utils";
-import { getStatusDisplay } from "@/lib/workflow";
 import {
-  bucketTaskState,
-  TASK_STATE_BUCKETS,
-  TASK_STATE_KANBAN_DOT,
-  PRIORITY_PILL_CLASS,
-  STATUS_PILL_CLASS,
-  type TaskStateBucket,
-} from "@/lib/clientTaskBuckets";
+  getDisplayWorkflowStatuses,
+  getKanbanBoardStatuses,
+  getStatusColor,
+  getStatusDisplay,
+  workflowStatusDotColor,
+} from "@/lib/workflow";
+import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 import { AdminTasksPanel } from "@/components/project/AdminTasksPanel";
 import { KanbanTaskCard } from "@/components/project/KanbanTaskCard";
 
@@ -71,8 +70,17 @@ function ClientTasksPanel({
   const [taskView, setTaskView] = useState<"list" | "kanban">("list");
   const [search, setSearch] = useState("");
   const [sprintFilter, setSprintFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState<"all" | TaskStateBucket>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
+
+  const displayStatuses = useMemo(
+    () => getDisplayWorkflowStatuses(workflowStatuses || []),
+    [workflowStatuses]
+  );
+  const kanbanColumns = useMemo(
+    () => getKanbanBoardStatuses(workflowStatuses || []),
+    [workflowStatuses]
+  );
 
   const sprintName = (sprintId: string | null | undefined) => {
     if (!sprintId) return null;
@@ -80,9 +88,7 @@ function ClientTasksPanel({
   };
 
   const matchesFilters = (t: any) => {
-    const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
-    const bucket = bucketTaskState(st);
-    if (statusFilter !== "all" && bucket !== statusFilter) return false;
+    if (statusFilter !== "all" && t.status_id !== statusFilter) return false;
 
     if (sprintFilter === "unassigned") {
       if (t.sprint_id) return false;
@@ -179,7 +185,10 @@ function ClientTasksPanel({
         ? "Unassigned"
         : sprintName(sprintFilter) || "Sprint";
 
-  const statusBadgeLabel = statusFilter === "all" ? "All statuses" : statusFilter;
+  const statusBadgeLabel =
+    statusFilter === "all"
+      ? "All statuses"
+      : getStatusDisplay(workflowStatuses || [], statusFilter).name;
 
   const initials = (name: string) =>
     name
@@ -241,19 +250,17 @@ function ClientTasksPanel({
             <SelectItem value="unassigned">Unassigned</SelectItem>
           </SelectContent>
         </Select>
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(v as "all" | TaskStateBucket)}
-        >
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="h-[30px] w-[145px] shrink-0 rounded-lg border-[#DCDCE0] bg-white text-[10.5px] text-[#313136]">
             <SelectValue placeholder="All" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All</SelectItem>
-            <SelectItem value="Unlinked">Unlinked</SelectItem>
-            <SelectItem value="Development">Development</SelectItem>
-            <SelectItem value="Returned">Returned</SelectItem>
-            <SelectItem value="Complete">Complete</SelectItem>
+            <SelectItem value="all">All statuses</SelectItem>
+            {displayStatuses.map((s) => (
+              <SelectItem key={s.id} value={s.id}>
+                {s.name.replace(/_/g, " ")}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -292,8 +299,7 @@ function ClientTasksPanel({
               {/* Mobile / tablet: stacked cards — no horizontal scroll */}
               <div className="lg:hidden divide-y divide-[#EFEFF1]">
                 {listRows.map(({ task: t, kind, childCount }) => {
-                  const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
-                  const bucket = bucketTaskState(st);
+                  const statusDisplay = getStatusDisplay(workflowStatuses || [], t.status_id);
                   const sprint = sprintName(t.sprint_id);
                   const assignee = (t as any).users?.full_name;
                   const expanded = expandedParentIds.has(t.id);
@@ -385,11 +391,9 @@ function ClientTasksPanel({
                         </div>
                         <div>
                           <div className="text-[8px] uppercase tracking-[0.05em] text-[#A0A0A6] mb-0.5">Status</div>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold ${STATUS_PILL_CLASS[bucket]}`}
-                          >
-                            {bucket}
-                          </span>
+                          <Badge className={`text-[8.5px] font-semibold ${getStatusColor(workflowStatuses || [], t.status_id)}`}>
+                            {statusDisplay.name}
+                          </Badge>
                         </div>
                         <div>
                           <div className="text-[8px] uppercase tracking-[0.05em] text-[#A0A0A6] mb-0.5">Estimate</div>
@@ -462,8 +466,7 @@ function ClientTasksPanel({
                   </thead>
                   <tbody>
                     {listRows.map(({ task: t, kind, childCount }) => {
-                      const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
-                      const bucket = bucketTaskState(st);
+                      const statusDisplay = getStatusDisplay(workflowStatuses || [], t.status_id);
                       const sprint = sprintName(t.sprint_id);
                       const assignee = (t as any).users?.full_name;
                       const expanded = expandedParentIds.has(t.id);
@@ -552,11 +555,9 @@ function ClientTasksPanel({
                             </span>
                           </td>
                           <td className="px-3 py-[13px] align-middle">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold ${STATUS_PILL_CLASS[bucket]}`}
-                            >
-                              {bucket}
-                            </span>
+                            <Badge className={`text-[8.5px] font-semibold ${getStatusColor(workflowStatuses || [], t.status_id)}`}>
+                              {statusDisplay.name}
+                            </Badge>
                           </td>
                           <td className="px-3 py-[13px] align-middle text-[9.5px] text-[#4C4C53]">
                             {t.estimated_hours != null ? (
@@ -605,49 +606,55 @@ function ClientTasksPanel({
         </div>
       ) : (
         <div className="h-[min(560px,calc(100vh-280px))] max-h-[min(560px,calc(100vh-280px))] overflow-hidden">
-          <div className="grid grid-cols-4 gap-3.5 h-full min-h-0">
-            {TASK_STATE_BUCKETS.map((col) => {
-              const colTasks = filteredTasks.filter((t: any) => {
-                const st = (workflowStatuses || []).find((s: any) => s.id === t.status_id);
-                return bucketTaskState(st) === col;
-              });
-              return (
-                <div
-                  key={col}
-                  className="bg-gradient-to-b from-[#FAFAFB] to-[#F6F6F7] border border-[#E9E9EC] rounded-[15px] p-3 flex flex-col h-full min-h-0 min-w-0"
-                >
-                  <div className="flex items-center justify-between mb-2.5 px-0.5 flex-none">
-                    <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#17171A]">
-                      <span
-                        className="w-[7px] h-[7px] rounded-full flex-none"
-                        style={{ background: TASK_STATE_KANBAN_DOT[col] }}
-                      />
-                      {col}
-                    </div>
-                    <span className="bg-white border border-[#E3E3E6] rounded-full px-1.5 py-0.5 text-[8.5px] text-[#77777E] font-semibold">
-                      {colTasks.length}
-                    </span>
-                  </div>
-                  <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-2.5">
-                    {colTasks.length === 0 ? (
-                      <div className="h-[90px] border border-dashed border-[#DCDCE1] rounded-[9px] flex items-center justify-center text-center text-[9px] text-[#A1A1A7] px-3">
-                        No tasks in this column
-                      </div>
-                    ) : (
-                      colTasks.map((t: any) => (
-                        <KanbanTaskCard
-                          key={t.id}
-                          task={t}
-                          sprints={sprints}
-                          showProgressBar={col === "Development"}
-                          onClick={() => setViewTaskData(t)}
+          <div className="overflow-x-auto pb-2 h-full min-h-0">
+            <div
+              className="grid gap-3.5 h-full min-h-0 min-w-0"
+              style={{
+                gridTemplateColumns: `repeat(${Math.max(kanbanColumns.length, 1)}, minmax(260px, 1fr))`,
+                minWidth: `${Math.max(kanbanColumns.length, 1) * 280}px`,
+              }}
+            >
+              {kanbanColumns.map((status, colIdx) => {
+                const colTasks = filteredTasks.filter((t: any) => t.status_id === status.id);
+                const dotColor = workflowStatusDotColor(status, colIdx);
+                return (
+                  <div
+                    key={status.id}
+                    className="bg-gradient-to-b from-[#FAFAFB] to-[#F6F6F7] border border-[#E9E9EC] rounded-[15px] p-3 flex flex-col h-full min-h-0 min-w-0"
+                  >
+                    <div className="flex items-center justify-between mb-2.5 px-0.5 flex-none">
+                      <div className="flex items-center gap-1.5 text-[11px] font-semibold text-[#17171A] min-w-0">
+                        <span
+                          className="w-[7px] h-[7px] rounded-full flex-none"
+                          style={{ background: dotColor }}
                         />
-                      ))
-                    )}
+                        <span className="truncate capitalize">{status.name.replace(/_/g, " ")}</span>
+                      </div>
+                      <span className="bg-white border border-[#E3E3E6] rounded-full px-1.5 py-0.5 text-[8.5px] text-[#77777E] font-semibold shrink-0">
+                        {colTasks.length}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain flex flex-col gap-2.5">
+                      {colTasks.length === 0 ? (
+                        <div className="h-[90px] border border-dashed border-[#DCDCE1] rounded-[9px] flex items-center justify-center text-center text-[9px] text-[#A1A1A7] px-3">
+                          No tasks in this column
+                        </div>
+                      ) : (
+                        colTasks.map((t: any) => (
+                          <KanbanTaskCard
+                            key={t.id}
+                            task={t}
+                            sprints={sprints}
+                            showProgressBar={status.category === "in_progress"}
+                            onClick={() => setViewTaskData(t)}
+                          />
+                        ))
+                      )}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
       )}

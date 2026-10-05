@@ -7,8 +7,7 @@ import {
   type AdminWorkFilterState,
 } from "@/components/project/AdminWorkFilters";
 import { KanbanTaskCard } from "@/components/project/KanbanTaskCard";
-
-const DOT_FALLBACK = ["#B0B0B6", "#4C8DF5", "#E8B93B", "#1FAA59", "#E5687A", "#EB5A1E"];
+import { getKanbanBoardStatuses, workflowStatusDotColor } from "@/lib/workflow";
 
 type Props = {
   tasks: any[];
@@ -46,9 +45,7 @@ export function AdminKanbanPanel({
     [tasks, sprints, filters]
   );
 
-  const columns = (workflowStatuses || []).filter(
-    (s: any) => s.name?.toLowerCase() !== "backlog" && !s.retired
-  );
+  const columns = getKanbanBoardStatuses(workflowStatuses || []);
 
   return (
     <div>
@@ -82,19 +79,7 @@ export function AdminKanbanPanel({
         >
           {columns.map((status: any, colIdx: number) => {
             const cards = filtered.filter((t: any) => t.status_id === status.id);
-            const rawColor = status.color || "";
-            const hexMatch = rawColor.match(/#[0-9A-Fa-f]{3,8}/);
-            const dotColor =
-              hexMatch?.[0] ||
-              (rawColor.includes("green")
-                ? "#1FAA59"
-                : rawColor.includes("blue")
-                  ? "#4C8DF5"
-                  : rawColor.includes("yellow") || rawColor.includes("amber")
-                    ? "#E8B93B"
-                    : rawColor.includes("red")
-                      ? "#E5484D"
-                      : DOT_FALLBACK[colIdx % DOT_FALLBACK.length]);
+            const dotColor = workflowStatusDotColor(status, colIdx);
 
             return (
               <div key={status.id} className="bg-[#F9F9F8] rounded-[14px] p-3.5 min-w-0">

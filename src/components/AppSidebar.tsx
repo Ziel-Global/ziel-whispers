@@ -34,6 +34,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { APP_VERSION } from "@/lib/constants";
 import { toSlug } from "@/lib/utils";
+import { isProjectVisibleToClientPortal } from "@/lib/workflow";
 import {
   Sidebar,
   SidebarContent,
@@ -237,18 +238,17 @@ export function AppSidebar() {
 
   const clientProjects = useMemo(() => {
     if (!projects) return [];
-    // While memberships load, trust RLS-scoped projects (same as Projects list).
-    if (!myMemberships) return projects;
+    if (!myMemberships) return projects.filter(isProjectVisibleToClientPortal);
     const myProjectIds = new Set(myMemberships.map((m) => m.project_id));
     const userClientId = (profile as any)?.client_id;
     const filtered = projects.filter(
       (p) =>
-        myProjectIds.has(p.id) ||
-        (userClientId && p.client_id === userClientId) ||
-        p.client_visible === true
+        (myProjectIds.has(p.id) ||
+          (userClientId && p.client_id === userClientId) ||
+          p.client_visible === true) &&
+        isProjectVisibleToClientPortal(p)
     );
-    // Avoid empty switcher if over-filter wiped RLS-visible projects.
-    return filtered.length > 0 ? filtered : projects;
+    return filtered;
   }, [projects, myMemberships, profile]);
 
   const currentProject = useMemo(() => {

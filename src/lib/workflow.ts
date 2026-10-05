@@ -15,6 +15,16 @@ export const PROJECT_STATUS_COLORS: Record<string, string> = {
   archived: "bg-muted text-muted-foreground",
 };
 
+export function isClientRole(profile: { role?: string | null } | null | undefined): boolean {
+  const role = profile?.role;
+  return role === "client" || role === "client member";
+}
+
+/** Client portal lists and navigation — archived projects are hidden. */
+export function isProjectVisibleToClientPortal(project: { status?: string | null }): boolean {
+  return project.status !== "archived";
+}
+
 export function getStatusColor(
   workflowStatuses: WorkflowStatus[],
   statusId: string | null
@@ -158,6 +168,46 @@ export function getStatusDisplay(
     name: s?.name?.replace(/_/g, " ") || "No Status",
     color: s?.color || "bg-gray-100 text-gray-800",
   };
+}
+
+const KANBAN_DOT_FALLBACK = ["#B0B0B6", "#4C8DF5", "#E8B93B", "#1FAA59", "#E5687A", "#EB5A1E"];
+
+/** Kanban columns: project workflow statuses except backlog and retired. */
+export function getKanbanBoardStatuses(workflowStatuses: WorkflowStatus[]): WorkflowStatus[] {
+  return [...(workflowStatuses || [])]
+    .filter((s) => s.name?.toLowerCase() !== "backlog" && !s.retired)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+}
+
+/** All non-retired statuses (charts, filters), sorted. */
+export function getDisplayWorkflowStatuses(workflowStatuses: WorkflowStatus[]): WorkflowStatus[] {
+  return [...(workflowStatuses || [])]
+    .filter((s) => !s.retired)
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+}
+
+export function workflowStatusDotColor(
+  status: { color?: string | null },
+  colIdx = 0
+): string {
+  const rawColor = status.color || "";
+  const hexMatch = rawColor.match(/#[0-9A-Fa-f]{3,8}/);
+  if (hexMatch?.[0]) return hexMatch[0];
+  if (rawColor.includes("green")) return "#1FAA59";
+  if (rawColor.includes("blue")) return "#4C8DF5";
+  if (rawColor.includes("yellow") || rawColor.includes("amber")) return "#E8B93B";
+  if (rawColor.includes("red")) return "#E5484D";
+  return KANBAN_DOT_FALLBACK[colIdx % KANBAN_DOT_FALLBACK.length];
+}
+
+/** Client/admin kanban progress bar percentage from workflow category. */
+export function taskKanbanProgressPercent(
+  task: { completed_at?: string | null },
+  status: WorkflowStatus | undefined
+): number {
+  if (task.completed_at || status?.category === "done") return 100;
+  if (status?.category === "in_progress") return 50;
+  return 0;
 }
 
 export async function changeTaskStatus(

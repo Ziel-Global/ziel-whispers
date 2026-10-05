@@ -14,13 +14,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
-import { getDoneStatusIds } from "@/lib/workflow";
+import { getDoneStatusIds, isClientRole, isProjectVisibleToClientPortal } from "@/lib/workflow";
 
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isClient = isClientRole(profile);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [clientFilter, setClientFilter] = useState("all");
@@ -72,8 +73,11 @@ export default function ProjectsPage() {
       const userClientId = (profile as any)?.client_id;
       list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
     }
+    if (isClient) {
+      list = list.filter(isProjectVisibleToClientPortal);
+    }
     return list.map((p) => p.id);
-  }, [isAdmin, projects, myMemberships, profile]);
+  }, [isAdmin, isClient, projects, myMemberships, profile]);
 
   const { data: clientTaskProgress } = useQuery({
     queryKey: ["client-project-task-progress", clientProjectIds.join(",")],
@@ -132,11 +136,14 @@ export default function ProjectsPage() {
       const userClientId = (profile as any)?.client_id;
       list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
     }
+    if (isClient) {
+      list = list.filter(isProjectVisibleToClientPortal);
+    }
     if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
     if (clientFilter !== "all") list = list.filter((p) => p.client_id === clientFilter);
     if (search) list = list.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     return list;
-  }, [projects, search, statusFilter, clientFilter, isAdmin, myMemberships, profile]);
+  }, [projects, search, statusFilter, clientFilter, isAdmin, isClient, myMemberships, profile]);
 
   const getMemberRole = (projectId: string) => {
     const m = myMemberships?.find((m) => m.project_id === projectId);

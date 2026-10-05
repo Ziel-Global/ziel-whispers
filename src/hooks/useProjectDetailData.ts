@@ -4,7 +4,12 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toSlug } from "@/lib/utils";
-import { getStatusColor, getDoneStatusIds, getInitialStatus } from "@/lib/workflow";
+import {
+  getStatusColor,
+  getDoneStatusIds,
+  getInitialStatus,
+  isProjectVisibleToClientPortal,
+} from "@/lib/workflow";
 
 export function useProjectDetailData() {
   const { slug } = useParams<{ slug: string }>();
@@ -47,6 +52,13 @@ export function useProjectDetailData() {
     },
     enabled: !!id,
   });
+
+  useEffect(() => {
+    if (!isClient || isLoading || !project) return;
+    if (!isProjectVisibleToClientPortal(project)) {
+      navigate("/projects", { replace: true });
+    }
+  }, [isClient, isLoading, project, navigate]);
 
   // 3. Project members
   const { data: members } = useQuery({

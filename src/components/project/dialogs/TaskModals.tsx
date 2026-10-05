@@ -1,6 +1,10 @@
 import { TaskCollaboratorsSection } from "@/components/TaskCollaboratorsSection";
 import { StageOutcomeSelector } from "@/components/StageOutcomeSelector";
-import { getStatusDisplay, getStatusColor } from "@/lib/workflow";
+import {
+  getStatusDisplay,
+  getStatusColor,
+  taskKanbanProgressPercent,
+} from "@/lib/workflow";
 import React, { useState } from "react";
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -22,19 +26,7 @@ import { format } from "date-fns";
 import { truncateWords, cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import {
-  bucketTaskState,
-  PRIORITY_PILL_CLASS,
-  STATUS_PILL_CLASS,
-  type TaskStateBucket,
-} from "@/lib/clientTaskBuckets";
-
-const PROGRESS_BY_BUCKET: Record<TaskStateBucket, number> = {
-  Unlinked: 0,
-  Development: 50,
-  Returned: 25,
-  Complete: 100,
-};
+import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 
 export interface TaskModalsProps {
   addTaskOpen: boolean;
@@ -367,8 +359,10 @@ export function TaskModals(props: TaskModalsProps) {
   const clientStatusInfo = viewTaskData?.status_id
     ? getStatusDisplay(workflowStatuses || [], viewTaskData.status_id)
     : undefined;
-  const clientBucket = bucketTaskState(clientStatusInfo);
-  const clientProgress = PROGRESS_BY_BUCKET[clientBucket];
+  const clientWorkflowStatus = (workflowStatuses || []).find(
+    (s: any) => s.id === viewTaskData?.status_id
+  );
+  const clientProgress = taskKanbanProgressPercent(viewTaskData || {}, clientWorkflowStatus);
   const clientOwnerName = viewTaskData?.users?.full_name || "Unassigned";
   const clientSprintName = viewTaskData?.sprint_id
     ? sprints.find((sp: any) => sp.id === viewTaskData.sprint_id)?.name || "Unassigned"
@@ -386,7 +380,7 @@ export function TaskModals(props: TaskModalsProps) {
     }
     if (viewTaskData.status_id) {
       items.push({
-        text: `Status set to ${clientBucket}`,
+        text: `Status set to ${clientStatusInfo?.name || "Unknown"}`,
         time: viewTaskData.updated_at
           ? format(new Date(viewTaskData.updated_at), "MMM d, h:mm a")
           : "",
@@ -731,14 +725,16 @@ export function TaskModals(props: TaskModalsProps) {
                       {viewTaskData?.title || "Task Details"}
                     </DialogTitle>
                     <div className="flex flex-wrap gap-[7px] mt-[11px] pb-0">
-                      <span
-                        className={cn(
-                          "inline-flex items-center rounded-full px-2.5 py-0.5 text-[8.5px] font-semibold",
-                          STATUS_PILL_CLASS[clientBucket]
-                        )}
-                      >
-                        {clientBucket}
-                      </span>
+                      {clientStatusInfo && (
+                        <Badge
+                          className={cn(
+                            "text-[8.5px] font-semibold",
+                            getStatusColor(workflowStatuses || [], viewTaskData?.status_id)
+                          )}
+                        >
+                          {clientStatusInfo.name}
+                        </Badge>
+                      )}
                       {viewTaskData?.priority && (
                         <span
                           className={cn(
@@ -1030,7 +1026,7 @@ export function TaskModals(props: TaskModalsProps) {
                     </div>
                     <div className="border border-[#E5E5E8] rounded-[10px] overflow-hidden bg-white">
                       {[
-                        { label: "Status", value: clientBucket },
+                        { label: "Status", value: clientStatusInfo?.name || "—" },
                         {
                           label: "Priority",
                           value: viewTaskData?.priority

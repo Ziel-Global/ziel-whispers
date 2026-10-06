@@ -172,11 +172,18 @@ export function getStatusDisplay(
 
 const KANBAN_DOT_FALLBACK = ["#B0B0B6", "#4C8DF5", "#E8B93B", "#1FAA59", "#E5687A", "#EB5A1E"];
 
-/** Kanban columns: project workflow statuses except backlog and retired. */
+/** Kanban columns: non-retired workflow statuses with Backlog always first. */
 export function getKanbanBoardStatuses(workflowStatuses: WorkflowStatus[]): WorkflowStatus[] {
-  return [...(workflowStatuses || [])]
-    .filter((s) => s.name?.toLowerCase() !== "backlog" && !s.retired)
+  const isBacklog = (s: WorkflowStatus) =>
+    (s.name || "").trim().toLowerCase() === "backlog";
+
+  const list = [...(workflowStatuses || [])]
+    .filter((s) => s.retired !== true)
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+  const backlog = list.filter(isBacklog);
+  const rest = list.filter((s) => !isBacklog(s));
+  return [...backlog, ...rest];
 }
 
 /** All non-retired statuses (charts, filters), sorted. */

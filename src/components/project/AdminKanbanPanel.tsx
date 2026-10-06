@@ -12,21 +12,26 @@ import { getKanbanBoardStatuses, workflowStatusDotColor } from "@/lib/workflow";
 type Props = {
   tasks: any[];
   sprints: any[];
-  phases: any[];
+  phases?: any[];
   workflowStatuses: any[];
-  isAdmin: boolean;
+  isAdmin?: boolean;
   setViewTaskData: (data: any) => void;
-  setAddTaskOpen: (b: boolean) => void;
+  setAddTaskOpen?: (b: boolean) => void;
+  /** When false, hide admin work filters (client / simple views). Default true. */
+  showFilters?: boolean;
+  title?: string;
 };
 
 export function AdminKanbanPanel({
   tasks,
   sprints,
-  phases,
+  phases = [],
   workflowStatuses,
-  isAdmin,
+  isAdmin = false,
   setViewTaskData,
   setAddTaskOpen,
+  showFilters = true,
+  title = "Kanban",
 }: Props) {
   const [filters, setFilters] = useState<AdminWorkFilterState>(DEFAULT_ADMIN_WORK_FILTERS);
 
@@ -41,8 +46,8 @@ export function AdminKanbanPanel({
   }, [tasks]);
 
   const filtered = useMemo(
-    () => filterAdminWorkTasks(tasks, sprints, filters),
-    [tasks, sprints, filters]
+    () => (showFilters ? filterAdminWorkTasks(tasks, sprints, filters) : tasks || []),
+    [tasks, sprints, filters, showFilters]
   );
 
   const columns = getKanbanBoardStatuses(workflowStatuses || []);
@@ -50,8 +55,8 @@ export function AdminKanbanPanel({
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2.5">
-        <div className="text-[18px] font-bold text-[#17171A]">Kanban</div>
-        {isAdmin && (
+        <div className="text-[18px] font-bold text-[#17171A]">{title}</div>
+        {isAdmin && setAddTaskOpen && (
           <button
             type="button"
             onClick={() => setAddTaskOpen(true)}
@@ -63,19 +68,24 @@ export function AdminKanbanPanel({
         )}
       </div>
 
-      <AdminWorkFilters
-        filters={filters}
-        onChange={setFilters}
-        phases={phases}
-        sprints={sprints}
-        workflowStatuses={workflowStatuses}
-        assigneeOptions={assigneeOptions}
-      />
+      {showFilters && (
+        <AdminWorkFilters
+          filters={filters}
+          onChange={setFilters}
+          phases={phases}
+          sprints={sprints}
+          workflowStatuses={workflowStatuses}
+          assigneeOptions={assigneeOptions}
+        />
+      )}
 
       <div className="overflow-x-auto pb-2">
         <div
-          className="grid gap-4 min-w-[1560px]"
-          style={{ gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 300px)` }}
+          className="grid gap-4"
+          style={{
+            gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 300px)`,
+            minWidth: `${Math.max(columns.length, 1) * 300}px`,
+          }}
         >
           {columns.map((status: any, colIdx: number) => {
             const cards = filtered.filter((t: any) => t.status_id === status.id);

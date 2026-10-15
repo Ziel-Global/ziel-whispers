@@ -22,6 +22,12 @@ import {
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 import { AdminTasksPanel } from "@/components/project/AdminTasksPanel";
 import { AdminKanbanPanel } from "@/components/project/AdminKanbanPanel";
+import {
+  AdminWorkFilters,
+  DEFAULT_ADMIN_WORK_FILTERS,
+  filterAdminWorkTasks,
+  type AdminWorkFilterState,
+} from "@/components/project/AdminWorkFilters";
 
 export interface ProjectTasksTabProps {
   tasks: any[];
@@ -641,6 +647,7 @@ export function ProjectTasksTab({
   doneStatusIds,
   statusColor,
 }: ProjectTasksTabProps) {
+  const [empFilters, setEmpFilters] = useState<AdminWorkFilterState>(DEFAULT_ADMIN_WORK_FILTERS);
   return (
     <>
       {isAdmin ? (
@@ -679,8 +686,30 @@ export function ProjectTasksTab({
             );
             if (myTasks.length === 0)
               return <p className="text-sm text-muted-foreground">No tasks assigned yet.</p>;
+            const usedSprintIds = new Set(myTasks.map((t: any) => t.sprint_id).filter(Boolean));
+            const usedStatusIds = new Set(myTasks.map((t: any) => t.status_id).filter(Boolean));
+            const mySprints = (sprints || []).filter((s: any) => usedSprintIds.has(s.id));
+            const myPhaseIds = new Set(
+              myTasks.map((t: any) => t.phase_id || mySprints.find((s: any) => s.id === t.sprint_id)?.phase_id).filter(Boolean)
+            );
+            const assigneeMap = new Map<string, string>();
+            myTasks.forEach((t: any) => {
+              if (t.assigned_to && t.users?.full_name) assigneeMap.set(t.assigned_to, t.users.full_name);
+            });
+            const visibleTasks = filterAdminWorkTasks(myTasks, sprints, empFilters);
             return (
               <TooltipProvider>
+                <AdminWorkFilters
+                  filters={empFilters}
+                  onChange={setEmpFilters}
+                  phases={(phases || []).filter((p: any) => myPhaseIds.has(p.id))}
+                  sprints={mySprints}
+                  workflowStatuses={(workflowStatuses || []).filter((s: any) => usedStatusIds.has(s.id))}
+                  assigneeOptions={Array.from(assigneeMap, ([id, name]) => ({ id, name }))}
+                />
+                {visibleTasks.length === 0 && (
+                  <p className="text-sm text-muted-foreground">No tasks match your filters.</p>
+                )}
                 <table className="w-full">
                   <thead>
                     <tr className="hidden md:table-row border-b border-[#e5e7eb] text-[11px] uppercase tracking-[0.05em] text-[#9ca3af] font-medium">
@@ -693,7 +722,7 @@ export function ProjectTasksTab({
                     </tr>
                   </thead>
                   <tbody>
-                    {myTasks.map((t: any) => (
+                    {visibleTasks.map((t: any) => (
                       <tr
                         key={t.id}
                         className="bg-white hover:bg-[#f1f5f9] border-b border-[#f3f4f6] transition-colors"

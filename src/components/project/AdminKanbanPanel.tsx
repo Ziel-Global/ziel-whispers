@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import {
   AdminWorkFilters,
@@ -21,6 +21,53 @@ type Props = {
   showFilters?: boolean;
   title?: string;
 };
+
+const MIN_BOARD_HEIGHT = 320;
+
+/** Sizes the board to fill what's left of the page's scroll container, so only columns scroll. */
+function useFillRemainingHeight() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const board = ref.current;
+    if (!board) return;
+    let parent = board.parentElement;
+    while (parent && !/(auto|scroll)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement;
+    if (!parent) return;
+    const scroller = parent;
+    // Lock the page while the board is open: only columns (and the board sideways) scroll.
+    // ponytail: on screens shorter than MIN_BOARD_HEIGHT the bottom of the board gets clipped.
+    const prevOverflowY = scroller.style.overflowY;
+    const prevOverscroll = scroller.style.overscrollBehavior;
+    scroller.scrollTop = 0;
+    scroller.style.overflowY = "hidden";
+    scroller.style.overscrollBehavior = "none";
+
+    const measure = () => {
+      const top = board.getBoundingClientRect().top + scroller.scrollTop;
+      let height = scroller.getBoundingClientRect().bottom - top;
+      board.style.height = `${Math.max(MIN_BOARD_HEIGHT, height)}px`;
+      // Trim whatever still overflows (page padding, content below the board).
+      height -= scroller.scrollHeight - scroller.clientHeight;
+      const next = `${Math.max(MIN_BOARD_HEIGHT, height)}px`;
+      if (board.style.height !== next) board.style.height = next;
+    };
+
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(scroller);
+    if (scroller.firstElementChild) observer.observe(scroller.firstElementChild);
+    window.addEventListener("resize", measure);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", measure);
+      scroller.style.overflowY = prevOverflowY;
+      scroller.style.overscrollBehavior = prevOverscroll;
+    };
+  }, []);
+
+  return ref;
+}
 
 export function AdminKanbanPanel({
   tasks,
@@ -51,6 +98,7 @@ export function AdminKanbanPanel({
   );
 
   const columns = getKanbanBoardStatuses(workflowStatuses || []);
+  const boardRef = useFillRemainingHeight();
 
   return (
     <div>
@@ -79,10 +127,12 @@ export function AdminKanbanPanel({
         />
       )}
 
-      <div className="overflow-x-auto pb-2">
+      <div ref={boardRef} className="overflow-x-auto overflow-y-hidden overscroll-contain pb-2">
         <div
-          className="grid gap-4"
+          className="grid gap-4 h-full items-start"
           style={{
+            // Pin the row to the board height so each column scrolls on its own.
+            gridTemplateRows: "minmax(0, 1fr)",
             gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, 300px)`,
             minWidth: `${Math.max(columns.length, 1) * 300}px`,
           }}
@@ -92,7 +142,7 @@ export function AdminKanbanPanel({
             const dotColor = workflowStatusDotColor(status, colIdx);
 
             return (
-              <div key={status.id} className="bg-[#F9F9F8] rounded-[14px] p-3.5 min-w-0">
+              <div key={status.id} className="bg-[#F9F9F8] rounded-[14px] p-3.5 min-w-0 max-h-full flex flex-col">
                 <div className="flex items-center justify-between mb-3 px-1">
                   <div className="flex items-center gap-[7px] text-[13px] font-bold text-[#17171A] whitespace-nowrap">
                     <span
@@ -105,7 +155,7 @@ export function AdminKanbanPanel({
                     {cards.length}
                   </span>
                 </div>
-                <div className="flex flex-col gap-2.5 max-h-[calc(100vh-360px)] overflow-y-auto">
+                <div className="flex flex-col gap-2.5 min-h-0 overflow-y-auto overscroll-contain">
                   {cards.length === 0 ? (
                     <p className="text-xs text-[#8B8B92] text-center py-8">No tasks</p>
                   ) : (

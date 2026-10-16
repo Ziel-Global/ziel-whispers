@@ -25,6 +25,7 @@ export interface LogSubmissionFormCardProps {
   workingDays: number;
   effectiveLogEditDays: number;
   today: string;
+  todayLocked: boolean;
   logsTotals: Record<string, number>;
   selectedProjectId: string;
   tasksWithRemaining: any[];
@@ -55,6 +56,7 @@ export function LogSubmissionFormCard({
   workingDays,
   effectiveLogEditDays,
   today,
+  todayLocked,
   logsTotals,
   selectedProjectId,
   tasksWithRemaining,
@@ -210,6 +212,7 @@ export function LogSubmissionFormCard({
                             if (day === 6 && workingDays === 5) return true;
                           }
 
+                          if (todayLocked && dateStr === today) return true;
                           if (!isWithinLogEditWindow(dateStr, today, effectiveLogEditDays, workingDays)) return true;
                           if ((logsTotals[dateStr] || 0) >= 24) return true;
                           if (date > new Date()) return true;

@@ -6,7 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Button } from "@/components/ui/button";
 import { AlertCircle, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { useWorkSettings, getPKTDateString } from "@/hooks/useWorkSettings";
+import { useWorkSettings } from "@/hooks/useWorkSettings";
+import { getPreviousWorkingDay } from "@/utils/logDateUtils";
 
 export function MissingLogAlert() {
   const { user, profile } = useAuth();
@@ -15,31 +16,8 @@ export function MissingLogAlert() {
   const [open, setOpen] = useState(false);
 
   // 1. Determine the previous working day in PKT
-  const today = new Date();
-  const todayPKTStr = getPKTDateString(today);
-  const todayPKT = new Date(todayPKTStr + "T00:00:00");
-  const dayOfWeek = todayPKT.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
   const workingDays = Number(profile?.working_days || 5);
-
-  // Weekends: Suppress alert entirely
-  const isWeekend = dayOfWeek === 0 || (dayOfWeek === 6 && workingDays === 5);
-
-  // Determine the previous working day in PKT
-  // For 5-day: Mon -> Fri (sub 3), Tue-Sat -> Yesterday (sub 1)
-  // For 6-day: Mon -> Sat (sub 2), Tue-Sun -> Yesterday (sub 1)
-  let daysToSubtract = 1;
-  if (workingDays === 5) {
-    if (dayOfWeek === 1) daysToSubtract = 3; // Monday -> Friday
-    else if (dayOfWeek === 0) daysToSubtract = 2; // Sunday -> Friday
-  } else if (workingDays === 6) {
-    if (dayOfWeek === 1) daysToSubtract = 2; // Monday -> Saturday
-    // Sunday is handled by the sub 1 (Sun -> Sat) but alerts are suppressed on Sun anyway
-  }
-
-  const targetDate = new Date(todayPKT);
-  targetDate.setDate(targetDate.getDate() - daysToSubtract);
-  const targetDateStr = getPKTDateString(targetDate);
-  const targetDayOfWeek = targetDate.getDay();
+  const { todayPKTStr, dayOfWeek, isWeekend, targetDateStr, targetDayOfWeek } = getPreviousWorkingDay(workingDays);
 
   const { data: logsData } = useQuery({
     queryKey: ["missing-log-check", user?.id, targetDateStr, profile?.created_at, workingDays, expectedDailyHours],

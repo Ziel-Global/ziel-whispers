@@ -34,6 +34,7 @@ export default function LogSubmitPage() {
         workingDays={data.workingDays}
         effectiveLogEditDays={data.effectiveLogEditDays}
         today={data.today}
+        todayLocked={data.todayLocked}
         logsTotals={data.logsTotals}
         selectedProjectId={data.selectedProjectId}
         tasksWithRemaining={data.tasksWithRemaining}

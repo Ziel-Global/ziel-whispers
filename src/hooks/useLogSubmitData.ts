@@ -11,7 +11,7 @@ import { toast } from "sonner";
 import { MISC_PROJECT_ID } from "@/lib/utils";
 import { getAllowedTransitions, getStatusDisplay } from "@/lib/workflow";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
-import { getMinDateStr, isWithinLogEditWindow } from "@/utils/logDateUtils";
+import { getMinDateStr, getPreviousWorkingDay, isWithinLogEditWindow } from "@/utils/logDateUtils";
 
 export function useLogSubmitData() {
   const navigate = useNavigate();
@@ -36,7 +36,7 @@ export function useLogSubmitData() {
   const today = getPKTDateString();
 
   // 1. Fetch draft logs from database
-  const { data: pendingLogs = [] } = useQuery({
+  const { data: allPendingLogs = [] } = useQuery({
     queryKey: ["my-draft-logs", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -48,42 +48,6 @@ export function useLogSubmitData() {
       return data || [];
     },
     enabled: !!user?.id,
-  });
-
-  const declaredTaskIds = useMemo(() => {
-    const ids: string[] = [];
-    pendingLogs.forEach((l: any) => {
-      if (l.declared_outcome_status_id && l.task_id && !ids.includes(l.task_id)) ids.push(l.task_id);
-    });
-    return ids;
-  }, [pendingLogs]);
-
-  // 2. Fetch declared moves for tasks
-  const { data: declaredMoves = [] } = useQuery({
-    queryKey: ["logsubmit-declared-moves", declaredTaskIds.join(",")],
-    queryFn: async () => {
-      if (declaredTaskIds.length === 0) return [];
-      const { data: tasks } = await supabase
-        .from("tasks")
-        .select("id, title, status_id, projects(workflow_template_id)")
-        .in("id", declaredTaskIds);
-      const templateIds = [...new Set((tasks || []).map((t: any) => t.projects?.workflow_template_id).filter(Boolean))] as string[];
-      const { data: statuses } = templateIds.length > 0
-        ? await supabase.from("workflow_statuses").select("id, name, color").in("workflow_template_id", templateIds)
-        : { data: [] as any[] };
-      const targetByTask: Record<string, string> = {};
-      pendingLogs.forEach((l: any) => {
-        if (l.declared_outcome_status_id && l.task_id && !targetByTask[l.task_id]) targetByTask[l.task_id] = l.declared_outcome_status_id;
-      });
-      return (tasks || []).map((t: any) => ({
-        taskId: t.id,
-        title: t.title,
-        fromStatusId: t.status_id,
-        toStatusId: targetByTask[t.id] || "",
-        statuses: statuses || [],
-      }));
-    },
-    enabled: declaredTaskIds.length > 0,
   });
 
   // 3. Per-employee log edit days override
@@ -100,7 +64,7 @@ export function useLogSubmitData() {
   const minDate = getMinDateStr(10);
 
   // 4. Log totals for recent range
-  const { data: logsTotals = {} } = useQuery({
+  const { data: logsTotals = {}, isFetched: logsTotalsFetched } = useQuery({
     queryKey: ["my-logs-totals-range", user?.id],
     queryFn: async () => {
       const { data } = await supabase
@@ -120,6 +84,22 @@ export function useLogSubmitData() {
     enabled: !!user?.id,
   });
 
+  // Default to the previous working day (same one the missing-log alert checks) while it has
+  // nothing submitted. Once anything is submitted for it, the page defaults to today.
+  // Today stays locked until then.
+  const profileWorkingDays = Number(profile?.working_days || 5);
+  const missed = getPreviousWorkingDay(profileWorkingDays);
+  const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
+  const missedDate =
+    logsTotalsFetched && perEmployeeLogEditDays !== undefined &&
+    profile && profile.role !== "admin" && !missed.isWeekend &&
+    !(createdAtDate && missed.targetDateStr <= createdAtDate) &&
+    !logsTotals[missed.targetDateStr] &&
+    isWithinLogEditWindow(missed.targetDateStr, today, effectiveLogEditDays, profileWorkingDays)
+      ? missed.targetDateStr
+      : null;
+  const defaultDate = missedDate ?? today;
+
   // 5. Form schema
   const schema = z.object({
     project_id: z.string().min(1, "Please select a project"),
@@ -138,7 +118,9 @@ export function useLogSubmitData() {
       if (overtimeEnabled) return true;
       const total = logsTotals[v] || 0;
       return total < 24;
-    }, "This day already has the maximum hours logged"),
+    }, "This day already has the maximum hours logged").refine((v) => {
+      return !(missedDate && v === today);
+    }, "Submit your logs for the missed day first"),
     task_id: z.string().nullable().optional(),
   }).refine((data) => {
     if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
@@ -172,9 +154,60 @@ export function useLogSubmitData() {
     defaultValues: { project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null },
   });
 
+  const appliedMissedDate = useRef(false);
+  useEffect(() => {
+    if (!missedDate || appliedMissedDate.current || editId) return;
+    appliedMissedDate.current = true;
+    if (form.getValues("log_date") === today) form.setValue("log_date", missedDate);
+  }, [missedDate, editId, today, form]);
+
   const descValue = form.watch("description");
   const selectedDate = form.watch("log_date");
   const selectedProjectId = form.watch("project_id");
+
+  // Only drafts for the selected date are shown and submitted.
+  const pendingLogs = useMemo(
+    () => allPendingLogs.filter((l: any) => l.log_date === selectedDate),
+    [allPendingLogs, selectedDate]
+  );
+  useEffect(() => setSelectedDraftIds(new Set()), [selectedDate]);
+
+  const declaredTaskIds = useMemo(() => {
+    const ids: string[] = [];
+    pendingLogs.forEach((l: any) => {
+      if (l.declared_outcome_status_id && l.task_id && !ids.includes(l.task_id)) ids.push(l.task_id);
+    });
+    return ids;
+  }, [pendingLogs]);
+
+  // Fetch declared moves for tasks
+  const { data: declaredMoves = [] } = useQuery({
+    queryKey: ["logsubmit-declared-moves", declaredTaskIds.join(",")],
+    queryFn: async () => {
+      if (declaredTaskIds.length === 0) return [];
+      const { data: tasks } = await supabase
+        .from("tasks")
+        .select("id, title, status_id, projects(workflow_template_id)")
+        .in("id", declaredTaskIds);
+      const templateIds = [...new Set((tasks || []).map((t: any) => t.projects?.workflow_template_id).filter(Boolean))] as string[];
+      const { data: statuses } = templateIds.length > 0
+        ? await supabase.from("workflow_statuses").select("id, name, color").in("workflow_template_id", templateIds)
+        : { data: [] as any[] };
+      const targetByTask: Record<string, string> = {};
+      pendingLogs.forEach((l: any) => {
+        if (l.declared_outcome_status_id && l.task_id && !targetByTask[l.task_id]) targetByTask[l.task_id] = l.declared_outcome_status_id;
+      });
+      return (tasks || []).map((t: any) => ({
+        taskId: t.id,
+        title: t.title,
+        fromStatusId: t.status_id,
+        toStatusId: targetByTask[t.id] || "",
+        statuses: statuses || [],
+      }));
+    },
+    enabled: declaredTaskIds.length > 0,
+  });
+
 
   // 7. Workflow statuses query
   const { data: workflowStatuses } = useQuery({
@@ -325,7 +358,7 @@ export function useLogSubmitData() {
 
   const tasksWithRemaining = useMemo(() => {
     const pendingMap: Record<string, number> = {};
-    pendingLogs.forEach((l: any) => {
+    allPendingLogs.forEach((l: any) => {
       if (l.task_id) {
         pendingMap[l.task_id] = (pendingMap[l.task_id] || 0) + Number(l.hours || 0);
       }
@@ -336,7 +369,7 @@ export function useLogSubmitData() {
         ? Math.max(t.estimated_hours - (t.logged_hours || 0) - (pendingMap[t.id] || 0), 0)
         : null,
     }));
-  }, [availableTasks, pendingLogs]);
+  }, [availableTasks, allPendingLogs]);
 
   const selectedTaskId = form.watch("task_id");
   const selectedTask = selectedTaskId ? availableTasks.find((t: any) => t.id === selectedTaskId) : null;
@@ -476,7 +509,7 @@ export function useLogSubmitData() {
     setEditId(null);
     setDeclareOutcome(false);
     setSelectedOutcomeStatusId("");
-    form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
+    form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: defaultDate, task_id: null });
   };
 
   const removePendingLog = async (logId: string) => {
@@ -642,7 +675,8 @@ export function useLogSubmitData() {
         toast.success(`${baseMsg} successfully`);
       }
 
-      form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: today, task_id: null });
+      // Submitting the missed day unlocks today; any other date keeps the missed day as default.
+      form.reset({ project_id: "", category: "", hours: 1, description: "", log_date: selectedDate === missedDate ? today : defaultDate, task_id: null });
       queryClient.invalidateQueries({ queryKey: ["my-draft-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-date"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
@@ -698,6 +732,7 @@ export function useLogSubmitData() {
     setSelectedOutcomeStatusId,
     dependencyWarning,
     today,
+    todayLocked: !!missedDate,
     pendingLogs,
     declaredMoves,
     effectiveLogEditDays,

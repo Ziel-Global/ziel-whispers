@@ -1661,7 +1661,7 @@ function AttendanceTrendReport() {
 
     return days.map((d) => {
       const dateStr = format(d, "yyyy-MM-dd");
-      let dayAtt = base.filter((a) => a.date === dateStr);
+      const dayAtt = base.filter((a) => a.date === dateStr);
 
       // Status filter for present-row metrics (On Time / Late)
       let statusFiltered = dayAtt;

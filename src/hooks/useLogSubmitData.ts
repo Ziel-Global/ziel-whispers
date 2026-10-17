@@ -4,14 +4,14 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useWorkSettings, getPKTDateString, getPKTISOString, LOG_SUBMISSION_GRACE_MINUTES } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { MISC_PROJECT_ID } from "@/lib/utils";
 import { getAllowedTransitions, getStatusDisplay } from "@/lib/workflow";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
-import { getMinDateStr, isWithinLogEditWindow } from "@/utils/logDateUtils";
+import { getMinDateStr } from "@/utils/logDateUtils";
+import { createDailyLogSchema } from "@/lib/logValidation";
 
 export function useLogSubmitData() {
   const navigate = useNavigate();
@@ -121,33 +121,12 @@ export function useLogSubmitData() {
   });
 
   // 5. Form schema
-  const schema = z.object({
-    project_id: z.string().min(1, "Please select a project"),
-    category: z.string().min(1, "Category is required"),
-    hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
-    description: z.string().min(20, "Min 20 characters"),
-    log_date: z.string().min(1, "Date is required").refine((v) => {
-      const day = new Date(v + "T00:00:00").getDay();
-      if (overtimeEnabled) return true;
-      if (day === 0) return false;
-      if (day === 6 && workingDays === 5) return false;
-      return true;
-    }, "Cannot submit logs for this day").refine((v) => {
-      return isWithinLogEditWindow(v, today, effectiveLogEditDays, workingDays);
-    }, "You are not allowed to edit logs for this date").refine((v) => {
-      if (overtimeEnabled) return true;
-      const total = logsTotals[v] || 0;
-      return total < 24;
-    }, "This day already has the maximum hours logged"),
-    task_id: z.string().nullable().optional(),
-  }).refine((data) => {
-    if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
-      return !!data.task_id;
-    }
-    return true;
-  }, {
-    message: "Please select a task (or 'Other')",
-    path: ["task_id"],
+  const schema = createDailyLogSchema({
+    overtimeEnabled,
+    workingDays,
+    today,
+    editWindowDays: effectiveLogEditDays,
+    submittedHoursByDate: logsTotals,
   });
 
   // 6. User projects query

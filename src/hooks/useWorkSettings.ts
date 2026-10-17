@@ -145,19 +145,40 @@ export function formatLateness(totalOrHours: number, minutes?: number): string {
 /**
  * Pakistan Standard Time (PKT) is UTC+5.
  */
-const PKT_OFFSET_HOURS = 5;
+function getPKTParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Karachi",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+  const value = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || "00";
+  return {
+    year: value("year"),
+    month: value("month"),
+    day: value("day"),
+    hours: value("hour"),
+    minutes: value("minute"),
+    seconds: value("second"),
+  };
+}
+
+function getPKTWeekday(date: Date): number {
+  const parts = getPKTParts(date);
+  return new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day))).getUTCDay();
+}
 
 /** 
  * Gets "Today" in PKT (Asia/Karachi) regardless of local browser time. 
  * Format: YYYY-MM-DD
  */
 export function getPKTDateString(baseDate: Date = new Date()): string {
-  const utc = baseDate.getTime() + (baseDate.getTimezoneOffset() * 60000);
-  const pktDate = new Date(utc + (3600000 * PKT_OFFSET_HOURS));
-  const year = pktDate.getFullYear();
-  const month = String(pktDate.getMonth() + 1).padStart(2, "0");
-  const day = String(pktDate.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
+  const pkt = getPKTParts(baseDate);
+  return `${pkt.year}-${pkt.month}-${pkt.day}`;
 }
 
 /**
@@ -165,17 +186,8 @@ export function getPKTDateString(baseDate: Date = new Date()): string {
  * Example: 2026-04-21T14:30:00+05:00
  */
 export function getPKTISOString(baseDate: Date = new Date()): string {
-  const utc = baseDate.getTime() + (baseDate.getTimezoneOffset() * 60000);
-  const pktDate = new Date(utc + (3600000 * PKT_OFFSET_HOURS));
-  
-  const year = pktDate.getFullYear();
-  const month = String(pktDate.getMonth() + 1).padStart(2, "0");
-  const day = String(pktDate.getDate()).padStart(2, "0");
-  const hours = String(pktDate.getHours()).padStart(2, "0");
-  const minutes = String(pktDate.getMinutes()).padStart(2, "0");
-  const seconds = String(pktDate.getSeconds()).padStart(2, "0");
-
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}+05:00`;
+  const pkt = getPKTParts(baseDate);
+  return `${pkt.year}-${pkt.month}-${pkt.day}T${pkt.hours}:${pkt.minutes}:${pkt.seconds}+05:00`;
 }
 
 /**
@@ -209,21 +221,19 @@ export function getLatenessInfo(shiftStart: string, graceMinutes: number = 15, w
   if (parts.length < 2) return { isLate: false, minutesLate: 0 };
   
   const refDate = clockInDate || new Date();
-  // getTimezoneOffset is in minutes. PKT is UTC+5, so offset 300 mins.
-  const utc = refDate.getTime() + (refDate.getTimezoneOffset() * 60000);
-  const pktNow = new Date(utc + (3600000 * 5));
-  
+  const pktNow = getPKTParts(refDate);
+
   // Skip weekends (0=Sun, 6=Sat in JS)
-  const day = pktNow.getDay();
+  const day = getPKTWeekday(refDate);
   if (day === 0 || (day === 6 && workingDays === 5)) {
     return { isLate: false, minutesLate: 0 };
   }
-  
-  const shiftStartTime = new Date(pktNow);
-  shiftStartTime.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
-  
-  const diffMs = pktNow.getTime() - shiftStartTime.getTime();
-  const diffMins = Math.floor(diffMs / 60000);
+
+  const shiftHour = Number(parts[0]);
+  const shiftMinute = Number(parts[1]);
+  if (!Number.isFinite(shiftHour) || !Number.isFinite(shiftMinute)) return { isLate: false, minutesLate: 0 };
+  const currentMinutes = Number(pktNow.hours) * 60 + Number(pktNow.minutes);
+  const diffMins = currentMinutes - (shiftHour * 60 + shiftMinute);
   
   return {
     isLate: diffMins > graceMinutes,
@@ -242,20 +252,25 @@ export function isAttendanceLate(clockIn: string, shiftStart: string, graceMinut
 
   const parts = shiftStart.split(":");
   if (parts.length < 2) return { isLate: false, minutesLate: 0 };
+  const shiftHour = Number(parts[0]);
+  const shiftMinute = Number(parts[1]);
+  if (!Number.isFinite(shiftHour) || !Number.isFinite(shiftMinute)) {
+    return { isLate: false, minutesLate: 0 };
+  }
 
   const clockInDate = new Date(clockIn);
-  const utc = clockInDate.getTime() + (clockInDate.getTimezoneOffset() * 60000);
-  const pktTime = new Date(utc + (3600000 * 5));
+  if (Number.isNaN(clockInDate.getTime())) return { isLate: false, minutesLate: 0 };
+  const pktTime = getPKTParts(clockInDate);
 
-  const day = pktTime.getDay();
+  const day = getPKTWeekday(clockInDate);
   if (day === 0 || (day === 6 && workingDays === 5)) {
     return { isLate: false, minutesLate: 0 };
   }
 
-  const attendanceDate = clockIn.substring(0, 10);
-  const shiftStartPkt = new Date(attendanceDate + "T" + shiftStart + ":00+05:00");
+  const attendanceDate = `${pktTime.year}-${pktTime.month}-${pktTime.day}`;
+  const shiftStartPkt = new Date(`${attendanceDate}T${String(shiftHour).padStart(2, "0")}:${String(shiftMinute).padStart(2, "0")}:00+05:00`);
 
-  const diffMs = pktTime.getTime() - shiftStartPkt.getTime();
+  const diffMs = clockInDate.getTime() - shiftStartPkt.getTime();
   const diffMins = Math.floor(diffMs / 60000);
 
   return {
@@ -276,21 +291,23 @@ export const LOG_SUBMISSION_GRACE_MINUTES = 30;
 export function isLogSubmissionLate(submittedAt: string, shiftEnd: string, logDate?: string): boolean {
   if (!submittedAt || !shiftEnd) return false;
 
+  const submittedDate = new Date(submittedAt);
+  if (Number.isNaN(submittedDate.getTime())) return false;
+  const pktSubmission = getPKTParts(submittedDate);
+  const submissionDateStr = `${pktSubmission.year}-${pktSubmission.month}-${pktSubmission.day}`;
+
   if (logDate) {
-    const subDate = submittedAt.substring(0, 10);
+    const subDate = submissionDateStr;
     if (logDate < subDate) return true;
   }
 
   const parts = shiftEnd.split(":");
   if (parts.length < 2) return false;
 
-  const submittedDate = new Date(submittedAt);
-  const utc = submittedDate.getTime() + (submittedDate.getTimezoneOffset() * 60000);
-  const pktTime = new Date(utc + (3600000 * 5));
-
-  const deadline = new Date(pktTime);
-  deadline.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
-  deadline.setMinutes(deadline.getMinutes() + LOG_SUBMISSION_GRACE_MINUTES);
-
-  return pktTime.getTime() > deadline.getTime();
+  const shiftEndHour = Number(parts[0]);
+  const shiftEndMinute = Number(parts[1]);
+  if (!Number.isFinite(shiftEndHour) || !Number.isFinite(shiftEndMinute)) return false;
+  const submittedMinutes = Number(pktSubmission.hours) * 60 + Number(pktSubmission.minutes);
+  const deadlineMinutes = shiftEndHour * 60 + shiftEndMinute + LOG_SUBMISSION_GRACE_MINUTES;
+  return submittedMinutes > deadlineMinutes;
 }

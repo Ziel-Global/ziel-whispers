@@ -51,11 +51,13 @@ export function getProjectName(log: any): string {
 }
 
 export function formatHours(h: number) {
-  const hrs = Math.floor(h);
+  let hrs = Math.floor(h);
   const mins = Math.round((h - hrs) * 60);
-  if (hrs === 0) return `${mins}m`;
-  if (mins === 0) return `${hrs}h`;
-  return `${hrs}h ${mins}m`;
+  if (mins === 60) hrs += 1;
+  const normalizedMins = mins === 60 ? 0 : mins;
+  if (hrs === 0) return `${normalizedMins}m`;
+  if (normalizedMins === 0) return `${hrs}h`;
+  return `${hrs}h ${normalizedMins}m`;
 }
 
 export function getLeaveTypeName(r: any) {

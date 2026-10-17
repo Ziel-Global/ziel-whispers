@@ -9,6 +9,9 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // This legacy suite writes to a linked Supabase project. Keep it out of
+    // default local and CI runs until it is migrated to isolated test data.
+    exclude: ["src/tests/automation/**"],
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },

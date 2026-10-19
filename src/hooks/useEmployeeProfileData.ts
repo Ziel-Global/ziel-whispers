@@ -392,8 +392,8 @@ export function useEmployeeProfileData(id: string | undefined) {
       });
       setLogEditDays(employee.log_edit_days ?? "");
       setEmployeeRemoteAccess(employee.remote_access ?? false);
-      setEmployeeRemoteAccessFrom(employee.remote_access_from ?? "");
-      setEmployeeRemoteAccessTo(employee.remote_access_to ?? "");
+      setEmployeeRemoteAccessFrom(getPKTDateString());
+      setEmployeeRemoteAccessTo(getPKTDateString());
       setEmployeeIsOnLeave(employee.is_on_leave ?? isOnLeaveToday);
       setEmployeeIsOnLeaveFrom(employee.is_on_leave_from ?? "");
       setEmployeeIsOnLeaveTo(employee.is_on_leave_to ?? "");

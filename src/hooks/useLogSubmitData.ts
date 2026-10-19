@@ -86,7 +86,7 @@ export function useLogSubmitData() {
 
   // Default to the previous working day (same one the missing-log alert checks) while it has
   // nothing submitted. Once anything is submitted for it, the page defaults to today.
-  // Today stays locked until then.
+  // Today stays selectable either way.
   const profileWorkingDays = Number(profile?.working_days || 5);
   const missed = getPreviousWorkingDay(profileWorkingDays);
   const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
@@ -118,9 +118,7 @@ export function useLogSubmitData() {
       if (overtimeEnabled) return true;
       const total = logsTotals[v] || 0;
       return total < 24;
-    }, "This day already has the maximum hours logged").refine((v) => {
-      return !(missedDate && v === today);
-    }, "Submit your logs for the missed day first"),
+    }, "This day already has the maximum hours logged"),
     task_id: z.string().nullable().optional(),
   }).refine((data) => {
     if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
@@ -732,7 +730,6 @@ export function useLogSubmitData() {
     setSelectedOutcomeStatusId,
     dependencyWarning,
     today,
-    todayLocked: !!missedDate,
     pendingLogs,
     declaredMoves,
     effectiveLogEditDays,

@@ -20,7 +20,7 @@ export default function ProjectsPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
   const isClient = isClientRole(profile);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");

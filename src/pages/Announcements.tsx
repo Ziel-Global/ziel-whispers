@@ -43,7 +43,7 @@ function stripHtml(html: string) {
 export default function AnnouncementsPage() {
   const { profile, user } = useAuth();
   const queryClient = useQueryClient();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "hr_manager" || profile?.role === "project_manager";
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<AnnouncementForm>(emptyForm);

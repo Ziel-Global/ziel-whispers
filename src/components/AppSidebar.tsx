@@ -105,14 +105,18 @@ export function AppSidebar() {
 
   const role = profile?.role;
   const isClient = profile?.designation === "Client" || profile?.designation === "Client Member";
-  const isAdminOrManager = role === "admin" || role === "manager";
+  const isAdminOrManager = role === "admin" || role === "manager" || role === "hr_manager" || role === "project_manager";
 
   const sections = useMemo<NavSection[]>(() => {
     if (isClient) {
       return [
         {
-          label: "MAIN MENU",
-          items: [{ title: "My Projects", url: "/projects", icon: FolderKanban }],
+          label: "PORTAL",
+          items: [
+            { title: "My Projects", url: "/projects", icon: FolderKanban },
+            { title: "Announcements", url: "/announcements", icon: Megaphone },
+            { title: "Notifications", url: "/notifications", icon: Bell },
+          ],
         },
       ];
     }
@@ -120,23 +124,28 @@ export function AppSidebar() {
     if (role === "admin") {
       return [
         {
-          label: "MAIN MENU",
+          label: "OVERVIEW",
           items: [
             { title: "Dashboard", url: "/", icon: LayoutDashboard },
+          ],
+        },
+        {
+          label: "MANAGEMENT",
+          items: [
             { title: "Active Users", url: "/employees", icon: Users },
-            { title: "Attendance", url: "/attendance", icon: Clock },
-            { title: "Daily Logs", url: "/logs/all", icon: FileText },
-            { title: "Leave", url: "/leave/requests", icon: Calendar },
+            { title: "Attendance Admin", url: "/attendance", icon: Clock },
+            { title: "Employees Daily Log", url: "/logs/all", icon: FileText },
+            { title: "Leave Approvals", url: "/leave/requests", icon: Calendar },
+            { title: "Projects", url: "/projects", icon: FolderKanban },
+            { title: "Clients", url: "/clients", icon: Briefcase },
           ],
         },
         {
           label: "TOOLS",
           items: [
-            { title: "Notifications", url: "/notifications", icon: Bell },
-            { title: "Clients", url: "/clients", icon: Briefcase },
-            { title: "Projects", url: "/projects", icon: FolderKanban },
             { title: "Reports", url: "/reports", icon: BarChart3 },
             { title: "Announcements", url: "/announcements", icon: Megaphone },
+            { title: "Notifications", url: "/notifications", icon: Bell },
           ],
         },
         {
@@ -150,24 +159,112 @@ export function AppSidebar() {
       ];
     }
 
-    if (role === "manager") {
+    if (role === "hr_manager") {
       return [
         {
-          label: "MAIN MENU",
+          label: "OVERVIEW",
           items: [
             { title: "Dashboard", url: "/", icon: LayoutDashboard },
-            { title: "Attendance", url: "/attendance", icon: Clock },
-            { title: "Daily Logs", url: "/logs/all", icon: FileText },
-            { title: "Leave", url: "/leave/requests", icon: Calendar },
+          ],
+        },
+        {
+          label: "MANAGEMENT",
+          items: [
+            { title: "Attendance Admin", url: "/attendance", icon: Clock },
+            { title: "Employees Daily Log", url: "/logs/all", icon: FileText },
+            { title: "Leave Approvals", url: "/leave/requests", icon: Calendar },
+          ],
+        },
+        {
+          label: "MY WORKSPACE",
+          items: [
+            { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
+            { title: "Submit Log", url: "/logs/submit", icon: Send },
+            { title: "My Logs", url: "/logs/my", icon: ClipboardList },
+            { title: "My Attendance", url: "/attendance/my", icon: Clock },
+            { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
           ],
         },
         {
           label: "TOOLS",
           items: [
-            { title: "Notifications", url: "/notifications", icon: Bell },
-            { title: "Projects", url: "/projects", icon: FolderKanban },
             { title: "Reports", url: "/reports", icon: BarChart3 },
             { title: "Announcements", url: "/announcements", icon: Megaphone },
+            { title: "Notifications", url: "/notifications", icon: Bell },
+          ],
+        },
+      ];
+    }
+
+    if (role === "project_manager") {
+      return [
+        {
+          label: "OVERVIEW",
+          items: [
+            { title: "Dashboard", url: "/", icon: LayoutDashboard },
+          ],
+        },
+        {
+          label: "MANAGEMENT",
+          items: [
+            { title: "Projects", url: "/projects", icon: FolderKanban },
+            { title: "Logs Review", url: "/logs/all", icon: FileText },
+            { title: "Clients", url: "/clients", icon: Briefcase },
+          ],
+        },
+        {
+          label: "MY WORKSPACE",
+          items: [
+            { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
+            { title: "Submit Log", url: "/logs/submit", icon: Send },
+            { title: "My Logs", url: "/logs/my", icon: ClipboardList },
+            { title: "My Attendance", url: "/attendance/my", icon: Clock },
+            { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
+          ],
+        },
+        {
+          label: "TOOLS",
+          items: [
+            { title: "Reports", url: "/reports", icon: BarChart3 },
+            { title: "Announcements", url: "/announcements", icon: Megaphone },
+            { title: "Notifications", url: "/notifications", icon: Bell },
+          ],
+        },
+      ];
+    }
+
+    if (role === "manager") {
+      return [
+        {
+          label: "OVERVIEW",
+          items: [
+            { title: "Dashboard", url: "/", icon: LayoutDashboard },
+          ],
+        },
+        {
+          label: "MANAGEMENT",
+          items: [
+            { title: "Attendance", url: "/attendance", icon: Clock },
+            { title: "Daily Logs", url: "/logs/all", icon: FileText },
+            { title: "Leave", url: "/leave/requests", icon: Calendar },
+            { title: "Projects", url: "/projects", icon: FolderKanban },
+          ],
+        },
+        {
+          label: "MY WORKSPACE",
+          items: [
+            { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
+            { title: "Submit Log", url: "/logs/submit", icon: Send },
+            { title: "My Logs", url: "/logs/my", icon: ClipboardList },
+            { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
+          ],
+        },
+        {
+          label: "TOOLS",
+          items: [
+            { title: "Reports", url: "/reports", icon: BarChart3 },
+            { title: "Announcements", url: "/announcements", icon: Megaphone },
+            { title: "Notifications", url: "/notifications", icon: Bell },
           ],
         },
       ];
@@ -175,21 +272,26 @@ export function AppSidebar() {
 
     return [
       {
-        label: "MAIN MENU",
+        label: "OVERVIEW",
         items: [
           { title: "Dashboard", url: "/", icon: LayoutDashboard },
+        ],
+      },
+      {
+        label: "MY WORKSPACE",
+        items: [
           { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
           { title: "Submit Log", url: "/logs/submit", icon: Send },
           { title: "My Logs", url: "/logs/my", icon: ClipboardList },
           { title: "My Attendance", url: "/attendance/my", icon: Clock },
           { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
+          { title: "My Projects", url: "/my-projects", icon: FolderKanban },
         ],
       },
       {
         label: "TOOLS",
         items: [
           { title: "Notifications", url: "/notifications", icon: Bell },
-          { title: "My Projects", url: "/my-projects", icon: FolderKanban },
           { title: "Announcements", url: "/announcements", icon: Megaphone },
           { title: "Profile", url: "/profile", icon: User },
         ],
@@ -200,6 +302,8 @@ export function AppSidebar() {
   const portalSubtitle = useMemo(() => {
     if (isClient) return "Client Portal";
     if (role === "admin") return "Admin Console";
+    if (role === "hr_manager") return "HR Console";
+    if (role === "project_manager") return "PM Console";
     if (role === "manager") return "Manager Console";
     return "Employee Portal";
   }, [role, isClient]);
@@ -403,7 +507,7 @@ export function AppSidebar() {
 
   const getBadgeCount = (title: string): number => {
     if (title === "Announcements") return unreadCount || 0;
-    if (title === "Leave" && isAdminOrManager) return pendingLeaveCount || 0;
+    if ((title === "Leave" || title === "Leave Approvals") && isAdminOrManager) return pendingLeaveCount || 0;
     if (title === "Leave & Requests" && !isAdminOrManager) return employeeUnseenCount || 0;
     return 0;
   };

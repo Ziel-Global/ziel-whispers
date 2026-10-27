@@ -48,7 +48,7 @@ const clientSchema = z.object({
 type StaffFormData = z.infer<typeof staffSchema>;
 type ClientFormData = z.infer<typeof clientSchema>;
 
-type RoleType = "admin" | "manager" | "employee" | "client" | "client member";
+type RoleType = "admin" | "manager" | "hr_manager" | "project_manager" | "employee" | "client" | "client member";
 
 // ─── Component: Multi-Project Selector ───────────────────────────────────────
 function MultiProjectSelector({
@@ -122,7 +122,10 @@ function MultiProjectSelector({
 
 // ─── Step 1: Role Picker (Dropdown style) ─────────────────────────────────────
 function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
-  const [role, setRole] = useState<RoleType | "">("");
+  const [primaryRole, setPrimaryRole] = useState<"admin" | "manager" | "employee" | "client member" | "">("");
+  const [managerType, setManagerType] = useState<"hr_manager" | "project_manager">("hr_manager");
+
+  const effectiveRole: RoleType | "" = primaryRole === "manager" ? managerType : primaryRole;
 
   return (
     <div className="max-w-md mx-auto space-y-6">
@@ -136,7 +139,12 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
           <label className="text-sm font-medium">
             Role <span className="text-destructive">*</span>
           </label>
-          <Select value={role} onValueChange={(v) => setRole(v as RoleType)}>
+          <Select
+            value={primaryRole}
+            onValueChange={(v) => {
+              setPrimaryRole(v as any);
+            }}
+          >
             <SelectTrigger>
               <SelectValue placeholder="Select a role…" />
             </SelectTrigger>
@@ -147,22 +155,45 @@ function RolePicker({ onSelect }: { onSelect: (role: RoleType) => void }) {
               <SelectItem value="client member">Client Member</SelectItem>
             </SelectContent>
           </Select>
-          {role && (
+          {primaryRole && primaryRole !== "manager" && (
             <p className="text-xs text-muted-foreground pt-0.5">
-              {role === "admin" && "Full system access — manage users, settings & all data"}
-              {role === "manager" && "Manage team attendance, logs, leave, and projects"}
-              {role === "employee" && "Standard employee — submit logs, apply for leave"}
-              {role === "client" && "Client who owns the project — portal access to assigned projects"}
-              {role === "client member" && "Member of the client's team — portal access to assigned projects"}
+              {primaryRole === "admin" && "Full system access — manage users, settings & all data"}
+              {primaryRole === "employee" && "Standard employee — submit logs, apply for leave"}
+              {primaryRole === "client member" && "Member of the client's team — portal access to assigned projects"}
             </p>
           )}
         </div>
 
+        {/* Sub-dropdown shown when Manager is selected */}
+        {primaryRole === "manager" && (
+          <div className="space-y-2 pt-1 border-t border-border/60">
+            <label className="text-sm font-medium">
+              Manager Type <span className="text-destructive">*</span>
+            </label>
+            <Select
+              value={managerType}
+              onValueChange={(v) => setManagerType(v as "hr_manager" | "project_manager")}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Select manager type…" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="hr_manager">HR / Operational Manager</SelectItem>
+                <SelectItem value="project_manager">Project Manager</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground pt-0.5">
+              {managerType === "hr_manager" && "Operations & People — attendance management, leave approvals, operational review"}
+              {managerType === "project_manager" && "Project Delivery — full control on projects, sprints, tasks, and team logs review"}
+            </p>
+          </div>
+        )}
+
         <div className="flex justify-end">
           <Button
             className="rounded-button"
-            disabled={!role}
-            onClick={() => role && onSelect(role)}
+            disabled={!effectiveRole}
+            onClick={() => effectiveRole && onSelect(effectiveRole)}
           >
             Continue
           </Button>

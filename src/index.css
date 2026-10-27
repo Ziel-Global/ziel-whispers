@@ -75,6 +75,11 @@
   * {
     @apply border-border;
   }
+  html,
+  body,
+  #root {
+    @apply h-full overflow-hidden;
+  }
   body {
     @apply bg-background text-foreground font-sans;
   }
@@ -109,32 +114,55 @@
 }
 
 @layer components {
-  /* Global button logic: Primary buttons MUST have black text in default state */
-  .rounded-button,
-  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]) {
-    @apply text-black !important;
+  /* Global button logic: Filled Orange / Primary buttons MUST have white text */
+  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]),
+  button[class*="bg-[#EB5A1E]"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]),
+  button[class*="bg-[#eb5a1e]"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]),
+  a[class*="bg-[#EB5A1E]"],
+  a[class*="bg-[#eb5a1e]"] {
+    @apply text-white !important;
     transition: all 150ms ease;
   }
 
-  /* Hover effect for primary buttons: Background turns black, text turns white */
-  .rounded-button:hover,
-  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover {
-    background-color: black !important;
+  /* Hover effect for filled orange / primary buttons */
+  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover,
+  button[class*="bg-[#EB5A1E]"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover,
+  button[class*="bg-[#eb5a1e]"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover {
     @apply text-white !important;
   }
 
-  /* Icons with primary background must have black icon color */
-  [class*="bg-primary"] svg,
-  [class*="bg-primary/"] svg {
-    @apply text-black !important;
+  /* Icons inside filled primary/orange buttons have white color */
+  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]) svg,
+  button[class*="bg-[#EB5A1E]"] svg,
+  button[class*="bg-[#eb5a1e]"] svg {
+    @apply text-white !important;
     stroke: currentColor !important;
     transition: color 150ms ease;
   }
 
-  /* Ensure icons turn white when their primary button parent is hovered */
-  button[class*="bg-primary"]:hover svg,
-  .rounded-button:hover svg {
+  /* Ensure icons stay white on hover for filled primary/orange buttons */
+  button[class*="bg-primary"]:not([class*="destructive"]):not([class*="outline"]):not([class*="ghost"]):not([class*="secondary"]):hover svg,
+  button[class*="bg-[#EB5A1E]"]:hover svg,
+  button[class*="bg-[#eb5a1e]"]:hover svg {
     @apply text-white !important;
+  }
+
+  /* Dedicated Secondary/Dismiss outline button style - permanently immune to hover color bleed */
+  .btn-secondary-outline {
+    background-color: #ffffff !important;
+    color: #17171a !important;
+    border: 1px solid rgba(0, 0, 0, 0.1) !important;
+    font-weight: 600 !important;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease !important;
+  }
+  .btn-secondary-outline:hover {
+    background-color: #f6f5f3 !important;
+    color: #17171a !important;
+    border-color: rgba(0, 0, 0, 0.18) !important;
+  }
+  .btn-secondary-outline svg {
+    color: #17171a !important;
+    stroke: currentColor !important;
   }
 
   /* Client portal visual tokens (HTML mock) */

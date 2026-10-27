@@ -8,13 +8,13 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout() {
   const { profile } = useAuth();
-  const showMissingLog = profile?.role === "employee" || profile?.role === "manager";
+  const showMissingLog = profile?.role === "employee" || profile?.role === "manager" || profile?.role === "hr_manager" || profile?.role === "project_manager";
   const isClient = profile?.role === "client" || profile?.role === "client member"
     || profile?.designation === "Client" || profile?.designation === "Client Member";
 
   return (
-    <SidebarProvider>
-      <div className="h-screen flex w-full overflow-hidden">
+    <SidebarProvider className="h-full overflow-hidden">
+      <div className="h-full flex w-full overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <TopBar />

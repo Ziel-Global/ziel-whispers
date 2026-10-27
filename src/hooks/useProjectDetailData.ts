@@ -16,7 +16,7 @@ export function useProjectDetailData() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
   const isClient = profile?.role === "client" || profile?.role === "client member";
 
   const [searchParams, setSearchParams] = useSearchParams();

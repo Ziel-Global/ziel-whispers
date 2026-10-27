@@ -87,6 +87,8 @@ function empTypeLabel(t: string) {
 
 function roleLabel(r: string) {
   if (r === "admin") return "Administrator";
+  if (r === "hr_manager") return "HR / Operational Manager";
+  if (r === "project_manager") return "Project Manager";
   return r.charAt(0).toUpperCase() + r.slice(1);
 }
 

@@ -71,27 +71,27 @@ const App = () => (
 
               {/* Attendance */}
               <Route path="/attendance/my" element={<MyAttendancePage />} />
-              <Route path="/attendance" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><AttendanceAdminPage /></ProtectedRoute>} />
+              <Route path="/attendance" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager"]}><AttendanceAdminPage /></ProtectedRoute>} />
 
               {/* Daily Logs */}
               <Route path="/logs/submit" element={<LogSubmitPage />} />
               <Route path="/logs/my" element={<MyLogsPage />} />
-              <Route path="/logs/all" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LogsAdminPage /></ProtectedRoute>} />
+              <Route path="/logs/all" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager", "project_manager"]}><LogsAdminPage /></ProtectedRoute>} />
 
               {/* Leave */}
               <Route path="/leave/my" element={<MyLeavePage />} />
-              <Route path="/leave/requests" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><LeaveAdminPage /></ProtectedRoute>} />
+              <Route path="/leave/requests" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager"]}><LeaveAdminPage /></ProtectedRoute>} />
 
               {/* Clients & Projects */}
-              <Route path="/clients" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ClientsPage /></ProtectedRoute>} />
+              <Route path="/clients" element={<ProtectedRoute allowedRoles={["admin", "manager", "project_manager"]}><ClientsPage /></ProtectedRoute>} />
               <Route path="/projects" element={<ProjectsPage />} />
-              <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ProjectNewPage /></ProtectedRoute>} />
+              <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager", "project_manager"]}><ProjectNewPage /></ProtectedRoute>} />
               <Route path="/projects/:slug" element={<ProjectDetailPage />} />
-              <Route path="/projects/:slug/phases/:phaseId" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><PhaseEditPage /></ProtectedRoute>} />
+              <Route path="/projects/:slug/phases/:phaseId" element={<ProtectedRoute allowedRoles={["admin", "manager", "project_manager"]}><PhaseEditPage /></ProtectedRoute>} />
 
               {/* Other */}
               <Route path="/announcements" element={<AnnouncementsPage />} />
-              <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><ReportsPage /></ProtectedRoute>} />
+              <Route path="/reports" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager", "project_manager"]}><ReportsPage /></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute allowedRoles={["admin"]}><SettingsPage /></ProtectedRoute>} />
               <Route path="/audit" element={<ProtectedRoute allowedRoles={["admin"]}><AuditLogPage /></ProtectedRoute>} />
               <Route path="/workflow-templates" element={<ProtectedRoute allowedRoles={["admin"]}><WorkflowTemplatesPage /></ProtectedRoute>} />

@@ -7,13 +7,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { Plus, Search, Upload, Eye, Save, Clock, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useQueryClient } from "@tanstack/react-query";
-import { CSVImportDialog } from "@/components/employees/CSVImportDialog";
+import { CSVImportDialog } from "@/components/employee/CSVImportDialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Card } from "@/components/ui/card";
@@ -21,9 +25,8 @@ import { Label } from "@/components/ui/label";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
+import { DEPARTMENTS, EMP_TYPES } from "@/lib/constants";
 const STATUSES = ["active", "inactive", "pending"];
-const EMP_TYPES = ["full-time", "part-time", "contract"];
 
 import { getAvatarUrl } from "@/lib/utils";
 
@@ -174,43 +177,35 @@ export default function EmployeesPage() {
     return palette[index];
   };
 
-  const statusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      active: "bg-[#DFF6E4] text-[#1B8A46]",
-      inactive: "bg-[#F6F5F3] text-[#8B8B92]",
-      pending: "bg-[#FDF3E3] text-[#A9720B]",
-    };
-    return <Badge className={`${variants[status] || "bg-[#F6F5F3] text-[#8B8B92]"} capitalize font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none`}>{status}</Badge>;
-  };
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Users</h1>
-          <p className="text-[13.5px] text-[#8B8B92] mt-0.5">{employees.length} total users</p>
-        </div>
-        {isAdmin && (
-          <div className="flex items-center gap-2.5">
-            <button
-              type="button"
-              onClick={() => setCsvOpen(true)}
-              className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors"
-            >
-              <Upload className="h-3.5 w-3.5 text-[#4B4B52]" />
-              Import CSV
-            </button>
-            <button
-              type="button"
-              onClick={() => navigate("/employees/new")}
-              className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors shadow-sm"
-            >
-              <Plus className="h-3.5 w-3.5 text-white" />
-              Add New User
-            </button>
-          </div>
-        )}
-      </div>
+      <PageHeader
+        title="Users"
+        subtitle={`${employees.length} total users`}
+        actions={
+          isAdmin && (
+            <>
+              <button
+                type="button"
+                onClick={() => setCsvOpen(true)}
+                className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors"
+              >
+                <Upload className="h-3.5 w-3.5 text-[#4B4B52]" />
+                Import CSV
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate("/employees/new")}
+                className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white rounded-[10px] px-4 py-2 text-[13px] font-semibold transition-colors shadow-sm"
+              >
+                <Plus className="h-3.5 w-3.5 text-white" />
+                Add New User
+              </button>
+            </>
+          )
+        }
+      />
 
       <Tabs defaultValue="list" className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
@@ -232,16 +227,11 @@ export default function EmployeesPage() {
 
         <TabsContent value="list" className="mt-4 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden">
           <div className="flex flex-wrap gap-2.5 items-center shrink-0">
-            <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
-              <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
-              <input
-                type="text"
-                placeholder="Search by name, email, designation…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
-              />
-            </div>
+            <SearchInput
+              placeholder="Search by name, email, designation…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
 
             <Select value={deptFilter} onValueChange={setDeptFilter}>
               <SelectTrigger className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
@@ -291,9 +281,9 @@ export default function EmployeesPage() {
 
           <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
             {isLoading ? (
-              <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">Loading…</div>
+              <EmptyState variant="inline" isLoading message="Loading…" />
             ) : filtered.length === 0 ? (
-              <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">No employees found</div>
+              <EmptyState variant="inline" message="No employees found" />
             ) : (
               <div className="flex-1 min-h-0 overflow-y-auto">
                 <TableHeader gridCols="40px 2fr 1.7fr 1fr 0.8fr 1fr 0.7fr" className="sticky top-0 z-10 bg-white px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
@@ -364,7 +354,7 @@ export default function EmployeesPage() {
                     </div>
                     <RowDataItem label="EMAIL" className="text-[13px] text-[#4B4B52] truncate">{emp.email}</RowDataItem>
                     <RowDataItem label="PHONE" className="text-[13px] text-[#4B4B52]">{emp.phone || "—"}</RowDataItem>
-                    <RowBadgeItem label="STATUS">{statusBadge(emp.status)}</RowBadgeItem>
+                    <RowBadgeItem label="STATUS"><StatusBadge status={emp.status} /></RowBadgeItem>
                     <RowDataItem label="JOIN DATE" className="text-[13px] text-[#4B4B52]">{emp.join_date ? format(new Date(emp.join_date), "MMM d, yyyy") : "—"}</RowDataItem>
                     <RowActions className="justify-self-end flex items-center gap-2">
                       <button

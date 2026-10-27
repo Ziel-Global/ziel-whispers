@@ -1,5 +1,6 @@
 import React from "react";
 import { formatDistanceToNow } from "date-fns";
+import { getInitials } from "@/lib/utils";
 
 export interface AuditLogItem {
   id: string;
@@ -16,15 +17,6 @@ export interface RecentActivityFeedProps {
 }
 
 export function RecentActivityFeed({ logs = [], onViewAll }: RecentActivityFeedProps) {
-  const getInitials = (name: string) => {
-    if (!name) return "SY";
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  };
 
   const getAvatarColors = (index: number) => {
     const palette = [

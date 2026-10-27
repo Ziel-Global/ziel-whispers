@@ -5,6 +5,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -27,9 +29,7 @@ import { getPKTDateString, formatPKTTime, formatTime12h } from "@/hooks/useWorkS
 import { CATEGORIES } from "@/utils/logDateUtils";
 import html2canvas from "html2canvas";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
-
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
+import { DEPARTMENTS } from "@/lib/constants";
 
 function humanizeCategory(cat: string) {
   return cat
@@ -301,19 +301,13 @@ function UtilizationReport() {
             icon: Clock,
           },
         ].map((k) => (
-          <div
+          <MetricCard
             key={k.label}
-            className="bg-white border border-black/[0.075] rounded-xl p-3.5 min-w-0"
-          >
-            <div className="flex items-start justify-between gap-2 mb-2">
-              <div className="text-[10px] font-semibold text-[#8B8B92] tracking-wide uppercase">{k.label}</div>
-              <div className="w-7 h-7 rounded-lg bg-[#F6F5F3] text-[#8B8B92] flex items-center justify-center shrink-0">
-                <k.icon className="h-3.5 w-3.5" />
-              </div>
-            </div>
-            <div className="text-[22px] font-bold tracking-[-0.4px] text-[#17171A] leading-none">{k.value}</div>
-            <div className="text-[10px] text-[#96969D] mt-1.5 leading-snug">{k.sub}</div>
-          </div>
+            label={k.label}
+            value={k.value}
+            sub={k.sub}
+            icon={<k.icon className="h-3.5 w-3.5" />}
+          />
         ))}
       </div>
 
@@ -1514,12 +1508,7 @@ function MonthlySummaryReport() {
                   { label: "Remote days", value: remoteDays },
                   { label: "Missed logs", value: missedLogs },
                 ].map((k) => (
-                  <div key={k.label} className="bg-white border border-black/[0.075] rounded-xl p-3.5 min-w-0">
-                    <div className="text-[10px] font-semibold text-[#8B8B92] tracking-wide uppercase">{k.label}</div>
-                    <div className="text-[22px] font-bold tracking-[-0.4px] text-[#17171A] leading-none mt-2">
-                      {k.value}
-                    </div>
-                  </div>
+                  <MetricCard key={k.label} label={k.label} value={k.value} />
                 ))}
               </div>
             </div>
@@ -1965,11 +1954,7 @@ function AttendanceTrendReport() {
               sub: "Across all departments",
             },
           ].map((k) => (
-            <div key={k.label} className="bg-white border border-black/[0.075] rounded-xl p-3.5 min-w-0">
-              <div className="text-[10px] font-semibold text-[#8B8B92] tracking-wide uppercase">{k.label}</div>
-              <div className="text-[22px] font-bold tracking-[-0.4px] text-[#17171A] leading-none mt-2">{k.value}</div>
-              <div className="text-[10px] text-[#96969D] mt-1.5 leading-snug">{k.sub}</div>
-            </div>
+            <MetricCard key={k.label} label={k.label} value={k.value} sub={k.sub} />
           ))}
         </div>
 
@@ -2324,11 +2309,7 @@ function DailyLogsReport() {
             sub: "Per submitted log",
           },
         ].map((k) => (
-          <div key={k.label} className="bg-white border border-black/[0.075] rounded-xl p-3.5 min-w-0">
-            <div className="text-[10px] font-semibold text-[#8B8B92] tracking-wide uppercase">{k.label}</div>
-            <div className="text-[22px] font-bold tracking-[-0.4px] text-[#17171A] leading-none mt-2">{k.value}</div>
-            <div className="text-[10px] text-[#96969D] mt-1.5 leading-snug">{k.sub}</div>
-          </div>
+          <MetricCard key={k.label} label={k.label} value={k.value} sub={k.sub} />
         ))}
       </div>
 
@@ -2681,18 +2662,6 @@ function LeaveReport() {
       ? "#EFEFF2"
       : `conic-gradient(#17171A 0 ${statusMix.approvedPct}%, #EB5A1E ${statusMix.approvedPct}% ${statusMix.approvedPct + statusMix.pendingPct}%, #E8E8EB ${statusMix.approvedPct + statusMix.pendingPct}% 100%)`;
 
-  const statusBadgeClass = (status: string) => {
-    switch (status) {
-      case "approved":
-        return "bg-[#DFF6E4] text-[#1B8A46]";
-      case "rejected":
-        return "bg-[#FDECEC] text-[#C23A3A]";
-      case "pending":
-        return "bg-[#FDF3E3] text-[#A9720B]";
-      default:
-        return "bg-[#F1F1F3] text-[#66666D]";
-    }
-  };
 
   return (
     <div className="space-y-3.5">
@@ -2704,11 +2673,7 @@ function LeaveReport() {
           { label: "Pending", value: String(kpis.pending), sub: "Needs review" },
           { label: "Approval Rate", value: `${kpis.approvalRate}%`, sub: "For selected range" },
         ].map((k) => (
-          <div key={k.label} className="bg-white border border-black/[0.075] rounded-xl p-3.5 min-w-0">
-            <div className="text-[10px] font-semibold text-[#8B8B92] tracking-wide uppercase">{k.label}</div>
-            <div className="text-[22px] font-bold tracking-[-0.4px] text-[#17171A] leading-none mt-2">{k.value}</div>
-            <div className="text-[10px] text-[#96969D] mt-1.5 leading-snug">{k.sub}</div>
-          </div>
+          <MetricCard key={k.label} label={k.label} value={k.value} sub={k.sub} />
         ))}
       </div>
 
@@ -2904,14 +2869,7 @@ function LeaveReport() {
                     <div>{format(parseISO(r.end_date), "MMM d, yyyy")}</div>
                     <div className="text-center tabular-nums font-semibold text-[#303035]">{r.days_count}</div>
                     <div className="flex justify-center">
-                      <span
-                        className={cn(
-                          "inline-flex items-center justify-center min-h-[22px] px-2 rounded-full text-[8.5px] font-bold whitespace-nowrap capitalize",
-                          statusBadgeClass(r.status)
-                        )}
-                      >
-                        {r.status}
-                      </span>
+                      <StatusBadge status={r.status} className="min-h-[22px] px-2 text-[8.5px]" />
                     </div>
                   </div>
                 ))
@@ -3150,11 +3108,7 @@ function MissedLogsReport() {
           },
           { label: "Cutoff", value: kpis.cutoffDisplay, sub: "Default daily detection time" },
         ].map((k) => (
-          <div key={k.label} className="bg-white border border-black/[0.075] rounded-xl p-3.5 min-w-0">
-            <div className="text-[10px] font-semibold text-[#8B8B92] tracking-wide uppercase truncate">{k.label}</div>
-            <div className="text-[22px] font-bold tracking-[-0.4px] text-[#17171A] leading-none mt-2">{k.value}</div>
-            <div className="text-[10px] text-[#96969D] mt-1.5 leading-snug">{k.sub}</div>
-          </div>
+          <MetricCard key={k.label} label={k.label} value={k.value} sub={k.sub} />
         ))}
       </div>
 

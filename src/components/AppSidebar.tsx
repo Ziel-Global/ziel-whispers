@@ -33,7 +33,7 @@ import { NavLink } from "@/components/NavLink";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { APP_VERSION } from "@/lib/constants";
-import { toSlug } from "@/lib/utils";
+import { toSlug, getInitials } from "@/lib/utils";
 import { isProjectVisibleToClientPortal } from "@/lib/workflow";
 import {
   Sidebar,
@@ -512,12 +512,7 @@ export function AppSidebar() {
     return 0;
   };
 
-  const userInitials = (profile?.full_name || "User")
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2);
+  const userInitials = getInitials(profile?.full_name || user?.email || "User");
 
   const getNavCount = (countKey?: string): number | null => {
     if (!countKey || !navCounts) return null;

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { AvatarUpload } from "@/components/employee/AvatarUpload";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmployeeSkillsTab } from "@/components/employee/tabs/EmployeeSkillsTab";

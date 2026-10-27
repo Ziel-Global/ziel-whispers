@@ -6,6 +6,7 @@ import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, isA
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { useNavigate } from "react-router-dom";
 import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight } from "lucide-react";
@@ -13,7 +14,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow, subDays } from "date-fns";
-import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear, toSlug } from "@/lib/utils";
+import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear, toSlug, getInitials } from "@/lib/utils";
 import { DashboardKpiCards } from "@/components/dashboard/DashboardKpiCards";
 import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 import { AttendanceScoreGauge } from "@/components/dashboard/AttendanceScoreGauge";
@@ -46,14 +47,6 @@ export default function DashboardPage() {
     enabled: hasProfile && !!user?.id,
   });
 
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "approved": return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
-      case "rejected": return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
-      case "cancelled": return <Badge className="bg-gray-100 text-gray-800">Cancelled</Badge>;
-      default: return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-    }
-  };
 
   // ——— Admin queries ———
   const { data: stats } = useQuery({
@@ -332,10 +325,6 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
   const dismissAnnouncement = async (announcementId: string) => {
     await supabase.from("announcement_reads").upsert({ announcement_id: announcementId, user_id: user!.id, dismissed: true }, { onConflict: "announcement_id,user_id" as any });
     queryClient.invalidateQueries({ queryKey: ["dashboard-urgent"] });
@@ -473,7 +462,7 @@ export default function DashboardPage() {
                     <RowDataItem label="TYPE">{getLeaveTypeName(r)}</RowDataItem>
                     <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
                     <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                    <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
+                    <RowDataItem label="STATUS"><StatusBadge status={r.status} /></RowDataItem>
                     <RowActions className="justify-self-end">
                       <button onClick={() => handleLeaveAction(r.id, "approved")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
                         <CheckCircle className="h-4 w-4" />

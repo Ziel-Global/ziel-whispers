@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNotifications } from "@/lib/notifications";
 import { formatDistanceToNow } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { PageHeader } from "@/components/ui/page-header";
+import { EmptyState } from "@/components/ui/empty-state";
 import { LayoutGrid, Calendar, Home, Check, AlertTriangle, Bell, ChevronLeft, ChevronRight } from "lucide-react";
 
 const getNotificationBadge = (type: string, isBulk?: boolean) => {
@@ -69,29 +71,25 @@ export default function NotificationsPage() {
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
       {/* Page Header */}
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Notifications</h1>
-          <p className="text-[13px] text-[#8B8B92] font-normal mt-0.5">
-            {unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
-          </p>
-        </div>
-        {notifications && notifications.length > 0 && (
-          <button
-            type="button"
-            onClick={() => markAllAsRead()}
-            className="flex items-center gap-2 bg-white border border-black/[0.08] hover:bg-[#F6F5F3] text-[#4B4B52] font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
-          >
-            Mark all as read
-          </button>
-        )}
-      </div>
+      <PageHeader
+        title="Notifications"
+        subtitle={unreadCount > 0 ? `${unreadCount} unread` : "All caught up"}
+        actions={
+          notifications && notifications.length > 0 && (
+            <button
+              type="button"
+              onClick={() => markAllAsRead()}
+              className="flex items-center gap-2 bg-white border border-black/[0.08] hover:bg-[#F6F5F3] text-[#4B4B52] font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
+            >
+              Mark all as read
+            </button>
+          )
+        }
+      />
 
       {/* Notifications List */}
       {isLoading ? (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
-          Loading notifications…
-        </div>
+        <EmptyState isLoading message="Loading notifications…" />
       ) : totalItems > 0 ? (
         <div className="flex flex-col flex-1 min-h-0 gap-3 overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5">
@@ -195,13 +193,12 @@ export default function NotificationsPage() {
           )}
         </div>
       ) : (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-16 text-center shadow-sm flex flex-col items-center justify-center">
-          <div className="w-12 h-12 rounded-[12px] bg-[#F6F5F3] text-[#8B8B92] flex items-center justify-center mb-3">
-            <Bell className="h-6 w-6 text-[#8B8B92]" />
-          </div>
-          <p className="text-[14px] font-semibold text-[#17171A]">No notifications</p>
-          <p className="text-[12.5px] text-[#8B8B92] mt-1">You are all caught up!</p>
-        </div>
+        <EmptyState
+          icon={<Bell className="h-6 w-6 text-[#8B8B92]" />}
+          title="No notifications"
+          description="You are all caught up!"
+          className="p-16"
+        />
       )}
     </div>
   );

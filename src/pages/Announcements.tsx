@@ -9,12 +9,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
-
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
+import { PageHeader } from "@/components/ui/page-header";
+import { MetricCard } from "@/components/ui/metric-card";
+import { DEPARTMENTS } from "@/lib/constants";
 
 const PILL_FILTERS = [
   { value: "all", label: "All" },
@@ -270,25 +271,25 @@ export default function AnnouncementsPage() {
   return (
     <div className="space-y-3.5">
       {/* Header */}
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.55px] leading-[1.15] text-[#17171A]">Announcements</h1>
-          <p className="text-[12px] text-[#8B8B92] mt-[5px] leading-relaxed">
-            {isAdmin
-              ? "Create, target and manage company-wide communications"
-              : "Stay updated with company news"}
-          </p>
-        </div>
-        {isAdmin && (
-          <Button
-            onClick={openAdd}
-            className="h-9 rounded-[10px] bg-[#EB5A1E] hover:bg-[#C64715] text-white hover:text-white text-[12px] font-semibold shadow-sm [&_svg]:!text-white [&_svg]:!stroke-white"
-          >
-            <Plus className="h-4 w-4 mr-1.5 text-white" stroke="currentColor" />
-            New Announcement
-          </Button>
-        )}
-      </div>
+      <PageHeader
+        title="Announcements"
+        subtitle={
+          isAdmin
+            ? "Create, target and manage company-wide communications"
+            : "Stay updated with company news"
+        }
+        actions={
+          isAdmin && (
+            <Button
+              onClick={openAdd}
+              className="h-9 rounded-[10px] bg-[#EB5A1E] hover:bg-[#C64715] text-white hover:text-white text-[12px] font-semibold shadow-sm [&_svg]:!text-white [&_svg]:!stroke-white"
+            >
+              <Plus className="h-4 w-4 mr-1.5 text-white" stroke="currentColor" />
+              New Announcement
+            </Button>
+          )
+        }
+      />
 
       {/* KPIs — admin */}
       {isAdmin && (
@@ -299,11 +300,7 @@ export default function AnnouncementsPage() {
             { label: "Audience", value: String(kpis.audienceCount), sub: "Active users can receive notices" },
             { label: "Read Rate", value: `${kpis.readRate}%`, sub: "Across recent announcements" },
           ].map((k) => (
-            <div key={k.label} className="bg-white border border-black/[0.075] rounded-xl p-3.5 min-w-0">
-              <div className="text-[10px] font-semibold text-[#8B8B92] tracking-wide uppercase">{k.label}</div>
-              <div className="text-[22px] font-bold tracking-[-0.4px] text-[#17171A] leading-none mt-2">{k.value}</div>
-              <div className="text-[10px] text-[#96969D] mt-1.5 leading-snug">{k.sub}</div>
-            </div>
+            <MetricCard key={k.label} label={k.label} value={k.value} sub={k.sub} />
           ))}
         </div>
       )}
@@ -583,44 +580,23 @@ export default function AnnouncementsPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Announcement?</AlertDialogTitle>
-            <AlertDialogDescription>This action cannot be undone.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(o) => !o && setDeleteId(null)}
+        title="Delete Announcement?"
+        description="This action cannot be undone."
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+      />
 
-      <AlertDialog open={bulkDeleteAnnouncementOpen} onOpenChange={setBulkDeleteAnnouncementOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Delete {selectedAnnouncementIds.size} Announcement
-              {selectedAnnouncementIds.size > 1 ? "s" : ""}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedAnnouncementIds.size} announcement
-              {selectedAnnouncementIds.size > 1 ? "s" : ""}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleBulkDeleteAnnouncements}
-              className="bg-destructive text-destructive-foreground"
-            >
-              Delete all
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={bulkDeleteAnnouncementOpen}
+        onOpenChange={setBulkDeleteAnnouncementOpen}
+        title={`Delete ${selectedAnnouncementIds.size} Announcement${selectedAnnouncementIds.size > 1 ? "s" : ""}?’`}
+        description={`Are you sure you want to delete ${selectedAnnouncementIds.size} announcement${selectedAnnouncementIds.size > 1 ? "s" : ""}? This action cannot be undone.`}
+        confirmLabel="Delete all"
+        onConfirm={handleBulkDeleteAnnouncements}
+      />
     </div>
   );
 }

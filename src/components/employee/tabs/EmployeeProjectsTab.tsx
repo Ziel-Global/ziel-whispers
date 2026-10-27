@@ -20,22 +20,12 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { StatusBadge } from "@/components/ui/status-badge";
 
 export interface EmployeeProjectsTabProps {
   employeeProjects: any[];
 }
 
-function statusBadgeClass(status?: string) {
-  if (status === "active") return "bg-[#DFF6E4] text-[#1B8A46]";
-  if (status === "on_hold") return "bg-[#FDF3E3] text-[#A9720B]";
-  if (status === "completed") return "bg-[#EAF3FF] text-[#1C6FC9]";
-  return "bg-[#F1F1F3] text-[#66666D]";
-}
-
-function statusLabel(status?: string) {
-  if (!status) return "Unknown";
-  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 export function EmployeeProjectsTab({ employeeProjects }: EmployeeProjectsTabProps) {
   const activeCount = useMemo(() => {
@@ -83,14 +73,10 @@ export function EmployeeProjectsTab({ employeeProjects }: EmployeeProjectsTabPro
                       {project.project_role || "Member"}
                     </div>
                   </div>
-                  <span
-                    className={cn(
-                      "inline-flex items-center min-h-[22px] px-2 rounded-full text-[8.5px] font-bold whitespace-nowrap shrink-0",
-                      statusBadgeClass(project.status)
-                    )}
-                  >
-                    {statusLabel(project.status)}
-                  </span>
+                  <StatusBadge
+                    status={project.status}
+                    className="min-h-[22px] px-2 text-[8.5px] shrink-0"
+                  />
                 </div>
 
                 {/*

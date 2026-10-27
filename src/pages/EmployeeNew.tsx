@@ -16,9 +16,7 @@ import { ArrowLeft } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 
-const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
-const EMP_TYPES = ["full-time", "part-time", "contract"];
-const REMINDER_OPTIONS = [15, 30, 60];
+import { DEPARTMENTS, EMP_TYPES, REMINDER_OPTIONS, type AppRole as RoleType } from "@/lib/constants";
 
 // ─── Schema for Admin / Manager / Employee ───────────────────────────────────
 const staffSchema = z.object({
@@ -47,8 +45,6 @@ const clientSchema = z.object({
 
 type StaffFormData = z.infer<typeof staffSchema>;
 type ClientFormData = z.infer<typeof clientSchema>;
-
-type RoleType = "admin" | "manager" | "hr_manager" | "project_manager" | "employee" | "client" | "client member";
 
 // ─── Component: Multi-Project Selector ───────────────────────────────────────
 function MultiProjectSelector({

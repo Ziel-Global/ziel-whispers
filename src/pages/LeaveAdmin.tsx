@@ -6,6 +6,7 @@ import { WFHRequestsTab } from "@/components/leave-admin/tabs/WFHRequestsTab";
 import { LeaveCalendarTab } from "@/components/leave-admin/tabs/LeaveCalendarTab";
 import { LeaveSettingsTab } from "@/components/leave-admin/tabs/LeaveSettingsTab";
 import { LeaveAdminModals } from "@/components/leave-admin/dialogs/LeaveAdminModals";
+import { PageHeader } from "@/components/ui/page-header";
 import { Wallet } from "lucide-react";
 
 export default function LeaveAdminPage() {
@@ -16,20 +17,22 @@ export default function LeaveAdminPage() {
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
-        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Leave Management</h1>
-        <button
-          type="button"
-          onClick={() => {
-            // Trigger balance / leave modal
-            data.setShowBalanceDialog(true);
-          }}
-          className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
-        >
-          <Wallet className="h-3.5 w-3.5 text-white" />
-          Leave Balances
-        </button>
-      </div>
+      <PageHeader
+        title="Leave Management"
+        actions={
+          <button
+            type="button"
+            onClick={() => {
+              // Trigger balance / leave modal
+              data.setShowBalanceDialog(true);
+            }}
+            className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
+          >
+            <Wallet className="h-3.5 w-3.5 text-white" />
+            Leave Balances
+          </button>
+        }
+      />
 
       <Tabs defaultValue="requests" className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
         <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">

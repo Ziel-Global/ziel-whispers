@@ -7,9 +7,12 @@ import { toSlug } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Plus, Search, FolderKanban, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -314,29 +317,26 @@ export default function ProjectsPage() {
   // Admin table view
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
-      <div className="flex items-center justify-between flex-wrap gap-3 shrink-0">
-        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A] m-0">Projects</h1>
-        <button
-          type="button"
-          onClick={() => navigate("/projects/new")}
-          className="flex items-center gap-[7px] bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2.5 text-[13px] transition-colors whitespace-nowrap"
-        >
-          <Plus className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
-          New Project
-        </button>
-      </div>
+      <PageHeader
+        title="Projects"
+        actions={
+          <button
+            type="button"
+            onClick={() => navigate("/projects/new")}
+            className="flex items-center gap-[7px] bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2.5 text-[13px] transition-colors whitespace-nowrap"
+          >
+            <Plus className="h-3.5 w-3.5 text-white" strokeWidth={2.2} />
+            New Project
+          </button>
+        }
+      />
 
       <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-        <div className="flex-1 min-w-[220px] flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2.5">
-          <Search className="h-[15px] w-[15px] text-[#8B8B92] shrink-0" strokeWidth={2} />
-          <input
-            type="text"
-            placeholder="Search projects..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search projects..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-auto min-w-[120px] bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2.5 text-[13px] font-semibold text-[#4B4B52] h-auto gap-2 shadow-none hover:bg-[#F6F5F3]">
@@ -367,15 +367,11 @@ export default function ProjectsPage() {
       </div>
 
       {isLoading && (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
-          Loading projects…
-        </div>
+        <EmptyState isLoading message="Loading projects…" />
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-[13px]">
-          No projects found
-        </div>
+        <EmptyState message="No projects found" />
       )}
 
       {!isLoading && filtered.length > 0 && (
@@ -452,26 +448,15 @@ export default function ProjectsPage() {
       )}
 
       {/* Delete Dialog */}
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent className="font-sans sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[16px] font-bold text-[#17171A]">Delete Project?</AlertDialogTitle>
-            <AlertDialogDescription className="text-[13px] text-[#8B8B92]">
-              Are you sure you want to delete this project? This will permanently remove the project and all related data from the system. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="rounded-[10px] text-[13px]">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-[#E5484D] text-white hover:bg-red-700 font-semibold rounded-[10px] px-4 text-[13px]"
-            >
-              {deleting ? "Deleting…" : "Delete Permanently"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Project?"
+        description="Are you sure you want to delete this project? This will permanently remove the project and all related data from the system. This action cannot be undone."
+        confirmLabel="Delete Permanently"
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
 
       {/* Edit Project Dialog */}
       <Dialog open={!!editProjectId} onOpenChange={(open) => { if (!open) setEditProjectId(null); }}>

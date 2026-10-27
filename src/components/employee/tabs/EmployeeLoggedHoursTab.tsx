@@ -11,6 +11,7 @@
  */
 import { format } from "date-fns";
 import { Input } from "@/components/ui/input";
+import { MetricCard } from "@/components/ui/metric-card";
 import { formatHours } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 
@@ -83,43 +84,30 @@ export function EmployeeLoggedHoursTab({
 
         {/* 4 stats */}
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 mt-3">
-          <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-            <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Expected Hours</div>
-            <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-              {formatHours(monthlyStats.expectedHours)}
-            </div>
-            <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">
-              {monthlyStats.workingDayCount} working day{monthlyStats.workingDayCount === 1 ? "" : "s"}
-            </div>
-          </div>
-          <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-            <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Logged Hours</div>
-            <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-              {formatHours(monthlyStats.loggedHours)}
-            </div>
-            <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">
-              {monthlyStats.coveragePct}% coverage
-            </div>
-          </div>
-          <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-            <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Unlogged Hours</div>
-            <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-              {formatHours(monthlyStats.unloggedHours)}
-            </div>
-            <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">
-              {monthlyStats.unloggedHours > 0 ? "Needs completion" : "On track"}
-            </div>
-          </div>
-          <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-            <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Overtime</div>
-            <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-              {formatHours(monthlyStats.overtimeHours)}
-            </div>
-            <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">
-              {monthlyStats.overtimeEntryCount} overtime entr
-              {monthlyStats.overtimeEntryCount === 1 ? "y" : "ies"}
-            </div>
-          </div>
+          <MetricCard
+            className="rounded-[13px] p-[15px]"
+            label="Expected Hours"
+            value={formatHours(monthlyStats.expectedHours)}
+            sub={`${monthlyStats.workingDayCount} working day${monthlyStats.workingDayCount === 1 ? "" : "s"}`}
+          />
+          <MetricCard
+            className="rounded-[13px] p-[15px]"
+            label="Logged Hours"
+            value={formatHours(monthlyStats.loggedHours)}
+            sub={`${monthlyStats.coveragePct}% coverage`}
+          />
+          <MetricCard
+            className="rounded-[13px] p-[15px]"
+            label="Unlogged Hours"
+            value={formatHours(monthlyStats.unloggedHours)}
+            sub={monthlyStats.unloggedHours > 0 ? "Needs completion" : "On track"}
+          />
+          <MetricCard
+            className="rounded-[13px] p-[15px]"
+            label="Overtime"
+            value={formatHours(monthlyStats.overtimeHours)}
+            sub={`${monthlyStats.overtimeEntryCount} overtime entr${monthlyStats.overtimeEntryCount === 1 ? "y" : "ies"}`}
+          />
         </div>
       </section>
 

@@ -6,20 +6,30 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MetricCard, MetricGroup } from "@/components/ui/metric-card";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Download, Flag, Search, Save, FileX, FileText, Clock, Trash2, Pencil, Lock, ChevronDown, ChevronRight } from "lucide-react";
 
 import { format } from "date-fns";
 import { formatTime12h, getPKTDateString, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { AdminAddLogDialog } from "@/components/AdminAddLogDialog";
-import { formatHours, MISC_PROJECT_ID } from "@/lib/utils";
+import { formatHours, MISC_PROJECT_ID, getInitials } from "@/lib/utils";
+import { LogsSummaryModal } from "@/components/logs-admin/LogsSummaryModal";
+import { LogsFilterBar } from "@/components/logs-admin/LogsFilterBar";
+import { LogsAdminTable } from "@/components/logs-admin/LogsAdminTable";
+import { LogRulesTab } from "@/components/logs-admin/LogRulesTab";
+import { EditLogModal } from "@/components/logs-admin/EditLogModal";
 
 function getShiftHours(shiftStart: string, shiftEnd: string): number {
   if (!shiftStart || !shiftEnd) return 0;
@@ -28,10 +38,6 @@ function getShiftHours(shiftStart: string, shiftEnd: string): number {
   if ([sh, sm, eh, em].some((n) => Number.isNaN(n))) return 0;
   const durationMins = (eh * 60 + em - sh * 60 - sm);
   return Math.max(0, (durationMins - 60) / 60);
-}
-
-function getInitials(name: string) {
-  return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
 }
 
 export default function LogsAdminPage() {
@@ -432,34 +438,25 @@ export default function LogsAdminPage() {
   const modalData = modalType === "missed" ? missedList : modalType === "added" ? addedList : modalType === "late" ? lateList : [];
   const modalTitle = modalType === "missed" ? "Logs Missed" : modalType === "added" ? "Logs Added" : "Logs Late";
 
-  const statusBadge = (logStatus: string) => {
-    switch (logStatus) {
-      case "added": return <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Logs Added</Badge>;
-      case "partial_day": return <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Partial Day</Badge>;
-      case "late": return <Badge className="bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Late</Badge>;
-      case "missed": return <Badge className="bg-[#FDECEC] text-[#E5484D] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Missed</Badge>;
-      case "on_leave": return <Badge className="bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">On Leave</Badge>;
-      case "half_day_leave": return <Badge className="bg-[#EAF3FF] text-[#1C6FC9] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Half Day Leave</Badge>;
-      default: return <Badge className="bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">—</Badge>;
-    }
-  };
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
-        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Daily Logs</h1>
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={exportCSV}
-            className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors shadow-sm"
-          >
-            <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
-            Export CSV
-          </button>
-          <AdminAddLogDialog employees={employees} />
-        </div>
-      </div>
+      <PageHeader
+        title="Daily Logs"
+        actions={
+          <>
+            <button
+              type="button"
+              onClick={exportCSV}
+              className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors shadow-sm"
+            >
+              <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
+              Export CSV
+            </button>
+            <AdminAddLogDialog employees={employees} />
+          </>
+        }
+      />
 
       <Tabs defaultValue="logs" className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
         <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
@@ -480,468 +477,144 @@ export default function LogsAdminPage() {
         </TabsList>
 
         <TabsContent value="logs" className="mt-0 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden">
-          <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm shrink-0">
-            <div className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors" onClick={() => setModalType("missed")}>
-              <div className="w-[38px] h-[38px] rounded-[10px] bg-[#FDECEC] text-[#E5484D] flex items-center justify-center shrink-0">
-                <FileX className="h-4.5 w-4.5 text-[#E5484D]" />
-              </div>
-              <div>
-                <p className="text-[13px] text-[#8B8B92] font-medium">Logs Missed</p>
-                <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{missedList.length}</p>
-              </div>
-            </div>
-            <div className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors" onClick={() => setModalType("added")}>
-              <div className="w-[38px] h-[38px] rounded-[10px] bg-[#DFF6E4] text-[#1FAA59] flex items-center justify-center shrink-0">
-                <FileText className="h-4.5 w-4.5 text-[#1FAA59]" />
-              </div>
-              <div>
-                <p className="text-[13px] text-[#8B8B92] font-medium">Logs Added</p>
-                <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{addedList.length}</p>
-              </div>
-            </div>
-            <div className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors" onClick={() => setModalType("late")}>
-              <div className="w-[38px] h-[38px] rounded-[10px] bg-[#FDF3E3] text-[#C7860F] flex items-center justify-center shrink-0">
-                <Clock className="h-4.5 w-4.5 text-[#C7860F]" />
-              </div>
-              <div>
-                <p className="text-[13px] text-[#8B8B92] font-medium">Logs Late</p>
-                <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{lateList.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <Dialog open={!!modalType} onOpenChange={() => setModalType(null)}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>{modalTitle} — {new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Karachi", month: "short", day: "numeric", year: "numeric" }).format(new Date(selectedDate + "T00:00:00"))}</DialogTitle>
-              </DialogHeader>
-              <ScrollArea className="max-h-[400px]">
-                {modalData.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No employees</p>
-                ) : (
-                  <div className="divide-y divide-black/30">
-                    {modalData.map((emp) => (
-                      <div key={emp.userId} className="flex items-center gap-3 py-3 px-1">
-                        <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-medium">{getInitials(emp.name)}</div>
-                        <span className="text-sm font-medium">{emp.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </ScrollArea>
-            </DialogContent>
-          </Dialog>
-
-          <div className="flex flex-wrap gap-2.5 items-center shrink-0">
-            <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
-              <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
-              <input
-                type="text"
-                placeholder="Search employees or descriptions…"
-                value={searchQ}
-                onChange={(e) => setSearchQ(e.target.value)}
-                className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
-              />
-            </div>
-
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm focus:outline-none"
+          <MetricGroup columns={3}>
+            <MetricCard
+              variant="row"
+              icon={<FileX className="h-4.5 w-4.5 text-[#E5484D]" />}
+              iconClassName="bg-[#FDECEC] text-[#E5484D]"
+              label="Logs Missed"
+              value={missedList.length}
+              onClick={() => setModalType("missed")}
             />
+            <MetricCard
+              variant="row"
+              icon={<FileText className="h-4.5 w-4.5 text-[#1FAA59]" />}
+              iconClassName="bg-[#DFF6E4] text-[#1FAA59]"
+              label="Logs Added"
+              value={addedList.length}
+              onClick={() => setModalType("added")}
+            />
+            <MetricCard
+              variant="row"
+              icon={<Clock className="h-4.5 w-4.5 text-[#C7860F]" />}
+              iconClassName="bg-[#FDF3E3] text-[#C7860F]"
+              label="Logs Late"
+              value={lateList.length}
+              onClick={() => setModalType("late")}
+            />
+          </MetricGroup>
 
-            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
-                <SelectValue placeholder="Employee" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Employees</SelectItem>
-                {employees.map((e: any) => <SelectItem key={e.id} value={e.id}>{e.full_name}</SelectItem>)}
-              </SelectContent>
-            </Select>
+          <LogsSummaryModal
+            modalType={modalType}
+            onClose={() => setModalType(null)}
+            selectedDate={selectedDate}
+            modalTitle={modalTitle}
+            modalData={modalData}
+          />
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                <SelectItem value="missed">Logs Missed</SelectItem>
-                <SelectItem value="added">Logs Added</SelectItem>
-                <SelectItem value="late">Logs Late</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <LogsFilterBar
+            searchQ={searchQ}
+            setSearchQ={setSearchQ}
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            employeeFilter={employeeFilter}
+            setEmployeeFilter={setEmployeeFilter}
+            statusFilter={statusFilter}
+            setStatusFilter={setStatusFilter}
+            employees={employees}
+          />
 
           {isLoading ? (
-            <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">Loading…</div>
+            <EmptyState isLoading message="Loading…" />
           ) : groupedRows.length === 0 ? (
-            <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">No logs found for the selected filters</div>
+            <EmptyState message="No logs found for the selected filters" />
           ) : (
-            <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
-              <div className="flex-1 min-h-0 overflow-y-auto">
-              <div className="sticky top-0 z-10 bg-white grid grid-cols-[40px_2.2fr_0.9fr_0.7fr_1fr_0.7fr_0.8fr_1fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
-                <div />
-                <span>EMPLOYEE</span>
-                <span>DATE</span>
-                <span>HOURS</span>
-                <span>STATUS</span>
-                <span>LATE</span>
-                <span>FLAGGED</span>
-                <span className="text-right pr-2">ACTIONS</span>
-              </div>
-
-              {selectedLogIds.size > 0 && (
-                <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
-                  <span className="text-xs font-semibold">{selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""} selected</span>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setSelectedLogIds(new Set())}
-                      className="px-3 py-1 text-xs font-medium text-white/80 hover:text-white border border-white/20 rounded-md bg-transparent"
-                    >
-                      Clear selection
-                    </button>
-                    <button
-                      onClick={() => setBulkDeleteLogOpen(true)}
-                      className="px-3 py-1 text-xs bg-[#E5484D] text-white rounded-md hover:bg-red-700 flex items-center gap-1 font-semibold"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                      Delete selected
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {groupedRows.map((row) => {
-                const isExpanded = expandedEmployeeId === row.userId;
-                const allSelected = row.logs.length > 0 && row.logs.every((l: any) => selectedLogIds.has(l.id));
-                const someSelected = row.logs.some((l: any) => selectedLogIds.has(l.id));
-                const hasFlagged = row.hasFlaggedLog;
-                const firstLog = row.logs[0];
-                const projectMeta = firstLog ? `${firstLog.projects?.name || "Miscellaneous"} · ${firstLog.category?.replace(/_/g, " ")}${row.logs.length > 1 ? ` (+${row.logs.length - 1} more)` : ""}` : (row.leaveName || "No logs submitted");
-
-                const empForLog = employees.find((e: any) => e.id === row.userId);
-                const empShiftEnd = empForLog?.has_custom_shift ? empForLog.shift_end : globalShiftEnd;
-                const isLateRow = row.logs.some((l: any) => l.submitted_at && empShiftEnd && isLogSubmissionLate(l.submitted_at, empShiftEnd, l.log_date));
-
-                return (
-                  <div key={row.userId}>
-                    <div
-                      className={`grid grid-cols-[40px_2.2fr_0.9fr_0.7fr_1fr_0.7fr_0.8fr_1fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors ${isExpanded ? "bg-[#F6F5F3]/70" : ""}`}
-                      onClick={() => setExpandedEmployeeId(isExpanded ? null : row.userId)}
-                    >
-                      <div className="flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
-                          checked={allSelected}
-                          ref={(el) => { if (el) el.indeterminate = someSelected && !allSelected; }}
-                          onChange={() => toggleAllLogsForEmployee(row.logs)}
-                        />
-                      </div>
-
-                      {/* EMPLOYEE */}
-                      <div className="flex items-center gap-3 min-w-0">
-                        <div className="h-8 w-8 rounded-full bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center text-[11.5px] font-bold shrink-0">
-                          {getInitials(row.name)}
-                        </div>
-                        <div className="min-w-0">
-                          <p className="text-[13.5px] font-bold text-[#17171A] truncate flex items-center gap-1.5">
-                            {row.name}
-                            {hasFlagged && <Flag className="h-3 w-3 text-[#E5484D] fill-[#E5484D] shrink-0" />}
-                          </p>
-                          <p className="text-[12px] text-[#8B8B92] truncate">{projectMeta}</p>
-                        </div>
-                      </div>
-
-                      {/* DATE */}
-                      <div className="text-[13px] text-[#4B4B52] whitespace-nowrap">
-                        {format(new Date(selectedDate + "T00:00:00"), "MMM d, yyyy")}
-                      </div>
-
-                      {/* HOURS */}
-                      <div className="text-[13px] font-bold text-[#17171A]">
-                        {formatHours(row.loggedHours)}
-                      </div>
-
-                      {/* STATUS */}
-                      <div>{statusBadge(row.logStatus)}</div>
-
-                      {/* LATE */}
-                      <div className="text-[13px] font-medium text-[#8B8B92]">
-                        {isLateRow ? <span className="text-[#A9720B] font-bold">Late</span> : "—"}
-                      </div>
-
-                      {/* FLAGGED */}
-                      <div className="text-[13px] font-medium text-[#8B8B92]">
-                        {hasFlagged ? <span className="text-[#E5484D] font-bold">Flagged</span> : "—"}
-                      </div>
-
-                      {/* ACTIONS */}
-                      <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => setExpandedEmployeeId(isExpanded ? null : row.userId)}
-                          className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
-                          title="Toggle Log Details"
-                        >
-                          {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-[#4B4B52]" /> : <ChevronRight className="h-3.5 w-3.5 text-[#4B4B52]" />}
-                        </button>
-                      </div>
-                    </div>
-
-                    {isExpanded && (
-                      <div className="bg-[#F6F5F3]/30 border-b border-black/[0.06]">
-                        {row.logs.length === 0 ? (
-                          <div className="px-6 py-4 text-xs text-[#8B8B92]">No logs submitted this day.</div>
-                        ) : (
-                          <div className="divide-y divide-black/[0.05]">
-                            {row.logs.map((log: any) => {
-                              const empForLog = employees.find((e: any) => e.id === log.user_id);
-                              const logShiftEnd = empForLog?.has_custom_shift ? empForLog.shift_end : globalShiftEnd;
-                              const isLate = log.submitted_at && logShiftEnd && isLogSubmissionLate(log.submitted_at, logShiftEnd, log.log_date);
-                              return (
-                                <div key={log.id} className="px-6 py-3.5">
-                                  <div className="flex items-start justify-between gap-4">
-                                    <div className="min-w-0 flex-1 space-y-1.5">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <Badge variant="outline" className="text-xs font-semibold capitalize border-black/10 text-[#4B4B52]">{(log.projects?.name || "Miscellaneous")}</Badge>
-                                        <Badge variant="secondary" className="text-xs font-semibold capitalize bg-[#F6F5F3] text-[#4B4B52]">{log.category?.replace(/_/g, " ")}</Badge>
-                                        <span className="text-xs font-bold text-[#17171A]">{formatHours(log.hours)}</span>
-                                        {isLate && <Badge className="bg-[#FDF3E3] text-[#A9720B] text-[10px] font-bold border-0">Late</Badge>}
-                                        {log.admin_flagged && <Badge className="bg-[#FDECEC] text-[#E5484D] text-[10px] font-bold border-0">Flagged</Badge>}
-                                        {log.is_locked && <Badge className="bg-[#EAF3FF] text-[#1C6FC9] text-[10px] font-bold border-0">Locked</Badge>}
-                                        {log.submitted_at && (
-                                          <span className="text-[11.5px] text-[#8B8B92]">Submitted {format(new Date(log.submitted_at), "h:mm a")}</span>
-                                        )}
-                                      </div>
-                                      {log.description && (
-                                        <p className="text-[13px] text-[#4B4B52] whitespace-pre-wrap">{log.description}</p>
-                                      )}
-                                      {log.admin_comment && (
-                                        <p className="text-xs text-[#1C6FC9] italic font-medium">Admin: {log.admin_comment}</p>
-                                      )}
-                                    </div>
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <button
-                                        onClick={() => {
-                                          setEditingLogId(log.id);
-                                          setEditProjectId(log.project_id);
-                                          setEditCategory(log.category);
-                                          setEditDescription(log.description || "");
-                                          setComment(log.admin_comment || "");
-                                          setEditLogOpen(true);
-                                        }}
-                                        className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
-                                        title="Edit Log"
-                                      >
-                                        <Pencil className="h-3.5 w-3.5 text-[#4B4B52]" />
-                                      </button>
-                                      <button
-                                        onClick={() => toggleFlag(log)}
-                                        className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
-                                        title={log.admin_flagged ? "Unflag" : "Flag"}
-                                      >
-                                        <Flag className={`h-3.5 w-3.5 ${log.admin_flagged ? "text-[#E5484D] fill-[#E5484D]" : "text-[#8B8B92]"}`} />
-                                      </button>
-                                      <button
-                                        onClick={() => toggleLock(log)}
-                                        className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
-                                        title={log.is_locked ? "Unlock" : "Lock"}
-                                      >
-                                        <Lock className={`h-3.5 w-3.5 ${log.is_locked ? "text-[#1C6FC9]" : "text-[#8B8B92]"}`} />
-                                      </button>
-                                      <button
-                                        onClick={() => setDeleteId(log.id)}
-                                        className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
-                                        title="Delete Log"
-                                      >
-                                        <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
-                                      </button>
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-              </div>
-            </div>
+            <LogsAdminTable
+              groupedRows={groupedRows}
+              expandedEmployeeId={expandedEmployeeId}
+              setExpandedEmployeeId={setExpandedEmployeeId}
+              selectedLogIds={selectedLogIds}
+              setSelectedLogIds={setSelectedLogIds}
+              setBulkDeleteLogOpen={setBulkDeleteLogOpen}
+              toggleAllLogsForEmployee={toggleAllLogsForEmployee}
+              employees={employees}
+              globalShiftEnd={globalShiftEnd}
+              selectedDate={selectedDate}
+              onEditLog={(log) => {
+                setEditingLogId(log.id);
+                setEditProjectId(log.project_id);
+                setEditCategory(log.category);
+                setEditDescription(log.description || "");
+                setComment(log.admin_comment || "");
+                setEditLogOpen(true);
+              }}
+              toggleFlag={toggleFlag}
+              toggleLock={toggleLock}
+              onDeleteLog={(id) => setDeleteId(id)}
+            />
           )}
         </TabsContent>
 
         {isAdmin && (
           <TabsContent value="rules" className="mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden">
-            <div className="bg-white border border-black/[0.08] rounded-[14px] p-[22px] space-y-6 shadow-sm font-sans">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-4">
-                  <h4 className="font-bold text-[14.5px] text-[#17171A] border-b border-black/[0.06] pb-2">Log Submission Rules</h4>
-                  <div className="space-y-1">
-                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Log Edit Window (days)</Label>
-                    <Input type="number" value={logEditDays} onChange={(e) => setLogEditDays(e.target.value)} min="1" max="30" />
-                    <p className="text-[11.5px] text-[#8B8B92]">Employees can submit logs for today and up to this many days in the past</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Auto Clock-Out Time</Label>
-                    <Input type="time" value={autoClockoutTime} onChange={(e) => setAutoClockoutTime(e.target.value)} />
-                    <p className="text-[11.5px] text-[#8B8B92]">Currently: {formatTime12h(autoClockoutTime)}</p>
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <h4 className="font-bold text-[14.5px] text-[#17171A] border-b border-black/[0.06] pb-2">Reporting Thresholds</h4>
-                  <div className="space-y-1">
-                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Expected Daily Hours</Label>
-                    <Input type="number" value={expectedHours} onChange={(e) => setExpectedHours(e.target.value)} min="1" max="24" />
-                    <p className="text-[11.5px] text-[#8B8B92]">Used to calculate utilization percentages</p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Underutilized Threshold (%)</Label>
-                    <Input type="number" value={utilLow} onChange={(e) => setUtilLow(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-[13px] font-semibold text-[#4B4B52]">Overburdened Threshold (%)</Label>
-                    <Input type="number" value={utilHigh} onChange={(e) => setUtilHigh(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-end">
-                <button
-                  type="button"
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
-                  className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm disabled:opacity-50"
-                >
-                  <Save className="h-3.5 w-3.5 text-white" />
-                  {savingSettings ? "Saving…" : "Save Rules"}
-                </button>
-              </div>
-            </div>
+            <LogRulesTab
+              logEditDays={logEditDays}
+              setLogEditDays={setLogEditDays}
+              autoClockoutTime={autoClockoutTime}
+              setAutoClockoutTime={setAutoClockoutTime}
+              expectedHours={expectedHours}
+              setExpectedHours={setExpectedHours}
+              utilLow={utilLow}
+              setUtilLow={setUtilLow}
+              utilHigh={utilHigh}
+              setUtilHigh={setUtilHigh}
+              savingSettings={savingSettings}
+              onSave={handleSaveSettings}
+            />
           </TabsContent>
         )}
       </Tabs>
 
-      {/* Edit Log Dialog */}
-      <Dialog open={editLogOpen} onOpenChange={(open) => { setEditLogOpen(open); if (!open) setEditingLogId(null); }}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Edit Log</DialogTitle>
-          </DialogHeader>
-          {editingLogId && (() => {
-            const editLog = (logs || []).find((l: any) => l.id === editingLogId);
-            if (!editLog) return null;
-            const editEmp = employees.find((e: any) => e.id === editLog.user_id);
-            return (
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div className="space-y-0.5">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Employee</span>
-                    <p className="font-medium">{editEmp?.full_name || editLog.users?.full_name}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Date</span>
-                    <p className="font-medium">{format(new Date(editLog.log_date + "T00:00:00"), "MMM d, yyyy")}</p>
-                  </div>
-                  <div className="space-y-0.5">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">Hours</span>
-                    <p className="font-medium">{formatHours(editLog.hours)}</p>
-                  </div>
-                  {editLog.submitted_at && (
-                    <div className="space-y-0.5">
-                      <span className="text-xs text-muted-foreground uppercase tracking-wide">Submitted</span>
-                      <p className="font-medium">{format(new Date(editLog.submitted_at), "h:mm a")}</p>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Description</Label>
-                  <Textarea
-                    rows={3}
-                    placeholder="Log description..."
-                    value={editDescription}
-                    onChange={(e) => setEditDescription(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Project</Label>
-                  <Select value={editProjectId || MISC_PROJECT_ID} onValueChange={setEditProjectId}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {(allProjects as any[]).map((p) => (
-                        <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Category</Label>
-                  <Select value={editCategory} onValueChange={setEditCategory}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {CATEGORIES.map((c) => (
-                        <SelectItem key={c} value={c}>{c.replace(/_/g, " ").replace(/\b\w/g, (l) => l.toUpperCase())}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Admin Comment</Label>
-                  <Textarea
-                    rows={2}
-                    placeholder="Add a comment..."
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                  />
-                </div>
-                <div className="flex justify-end gap-2 pt-2">
-                  <Button variant="outline" onClick={() => { setEditLogOpen(false); setEditingLogId(null); }}>Cancel</Button>
-                  <Button onClick={() => handleEditLog(editingLogId)}>Save Changes</Button>
-                </div>
-              </div>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
+      <EditLogModal
+        open={editLogOpen}
+        onOpenChange={(open) => {
+          setEditLogOpen(open);
+          if (!open) setEditingLogId(null);
+        }}
+        editLog={(logs || []).find((l: any) => l.id === editingLogId)}
+        editEmpName={employees.find((e: any) => e.id === (logs || []).find((l: any) => l.id === editingLogId)?.user_id)?.full_name}
+        allProjects={allProjects as any[]}
+        categories={CATEGORIES}
+        editProjectId={editProjectId}
+        setEditProjectId={setEditProjectId}
+        editCategory={editCategory}
+        setEditCategory={setEditCategory}
+        editDescription={editDescription}
+        setEditDescription={setEditDescription}
+        comment={comment}
+        setComment={setComment}
+        onSave={(logId) => handleEditLog(logId)}
+      />
 
-      <AlertDialog open={!!deleteId} onOpenChange={(o) => !o && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Log?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete this log? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteLog} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
-              {deleting ? "Deleting..." : "Delete"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(o) => !o && setDeleteId(null)}
+        title="Delete Log?"
+        description="Are you sure you want to delete this log? This action cannot be undone."
+        confirmLabel="Delete"
+        loading={deleting}
+        onConfirm={handleDeleteLog}
+      />
 
-      <AlertDialog open={bulkDeleteLogOpen} onOpenChange={setBulkDeleteLogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete {selectedLogIds.size} Log{selectedLogIds.size > 1 ? "s" : ""}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete {selectedLogIds.size} log{selectedLogIds.size > 1 ? "s" : ""}? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleBulkDeleteLogs} disabled={deleting} className="bg-destructive hover:bg-destructive/90">
-              {deleting ? "Deleting..." : "Delete all"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={bulkDeleteLogOpen}
+        onOpenChange={setBulkDeleteLogOpen}
+        title={`Delete ${selectedLogIds.size} Log${selectedLogIds.size > 1 ? "s" : ""}?’`}
+        description={`Are you sure you want to delete ${selectedLogIds.size} log${selectedLogIds.size > 1 ? "s" : ""}? This action cannot be undone.`}
+        confirmLabel="Delete all"
+        loading={deleting}
+        onConfirm={handleBulkDeleteLogs}
+      />
     </div>
   );
 }

@@ -74,15 +74,41 @@ When writing or modifying code in this codebase, any future AI Agent **MUST** ad
 
 ## 4. Strict Code Quality & Component Standards
 
-### 4.1 Monolith Prevention (Max 500 Lines per File)
-- **The 1,000-Line Anti-Pattern**: Historically, key pages (`ProjectDetail.tsx`, `EmployeeProfile.tsx`, `Reports.tsx`) became oversized monoliths.
-- **Strict Protocol**:
-  - Always separate page containers from sub-tabs, dialogs, and slide-over sheets.
-  - Place tabs in `src/components/<feature>/tabs/`.
-  - Place modals and forms in `src/components/<feature>/dialogs/`.
-  - Extract complex queries and mutation states into dedicated custom hooks in `src/hooks/use<Feature>Data.ts`.
+### 4.1 Component-Based Architecture & Reusability Mandate (STRICT)
+All future development in this codebase **MUST** be strictly component-based and prioritize reusable components:
 
-### 4.2 State Management & TanStack Query Rules
+1. **Pages as Orchestrators Only**:
+   - Page files (`src/pages/*.tsx`) must **never** be monoliths. A page file should solely orchestrate data hooks, layout containers, and subcomponents.
+   - Target line count: **under 300 lines** per page. Hard maximum: **500 lines**.
+   - Sub-views, tabs, modal forms, and complex sections must always be isolated into focused, reusable components.
+
+2. **Mandatory Reuse of Existing Functionality (Single Source of Truth)**:
+   - Before building any new UI element or functionality, you **MUST inspect existing components** in `src/components/ui/`, `src/components/`, and `src/hooks/`.
+   - **Never rewrite or duplicate existing logic or UI inline**.
+   - If a page requires:
+     - **Status display**: Consume a shared `<StatusBadge />`, do not create ad-hoc local `statusBadge` functions.
+     - **Page header / Search / Filters**: Consume shared `<PageHeader />` and `<SearchInput />` components.
+     - **Initials / Avatars**: Use `getInitials()` from `@/lib/utils.ts` or a shared `<UserAvatar />`, never write inline string-splitting math.
+     - **Toggles / Switches**: Use `@/components/ui/switch`, never write custom toggle switches (e.g. `UdToggle`).
+     - **List rows / Table cards**: Consume `@/components/ui/data-row.tsx`.
+     - **CSV Importers**: Standardize on a shared modal wrapper rather than reimplementing file reader tables.
+
+3. **Component Extraction Requirement**:
+   - If a visual pattern, modal, filter set, or card is used in **more than one place** (or is logically independent), it **MUST be extracted into a reusable component**.
+   - Place generic UI elements in `src/components/ui/` or `src/components/shared/`.
+   - Place domain-specific reusable components in `src/components/<domain>/` (e.g. `src/components/employees/`, `src/components/projects/`).
+
+4. **Canonical Constants & Utilities**:
+   - Never define static business lists (e.g., `DEPARTMENTS`, `ROLES`, `EMP_TYPES`, shift defaults) locally within a page or component.
+   - Always export and import them from a single canonical constants source (`src/lib/constants.ts` or `src/types/`).
+
+### 4.2 Monolith Prevention & Directory Separation
+- Place page tabs in `src/components/<feature>/tabs/`.
+- Place modals and dialogs in `src/components/<feature>/dialogs/`.
+- Place slide-over panels in `src/components/<feature>/sheets/`.
+- Extract data fetching, mutation state, and filter logic into custom hooks in `src/hooks/use<Feature>Data.ts`.
+
+### 4.3 State Management & TanStack Query Rules
 1. **Query Keys**: Use descriptive, array-based query keys with relevant dependencies:
    ```typescript
    // Correct
@@ -95,15 +121,15 @@ When writing or modifying code in this codebase, any future AI Agent **MUST** ad
    ```
 3. **No Redundant Local State**: Avoid duplicating query response data into local `useState` unless specifically editing a draft form.
 
-### 4.3 Form Handling & Validation
+### 4.4 Form Handling & Validation
 - **React Hook Form + Zod**: All user input forms (employees, tasks, projects, clients, daily logs, settings) must define a strict Zod schema with user-friendly error messages.
 - Always use `zodResolver(schema)` and bind errors to Shadcn UI `<FormMessage />` or input error states.
 
-### 4.4 Notifications & User Feedback
+### 4.5 Notifications & User Feedback
 - Use `sonner` (`toast.success`, `toast.error`, `toast.warning`, `toast.info`).
 - Do not mix legacy alert methods or create conflicting modal stacks.
 
-### 4.5 Continuous Documentation Maintenance Rule
+### 4.6 Continuous Documentation Maintenance Rule
 As an AI agent working on this codebase, you must keep the `.docs` folder perfectly synchronized with the actual codebase.
 
 Whenever you implement a new feature, alter business logic, change a database schema, or modify access roles:

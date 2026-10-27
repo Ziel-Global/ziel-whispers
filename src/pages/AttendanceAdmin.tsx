@@ -8,6 +8,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
@@ -234,17 +237,19 @@ export default function AttendanceAdminPage() {
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
-        <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Attendance Management</h1>
-        <button
-          type="button"
-          onClick={exportCSV}
-          className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors shadow-sm"
-        >
-          <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
-          Export CSV
-        </button>
-      </div>
+      <PageHeader
+        title="Attendance Management"
+        actions={
+          <button
+            type="button"
+            onClick={exportCSV}
+            className="flex items-center gap-2 bg-white border border-black/[0.08] rounded-[10px] px-4 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] transition-colors shadow-sm"
+          >
+            <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
+            Export CSV
+          </button>
+        }
+      />
 
       {staleOpenSessions.length > 0 && (
         <div className="bg-[#FFFBEB] border border-[#FDE68A] rounded-[14px] p-4 shadow-sm shrink-0">
@@ -263,16 +268,11 @@ export default function AttendanceAdminPage() {
       )}
 
       <div className="flex gap-2.5 items-center flex-wrap shrink-0">
-        <div className="flex-1 min-w-[200px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
-          <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
-          <input
-            type="text"
-            placeholder="Search by employee name…"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search by employee name…"
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+        />
 
         <input
           type="date"
@@ -313,9 +313,9 @@ export default function AttendanceAdminPage() {
 
       <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
         {isLoading ? (
-          <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">Loading…</div>
+          <EmptyState variant="inline" isLoading message="Loading…" />
         ) : filtered.length === 0 ? (
-          <div className="px-4 py-8 text-center text-[#8B8B92] text-sm">No records for this date</div>
+          <EmptyState variant="inline" message="No records for this date" />
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto">
             <TableHeader gridCols="1.6fr 0.8fr 0.8fr 0.9fr 0.8fr 0.8fr 0.6fr" className="sticky top-0 z-10 bg-white px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">

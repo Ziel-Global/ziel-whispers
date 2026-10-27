@@ -1,8 +1,11 @@
 import React from "react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MetricCard, MetricGroup } from "@/components/ui/metric-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, X, Trash2, Laptop } from "lucide-react";
 import { format } from "date-fns";
+import { getInitials } from "@/lib/utils";
 
 export interface WFHRequestsTabProps {
   wfhStatusFilter: string;
@@ -37,58 +40,32 @@ export function WFHRequestsTab({
   const approvedCount = wfhFiltered.filter((r: any) => r.status === "approved").length;
   const rejectedCount = wfhFiltered.filter((r: any) => r.status === "rejected").length;
 
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "approved":
-        return <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">Approved</Badge>;
-      case "pending":
-        return <Badge className="bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">Pending</Badge>;
-      case "rejected":
-        return <Badge className="bg-[#FDECEC] text-[#C23A3A] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">Rejected</Badge>;
-      default:
-        return <Badge className="bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">{status}</Badge>;
-    }
-  };
-
-  const getInitials = (name: string) => {
-    if (!name) return "??";
-    return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
   return (
     <div className="flex flex-col h-full min-h-0 gap-4 font-sans overflow-hidden">
       {/* Summary KPI Cards Grid */}
-      <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm shrink-0">
-        <div className="p-5 flex items-center gap-3.5">
-          <div className="w-[38px] h-[38px] rounded-[10px] bg-[#EAF3FF] text-[#1C6FC9] flex items-center justify-center shrink-0">
-            <Laptop className="h-4.5 w-4.5 text-[#1C6FC9]" />
-          </div>
-          <div>
-            <p className="text-[13px] text-[#8B8B92] font-medium">Remote today</p>
-            <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{remoteTodayCount}</p>
-          </div>
-        </div>
-
-        <div className="p-5 flex items-center gap-3.5">
-          <div className="w-[38px] h-[38px] rounded-[10px] bg-[#DFF6E4] text-[#1FAA59] flex items-center justify-center shrink-0">
-            <Check className="h-4.5 w-4.5 text-[#1FAA59]" />
-          </div>
-          <div>
-            <p className="text-[13px] text-[#8B8B92] font-medium">Approved requests</p>
-            <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{approvedCount}</p>
-          </div>
-        </div>
-
-        <div className="p-5 flex items-center gap-3.5">
-          <div className="w-[38px] h-[38px] rounded-[10px] bg-[#FDECEC] text-[#C23A3A] flex items-center justify-center shrink-0">
-            <X className="h-4.5 w-4.5 text-[#C23A3A]" />
-          </div>
-          <div>
-            <p className="text-[13px] text-[#8B8B92] font-medium">Rejected requests</p>
-            <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{rejectedCount}</p>
-          </div>
-        </div>
-      </div>
+      <MetricGroup columns={3}>
+        <MetricCard
+          variant="row"
+          icon={<Laptop className="h-4.5 w-4.5 text-[#1C6FC9]" />}
+          iconClassName="bg-[#EAF3FF] text-[#1C6FC9]"
+          label="Remote today"
+          value={remoteTodayCount}
+        />
+        <MetricCard
+          variant="row"
+          icon={<Check className="h-4.5 w-4.5 text-[#1FAA59]" />}
+          iconClassName="bg-[#DFF6E4] text-[#1FAA59]"
+          label="Approved requests"
+          value={approvedCount}
+        />
+        <MetricCard
+          variant="row"
+          icon={<X className="h-4.5 w-4.5 text-[#C23A3A]" />}
+          iconClassName="bg-[#FDECEC] text-[#C23A3A]"
+          label="Rejected requests"
+          value={rejectedCount}
+        />
+      </MetricGroup>
 
       {/* Filter Toolbar */}
       <div className="flex gap-2.5 items-center shrink-0">
@@ -107,9 +84,7 @@ export function WFHRequestsTab({
 
       {/* Remote Requests Table */}
       {wfhFiltered.length === 0 ? (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">
-          No Remote Requests found
-        </div>
+        <EmptyState message="No Remote Requests found" />
       ) : (
         <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto">
@@ -206,7 +181,7 @@ export function WFHRequestsTab({
                 <div className="text-[13px] text-[#4B4B52]">{format(new Date(r.created_at), "MMM d, yyyy")}</div>
 
                 {/* STATUS */}
-                <div>{statusBadge(r.status)}</div>
+                <div><StatusBadge status={r.status} /></div>
 
                 {/* REVIEWED */}
                 <div className="text-[12px] text-[#8B8B92]">
@@ -286,7 +261,7 @@ export function WFHRequestsTab({
                   </div>
                   {r.status !== "pending" && (
                     <div className="flex items-center gap-2 pt-1">
-                      {statusBadge(r.status)}
+                      <StatusBadge status={r.status} />
                       {r.reviewed_at && (
                         <span className="text-[11.5px] text-[#8B8B92]">
                           Reviewed {format(new Date(r.reviewed_at), "MMM d, yyyy 'at' h:mm a")} by{" "}

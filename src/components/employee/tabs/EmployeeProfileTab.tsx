@@ -21,11 +21,12 @@ import { UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { AvatarUpload } from "@/components/employees/AvatarUpload";
+import { AvatarUpload } from "@/components/employee/AvatarUpload";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 import { adminSchema, DEPARTMENTS, EMP_TYPES, ROLES, REMINDER_OPTIONS } from "@/hooks/useEmployeeProfileData";
 import { supabase } from "@/integrations/supabase/client";
@@ -78,23 +79,7 @@ function UdToggle({
   );
 }
 
-function empTypeLabel(t: string) {
-  if (t === "full-time") return "Full-Time";
-  if (t === "part-time") return "Part-Time";
-  if (t === "contract") return "Contract";
-  return t;
-}
-
-function roleLabel(r: string) {
-  if (r === "admin") return "Administrator";
-  if (r === "hr_manager") return "HR / Operational Manager";
-  if (r === "project_manager") return "Project Manager";
-  return r.charAt(0).toUpperCase() + r.slice(1);
-}
-
-function statusLabel(s: string) {
-  return (s || "active").charAt(0).toUpperCase() + (s || "active").slice(1);
-}
+import { empTypeLabel, roleLabel, statusLabel } from "@/lib/constants";
 
 export interface EmployeeProfileTabProps {
   employee: any;
@@ -193,40 +178,30 @@ export function EmployeeProfileTab({
     <div className="flex flex-col gap-4 w-full min-w-0">
       {/* KPI row */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-        <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-          <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Employment</div>
-          <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-            {empTypeLabel(watchEmpType || employee?.employment_type || "full-time")}
-          </div>
-          <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">Employee since {joinLabel}</div>
-        </div>
-        <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-          <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Current Shift</div>
-          <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-            {formatTime12h(watchShiftStart)}–{formatTime12h(watchShiftEnd)}
-          </div>
-          <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">
-            {employee?.has_custom_shift ? "Employee-specific override" : "Using global shift defaults"}
-          </div>
-        </div>
-        <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-          <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Active Projects</div>
-          <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-            {activeProjects.length}
-          </div>
-          <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">
-            {employeeProjects.length} total assignment{employeeProjects.length === 1 ? "" : "s"}
-          </div>
-        </div>
-        <div className="bg-white border border-black/[0.08] rounded-[13px] p-[15px] min-w-0">
-          <div className="text-[10.5px] text-[#8B8B92] font-medium truncate">Logged This Month</div>
-          <div className="text-[22px] font-bold tracking-[-0.45px] text-[#17171A] mt-1">
-            {Math.round(monthlyStats?.loggedHours ?? 0)}h
-          </div>
-          <div className="text-[10px] text-[#A0A0A7] mt-1 leading-snug">
-            {loggedPct}% of {Math.round(monthlyStats?.expectedHours ?? 0)}h expected
-          </div>
-        </div>
+        <MetricCard
+          className="rounded-[13px] p-[15px]"
+          label="Employment"
+          value={empTypeLabel(watchEmpType || employee?.employment_type || "full-time")}
+          sub={`Employee since ${joinLabel}`}
+        />
+        <MetricCard
+          className="rounded-[13px] p-[15px]"
+          label="Current Shift"
+          value={`${formatTime12h(watchShiftStart)}–${formatTime12h(watchShiftEnd)}`}
+          sub={employee?.has_custom_shift ? "Employee-specific override" : "Using global shift defaults"}
+        />
+        <MetricCard
+          className="rounded-[13px] p-[15px]"
+          label="Active Projects"
+          value={activeProjects.length}
+          sub={`${employeeProjects.length} total assignment${employeeProjects.length === 1 ? "" : "s"}`}
+        />
+        <MetricCard
+          className="rounded-[13px] p-[15px]"
+          label="Logged This Month"
+          value={`${Math.round(monthlyStats?.loggedHours ?? 0)}h`}
+          sub={`${loggedPct}% of ${Math.round(monthlyStats?.expectedHours ?? 0)}h expected`}
+        />
       </div>
 
       <div className="grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,1fr)_300px] gap-4 items-start w-full min-w-0">

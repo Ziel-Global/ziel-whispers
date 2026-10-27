@@ -49,7 +49,7 @@ export async function hasProjectPermission(
       .eq("id", userId)
       .single();
 
-    if (userData?.role === "admin" || userData?.role === "manager") {
+    if (userData?.role === "admin" || userData?.role === "manager" || userData?.role === "project_manager") {
       return true;
     }
 

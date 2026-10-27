@@ -12,7 +12,7 @@ import { getAvatarUrl, MISC_PROJECT_ID } from "@/lib/utils";
 
 export const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
 export const EMP_TYPES = ["full-time", "part-time", "contract"];
-export const ROLES = ["admin", "manager", "employee"];
+export const ROLES = ["admin", "manager", "hr_manager", "project_manager", "employee"];
 export const REMINDER_OPTIONS = [15, 30, 60];
 
 export const adminSchema = z.object({

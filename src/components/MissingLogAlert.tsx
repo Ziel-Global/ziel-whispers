@@ -129,7 +129,11 @@ export function MissingLogAlert() {
             Submit Logs Now
             <ArrowRight className="ml-2 h-4 w-4" />
           </Button>
-          <Button variant="outline" onClick={handleClose} className="w-full sm:flex-1 rounded-button">
+          <Button
+            type="button"
+            onClick={handleClose}
+            className="w-full sm:flex-1 rounded-[10px] btn-secondary-outline text-[13px] h-10"
+          >
             Dismiss
           </Button>
         </DialogFooter>

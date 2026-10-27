@@ -6,7 +6,7 @@ import { WFHRequestsTab } from "@/components/leave-admin/tabs/WFHRequestsTab";
 import { LeaveCalendarTab } from "@/components/leave-admin/tabs/LeaveCalendarTab";
 import { LeaveSettingsTab } from "@/components/leave-admin/tabs/LeaveSettingsTab";
 import { LeaveAdminModals } from "@/components/leave-admin/dialogs/LeaveAdminModals";
-import { Plus } from "lucide-react";
+import { Wallet } from "lucide-react";
 
 export default function LeaveAdminPage() {
   const data = useLeaveAdminData();
@@ -26,8 +26,8 @@ export default function LeaveAdminPage() {
           }}
           className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
         >
-          <Plus className="h-3.5 w-3.5 text-white" />
-          Apply Leave
+          <Wallet className="h-3.5 w-3.5 text-white" />
+          Leave Balances
         </button>
       </div>
 

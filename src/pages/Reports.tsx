@@ -995,7 +995,7 @@ function HeatmapReport() {
 // ——— G5: Monthly Summary ———
 function MonthlySummaryReport() {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "hr_manager" || profile?.role === "project_manager";
   const [selectedUser, setSelectedUser] = useState(isAdmin ? "" : profile?.id || "");
   const [month, setMonth] = useState(format(subDays(startOfMonth(new Date(getPKTDateString())), 1), "yyyy-MM"));
   const [dept, setDept] = useState("all");

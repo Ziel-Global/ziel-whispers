@@ -20,7 +20,7 @@ export default function PhaseEditPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
 
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDueDate, setEditingDueDate] = useState("");
@@ -170,8 +170,8 @@ export default function PhaseEditPage() {
           <h2 className="text-lg font-semibold">
             Sprints ({phaseSprints.length})
           </h2>
-          <Button size="sm" onClick={() => setAddSprintOpen(true)} className="rounded-button bg-primary text-black hover:bg-black hover:text-white">
-            <Plus className="h-4 w-4 mr-1" /> Add Sprint
+          <Button size="sm" onClick={() => setAddSprintOpen(true)} className="rounded-button bg-primary text-white hover:bg-black hover:text-white">
+            <Plus className="h-4 w-4 mr-1 text-white" /> Add Sprint
           </Button>
         </div>
         {sprintsLoading ? (

@@ -26,7 +26,7 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [requestBannerDismissTick, setRequestBannerDismissTick] = useState(0);
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin";
   const isClient = profile?.role === "client" || profile?.role === "client member";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();

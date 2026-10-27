@@ -36,7 +36,8 @@ function getInitials(name: string) {
 
 export default function LogsAdminPage() {
   const { user: _user, profile } = useAuth();
-  const isAdmin = profile?.role === "admin";
+  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "hr_manager" || profile?.role === "project_manager";
+  const isSuperAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(getPKTDateString());
   const [employeeFilter, setEmployeeFilter] = useState("all");

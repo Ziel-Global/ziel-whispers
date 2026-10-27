@@ -244,7 +244,7 @@ export function useLogSubmitData() {
     enabled: !!user?.id && !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
   });
 
-  const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
 
   // 9. Available tasks query
   const { data: availableTasks = [] } = useQuery({

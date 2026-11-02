@@ -18,11 +18,13 @@ export default function AppLayout() {
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <TopBar />
-          <main className={`flex-1 min-h-0 flex flex-col overflow-hidden ${isClient ? "p-4 md:p-[26px_22px_52px] bg-[#F7F8FA]" : "p-3 md:p-6 bg-background"}`}>
-            <AutoClockoutAlert />
-            {showMissingLog && <MissingLogAlert />}
-            <div className="flex-1 min-h-0 overflow-auto flex flex-col">
-              <Outlet />
+          <main className={`flex-1 min-h-0 flex flex-col overflow-y-auto ${isClient ? "bg-[#F7F8FA]" : "bg-background"}`}>
+            <div className={`flex-1 flex flex-col min-h-full ${isClient ? "p-4 md:p-[26px_22px_52px]" : "p-3 md:p-6"}`}>
+              <AutoClockoutAlert />
+              {showMissingLog && <MissingLogAlert />}
+              <div className="flex-1 flex flex-col min-w-0">
+                <Outlet />
+              </div>
             </div>
           </main>
         </div>

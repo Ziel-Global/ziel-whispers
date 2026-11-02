@@ -143,6 +143,7 @@ export function AppSidebar() {
         {
           label: "TOOLS",
           items: [
+            { title: "Analytics", url: "/analytics", icon: BarChart3 },
             { title: "Reports", url: "/reports", icon: BarChart3 },
             { title: "Announcements", url: "/announcements", icon: Megaphone },
             { title: "Notifications", url: "/notifications", icon: Bell },
@@ -188,6 +189,7 @@ export function AppSidebar() {
         {
           label: "TOOLS",
           items: [
+            { title: "Analytics", url: "/analytics", icon: BarChart3 },
             { title: "Reports", url: "/reports", icon: BarChart3 },
             { title: "Announcements", url: "/announcements", icon: Megaphone },
             { title: "Notifications", url: "/notifications", icon: Bell },

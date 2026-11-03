@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus, Calendar as CalendarIcon, Trash2 } from "lucide-react";
+import { Plus, Calendar as CalendarIcon, Trash2, X } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 
@@ -29,6 +29,7 @@ export interface AutomationRuleModalProps {
   resetRuleForm: () => void;
   workflowStatuses: any[];
   members: any[];
+  projectRoles?: any[];
 }
 
 export function AutomationRuleModal(props: AutomationRuleModalProps) {
@@ -45,6 +46,12 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
   };
   const addAction = () => {
     props.setRuleActions([...props.ruleActions, { type: "change_status", params: {} }]);
+  };
+  const setActionType = (index: number, type: string) => {
+    props.setRuleActions(props.ruleActions.map((a: any, i: number) => i === index ? { type, params: {} } : a));
+  };
+  const setActionParam = (index: number, key: string, val: any) => {
+    props.setRuleActions(props.ruleActions.map((a: any, i: number) => i === index ? { ...a, params: { ...(a.params || {}), [key]: val } } : a));
   };
   const updateAction = (index: number, key: string, val: any) => {
     props.setRuleActions(props.ruleActions.map((a: any, i: number) => i === index ? { ...a, [key]: val } : a));
@@ -63,7 +70,8 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
     ruleConditions, setRuleConditions,
     ruleActions, setRuleActions,
     saveAutomationRule, resetRuleForm,
-    workflowStatuses, members
+    workflowStatuses, members,
+    projectRoles = []
   } = props;
 
   return (
@@ -179,12 +187,16 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
                       </SelectContent>
                     </Select>
                     {cond.field === "status_id" ? (
-                      <Select value={cond.value} onValueChange={(v) => updateCondition(idx, "value", v)}>
+                      <Select value={cond.value || undefined} onValueChange={(v) => updateCondition(idx, "value", v)}>
                         <SelectTrigger className="flex-1"><SelectValue placeholder="Select status" /></SelectTrigger>
                         <SelectContent>
-                          {(workflowStatuses || []).map((s: any) => (
-                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                          ))}
+                          {(workflowStatuses || []).length === 0 ? (
+                            <SelectItem value="__none__" disabled>No statuses available</SelectItem>
+                          ) : (
+                            (workflowStatuses || []).map((s: any) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     ) : cond.field === "priority" ? (
@@ -255,12 +267,16 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
                     </Button>
                   </div>
                   {act.type === "change_status" && (
-                    <Select value={act.params.status_id || ""} onValueChange={(v) => setActionParam(idx, "status_id", v)}>
+                    <Select value={act.params.status_id || undefined} onValueChange={(v) => setActionParam(idx, "status_id", v)}>
                       <SelectTrigger><SelectValue placeholder="Select target status" /></SelectTrigger>
                       <SelectContent>
-                        {(workflowStatuses || []).map((s: any) => (
-                          <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                        ))}
+                        {(workflowStatuses || []).length === 0 ? (
+                          <SelectItem value="__none__" disabled>No statuses available</SelectItem>
+                        ) : (
+                          (workflowStatuses || []).map((s: any) => (
+                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   )}
@@ -275,12 +291,16 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
                     </Select>
                   )}
                   {act.type === "assign_role" && (
-                    <Select value={act.params.role_id || ""} onValueChange={(v) => setActionParam(idx, "role_id", v)}>
+                    <Select value={act.params.role_id || undefined} onValueChange={(v) => setActionParam(idx, "role_id", v)}>
                       <SelectTrigger><SelectValue placeholder="Select role" /></SelectTrigger>
                       <SelectContent>
-                        {(projectRoles || []).map((r: any) => (
-                          <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
-                        ))}
+                        {(projectRoles || []).length === 0 ? (
+                          <SelectItem value="__none__" disabled>No roles available</SelectItem>
+                        ) : (
+                          (projectRoles || []).map((r: any) => (
+                            <SelectItem key={r.id} value={r.id}>{r.name}</SelectItem>
+                          ))
+                        )}
                       </SelectContent>
                     </Select>
                   )}
@@ -292,12 +312,16 @@ export function AutomationRuleModal(props: AutomationRuleModalProps) {
                   )}
                   {act.type === "reassign_to_stage_owner" && (
                     <div className="space-y-2">
-                      <Select value={act.params.status_id || ""} onValueChange={(v) => setActionParam(idx, "status_id", v)}>
+                      <Select value={act.params.status_id || undefined} onValueChange={(v) => setActionParam(idx, "status_id", v)}>
                         <SelectTrigger><SelectValue placeholder="Select target status" /></SelectTrigger>
                         <SelectContent>
-                          {(workflowStatuses || []).map((s: any) => (
-                            <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
-                          ))}
+                          {(workflowStatuses || []).length === 0 ? (
+                            <SelectItem value="__none__" disabled>No statuses available</SelectItem>
+                          ) : (
+                            (workflowStatuses || []).map((s: any) => (
+                              <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                       <Select value={act.params.lookup_by || "from"} onValueChange={(v) => setActionParam(idx, "lookup_by", v)}>

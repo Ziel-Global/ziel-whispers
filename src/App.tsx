@@ -31,6 +31,13 @@ import SettingsPage from "@/pages/Settings";
 import AuditLogPage from "@/pages/AuditLog";
 import WorkflowTemplatesPage from "@/pages/WorkflowTemplates";
 import NotificationsPage from "@/pages/Notifications";
+import ExecutiveDashboardPage from "@/pages/ExecutiveDashboard";
+import DepartmentDashboardPage from "@/pages/DepartmentDashboard";
+import TeamLeadDashboardPage from "@/pages/TeamLeadDashboard";
+import AlertsCenterPage from "@/pages/AlertsCenter";
+import FinancialsDashboardPage from "@/pages/FinancialsDashboard";
+import SkillsStaffingDashboardPage from "@/pages/SkillsStaffingDashboard";
+import KpiSettingsPage from "@/pages/KpiSettings";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -60,8 +67,8 @@ const App = () => (
             <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
 
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
-            <Route path="/" element={<HomeRouter />} />
-            <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/" element={<HomeRouter />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
 
               {/* Employee Management — admin only */}
               <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeesPage /></ProtectedRoute>} />
@@ -88,6 +95,15 @@ const App = () => (
               <Route path="/projects/new" element={<ProtectedRoute allowedRoles={["admin", "manager", "project_manager"]}><ProjectNewPage /></ProtectedRoute>} />
               <Route path="/projects/:slug" element={<ProjectDetailPage />} />
               <Route path="/projects/:slug/phases/:phaseId" element={<ProtectedRoute allowedRoles={["admin", "manager", "project_manager"]}><PhaseEditPage /></ProtectedRoute>} />
+
+              {/* Analytics & Dashboards */}
+              <Route path="/analytics" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager", "project_manager"]}><ExecutiveDashboardPage /></ProtectedRoute>} />
+              <Route path="/analytics/department" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager", "project_manager"]}><DepartmentDashboardPage /></ProtectedRoute>} />
+              <Route path="/analytics/team" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager", "project_manager", "employee"]}><TeamLeadDashboardPage /></ProtectedRoute>} />
+              <Route path="/analytics/alerts" element={<ProtectedRoute allowedRoles={["admin", "manager", "hr_manager", "project_manager"]}><AlertsCenterPage /></ProtectedRoute>} />
+              <Route path="/analytics/financials" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><FinancialsDashboardPage /></ProtectedRoute>} />
+              <Route path="/analytics/skills-staffing" element={<ProtectedRoute allowedRoles={["admin", "manager", "project_manager"]}><SkillsStaffingDashboardPage /></ProtectedRoute>} />
+              <Route path="/analytics/kpi-settings" element={<ProtectedRoute allowedRoles={["admin", "manager"]}><KpiSettingsPage /></ProtectedRoute>} />
 
               {/* Other */}
               <Route path="/announcements" element={<AnnouncementsPage />} />

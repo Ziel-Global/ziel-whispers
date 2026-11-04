@@ -1,6 +1,7 @@
 import React from "react";
 import { Save } from "lucide-react";
 import { LEAVE_CATEGORIES } from "@/hooks/useLeaveAdminData";
+import { CompanyHolidaysCard } from "@/components/leave-admin/CompanyHolidaysCard";
 
 export interface LeaveSettingsTabProps {
   annualEntitlement: string;
@@ -60,33 +61,18 @@ export function LeaveSettingsTab({
             Total annual leave days each employee is entitled to per year. All leave types draw from this single pool.
           </p>
         </div>
-
-        <div>
-          <label className="block text-[12.5px] font-semibold text-[#4B4B52] mb-2.5">
-            Leave Categories (for tracking)
-          </label>
-          <div className="flex flex-wrap gap-2">
-            {LEAVE_CATEGORIES.map((c) => (
-              <div key={c} className="border border-black/10 rounded-full px-3.5 py-1.5 text-[12.5px] font-semibold text-[#4B4B52] bg-white shadow-sm">
-                {c}
-              </div>
-            ))}
-          </div>
-          <p className="text-[12px] text-[#8B8B92] leading-relaxed mt-2">
-            These categories are fixed and used for tracking purposes only. All draw from the single annual pool.
-          </p>
-        </div>
       </div>
 
-      {/* Remote Access Card */}
-      <div className="bg-white border border-black/[0.08] rounded-[14px] p-6 shadow-sm space-y-4">
-        <h3 className="text-[15px] font-bold text-[#17171A]">Remote Access</h3>
-        <p className="text-[12.5px] text-[#8B8B92] leading-relaxed max-w-[520px]">
-          Enable or disable remote work for all non-admin users at once. Employees who already have individual remote
-          access enabled will be skipped.
-        </p>
+      {/* Bulk Remote Work Management */}
+      <div className="bg-white border border-black/[0.08] rounded-[14px] p-6 shadow-sm space-y-5">
+        <div>
+          <h3 className="text-[15px] font-bold text-[#17171A]">Company-Wide Remote Work</h3>
+          <p className="text-[12px] text-[#8B8B92] mt-0.5">
+            Allow all employees to clock in remotely for a date range (e.g. extreme weather, office maintenance).
+          </p>
+        </div>
 
-        <div className="flex flex-wrap gap-4 pt-1">
+        <div className="flex flex-wrap items-center gap-4">
           <div className="space-y-1.5">
             <label className="block text-[12.5px] font-semibold text-[#4B4B52]">From Date</label>
             <input
@@ -126,7 +112,9 @@ export function LeaveSettingsTab({
           </button>
         </div>
       </div>
+
+      {/* Official Company Holidays (Blueprint Module 1 & 4) */}
+      <CompanyHolidaysCard />
     </div>
   );
 }
-

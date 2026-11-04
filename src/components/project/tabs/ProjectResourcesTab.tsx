@@ -224,7 +224,7 @@ export function ProjectResourcesTab({
             <>
               <div
                 className="grid gap-3 px-5 py-2.5 border-b border-black/[0.06] bg-[#FAFAFB] text-[10px] font-bold uppercase tracking-[0.05em] text-[#B0B0B6]"
-                style={{ gridTemplateColumns: "2fr .9fr 1fr 1fr .5fr" }}
+                style={{ gridTemplateColumns: "2fr .8fr 1fr .8fr 1fr .5fr" }}
               >
                 <span>Team Member</span>
                 <span>Active Projects</span>
@@ -245,7 +245,7 @@ export function ProjectResourcesTab({
                   <div
                     key={m.id}
                     className="grid gap-3 px-5 py-3.5 border-b border-black/[0.06] last:border-0 items-center"
-                    style={{ gridTemplateColumns: "2fr .9fr 1fr 1fr .5fr" }}
+                    style={{ gridTemplateColumns: "2fr .8fr 1fr .8fr 1fr .5fr" }}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Avatar className="h-8 w-8 shrink-0">

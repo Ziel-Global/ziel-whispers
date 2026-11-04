@@ -28,8 +28,10 @@ export function ExecutiveOverviewTab({ analyticsData, onDrilldown }: ExecutiveOv
             <Skeleton key={i} className="h-28 rounded-xl" />
           ))}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <Skeleton className="h-64 rounded-xl lg:col-span-2" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
           <Skeleton className="h-64 rounded-xl" />
         </div>
       </div>
@@ -41,30 +43,25 @@ export function ExecutiveOverviewTab({ analyticsData, onDrilldown }: ExecutiveOv
       {/* 1. 10 Executive KPI Cards (Blueprint 2.1) */}
       <ExecutiveKpiGrid items={kpiCards} />
 
-      {/* 2. Middle Row: Visual Charts + Exceptions Action Panel */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
-        <div className="lg:col-span-2 space-y-4">
-          <ExecutiveOverviewCharts
-            clientHours={clientHoursDistribution}
-            categoryHours={categoryDistribution}
-            portfolioHealth={{
-              healthy: summary.activeProjectsCount - summary.delayedProjectsCount,
-              delayed: summary.delayedProjectsCount,
-            }}
-            attendanceSplit={{
-              onsite: summary.onsiteCount,
-              remote: summary.remoteCount,
-            }}
-            onDrilldown={onDrilldown}
-          />
-        </div>
+      {/* 2. Middle Row: 2x2 Grid of Visual Analytics & Operational Exceptions */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+        <ExecutiveOverviewCharts
+          clientHours={clientHoursDistribution}
+          categoryHours={categoryDistribution}
+          portfolioHealth={{
+            healthy: Math.max(0, summary.activeProjectsCount - summary.delayedProjectsCount),
+            delayed: summary.delayedProjectsCount,
+          }}
+          attendanceSplit={{
+            onsite: summary.onsiteCount,
+            remote: summary.remoteCount,
+          }}
+          onDrilldown={onDrilldown}
+        />
 
-        {/* Operational Exception Priority Panel */}
-        <div className="lg:col-span-1">
-          <ExecutiveExceptionsPanel items={needsAttentionItems} />
-        </div>
+        {/* Operational Exception Priority Panel (Card 4) */}
+        <ExecutiveExceptionsPanel items={needsAttentionItems} />
       </div>
     </div>
   );
 }
-

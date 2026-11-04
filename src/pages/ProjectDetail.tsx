@@ -921,6 +921,18 @@ export default function ProjectDetailPage() {
     queryClient.invalidateQueries({ queryKey: ["project-automation-rule-runs", id] });
   };
 
+  const updateProjectCommercials = async (vals: any) => {
+    if (!id) return;
+    try {
+      const { error } = await supabase.from("projects").update(vals).eq("id", id);
+      if (error) throw error;
+      queryClient.invalidateQueries({ queryKey: ["project", id] });
+      queryClient.invalidateQueries({ queryKey: ["module5-projects"] });
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   const saveProjectSettings = async (vals: any) => {
     if (!id) return;
     try {
@@ -1782,7 +1794,9 @@ export default function ProjectDetailPage() {
         settingsOpen={settingsOpen}
         setSettingsOpen={setSettingsOpen}
         projectSettings={projectSettings}
+        project={project}
         saveProjectSettings={saveProjectSettings}
+        updateProjectCommercials={updateProjectCommercials}
       />
 
       <AlertDialog open={completionWarning} onOpenChange={setCompletionWarning}>

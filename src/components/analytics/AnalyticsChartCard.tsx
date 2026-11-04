@@ -49,15 +49,15 @@ export function AnalyticsChartCard({
       className={`p-5 bg-card border border-black/[0.08] dark:border-white/[0.08] rounded-xl shadow-sm hover:shadow transition-all flex flex-col justify-between ${className}`}
     >
       {/* Header Block */}
-      <div className="flex items-start justify-between gap-3 mb-3 border-b border-black/[0.05] dark:border-white/[0.05] pb-3">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2.5 mb-3 border-b border-black/[0.05] dark:border-white/[0.05] pb-3">
         <div className="space-y-1 min-w-0 flex-1">
           {/* Question title per Blueprint 6.4 */}
-          <p className="text-xs font-semibold tracking-tight text-[#EB5A1E] dark:text-[#EB5A1E] flex items-center gap-1.5">
-            <span>💡</span> {question}
+          <p className="text-xs font-semibold tracking-tight text-[#EB5A1E] dark:text-[#EB5A1E]">
+            {question}
           </p>
 
-          <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-base font-bold text-foreground tracking-tight truncate">
+          <div className="flex items-center gap-2 flex-wrap pt-0.5">
+            <h3 className="text-sm sm:text-base font-bold text-foreground tracking-tight">
               {title}
             </h3>
 
@@ -106,7 +106,7 @@ export function AnalyticsChartCard({
         </div>
 
         {/* Action buttons (Table toggle, drill-down, custom action) */}
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1.5 shrink-0 self-start pt-0.5">
           {action}
 
           {tableContent && (
@@ -134,7 +134,7 @@ export function AnalyticsChartCard({
             <Button
               variant="outline"
               size="sm"
-              className="h-7 text-xs px-2.5"
+              className="h-6 text-xs px-2"
               onClick={onDrilldown}
             >
               <span className="hidden sm:inline mr-1">{drilldownLabel}</span>

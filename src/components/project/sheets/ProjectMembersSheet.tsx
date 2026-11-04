@@ -32,6 +32,7 @@ export function ProjectMembersSheet({
 }: ProjectMembersSheetProps) {
   const [memberSearch, setMemberSearch] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [userAllocations, setUserAllocations] = useState<Record<string, number>>({});
 
   const availableEmployees =
     allEmployees?.filter((e) => {
@@ -45,7 +46,20 @@ export function ProjectMembersSheet({
     }) || [];
 
   const toggleUser = (uid: string) => {
-    setSelectedUsers((prev) => (prev.includes(uid) ? prev.filter((u) => u !== uid) : [...prev, uid]));
+    setSelectedUsers((prev) => {
+      if (prev.includes(uid)) {
+        return prev.filter((u) => u !== uid);
+      } else {
+        if (!userAllocations[uid]) {
+          setUserAllocations((alloc) => ({ ...alloc, [uid]: 100 }));
+        }
+        return [...prev, uid];
+      }
+    });
+  };
+
+  const setAllocation = (uid: string, pct: number) => {
+    setUserAllocations((prev) => ({ ...prev, [uid]: Math.max(5, Math.min(100, pct)) }));
   };
 
   const addMembers = async () => {
@@ -73,19 +87,29 @@ export function ProjectMembersSheet({
           roleId = newRole?.id || null;
         }
 
-        await supabase.from("project_members").insert({ project_id: id, user_id: uid, project_role_id: roleId });
+        const allocation = userAllocations[uid] ?? 100;
+
+        await supabase.from("project_members").insert({
+          project_id: id,
+          user_id: uid,
+          project_role_id: roleId,
+          allocation_percentage: allocation,
+        });
+
         await supabase.from("audit_logs").insert({
           actor_id: profile?.id,
           action: "project.member_added",
           target_entity: "project_members",
           target_id: id,
-          metadata: { user_id: uid },
+          metadata: { user_id: uid, allocation_percentage: allocation },
         });
       }
       toast.success(`${selectedUsers.length} member(s) added`);
       setSelectedUsers([]);
+      setUserAllocations({});
       setAddMemberOpen(false);
       queryClient.invalidateQueries({ queryKey: ["project-members", id] });
+      queryClient.invalidateQueries({ queryKey: ["module5-project-members"] });
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -141,11 +165,27 @@ export function ProjectMembersSheet({
                 </div>
                 {selectedUsers.includes(e.id) && <Badge className="bg-primary text-primary-foreground">Selected</Badge>}
               </div>
+
               {selectedUsers.includes(e.id) && (
-                <div className="mt-2" onClick={(e2) => e2.stopPropagation()}>
-                  <p className="text-sm text-muted-foreground">
-                    Will be added as <span className="font-medium">{e.designation || "Member"}</span>
+                <div className="mt-2.5 pt-2 border-t flex items-center justify-between gap-3" onClick={(e2) => e2.stopPropagation()}>
+                  <p className="text-xs text-muted-foreground">
+                    Role: <span className="font-medium text-foreground">{e.designation || "Member"}</span>
                   </p>
+                  {addMemberMode !== "client" && (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-[11px] font-medium text-muted-foreground">Allocation:</span>
+                      <Input
+                        type="number"
+                        min="5"
+                        max="100"
+                        step="5"
+                        value={userAllocations[e.id] ?? 100}
+                        onChange={(ev) => setAllocation(e.id, Number(ev.target.value))}
+                        className="h-6 w-16 text-xs text-right pr-1"
+                      />
+                      <span className="text-xs text-muted-foreground">%</span>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

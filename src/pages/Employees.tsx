@@ -286,7 +286,7 @@ export default function EmployeesPage() {
               <EmptyState variant="inline" message="No employees found" />
             ) : (
               <div className="flex-1 min-h-0 overflow-y-auto">
-                <TableHeader gridCols="40px 2fr 1.7fr 1fr 0.8fr 1fr 0.7fr" className="sticky top-0 z-10 bg-white px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
+                <TableHeader gridCols="40px 1.8fr 1.3fr 1.5fr 1fr 0.8fr 1fr 0.7fr" className="sticky top-0 z-10 bg-white px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
                   <div className="flex items-center justify-center">
                     <input
                       type="checkbox"
@@ -299,6 +299,7 @@ export default function EmployeesPage() {
                     />
                   </div>
                   <span>EMPLOYEE</span>
+                  <span>DESIGNATION</span>
                   <span>EMAIL</span>
                   <span>PHONE</span>
                   <span>STATUS</span>
@@ -326,7 +327,7 @@ export default function EmployeesPage() {
                     key={emp.id}
                     onClick={() => navigate(`/employees/${emp.id}`)}
                     className={`px-5 py-3 border-b border-black/[0.05] transition-colors ${isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : "hover:bg-[#F6F5F3]/50"}`}
-                    gridCols="40px 2fr 1.7fr 1fr 0.8fr 1fr 0.7fr"
+                    gridCols="40px 1.8fr 1.3fr 1.5fr 1fr 0.8fr 1fr 0.7fr"
                   >
                     <div className="flex items-center justify-center">
                       <input
@@ -352,6 +353,7 @@ export default function EmployeesPage() {
                         <RowSecondary className="text-[12px] text-[#8B8B92] truncate">{emp.role || "Employee"}{emp.department ? ` · ${emp.department}` : ""}</RowSecondary>
                       </div>
                     </div>
+                    <RowDataItem label="DESIGNATION" className="text-[13px] font-medium text-[#17171A] truncate">{emp.designation || "—"}</RowDataItem>
                     <RowDataItem label="EMAIL" className="text-[13px] text-[#4B4B52] truncate">{emp.email}</RowDataItem>
                     <RowDataItem label="PHONE" className="text-[13px] text-[#4B4B52]">{emp.phone || "—"}</RowDataItem>
                     <RowBadgeItem label="STATUS"><StatusBadge status={emp.status} /></RowBadgeItem>

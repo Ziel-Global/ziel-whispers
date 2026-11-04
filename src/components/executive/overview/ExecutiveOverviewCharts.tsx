@@ -10,6 +10,7 @@ import {
   Cell,
   PieChart,
   Pie,
+  Legend,
 } from "recharts";
 
 interface ExecutiveOverviewChartsProps {
@@ -30,23 +31,25 @@ export function ExecutiveOverviewCharts({
   attendanceSplit,
   onDrilldown,
 }: ExecutiveOverviewChartsProps) {
+  const totalProjects = portfolioHealth.healthy + portfolioHealth.delayed;
   const portfolioData = [
     { name: "On Track", value: portfolioHealth.healthy },
     { name: "At Risk / Delayed", value: portfolioHealth.delayed },
   ].filter((d) => d.value > 0);
 
+  const totalAttendance = attendanceSplit.onsite + attendanceSplit.remote;
   const workModeData = [
     { name: "Onsite / Office", value: attendanceSplit.onsite },
     { name: "Remote / WFH", value: attendanceSplit.remote },
   ].filter((d) => d.value > 0);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <>
       {/* 1. Portfolio Health Donut */}
       <AnalyticsChartCard
         question="How many active projects are on track vs delayed?"
         title="Project Portfolio Health"
-        subtitle="Active projects evaluated against baseline end dates"
+        subtitle="Active projects evaluated against baseline schedule targets"
         formula="(Healthy Projects / Total Active Projects) × 100"
         target="Target: < 15% delayed"
         targetMet={portfolioHealth.delayed === 0}
@@ -55,35 +58,46 @@ export function ExecutiveOverviewCharts({
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
-                <th className="py-1.5 font-medium">Status</th>
-                <th className="py-1.5 font-medium text-right">Count</th>
+                <th className="py-2 font-medium">Status</th>
+                <th className="py-2 font-medium text-right">Projects</th>
+                <th className="py-2 font-medium text-right">Share</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/[0.04]">
+            <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
               <tr>
-                <td className="py-1.5 font-semibold text-emerald-600">On Track</td>
-                <td className="py-1.5 text-right">{portfolioHealth.healthy}</td>
+                <td className="py-2 font-semibold text-emerald-600 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block" /> On Track
+                </td>
+                <td className="py-2 text-right font-medium">{portfolioHealth.healthy}</td>
+                <td className="py-2 text-right text-muted-foreground">
+                  {totalProjects > 0 ? Math.round((portfolioHealth.healthy / totalProjects) * 100) : 0}%
+                </td>
               </tr>
               <tr>
-                <td className="py-1.5 font-semibold text-rose-600">At Risk / Delayed</td>
-                <td className="py-1.5 text-right">{portfolioHealth.delayed}</td>
+                <td className="py-2 font-semibold text-rose-600 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 inline-block" /> At Risk / Delayed
+                </td>
+                <td className="py-2 text-right font-medium">{portfolioHealth.delayed}</td>
+                <td className="py-2 text-right text-muted-foreground">
+                  {totalProjects > 0 ? Math.round((portfolioHealth.delayed / totalProjects) * 100) : 0}%
+                </td>
               </tr>
             </tbody>
           </table>
         }
       >
-        <div className="h-44 w-full flex items-center justify-center">
+        <div className="h-52 w-full flex items-center justify-center">
           {portfolioData.length === 0 ? (
-            <span className="text-xs text-muted-foreground">No active projects</span>
+            <span className="text-xs text-muted-foreground">No active projects found</span>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={portfolioData}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={45}
-                  outerRadius={65}
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={75}
                   paddingAngle={4}
                   dataKey="value"
                 >
@@ -92,6 +106,12 @@ export function ExecutiveOverviewCharts({
                   ))}
                 </Pie>
                 <RechartsTooltip />
+                <Legend
+                  verticalAlign="bottom"
+                  height={32}
+                  iconSize={9}
+                  wrapperStyle={{ fontSize: "12px", paddingTop: "6px" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           )}
@@ -102,7 +122,7 @@ export function ExecutiveOverviewCharts({
       <AnalyticsChartCard
         question="Where is our workforce located today?"
         title="Today's Work Mode Mix"
-        subtitle="Breakdown of clocked-in employees by work location"
+        subtitle="Breakdown of clocked-in employees by reporting location"
         formula="Count(onsite) vs Count(remote) from today's attendance"
         target="Balanced Hybrid"
         targetMet={true}
@@ -111,35 +131,46 @@ export function ExecutiveOverviewCharts({
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
-                <th className="py-1.5 font-medium">Mode</th>
-                <th className="py-1.5 font-medium text-right">Employees</th>
+                <th className="py-2 font-medium">Mode</th>
+                <th className="py-2 font-medium text-right">Employees</th>
+                <th className="py-2 font-medium text-right">Share</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/[0.04]">
+            <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
               <tr>
-                <td className="py-1.5 font-semibold text-blue-600">Onsite / Office</td>
-                <td className="py-1.5 text-right">{attendanceSplit.onsite}</td>
+                <td className="py-2 font-semibold text-blue-600 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 inline-block" /> Onsite / Office
+                </td>
+                <td className="py-2 text-right font-medium">{attendanceSplit.onsite}</td>
+                <td className="py-2 text-right text-muted-foreground">
+                  {totalAttendance > 0 ? Math.round((attendanceSplit.onsite / totalAttendance) * 100) : 0}%
+                </td>
               </tr>
               <tr>
-                <td className="py-1.5 font-semibold text-purple-600">Remote / WFH</td>
-                <td className="py-1.5 text-right">{attendanceSplit.remote}</td>
+                <td className="py-2 font-semibold text-purple-600 flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-purple-500 inline-block" /> Remote / WFH
+                </td>
+                <td className="py-2 text-right font-medium">{attendanceSplit.remote}</td>
+                <td className="py-2 text-right text-muted-foreground">
+                  {totalAttendance > 0 ? Math.round((attendanceSplit.remote / totalAttendance) * 100) : 0}%
+                </td>
               </tr>
             </tbody>
           </table>
         }
       >
-        <div className="h-44 w-full flex items-center justify-center">
+        <div className="h-52 w-full flex items-center justify-center">
           {workModeData.length === 0 ? (
-            <span className="text-xs text-muted-foreground">No employees clocked in yet today</span>
+            <span className="text-xs text-muted-foreground">No employees clocked in today</span>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={workModeData}
                   cx="50%"
-                  cy="50%"
-                  innerRadius={45}
-                  outerRadius={65}
+                  cy="45%"
+                  innerRadius={50}
+                  outerRadius={75}
                   paddingAngle={4}
                   dataKey="value"
                 >
@@ -148,6 +179,12 @@ export function ExecutiveOverviewCharts({
                   ))}
                 </Pie>
                 <RechartsTooltip />
+                <Legend
+                  verticalAlign="bottom"
+                  height={32}
+                  iconSize={9}
+                  wrapperStyle={{ fontSize: "12px", paddingTop: "6px" }}
+                />
               </PieChart>
             </ResponsiveContainer>
           )}
@@ -159,7 +196,7 @@ export function ExecutiveOverviewCharts({
         question="Which clients or internal streams consume the most hours?"
         title="Logged Hours by Client"
         subtitle="Total hours billed or allocated during selected range"
-        formula="Sum(daily_logs.total_hours) grouped by client"
+        formula="Sum(daily_logs.hours) grouped by client"
         target="Diversified Concentration"
         targetMet={true}
         onDrilldown={() => onDrilldown?.("Client Hours Distribution")}
@@ -167,31 +204,41 @@ export function ExecutiveOverviewCharts({
           <table className="w-full text-xs">
             <thead>
               <tr className="border-b text-left text-muted-foreground">
-                <th className="py-1.5 font-medium">Client</th>
-                <th className="py-1.5 font-medium text-right">Hours</th>
+                <th className="py-2 font-medium">Client / Stream</th>
+                <th className="py-2 font-medium text-right">Hours</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black/[0.04]">
+            <tbody className="divide-y divide-black/[0.04] dark:divide-white/[0.04]">
               {clientHours.slice(0, 5).map((c, i) => (
                 <tr key={i}>
-                  <td className="py-1.5 font-semibold truncate max-w-[120px]">{c.name}</td>
-                  <td className="py-1.5 text-right">{c.hours}h</td>
+                  <td className="py-2 font-semibold truncate max-w-[200px]">{c.name}</td>
+                  <td className="py-2 text-right font-medium">{c.hours}h</td>
                 </tr>
               ))}
             </tbody>
           </table>
         }
       >
-        <div className="h-44 w-full">
+        <div className="h-52 w-full">
           {clientHours.length === 0 ? (
             <div className="h-full flex items-center justify-center text-xs text-muted-foreground">
               No logs recorded in this period
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={clientHours.slice(0, 5)} layout="vertical" margin={{ left: 10, right: 10, top: 10, bottom: 5 }}>
+              <BarChart
+                data={clientHours.slice(0, 5)}
+                layout="vertical"
+                margin={{ left: 10, right: 20, top: 15, bottom: 5 }}
+              >
                 <XAxis type="number" hide />
-                <YAxis dataKey="name" type="category" width={90} tick={{ fontSize: 11 }} />
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={140}
+                  tick={{ fontSize: 11 }}
+                  tickFormatter={(val: string) => (val.length > 18 ? val.substring(0, 18) + "…" : val)}
+                />
                 <RechartsTooltip />
                 <Bar dataKey="hours" fill="#3b82f6" radius={[0, 4, 4, 0]} />
               </BarChart>
@@ -199,7 +246,6 @@ export function ExecutiveOverviewCharts({
           )}
         </div>
       </AnalyticsChartCard>
-    </div>
+    </>
   );
 }
-

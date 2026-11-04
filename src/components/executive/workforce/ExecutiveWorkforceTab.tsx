@@ -3,6 +3,7 @@ import { DepartmentUtilizationChart } from "./DepartmentUtilizationChart";
 import { UtilizationHistogram } from "./UtilizationHistogram";
 import { OverUnderUtilizedLists } from "./OverUnderUtilizedLists";
 import { BenchReportTable } from "./BenchReportTable";
+import { SkillsStaffingSection } from "./SkillsStaffingSection";
 import { useExecutiveAnalyticsData } from "@/hooks/useExecutiveAnalyticsData";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -48,7 +49,9 @@ export function ExecutiveWorkforceTab({ analyticsData }: ExecutiveWorkforceTabPr
 
       {/* Row 3: Bench Report (Staff with >30% free capacity) */}
       <BenchReportTable benchList={benchReportList} />
+
+      {/* Row 4: Skills Staffing & Single Point of Failure (SPOF) Analysis */}
+      <SkillsStaffingSection />
     </div>
   );
 }
-

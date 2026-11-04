@@ -141,9 +141,16 @@ export function AppSidebar() {
           ],
         },
         {
+          label: "ANALYTICS & BI",
+          items: [
+            { title: "Executive Control Room", url: "/analytics", icon: BarChart3 },
+            { title: "Department Hub", url: "/analytics/department", icon: LayoutGrid },
+            { title: "Team Operations Deck", url: "/analytics/team", icon: Users },
+          ],
+        },
+        {
           label: "TOOLS",
           items: [
-            { title: "Analytics", url: "/analytics", icon: BarChart3 },
             { title: "Reports", url: "/reports", icon: BarChart3 },
             { title: "Announcements", url: "/announcements", icon: Megaphone },
             { title: "Notifications", url: "/notifications", icon: Bell },
@@ -730,9 +737,12 @@ export function AppSidebar() {
                 <SidebarMenu className="space-y-1">
                   {sec.items.map((item) => {
                     const isDashboard = item.url === "/" || item.url === "/dashboard";
+                    const isAnalyticsRoot = item.url === "/analytics";
                     const isActive = isDashboard
                       ? location.pathname === "/" || location.pathname === "/dashboard"
-                      : location.pathname.startsWith(item.url);
+                      : isAnalyticsRoot
+                      ? location.pathname === "/analytics" || location.pathname === "/analytics/"
+                      : location.pathname === item.url || (item.url !== "/" && location.pathname.startsWith(item.url + "/"));
                     const badgeCount = getBadgeCount(item.title);
                     const showBadge = badgeCount > 0;
 

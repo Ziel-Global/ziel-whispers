@@ -73,7 +73,7 @@ export function useExecutiveAnalyticsData() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("projects")
-        .select("id, name, code, status, budget_hours, baseline_end_date, client_id, is_billable, billing_type, clients(name)")
+        .select("id, name, status, budget_hours, baseline_end_date, client_id, is_billable, billing_type, clients(name)")
         .order("name");
       if (error) throw error;
       return data || [];
@@ -86,7 +86,7 @@ export function useExecutiveAnalyticsData() {
     queryFn: async () => {
       let query = supabase
         .from("daily_logs")
-        .select("id, user_id, project_id, log_date, total_hours, billable_hours, category, status, submitted_at, users(department), projects(client_id, is_billable)")
+        .select("id, user_id, project_id, log_date, hours, category, status, submitted_at, users(department), projects(client_id, is_billable, name, clients(name))")
         .gte("log_date", startDate)
         .lte("log_date", endDate)
         .eq("status", "submitted");
@@ -106,7 +106,7 @@ export function useExecutiveAnalyticsData() {
       if (!comparisonStartDate || !comparisonEndDate || filters.comparison === "none") return [];
       let query = supabase
         .from("daily_logs")
-        .select("id, total_hours, billable_hours, status")
+        .select("id, hours, status")
         .gte("log_date", comparisonStartDate)
         .lte("log_date", comparisonEndDate)
         .eq("status", "submitted");
@@ -168,7 +168,7 @@ export function useExecutiveAnalyticsData() {
     queryFn: async () => {
       let query = supabase
         .from("tasks")
-        .select("id, title, project_id, status_id, due_date, completed_at, is_flagged, flagged_at, created_at, task_statuses(name, category)");
+        .select("id, title, project_id, status, status_id, due_date, completed_at, is_flagged, created_at, workflow_statuses:status_id(name, category)");
 
       if (filters.projectId) query = query.eq("project_id", filters.projectId);
 
@@ -220,17 +220,17 @@ export function useExecutiveAnalyticsData() {
     let billable = 0;
 
     for (const l of currentLogs) {
-      const h = Number(l.total_hours) || 0;
-      const b = Number(l.billable_hours) || 0;
+      const h = Number((l as any).hours) || 0;
+      const isBillable = (l as any).projects?.is_billable ?? true;
       logged += h;
-      billable += b;
+      billable += isBillable ? h : 0;
     }
     return { totalLoggedHours: logged, totalBillableHours: billable };
   }, [currentLogs]);
 
   // Prior period logged hours for delta
   const comparisonLoggedHours = useMemo(() => {
-    return comparisonLogs.reduce((acc, l) => acc + (Number(l.total_hours) || 0), 0);
+    return comparisonLogs.reduce((acc, l: any) => acc + (Number(l.hours) || 0), 0);
   }, [comparisonLogs]);
 
   // Utilization Calculations
@@ -297,8 +297,8 @@ export function useExecutiveAnalyticsData() {
     for (const t of tasks) {
       if (t.is_flagged) {
         open++;
-        if (t.flagged_at) {
-          const daysOld = differenceInDays(now, parseISO(t.flagged_at));
+        if (t.is_flagged) {
+          const daysOld = t.created_at ? differenceInDays(now, parseISO(t.created_at)) : 1;
           if (daysOld >= 3) stale++;
         }
       }
@@ -492,8 +492,8 @@ export function useExecutiveAnalyticsData() {
 
     // 2. Stale Blockers
     tasks.forEach((t) => {
-      if (t.is_flagged && t.flagged_at) {
-        const daysOld = differenceInDays(new Date(), parseISO(t.flagged_at));
+      if (t.is_flagged) {
+        const daysOld = t.created_at ? differenceInDays(new Date(), parseISO(t.created_at)) : 1;
         if (daysOld >= 3) {
           list.push({
             id: `task-${t.id}`,
@@ -514,8 +514,8 @@ export function useExecutiveAnalyticsData() {
   const clientHoursDistribution = useMemo(() => {
     const clientMap = new Map<string, number>();
     for (const l of currentLogs) {
-      const clientName = (l.projects as any)?.client_id || "Direct / Internal";
-      const hours = Number(l.total_hours) || 0;
+      const clientName = (l.projects as any)?.clients?.name || (l.projects as any)?.name || "Direct / Internal";
+      const hours = Number((l as any).hours) || 0;
       clientMap.set(clientName, (clientMap.get(clientName) || 0) + hours);
     }
     return Array.from(clientMap.entries()).map(([client, hours]) => ({
@@ -528,7 +528,7 @@ export function useExecutiveAnalyticsData() {
     const catMap = new Map<string, number>();
     for (const l of currentLogs) {
       const cat = l.category || "General";
-      const hours = Number(l.total_hours) || 0;
+      const hours = Number((l as any).hours) || 0;
       catMap.set(cat, (catMap.get(cat) || 0) + hours);
     }
     return Array.from(catMap.entries()).map(([name, hours]) => ({
@@ -551,7 +551,7 @@ export function useExecutiveAnalyticsData() {
     for (const l of currentLogs) {
       const dept = (l.users as any)?.department || "General";
       const curr = deptMap.get(dept) || { logged: 0, staffCount: 1 };
-      curr.logged += Number(l.total_hours) || 0;
+      curr.logged += Number((l as any).hours) || 0;
       deptMap.set(dept, curr);
     }
 
@@ -573,7 +573,7 @@ export function useExecutiveAnalyticsData() {
     const userLogMap = new Map<string, number>();
     for (const l of currentLogs) {
       if (l.user_id) {
-        userLogMap.set(l.user_id, (userLogMap.get(l.user_id) || 0) + (Number(l.total_hours) || 0));
+        userLogMap.set(l.user_id, (userLogMap.get(l.user_id) || 0) + (Number((l as any).hours) || 0));
       }
     }
 

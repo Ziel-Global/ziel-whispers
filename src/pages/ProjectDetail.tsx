@@ -86,6 +86,7 @@ export default function ProjectDetailPage() {
     viewDeps,
     viewDepsLoading,
     criticalTaskIds,
+    projectRoles,
     latestHealth,
     healthTrend,
     projectSettings,
@@ -1579,6 +1580,7 @@ export default function ProjectDetailPage() {
         }}
         workflowStatuses={workflowStatuses}
         members={members}
+        projectRoles={projectRoles}
       />
 
       <AlertDialog open={!!deleteRuleConfirmId} onOpenChange={(o) => !o && setDeleteRuleConfirmId(null)}>

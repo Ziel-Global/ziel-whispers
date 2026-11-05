@@ -13,7 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { editButtonClass } from "@/components/ui/data-row";
-import { cn, truncateWords } from "@/lib/utils";
+import { cn, truncateWords, getInitials } from "@/lib/utils";
 import {
   getDisplayWorkflowStatuses,
   getStatusColor,
@@ -55,10 +55,6 @@ export interface ProjectTasksTabProps {
   statusColor: (id: string | null) => string;
 }
 
-function initials(name: string) {
-  const parts = (name || "").trim().split(/\s+/);
-  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
-}
 
 function ClientTasksPanel({
   tasks,
@@ -192,13 +188,6 @@ function ClientTasksPanel({
       ? "All statuses"
       : getStatusDisplay(workflowStatuses || [], statusFilter).name;
 
-  const initials = (name: string) =>
-    name
-      .split(/\s+/)
-      .filter(Boolean)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() || "")
-      .join("");
 
   return (
     <div className="space-y-3.5">
@@ -539,7 +528,7 @@ function ClientTasksPanel({
                             ) : assignee ? (
                               <div className="flex items-center gap-2 min-w-0">
                                 <span className="w-5 h-5 rounded-full bg-[#EEF1F5] text-[#5E6470] text-[7px] font-bold flex items-center justify-center flex-none">
-                                  {initials(assignee)}
+                                  {getInitials(assignee)}
                                 </span>
                                 <span className="truncate">{assignee}</span>
                               </div>

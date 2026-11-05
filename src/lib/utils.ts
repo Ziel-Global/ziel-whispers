@@ -105,3 +105,17 @@ export const truncateWords = (str: string | null | undefined, n: number) => {
   if (words.length <= n) return str;
   return words.slice(0, n).join(' ') + '...';
 };
+
+export function getInitials(name?: string | null): string {
+  if (!name || !name.trim()) return "?";
+  return (
+    name
+      .trim()
+      .split(/\s+/)
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .slice(0, 2) || "?"
+  );
+}
+

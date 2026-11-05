@@ -10,10 +10,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { getAvatarUrl, MISC_PROJECT_ID } from "@/lib/utils";
 
-export const DEPARTMENTS = ["Engineering", "Design", "HR", "Marketing", "Operations", "Finance", "SQA", "Management", "Sales", "Other"];
-export const EMP_TYPES = ["full-time", "part-time", "contract"];
-export const ROLES = ["admin", "manager", "employee"];
-export const REMINDER_OPTIONS = [15, 30, 60];
+import { DEPARTMENTS, EMP_TYPES, ROLES, REMINDER_OPTIONS } from "@/lib/constants";
+export { DEPARTMENTS, EMP_TYPES, ROLES, REMINDER_OPTIONS };
 
 export const adminSchema = z.object({
   full_name: z.string().min(1).max(100),
@@ -392,8 +390,8 @@ export function useEmployeeProfileData(id: string | undefined) {
       });
       setLogEditDays(employee.log_edit_days ?? "");
       setEmployeeRemoteAccess(employee.remote_access ?? false);
-      setEmployeeRemoteAccessFrom(employee.remote_access_from ?? "");
-      setEmployeeRemoteAccessTo(employee.remote_access_to ?? "");
+      setEmployeeRemoteAccessFrom(getPKTDateString());
+      setEmployeeRemoteAccessTo(getPKTDateString());
       setEmployeeIsOnLeave(employee.is_on_leave ?? isOnLeaveToday);
       setEmployeeIsOnLeaveFrom(employee.is_on_leave_from ?? "");
       setEmployeeIsOnLeaveTo(employee.is_on_leave_to ?? "");

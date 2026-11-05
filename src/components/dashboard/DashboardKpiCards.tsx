@@ -1,5 +1,6 @@
 import React from "react";
 import { Info } from "lucide-react";
+import { MetricGroup } from "@/components/ui/metric-card";
 
 export interface DashboardKpiCardsProps {
   stats?: {
@@ -22,7 +23,7 @@ export function DashboardKpiCards({ stats, onNavigate }: DashboardKpiCardsProps)
   const dashoffset = 94.2 - (94.2 * attendancePct) / 100;
 
   return (
-    <div className="bg-white border border-black/10 rounded-[14px] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm">
+    <MetricGroup columns={4}>
       {/* Card 1: Active Employees */}
       <div className="p-5 flex flex-col justify-between gap-3 min-w-0">
         <div className="flex items-center gap-1.5 text-[#8B8B92] text-xs font-medium whitespace-nowrap">
@@ -153,6 +154,6 @@ export function DashboardKpiCards({ stats, onNavigate }: DashboardKpiCardsProps)
           See Details <span className="text-[#EB5A1E]">→</span>
         </button>
       </div>
-    </div>
+    </MetricGroup>
   );
 }

@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader } from "@/components/ui/data-row";
@@ -406,10 +406,6 @@ export default function MyLeavePage() {
     }
   };
 
-  const statusBadge = (status: string) => {
-    const map: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", approved: "bg-green-100 text-green-800", rejected: "bg-red-100 text-red-700", cancelled: "bg-gray-100 text-gray-500" };
-    return <Badge className={`${map[status] || ""} capitalize`}>{status}</Badge>;
-  };
 
   return (
     <div className="space-y-6">
@@ -511,7 +507,7 @@ export default function MyLeavePage() {
               <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
               <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
               <RowDataItem label="DAYS">{r.hours ? `${r.hours} hrs` : r.days_count}</RowDataItem>
-              <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
+              <RowDataItem label="STATUS"><StatusBadge status={r.status} /></RowDataItem>
               <RowDataItem label="APPLIED ON">{format(new Date(r.created_at), "MMM d, yyyy")}</RowDataItem>
               {r.status === "pending" ? (
                 <RowActions className="justify-self-end">
@@ -630,7 +626,7 @@ export default function MyLeavePage() {
                   )}
                 </div>
                 <RowDataItem label="DAYS">{r.days_count ?? 1}</RowDataItem>
-                <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
+                <RowDataItem label="STATUS"><StatusBadge status={r.status} /></RowDataItem>
                 <RowDataItem label="REVIEWED">
                   {r.reviewed_at ? (
                     <>{format(new Date(r.reviewed_at), "MMM d, yyyy")} <span className="text-[11px] text-[#9ca3af]">by {r.users?.full_name || "Admin"}</span></>

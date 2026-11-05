@@ -11,19 +11,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-import { getAvatarUrl } from "@/lib/utils";
+import { getAvatarUrl, getInitials } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export function TopBar() {
   const { profile, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const initials = profile?.full_name
-    ?.split(" ")
-    .map((n) => n[0])
-    .join("")
-    .toUpperCase()
-    .slice(0, 2) ?? "?";
+  const initials = getInitials(profile?.full_name);
 
   const handleLogout = async () => {
     await signOut();

@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -25,15 +25,6 @@ export default function EmployeeProfilePage() {
   if (data.employeeError) return <div className="flex flex-1 items-center justify-center text-center py-12 text-muted-foreground">Failed to load employee. {(data.employeeError as any)?.message}</div>;
   if (!data.employee) return <div className="flex flex-1 items-center justify-center text-center py-12 text-muted-foreground">Employee not found</div>;
 
-  const statusBadge = (status: string) => {
-    const variants: Record<string, string> = {
-      active: "bg-green-100 text-green-800",
-      inactive: "bg-gray-100 text-gray-500",
-      pending: "bg-yellow-100 text-yellow-800",
-    };
-    return <Badge className={`${variants[status] || ""} capitalize`}>{status}</Badge>;
-  };
-
   const tabBodyClass =
     "mt-0 flex-1 min-h-0 overflow-y-auto data-[state=inactive]:hidden focus-visible:outline-none";
 
@@ -48,7 +39,7 @@ export default function EmployeeProfilePage() {
           <div>
             <h1 className="text-2xl font-bold tracking-tight">{data.employee.full_name}</h1>
             <div className="flex items-center gap-2 mt-1">
-              {statusBadge(data.employee.status)}
+              <StatusBadge status={data.employee.status} />
               <span className="text-muted-foreground text-sm">{data.employee.designation} · {data.employee.department}</span>
             </div>
           </div>

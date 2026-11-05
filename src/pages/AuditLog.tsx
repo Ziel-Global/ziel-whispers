@@ -6,8 +6,11 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { getAvatarUrl } from "@/lib/utils";
+import { getAvatarUrl, getInitials } from "@/lib/utils";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -168,41 +171,31 @@ export default function AuditLogPage() {
     return <span className="inline-block bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full capitalize">{label}</span>;
   };
 
-  const getInitials = (name: string) => {
-    if (!name) return "S";
-    return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Audit Log</h1>
-          <p className="text-[13px] text-[#8B8B92] font-normal mt-0.5">Immutable record of all system events</p>
-        </div>
-        <button
-          type="button"
-          onClick={exportCSV}
-          className="flex items-center gap-2 bg-white border border-black/[0.08] hover:bg-[#F6F5F3] text-[#4B4B52] font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
-        >
-          <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
-          Export CSV
-        </button>
-      </div>
+      <PageHeader
+        title="Audit Log"
+        subtitle="Immutable record of all system events"
+        actions={
+          <button
+            type="button"
+            onClick={exportCSV}
+            className="flex items-center gap-2 bg-white border border-black/[0.08] hover:bg-[#F6F5F3] text-[#4B4B52] font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
+          >
+            <Download className="h-3.5 w-3.5 text-[#4B4B52]" />
+            Export CSV
+          </button>
+        }
+      />
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2.5 items-center shrink-0">
-        <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
-          <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
-          <input
-            type="text"
-            placeholder="Search by actor or action…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search by actor or action…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
 
         <Select value={actionFilter} onValueChange={setActionFilter}>
           <SelectTrigger className="w-[180px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
@@ -222,13 +215,14 @@ export default function AuditLogPage() {
       {/* Table Container */}
       <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans flex flex-col">
         {isLoading ? (
-          <div className="p-8 text-center text-[#8B8B92] text-sm">Loading audit logs…</div>
+          <EmptyState variant="inline" isLoading message="Loading audit logs…" />
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-[#8B8B92] text-sm">
-            <Shield className="h-8 w-8 mx-auto text-[#B0B0B6] mb-2" />
-            <p className="font-semibold text-[#17171A]">No audit logs found</p>
-            <p className="text-[12px] text-[#8B8B92] mt-0.5">System events will appear here</p>
-          </div>
+          <EmptyState
+            variant="inline"
+            icon={<Shield className="h-6 w-6 text-[#8B8B92]" />}
+            title="No audit logs found"
+            description="System events will appear here"
+          />
         ) : (
           <div className="flex-1 min-h-0 overflow-y-auto">
             <div className="sticky top-0 z-10 bg-white grid grid-cols-[1.1fr_1.4fr_1.4fr_1fr_1.4fr_0.4fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">

@@ -16,7 +16,7 @@ export function useProjectDetailData() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
   const isClient = profile?.role === "client" || profile?.role === "client member";
 
   const [searchParams, setSearchParams] = useSearchParams();
@@ -30,7 +30,7 @@ export function useProjectDetailData() {
     queryKey: ["resolve-project-slug", slug],
     queryFn: async () => {
       const { data } = await supabase.from("projects").select("id, name");
-      const match = (data || []).find((p: any) => toSlug(p.name) === slug);
+      const match = (data || []).find((p: any) => toSlug(p.name) === slug || p.id === slug);
       return match?.id || null;
     },
     enabled: !!slug,
@@ -168,6 +168,20 @@ export function useProjectDetailData() {
     enabled: !!id,
     refetchInterval: 3000,
   });
+
+  // Auto-open task modal when taskId is present in searchParams
+  useEffect(() => {
+    const taskId = searchParams.get("taskId");
+    if (taskId && tasks && tasks.length > 0) {
+      const target = tasks.find((t: any) => t.id === taskId);
+      if (target) {
+        setViewTaskData(target);
+        const newParams = new URLSearchParams(searchParams);
+        newParams.delete("taskId");
+        setSearchParams(newParams, { replace: true });
+      }
+    }
+  }, [searchParams, tasks, setSearchParams]);
 
   // 8. Project phases
   const { data: phases = [] } = useQuery({

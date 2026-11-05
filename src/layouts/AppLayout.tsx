@@ -8,21 +8,23 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout() {
   const { profile } = useAuth();
-  const showMissingLog = profile?.role === "employee" || profile?.role === "manager";
+  const showMissingLog = profile?.role === "employee" || profile?.role === "manager" || profile?.role === "hr_manager" || profile?.role === "project_manager";
   const isClient = profile?.role === "client" || profile?.role === "client member"
     || profile?.designation === "Client" || profile?.designation === "Client Member";
 
   return (
-    <SidebarProvider>
-      <div className="h-screen flex w-full overflow-hidden">
+    <SidebarProvider className="h-full overflow-hidden">
+      <div className="h-full flex w-full overflow-hidden">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0 min-h-0">
           <TopBar />
-          <main className={`flex-1 min-h-0 flex flex-col overflow-hidden ${isClient ? "p-4 md:p-[26px_22px_52px] bg-[#F7F8FA]" : "p-3 md:p-6 bg-background"}`}>
-            <AutoClockoutAlert />
-            {showMissingLog && <MissingLogAlert />}
-            <div className="flex-1 min-h-0 overflow-auto flex flex-col">
-              <Outlet />
+          <main className={`flex-1 min-h-0 flex flex-col overflow-y-auto ${isClient ? "bg-[#F7F8FA]" : "bg-background"}`}>
+            <div className={`flex-1 flex flex-col min-h-full ${isClient ? "p-4 md:p-[26px_22px_52px]" : "p-3 md:p-6"}`}>
+              <AutoClockoutAlert />
+              {showMissingLog && <MissingLogAlert />}
+              <div className="flex-1 flex flex-col min-w-0">
+                <Outlet />
+              </div>
             </div>
           </main>
         </div>

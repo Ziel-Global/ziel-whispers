@@ -20,6 +20,16 @@ export function isClientRole(profile: { role?: string | null } | null | undefine
   return role === "client" || role === "client member";
 }
 
+export function isProjectManagerRole(profile: { role?: string | null } | null | undefined): boolean {
+  const role = profile?.role;
+  return role === "admin" || role === "project_manager" || role === "manager";
+}
+
+export function isHRManagerRole(profile: { role?: string | null } | null | undefined): boolean {
+  const role = profile?.role;
+  return role === "admin" || role === "hr_manager" || role === "manager";
+}
+
 /** Client portal lists and navigation — archived projects are hidden. */
 export function isProjectVisibleToClientPortal(project: { status?: string | null }): boolean {
   return project.status !== "archived";

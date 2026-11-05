@@ -2,7 +2,7 @@ import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
-import { getLeaveTypeName } from "@/lib/utils";
+import { getLeaveTypeName, getInitials } from "@/lib/utils";
 
 export interface LeaveCalendarTabProps {
   calMonth: Date;
@@ -34,11 +34,6 @@ export function LeaveCalendarTab({
       { bg: "bg-[#FDF3E3]", text: "text-[#A9720B]", dot: "bg-[#A9720B]" },
     ];
     return styles[index % styles.length];
-  };
-
-  const getInitials = (name: string) => {
-    if (!name) return "??";
-    return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
   };
 
   const padCount = calDays[0] ? calDays[0].getDay() : 0;

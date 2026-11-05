@@ -23,7 +23,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Flag, Paperclip, Send, Trash2, Download, Upload, FileText, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, MessageSquare, Plus, Search, Eye, EyeOff, XCircle, Pencil, ArrowRightCircle, Info, List, Link2, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
-import { truncateWords, cn } from "@/lib/utils";
+import { truncateWords, cn, getInitials } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
@@ -346,15 +346,6 @@ export function TaskModals(props: TaskModalsProps) {
   } = props;
   const [taskDateOpen, setTaskDateOpen] = useState(false);
   const [editTaskDateOpen, setEditTaskDateOpen] = useState(false);
-
-  const getInitials = (name: string) =>
-    (name || "")
-      .split(/\s+/)
-      .filter(Boolean)
-      .map((w) => w[0])
-      .join("")
-      .slice(0, 2)
-      .toUpperCase() || "?";
 
   const clientStatusInfo = viewTaskData?.status_id
     ? getStatusDisplay(workflowStatuses || [], viewTaskData.status_id)

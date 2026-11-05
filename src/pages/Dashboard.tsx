@@ -6,6 +6,7 @@ import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, isA
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
 import { useNavigate } from "react-router-dom";
 import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight } from "lucide-react";
@@ -13,20 +14,21 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format, formatDistanceToNow, subDays } from "date-fns";
-import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear, toSlug } from "@/lib/utils";
+import { getAvatarUrl, getLeaveTypeName, getCurrentLeaveYear, toSlug, getInitials } from "@/lib/utils";
 import { DashboardKpiCards } from "@/components/dashboard/DashboardKpiCards";
 import { RecentActivityFeed } from "@/components/dashboard/RecentActivityFeed";
 import { AttendanceScoreGauge } from "@/components/dashboard/AttendanceScoreGauge";
 import { WorkforceSplitDonut } from "@/components/dashboard/WorkforceSplitDonut";
 import { AttendanceTrendChart } from "@/components/dashboard/AttendanceTrendChart";
 import { DailyLogsHeatmap } from "@/components/dashboard/DailyLogsHeatmap";
+import { EmployeeDashboard } from "@/components/employee/dashboard/EmployeeDashboard";
 
 export default function DashboardPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [requestBannerDismissTick, setRequestBannerDismissTick] = useState(0);
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager";
+  const isAdmin = profile?.role === "admin";
   const isClient = profile?.role === "client" || profile?.role === "client member";
   const hasProfile = !!profile?.id;
   const today = getPKTDateString();
@@ -46,14 +48,6 @@ export default function DashboardPage() {
     enabled: hasProfile && !!user?.id,
   });
 
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "approved": return <Badge className="bg-green-100 text-green-800">Approved</Badge>;
-      case "rejected": return <Badge className="bg-red-100 text-red-800">Rejected</Badge>;
-      case "cancelled": return <Badge className="bg-gray-100 text-gray-800">Cancelled</Badge>;
-      default: return <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>;
-    }
-  };
 
   // ——— Admin queries ———
   const { data: stats } = useQuery({
@@ -332,10 +326,6 @@ export default function DashboardPage() {
     refetchInterval: 30000,
   });
 
-  const getInitials = (name: string) => {
-    return name.split(" ").map(n => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
   const dismissAnnouncement = async (announcementId: string) => {
     await supabase.from("announcement_reads").upsert({ announcement_id: announcementId, user_id: user!.id, dismissed: true }, { onConflict: "announcement_id,user_id" as any });
     queryClient.invalidateQueries({ queryKey: ["dashboard-urgent"] });
@@ -473,7 +463,7 @@ export default function DashboardPage() {
                     <RowDataItem label="TYPE">{getLeaveTypeName(r)}</RowDataItem>
                     <RowDataItem label="FROM">{format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
                     <RowDataItem label="TO">{format(new Date(r.end_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                    <RowDataItem label="STATUS">{statusBadge(r.status)}</RowDataItem>
+                    <RowDataItem label="STATUS"><StatusBadge status={r.status} /></RowDataItem>
                     <RowActions className="justify-self-end">
                       <button onClick={() => handleLeaveAction(r.id, "approved")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-green-600" title="Approve">
                         <CheckCircle className="h-4 w-4" />
@@ -550,11 +540,6 @@ export default function DashboardPage() {
   // ——— EMPLOYEE DASHBOARD ———
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">My Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
-      </div>
-
       {urgentAnnouncements && urgentAnnouncements.length > 0 && (
         <div className="space-y-2">
           {urgentAnnouncements.map((a) => (
@@ -568,7 +553,7 @@ export default function DashboardPage() {
           ))}
         </div>
       )}
- 
+
       {visibleProjectNotifications && visibleProjectNotifications.length > 0 && (
         <div className="bg-black border border-black/10 rounded-xl p-5 flex items-center justify-between shadow-xl animate-in fade-in slide-in-from-top duration-500">
           <div className="flex items-center gap-4">
@@ -637,198 +622,8 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <Clock className={`h-5 w-5 ${isClockedIn ? "text-green-600" : "text-muted-foreground"}`} />
-            <span className="text-sm font-medium">Attendance</span>
-          </div>
-          {isClockedIn ? (
-            <>
-              <p className="text-sm">Clocked in since <strong>{format(new Date(todayRecord!.clock_in!), "h:mm a")}</strong> ({todayRecord!.work_mode})</p>
-              {todayRecord?.clock_in && isAttendanceLate(todayRecord.clock_in, shiftStart, graceMinutes, workingDays).isLate && (
-                <p className="text-xs text-yellow-700 mt-1">⚠️ Late by {formatLateness(isAttendanceLate(todayRecord.clock_in, shiftStart, graceMinutes, workingDays).minutesLate)}.</p>
-              )}
-            </>
-          ) : hasClockedOut ? (
-            <div className="space-y-1">
-              <p className="text-sm text-green-700 font-medium">Clocked Out</p>
-              {todayDurationSeconds > 0 && (
-                <p className="text-xs text-muted-foreground">Worked {formatDuration(todayDurationSeconds)} today</p>
-              )}
-            </div>
-          ) : isWeekendDay ? (
-            <p className="text-sm text-muted-foreground">Weekend (Off)</p>
-          ) : (
-            <p className="text-sm text-muted-foreground">Not clocked in</p>
-          )}
-          <Button size="sm" className="mt-3 rounded-button w-full" onClick={() => navigate("/attendance/my")}>
-            {isClockedIn ? "View Session" : "Clock In"}
-          </Button>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <FileText className={`h-5 w-5 ${hasSubmittedLog ? "text-green-600" : "text-red-500"}`} />
-            <span className="text-sm font-medium">Today's Log</span>
-          </div>
-          <p className="text-sm">
-            {hasSubmittedLog ? (
-              <span className="text-green-700">Submitted ({todayLogs!.length} {todayLogs!.length === 1 ? "entry" : "entries"})</span>
-            ) : (profile?.created_at && today <= profile.created_at.split("T")[0]) ? (
-              <span className="text-muted-foreground">Not yet started</span>
-            ) : isWeekendDay ? (
-              <span className="text-muted-foreground">Weekend (Off)</span>
-            ) : (
-              <span className="text-red-600">Not submitted yet</span>
-            )}
-          </p>
-          <Button size="sm" variant={hasSubmittedLog ? "outline" : "default"} disabled={!hasSubmittedLog && isWeekendDay} className="mt-3 rounded-button w-full" onClick={() => navigate("/logs/submit")}>
-            {hasSubmittedLog ? "Add Another" : "Submit Log"}
-          </Button>
-        </Card>
-
-        <Card className="p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <Calendar className="h-5 w-5 text-muted-foreground" />
-            <span className="text-sm font-medium">Leave Balance</span>
-          </div>
-          <p className="text-sm"><strong>{annualRemaining}</strong> annual leave days remaining</p>
-          <p className="text-xs text-muted-foreground">{usedLeaveDays} used / {annualLeaveEntitlement} total</p>
-          {halfDayHours > 0 && (
-            <p className="text-xs text-muted-foreground mt-1">{halfDayHours} hour{halfDayHours !== 1 ? "s" : ""} of half day leave used this year</p>
-          )}
-          <Button size="sm" variant="outline" className="mt-3 rounded-button w-full" onClick={() => navigate("/leave/my")}>Apply Leave</Button>
-        </Card>
-      </div>
-
-      <div>
-        <Dialog>
-          <DialogTrigger asChild>
-            <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow group">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-md bg-purple-50 group-hover:bg-purple-100 transition-colors">
-                    <Users className="h-5 w-5 text-purple-600" />
-                  </div>
-                  <div>
-                    <h2 className="text-sm font-medium">Team Today</h2>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {teamStatus?.filter((m: any) => !!m.attendance?.clock_in && !m.attendance?.clock_out).length || 0} active now
-                    </p>
-                  </div>
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground group-hover:translate-x-1 transition-transform" />
-              </div>
-            </Card>
-          </DialogTrigger>
-          <DialogContent className="p-0">
-            <DialogHeader className="p-4 pb-2 border-b">
-              <DialogTitle className="flex items-center gap-2 text-lg">
-                <Users className="h-5 w-5 text-purple-600" />
-                Team Status Today
-              </DialogTitle>
-            </DialogHeader>
-            <ScrollArea className="max-h-[60vh]">
-              <div className="divide-y">
-                {!teamStatus || teamStatus.length === 0 ? (
-                  <div className="p-8 text-center text-muted-foreground text-sm">No team members found.</div>
-                ) : (
-                  teamStatus.map((member: any) => {
-                    const clockedIn = !!member.attendance?.clock_in;
-                    const mode = member.attendance?.work_mode;
-                    
-                    return (
-                      <div key={member.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <Avatar className="h-10 w-10 border">
-                            <AvatarImage src={getAvatarUrl(member.avatar_url)} />
-                            <AvatarFallback>{getInitials(member.full_name)}</AvatarFallback>
-                          </Avatar>
-                          <div>
-                            <p className="text-sm font-semibold">{member.full_name}</p>
-                            <p className="text-[11px] text-muted-foreground leading-tight">{member.designation || "Team Member"}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center">
-                          {member.onLeave ? (
-                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-none flex items-center gap-1 text-[10px] font-medium">
-                              <Calendar className="h-3 w-3" /> On Leave ({member.onLeave})
-                            </Badge>
-                          ) : !clockedIn ? (
-                            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
-                              Not Clocked In
-                            </Badge>
-                          ) : member.attendance.clock_out ? (
-                            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
-                              Clocked Out
-                            </Badge>
-                          ) : mode === "onsite" ? (
-                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none flex items-center gap-1 text-[10px] font-medium">
-                              <Building2 className="h-3 w-3" /> On-site
-                            </Badge>
-                          ) : (
-                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none flex items-center gap-1 text-[10px] font-medium">
-                              <Monitor className="h-3 w-3" /> Remote
-                            </Badge>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </ScrollArea>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      {myProjects && myProjects.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3">My Projects</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {myProjects.map((pm: any) => (
-              <Card key={pm.project_id} className="p-4 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate(`/projects/${toSlug(pm.projects?.name || pm.project_id)}`)}>
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{pm.projects?.name}</p>
-                    <p className="text-xs text-muted-foreground">{pm.projects?.clients?.name || "No client"} · {pm.project_roles?.name || "Member"}</p>
-                  </div>
-                  <Badge variant="outline" className="capitalize">{pm.projects?.status}</Badge>
-                </div>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {recentLogs && recentLogs.length > 0 && (
-        <div>
-          <h2 className="text-lg font-semibold mb-3">Recent Logs</h2>
-          <div>
-            <TableHeader gridCols="1fr 112px 80px 80px">
-              <span>PROJECT</span>
-              <span>DATE</span>
-              <span>HOURS</span>
-              <span className="text-right">ACTIONS</span>
-            </TableHeader>
-            {recentLogs.map((log: any) => (
-              <DataRow key={log.id} gridCols="1fr 112px 80px 80px">
-                <div>
-                  <RowPrimary>{log.projects?.name || "No project"}</RowPrimary>
-                  <RowSecondary>{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")} · {log.category.replace(/_/g, " ")}</RowSecondary>
-                </div>
-                <RowDataItem label="DATE">{format(new Date(log.log_date + "T00:00:00"), "MMM d, yyyy")}</RowDataItem>
-                <RowDataItem label="HOURS">{log.hours}h</RowDataItem>
-                <RowActions className="justify-self-end">
-                  <button onClick={() => navigate("/logs/my")} className="shrink-0 p-1.5 rounded hover:bg-[#f3f4f6] transition-colors text-xs font-medium text-[#6b7280]" title="View">View</button>
-                </RowActions>
-              </DataRow>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Modern Blueprint Employee Dashboard */}
+      <EmployeeDashboard />
     </div>
   );
 }

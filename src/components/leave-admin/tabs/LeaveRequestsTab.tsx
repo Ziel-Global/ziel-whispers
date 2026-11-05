@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/ui/status-badge";
+import { EmptyState } from "@/components/ui/empty-state";
+import { MetricCard, MetricGroup } from "@/components/ui/metric-card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, X, Trash2, CalendarCheck, CalendarDays, AlertTriangle, ChevronRight, Search } from "lucide-react";
 import { format } from "date-fns";
-import { getLeaveTypeName, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
+import { getLeaveTypeName, getLeaveYearRange, getLeaveYearOptions, getInitials } from "@/lib/utils";
 import { LEAVE_CATEGORIES } from "@/hooks/useLeaveAdminData";
 
 export interface LeaveRequestsTabProps {
@@ -48,18 +50,6 @@ export function LeaveRequestsTab({
 }: LeaveRequestsTabProps) {
   const [searchQ, setSearchQ] = useState("");
 
-  const statusBadge = (status: string) => {
-    switch (status) {
-      case "approved":
-        return <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">Approved</Badge>;
-      case "pending":
-        return <Badge className="bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">Pending</Badge>;
-      case "rejected":
-        return <Badge className="bg-[#FDECEC] text-[#C23A3A] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">Rejected</Badge>;
-      default:
-        return <Badge className="bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize">{status}</Badge>;
-    }
-  };
 
   const displayedList = filtered.filter((r: any) => {
     if (!searchQ) return true;
@@ -67,51 +57,35 @@ export function LeaveRequestsTab({
     return name.toLowerCase().includes(searchQ.toLowerCase());
   });
 
-  const getInitials = (name: string) => {
-    if (!name) return "??";
-    return name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2);
-  };
-
   return (
     <div className="flex flex-col h-full min-h-0 gap-4 font-sans overflow-hidden">
       {/* Summary KPI Cards Grid */}
-      <div className="bg-white border border-black/[0.08] rounded-[14px] grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-black/[0.07] overflow-hidden shadow-sm shrink-0">
-        <div className="p-5 flex items-center gap-3.5">
-          <div className="w-[38px] h-[38px] rounded-[10px] bg-[#EAF3FF] text-[#1C6FC9] flex items-center justify-center shrink-0">
-            <CalendarCheck className="h-4.5 w-4.5 text-[#1C6FC9]" />
-          </div>
-          <div>
-            <p className="text-[13px] text-[#8B8B92] font-medium">On leave today</p>
-            <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{summaryStats.employeesOnLeaveToday}</p>
-          </div>
-        </div>
-
-        <div className="p-5 flex items-center gap-3.5">
-          <div className="w-[38px] h-[38px] rounded-[10px] bg-[#DFF6E4] text-[#1FAA59] flex items-center justify-center shrink-0">
-            <CalendarDays className="h-4.5 w-4.5 text-[#1FAA59]" />
-          </div>
-          <div>
-            <p className="text-[13px] text-[#8B8B92] font-medium">Leaves taken this month</p>
-            <p className="text-[24px] font-bold text-[#17171A] tracking-[-0.5px]">{summaryStats.leavesThisMonth}</p>
-          </div>
-        </div>
-
-        <div
-          className="p-5 flex items-center gap-3.5 cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors"
+      <MetricGroup columns={3}>
+        <MetricCard
+          variant="row"
+          icon={<CalendarCheck className="h-4.5 w-4.5 text-[#1C6FC9]" />}
+          iconClassName="bg-[#EAF3FF] text-[#1C6FC9]"
+          label="On leave today"
+          value={summaryStats.employeesOnLeaveToday}
+        />
+        <MetricCard
+          variant="row"
+          icon={<CalendarDays className="h-4.5 w-4.5 text-[#1FAA59]" />}
+          iconClassName="bg-[#DFF6E4] text-[#1FAA59]"
+          label="Leaves taken this month"
+          value={summaryStats.leavesThisMonth}
+        />
+        <MetricCard
+          variant="row"
+          icon={<AlertTriangle className="h-4.5 w-4.5 text-[#A9720B]" />}
+          iconClassName="bg-[#FDF3E3] text-[#A9720B]"
+          label="Pending approvals"
+          value={filtered.filter((r: any) => r.status === "pending").length}
+          valueClassName="text-[#A9720B]"
+          trailing={<ChevronRight className="h-4 w-4 text-[#B0B0B6] shrink-0" />}
           onClick={() => setShowBalanceDialog(true)}
-        >
-          <div className="w-[38px] h-[38px] rounded-[10px] bg-[#FDF3E3] text-[#A9720B] flex items-center justify-center shrink-0">
-            <AlertTriangle className="h-4.5 w-4.5 text-[#A9720B]" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-[13px] text-[#8B8B92] font-medium">Pending approvals</p>
-            <p className="text-[24px] font-bold text-[#A9720B] tracking-[-0.5px]">
-              {filtered.filter((r: any) => r.status === "pending").length}
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 text-[#B0B0B6] shrink-0" />
-        </div>
-      </div>
+        />
+      </MetricGroup>
 
       {/* Filter Toolbar */}
       <div className="flex flex-wrap gap-2.5 items-center shrink-0">
@@ -176,9 +150,7 @@ export function LeaveRequestsTab({
 
       {/* Leave Requests Table */}
       {displayedList.length === 0 ? (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-8 text-center text-[#8B8B92] text-sm shadow-sm">
-          No leave requests found for the selected filters
-        </div>
+        <EmptyState message="No leave requests found for the selected filters" />
       ) : (
         <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto">
@@ -272,7 +244,7 @@ export function LeaveRequestsTab({
               </div>
 
               {/* STATUS */}
-              <div>{statusBadge(r.status)}</div>
+              <div><StatusBadge status={r.status} /></div>
 
               {/* ACTIONS */}
               <div className="flex items-center justify-end gap-1.5">

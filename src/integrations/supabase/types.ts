@@ -610,6 +610,30 @@ export type Database = {
           },
         ]
       }
+      holidays: {
+        Row: {
+          created_at: string
+          date: string
+          id: string
+          name: string
+          region: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          id?: string
+          name: string
+          region?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          id?: string
+          name?: string
+          region?: string
+        }
+        Relationships: []
+      }
       leave_balances: {
         Row: {
           id: string
@@ -892,6 +916,7 @@ export type Database = {
       }
       project_members: {
         Row: {
+          allocation_percentage: number
           assigned_at: string
           id: string
           notified: boolean | null
@@ -901,6 +926,7 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          allocation_percentage?: number
           assigned_at?: string
           id?: string
           notified?: boolean | null
@@ -910,6 +936,7 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          allocation_percentage?: number
           assigned_at?: string
           id?: string
           notified?: boolean | null
@@ -1056,6 +1083,9 @@ export type Database = {
       }
       projects: {
         Row: {
+          baseline_end_date: string | null
+          billing_type: string
+          budget_hours: number | null
           client_id: string | null
           created_at: string
           created_by: string | null
@@ -1063,6 +1093,7 @@ export type Database = {
           document_link: string | null
           end_date: string | null
           id: string
+          is_billable: boolean
           name: string
           start_date: string
           status: string
@@ -1070,6 +1101,9 @@ export type Database = {
           workflow_template_id: string | null
         }
         Insert: {
+          baseline_end_date?: string | null
+          billing_type?: string
+          budget_hours?: number | null
           client_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -1077,6 +1111,7 @@ export type Database = {
           document_link?: string | null
           end_date?: string | null
           id?: string
+          is_billable?: boolean
           name: string
           start_date: string
           status?: string
@@ -1084,6 +1119,9 @@ export type Database = {
           workflow_template_id?: string | null
         }
         Update: {
+          baseline_end_date?: string | null
+          billing_type?: string
+          budget_hours?: number | null
           client_id?: string | null
           created_at?: string
           created_by?: string | null
@@ -1091,6 +1129,7 @@ export type Database = {
           document_link?: string | null
           end_date?: string | null
           id?: string
+          is_billable?: boolean
           name?: string
           start_date?: string
           status?: string
@@ -1734,6 +1773,7 @@ export type Database = {
           project_id: string
           require_subtasks_done: boolean
           sprint_id: string | null
+          started_at: string | null
           status: string
           status_id: string | null
           title: string
@@ -1757,6 +1797,7 @@ export type Database = {
           project_id: string
           require_subtasks_done?: boolean
           sprint_id?: string | null
+          started_at?: string | null
           status?: string
           status_id?: string | null
           title: string
@@ -1780,6 +1821,7 @@ export type Database = {
           project_id?: string
           require_subtasks_done?: boolean
           sprint_id?: string | null
+          started_at?: string | null
           status?: string
           status_id?: string | null
           title?: string
@@ -1853,15 +1895,18 @@ export type Database = {
           designation: string
           email: string
           employment_type: string
+          exit_reason: string | null
           full_name: string
           has_custom_shift: boolean
           id: string
+          is_department_head: boolean
           is_night_shift: boolean
           is_on_leave: boolean
           is_on_leave_from: string | null
           is_on_leave_to: string | null
           is_oversight: boolean
           join_date: string
+          left_at: string | null
           log_edit_days: number | null
           must_change_password: boolean
           overtime_enabled: boolean | null
@@ -1872,6 +1917,7 @@ export type Database = {
           remote_access_from: string | null
           remote_access_to: string | null
           remote_site_access: boolean
+          reports_to: string | null
           role: string
           shift_end: string
           shift_start: string
@@ -1886,15 +1932,18 @@ export type Database = {
           designation: string
           email: string
           employment_type: string
+          exit_reason?: string | null
           full_name: string
           has_custom_shift?: boolean
           id: string
+          is_department_head?: boolean
           is_night_shift?: boolean
           is_on_leave?: boolean
           is_on_leave_from?: string | null
           is_on_leave_to?: string | null
           is_oversight?: boolean
           join_date: string
+          left_at?: string | null
           log_edit_days?: number | null
           must_change_password?: boolean
           overtime_enabled?: boolean | null
@@ -1905,6 +1954,7 @@ export type Database = {
           remote_access_from?: string | null
           remote_access_to?: string | null
           remote_site_access?: boolean
+          reports_to?: string | null
           role?: string
           shift_end?: string
           shift_start?: string
@@ -1919,15 +1969,18 @@ export type Database = {
           designation?: string
           email?: string
           employment_type?: string
+          exit_reason?: string | null
           full_name?: string
           has_custom_shift?: boolean
           id?: string
+          is_department_head?: boolean
           is_night_shift?: boolean
           is_on_leave?: boolean
           is_on_leave_from?: string | null
           is_on_leave_to?: string | null
           is_oversight?: boolean
           join_date?: string
+          left_at?: string | null
           log_edit_days?: number | null
           must_change_password?: boolean
           overtime_enabled?: boolean | null
@@ -1938,6 +1991,7 @@ export type Database = {
           remote_access_from?: string | null
           remote_access_to?: string | null
           remote_site_access?: boolean
+          reports_to?: string | null
           role?: string
           shift_end?: string
           shift_start?: string

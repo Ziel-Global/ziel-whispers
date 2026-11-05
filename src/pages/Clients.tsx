@@ -8,13 +8,16 @@ import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { PageHeader } from "@/components/ui/page-header";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { Plus, Search, Archive, ArchiveRestore, Pencil, Building2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 interface ClientForm {
   name: string;
@@ -198,32 +201,27 @@ export default function ClientsPage() {
 
   return (
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
-      <div className="flex items-center justify-between pb-1 flex-wrap gap-3 shrink-0">
-        <div>
-          <h1 className="text-[26px] font-bold tracking-[-0.5px] text-[#17171A]">Clients</h1>
-          <p className="text-[13px] text-[#8B8B92] font-normal mt-0.5">Manage your clients and their contact information</p>
-        </div>
-        <button
-          type="button"
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
-        >
-          <Plus className="h-3.5 w-3.5 text-white" />
-          Add Client
-        </button>
-      </div>
+      <PageHeader
+        title="Clients"
+        subtitle="Manage your clients and their contact information"
+        actions={
+          <button
+            type="button"
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-[#EB5A1E] hover:bg-[#C64715] text-white font-semibold rounded-[10px] px-4 py-2 text-[13px] transition-colors shadow-sm whitespace-nowrap"
+          >
+            <Plus className="h-3.5 w-3.5 text-white" />
+            Add Client
+          </button>
+        }
+      />
 
       <div className="flex flex-wrap gap-2.5 items-center shrink-0">
-        <div className="flex-1 min-w-[220px] relative flex items-center bg-white border border-black/[0.08] rounded-[10px] px-3.5 py-2 shadow-sm">
-          <Search className="h-3.5 w-3.5 text-[#8B8B92] shrink-0 mr-2" />
-          <input
-            type="text"
-            placeholder="Search clients…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full bg-transparent border-0 p-0 text-[13px] text-[#17171A] placeholder:text-[#B0B0B6] focus:outline-none font-sans"
-          />
-        </div>
+        <SearchInput
+          placeholder="Search clients…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
             <SelectValue placeholder="Status" />
@@ -237,15 +235,11 @@ export default function ClientsPage() {
       </div>
 
       {isLoading && (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
-          Loading clients…
-        </div>
+        <EmptyState isLoading message="Loading clients…" />
       )}
 
       {!isLoading && filtered.length === 0 && (
-        <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] p-12 text-center text-[#8B8B92] text-sm shadow-sm">
-          No clients found
-        </div>
+        <EmptyState message="No clients found" />
       )}
 
       {!isLoading && filtered.length > 0 && (
@@ -463,49 +457,25 @@ export default function ClientsPage() {
         </DialogContent>
       </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-        <AlertDialogContent className="font-sans sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[16px] font-bold text-[#17171A]">Delete Client?</AlertDialogTitle>
-            <AlertDialogDescription className="text-[13px] text-[#8B8B92]">
-              Are you sure you want to delete this client? This will permanently remove the client from the system. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="rounded-[10px] text-[13px]">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleDelete}
-              disabled={deleting}
-              className="bg-[#E5484D] text-white hover:bg-red-700 font-semibold rounded-[10px] px-4 text-[13px]"
-            >
-              {deleting ? "Deleting…" : "Delete Permanently"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={!!deleteId}
+        onOpenChange={(open) => !open && setDeleteId(null)}
+        title="Delete Client?"
+        description="Are you sure you want to delete this client? This will permanently remove the client from the system. This action cannot be undone."
+        confirmLabel="Delete Permanently"
+        loading={deleting}
+        onConfirm={handleDelete}
+      />
 
-      <AlertDialog open={bulkDeleteClientOpen} onOpenChange={setBulkDeleteClientOpen}>
-        <AlertDialogContent className="font-sans sm:max-w-md">
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-[16px] font-bold text-[#17171A]">
-              Delete {selectedClientIds.size} Client{selectedClientIds.size > 1 ? "s" : ""}?
-            </AlertDialogTitle>
-            <AlertDialogDescription className="text-[13px] text-[#8B8B92]">
-              Are you sure you want to delete {selectedClientIds.size} client{selectedClientIds.size > 1 ? "s" : ""}? Clients linked to projects will be skipped. This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleting} className="rounded-[10px] text-[13px]">Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={handleBulkDeleteClients}
-              disabled={deleting}
-              className="bg-[#E5484D] text-white hover:bg-red-700 font-semibold rounded-[10px] px-4 text-[13px]"
-            >
-              {deleting ? "Deleting..." : "Delete all"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmDialog
+        open={bulkDeleteClientOpen}
+        onOpenChange={setBulkDeleteClientOpen}
+        title={`Delete ${selectedClientIds.size} Client${selectedClientIds.size > 1 ? "s" : ""}?’`}
+        description={`Are you sure you want to delete ${selectedClientIds.size} client${selectedClientIds.size > 1 ? "s" : ""}? Clients linked to projects will be skipped. This action cannot be undone.`}
+        confirmLabel="Delete all"
+        loading={deleting}
+        onConfirm={handleBulkDeleteClients}
+      />
     </div>
   );
 }

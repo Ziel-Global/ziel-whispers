@@ -201,10 +201,11 @@ export default function DashboardPage() {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from("leave_requests")
-        .select("id, status, start_date, end_date, hours, leave_types(name)")
+        .select("id, status, start_date, end_date, hours, reviewed_at, leave_types(name)")
         .eq("user_id", user!.id)
         .in("status", ["approved", "rejected"])
-        .gte("reviewed_at", thirtyDaysAgo);
+        .gte("reviewed_at", thirtyDaysAgo)
+        .gte("end_date", getPKTDateString()); // past requests never re-notify
       if (error) throw error;
       return data || [];
     },
@@ -217,10 +218,11 @@ export default function DashboardPage() {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from("remote_work_requests")
-        .select("id, status, start_date, end_date")
+        .select("id, status, start_date, end_date, reviewed_at")
         .eq("user_id", user!.id)
         .in("status", ["approved", "rejected"])
-        .gte("reviewed_at", thirtyDaysAgo);
+        .gte("reviewed_at", thirtyDaysAgo)
+        .gte("end_date", getPKTDateString()); // past requests never re-notify
       if (error) throw error;
       return data || [];
     },
@@ -235,6 +237,18 @@ export default function DashboardPage() {
     });
   }, [unnotifiedProjects, user?.id]);
 
+  // "Seen" marker lives in the auth user's metadata (no table/schema change) so a dismissed
+  // request update stays dismissed on every device/browser.
+  const { data: requestsSeenAt } = useQuery({
+    queryKey: ["requests-seen-at", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.auth.getUser();
+      return (data.user?.user_metadata?.requests_seen_at as string | undefined) ?? null;
+    },
+    enabled: !isAdmin && hasProfile && !!user?.id,
+  });
+  const isUnseen = (r: any) => !requestsSeenAt || !r.reviewed_at || new Date(r.reviewed_at) > new Date(requestsSeenAt);
+
   const visibleRequestNotifications = useMemo(() => {
      
     const _tick = requestBannerDismissTick;
@@ -244,7 +258,7 @@ export default function DashboardPage() {
     if (recentLeaves) {
       recentLeaves.forEach((r: any) => {
         const key = `request_notified_${user.id}_leave_${r.id}_${r.status}`;
-        if (!localStorage.getItem(key)) {
+        if (isUnseen(r) && !localStorage.getItem(key)) {
           notifications.push({ type: "leave", data: r });
         }
       });
@@ -253,14 +267,14 @@ export default function DashboardPage() {
     if (recentWfh) {
       recentWfh.forEach((r: any) => {
         const key = `request_notified_${user.id}_wfh_${r.id}_${r.status}`;
-        if (!localStorage.getItem(key)) {
+        if (isUnseen(r) && !localStorage.getItem(key)) {
           notifications.push({ type: "wfh", data: r });
         }
       });
     }
     
     return notifications;
-  }, [recentLeaves, recentWfh, user?.id, requestBannerDismissTick]);
+  }, [recentLeaves, recentWfh, user?.id, requestBannerDismissTick, requestsSeenAt]);
 
   const { data: teamStatus } = useQuery({
     queryKey: ["dashboard-team-today"],
@@ -353,7 +367,7 @@ export default function DashboardPage() {
     }
   };
 
-  const dismissRequestNotifications = () => {
+  const dismissRequestNotifications = async () => {
     if (!visibleRequestNotifications || visibleRequestNotifications.length === 0) return;
     
     visibleRequestNotifications.forEach((n) => {
@@ -362,6 +376,8 @@ export default function DashboardPage() {
     });
     
     setRequestBannerDismissTick(t => t + 1);
+    await supabase.auth.updateUser({ data: { requests_seen_at: new Date().toISOString() } });
+    queryClient.invalidateQueries({ queryKey: ["requests-seen-at"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard-recent-leaves"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard-recent-wfh"] });
   };

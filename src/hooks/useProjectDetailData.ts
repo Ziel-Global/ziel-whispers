@@ -54,11 +54,12 @@ export function useProjectDetailData() {
   });
 
   useEffect(() => {
-    if (!isClient || isLoading || !project) return;
+    // Archived projects are admin-only (also enforced by RLS).
+    if (profile?.role === "admin" || isLoading || !project) return;
     if (!isProjectVisibleToClientPortal(project)) {
       navigate("/projects", { replace: true });
     }
-  }, [isClient, isLoading, project, navigate]);
+  }, [profile?.role, isLoading, project, navigate]);
 
   // 3. Project members
   const { data: members } = useQuery({

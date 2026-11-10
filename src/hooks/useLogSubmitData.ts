@@ -8,7 +8,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { MISC_PROJECT_ID } from "@/lib/utils";
+import { MISC_PROJECT_ID, formatDecimal } from "@/lib/utils";
 import { getAllowedTransitions, getStatusDisplay } from "@/lib/workflow";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 import { getMinDateStr, getPreviousWorkingDay, isWithinLogEditWindow } from "@/utils/logDateUtils";
@@ -425,7 +425,7 @@ export function useLogSubmitData() {
     const currentHours = Number(data.hours);
     const maxDaily = 24;
     if (submittedHours + pendingHoursForSelectedDate + currentHours > maxDaily + 0.01 && profile?.role !== "admin") {
-      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
+      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${formatDecimal(submittedHours)}h and have ${formatDecimal(pendingHoursForSelectedDate)}h pending.`);
       return;
     }
     if (declareOutcome && allowedTransitions.length > 1 && !selectedOutcomeStatusId) {

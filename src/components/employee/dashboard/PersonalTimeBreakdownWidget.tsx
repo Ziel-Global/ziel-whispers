@@ -1,6 +1,7 @@
 import React from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { formatDecimal } from "@/lib/utils";
 import { PieChart as PieIcon, BarChart2 } from "lucide-react";
 import {
   PieChart,
@@ -48,7 +49,7 @@ export function PersonalTimeBreakdownWidget({
               Time by Project (This Month)
             </h2>
           </div>
-          <span className="text-xs text-muted-foreground">{totalProjectHours}h total</span>
+          <span className="text-xs text-muted-foreground">{formatDecimal(totalProjectHours)}h total</span>
         </div>
 
         {hoursByProject.length === 0 ? (
@@ -76,7 +77,7 @@ export function PersonalTimeBreakdownWidget({
                     ))}
                   </Pie>
                   <Tooltip
-                    formatter={(value: any) => [`${value} hours`, "Effort"]}
+                    formatter={(value: any) => [`${formatDecimal(Number(value))} hours`, "Effort"]}
                     contentStyle={{
                       backgroundColor: "rgba(23, 23, 26, 0.95)",
                       borderRadius: "8px",
@@ -84,6 +85,7 @@ export function PersonalTimeBreakdownWidget({
                       fontSize: "12px",
                       border: "none",
                     }}
+                    itemStyle={{ color: "#fff" }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -110,7 +112,7 @@ export function PersonalTimeBreakdownWidget({
                       </span>
                     </div>
                     <span className="text-muted-foreground shrink-0 font-medium">
-                      {item.hours}h ({pct}%)
+                      {formatDecimal(item.hours)}h ({pct}%)
                     </span>
                   </div>
                 );
@@ -129,7 +131,7 @@ export function PersonalTimeBreakdownWidget({
               Work Mix by Category
             </h2>
           </div>
-          <span className="text-xs text-muted-foreground">{totalCategoryHours}h total</span>
+          <span className="text-xs text-muted-foreground">{formatDecimal(totalCategoryHours)}h total</span>
         </div>
 
         {hoursByCategory.length === 0 ? (
@@ -154,7 +156,7 @@ export function PersonalTimeBreakdownWidget({
                   width={90}
                 />
                 <Tooltip
-                  formatter={(value: any) => [`${value} hours`, "Hours"]}
+                  formatter={(value: any) => [`${formatDecimal(Number(value))} hours`, "Hours"]}
                   contentStyle={{
                     backgroundColor: "rgba(23, 23, 26, 0.95)",
                     borderRadius: "8px",

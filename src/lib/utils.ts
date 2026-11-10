@@ -58,6 +58,12 @@ export function formatHours(h: number) {
   return `${hrs}h ${mins}m`;
 }
 
+// Whole numbers stay whole (25); decimals are cut (not rounded) to exactly 2 digits (25.3999 -> 25.39)
+export function formatDecimal(n: number) {
+  if (Number.isInteger(n)) return String(n);
+  return (Math.trunc(n * 100) / 100).toFixed(2);
+}
+
 export function getLeaveTypeName(r: any) {
   if (!r) return "";
   if (r.hours) {

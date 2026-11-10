@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Pencil, AlertTriangle, Search } from "lucide-react";
 import { format } from "date-fns";
 import { formatLateness, getPKTDateString, formatPKTTime, isAttendanceLate } from "@/hooks/useWorkSettings";
+import { excludeClientUsers, sortPresentFirst } from "@/lib/attendance";
 
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
@@ -66,10 +67,10 @@ export default function AttendanceAdminPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("users")
-        .select("id, full_name, department, is_oversight, shift_start, has_custom_shift")
+        .select("id, full_name, department, is_oversight, shift_start, has_custom_shift, role")
         .eq("status", "active")
         .lte("join_date", selectedDate);
-      return data || [];
+      return excludeClientUsers(data || []);
     },
   });
 
@@ -106,8 +107,8 @@ export default function AttendanceAdminPage() {
       list = records;
     }
 
-    return list
-      .filter((r: any) => {
+    return sortPresentFirst(
+      list.filter((r: any) => {
         if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.trim().toLowerCase();
@@ -115,7 +116,7 @@ export default function AttendanceAdminPage() {
         }
         return true;
       })
-      .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    );
   }, [records, activeUsers, statusFilter, workModeFilter, searchQuery, selectedDate]);
 
   const lateCount = useMemo(() => filtered.filter((r: any) => r.clock_in && r.is_late).length, [filtered]);
@@ -306,7 +307,7 @@ export default function AttendanceAdminPage() {
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="present">Present</SelectItem>
             <SelectItem value="absent">Absent</SelectItem>
             <SelectItem value="late">Late</SelectItem>

@@ -70,12 +70,14 @@ function ClientDeliveryBurndown({
   logs,
   project,
   phases,
+  workflowStatuses,
 }: {
   tasks: any[];
   sprints: any[];
   logs: any[];
   project: any;
   phases: any[];
+  workflowStatuses?: any[];
 }) {
   const result = computeBurndownData({
     burndownScope: "project",
@@ -84,6 +86,7 @@ function ClientDeliveryBurndown({
     sprints,
     logs,
     project,
+    workflowStatuses,
   });
 
   return (
@@ -722,6 +725,7 @@ export function ProjectOverviewTab({
             logs={logs}
             project={project}
             phases={phases}
+            workflowStatuses={workflowStatuses}
           />
           <ClientTaskStateDistribution tasks={tasks} workflowStatuses={workflowStatuses} />
         </div>

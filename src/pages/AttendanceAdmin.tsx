@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Pencil, AlertTriangle, Search } from "lucide-react";
 import { format } from "date-fns";
 import { formatLateness, getPKTDateString, formatPKTTime, isAttendanceLate } from "@/hooks/useWorkSettings";
+import { sortPresentFirst } from "@/lib/attendance";
 
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
@@ -106,8 +107,8 @@ export default function AttendanceAdminPage() {
       list = records;
     }
 
-    return list
-      .filter((r: any) => {
+    return sortPresentFirst(
+      list.filter((r: any) => {
         if (workModeFilter !== "all" && (r.work_mode || "").toLowerCase() !== workModeFilter) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.trim().toLowerCase();
@@ -115,7 +116,7 @@ export default function AttendanceAdminPage() {
         }
         return true;
       })
-      .sort((a: any, b: any) => (a.users?.full_name || "").localeCompare(b.users?.full_name || ""));
+    );
   }, [records, activeUsers, statusFilter, workModeFilter, searchQuery, selectedDate]);
 
   const lateCount = useMemo(() => filtered.filter((r: any) => r.clock_in && r.is_late).length, [filtered]);
@@ -149,12 +150,32 @@ export default function AttendanceAdminPage() {
     setSaving(true);
     try {
       const dateStr = editRecord.date;
-      const clockIn = editClockIn ? `${dateStr}T${editClockIn}:00+05:00` : editRecord.clock_in;
-      const clockOut = editClockOut ? `${dateStr}T${editClockOut}:00+05:00` : null;
+      // Edit fields are in the admin's device timezone (same as the table). Unchanged fields keep
+      // their stored value, so an auto clock-out at 12 AM next day isn't pulled back onto clock-in day.
+      const hm = (iso: string | null) => (iso ? format(new Date(iso), "HH:mm") : "");
+      const baseDate = editRecord.clock_in ? format(new Date(editRecord.clock_in), "yyyy-MM-dd") : dateStr;
+      const clockIn = editClockIn && editClockIn !== hm(editRecord.clock_in)
+        ? new Date(`${baseDate}T${editClockIn}:00`).toISOString()
+        : editRecord.clock_in;
+      let clockOut: string | null = null;
+      if (editClockOut && editClockOut === hm(editRecord.clock_out)) {
+        clockOut = editRecord.clock_out;
+      } else if (editClockOut) {
+        const out = new Date(`${baseDate}T${editClockOut}:00`);
+        // Auto clock-out is 12:00 AM; editing only the hour keeps "AM" (e.g. 2:00 AM), which lands
+        // before clock-in and shows 0h 0m. Block it instead of saving a wrong time.
+        if (clockIn && out <= new Date(clockIn)) {
+          toast.error(`Clock out (${to12Hour(editClockOut)}) must be after clock in. Check AM/PM.`);
+          setSaving(false);
+          return;
+        }
+        clockOut = out.toISOString();
+      }
 
       // Calculate late fields up front if clock_in changed
-      let isLate = false, minutesLate = 0, hoursLate = 0;
+      let isLate = !!editRecord.is_late, minutesLate = editRecord.minutes_late ?? 0, hoursLate = editRecord.hours_late ?? 0;
       if (clockIn && clockIn !== editRecord.clock_in) {
+        isLate = false; minutesLate = 0; hoursLate = 0;
         const dayOfWeek = new Date(clockIn).getDay();
         const [userRes, settingsRes] = await Promise.all([
           supabase.from("users").select("shift_start, has_custom_shift, working_days").eq("id", editRecord.user_id).single(),
@@ -286,7 +307,7 @@ export default function AttendanceAdminPage() {
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="all">All Status</SelectItem>
             <SelectItem value="present">Present</SelectItem>
             <SelectItem value="absent">Absent</SelectItem>
             <SelectItem value="late">Late</SelectItem>

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowActions, TableHeader } from "@/components/ui/data-row";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { Clock, AlertTriangle, Users, FileText, Calendar, FolderKanban, Plus, Building2, BarChart3, CheckCircle, XCircle, MapPin, Monitor, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -206,10 +206,11 @@ export default function DashboardPage() {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from("leave_requests")
-        .select("id, status, start_date, end_date, hours, leave_types(name)")
+        .select("id, status, start_date, end_date, hours, reviewed_at, leave_types(name)")
         .eq("user_id", user!.id)
         .in("status", ["approved", "rejected"])
-        .gte("reviewed_at", thirtyDaysAgo);
+        .gte("reviewed_at", thirtyDaysAgo)
+        .gte("end_date", getPKTDateString()); // past requests never re-notify
       if (error) throw error;
       return data || [];
     },
@@ -222,10 +223,11 @@ export default function DashboardPage() {
       const thirtyDaysAgo = subDays(new Date(), 30).toISOString();
       const { data, error } = await supabase
         .from("remote_work_requests")
-        .select("id, status, start_date, end_date")
+        .select("id, status, start_date, end_date, reviewed_at")
         .eq("user_id", user!.id)
         .in("status", ["approved", "rejected"])
-        .gte("reviewed_at", thirtyDaysAgo);
+        .gte("reviewed_at", thirtyDaysAgo)
+        .gte("end_date", getPKTDateString()); // past requests never re-notify
       if (error) throw error;
       return data || [];
     },
@@ -240,6 +242,18 @@ export default function DashboardPage() {
     });
   }, [unnotifiedProjects, user?.id]);
 
+  // "Seen" marker lives in the auth user's metadata (no table/schema change) so a dismissed
+  // request update stays dismissed on every device/browser.
+  const { data: requestsSeenAt } = useQuery({
+    queryKey: ["requests-seen-at", user?.id],
+    queryFn: async () => {
+      const { data } = await supabase.auth.getUser();
+      return (data.user?.user_metadata?.requests_seen_at as string | undefined) ?? null;
+    },
+    enabled: !isAdmin && hasProfile && !!user?.id,
+  });
+  const isUnseen = (r: any) => !requestsSeenAt || !r.reviewed_at || new Date(r.reviewed_at) > new Date(requestsSeenAt);
+
   const visibleRequestNotifications = useMemo(() => {
      
     const _tick = requestBannerDismissTick;
@@ -249,7 +263,7 @@ export default function DashboardPage() {
     if (recentLeaves) {
       recentLeaves.forEach((r: any) => {
         const key = `request_notified_${user.id}_leave_${r.id}_${r.status}`;
-        if (!localStorage.getItem(key)) {
+        if (isUnseen(r) && !localStorage.getItem(key)) {
           notifications.push({ type: "leave", data: r });
         }
       });
@@ -258,14 +272,14 @@ export default function DashboardPage() {
     if (recentWfh) {
       recentWfh.forEach((r: any) => {
         const key = `request_notified_${user.id}_wfh_${r.id}_${r.status}`;
-        if (!localStorage.getItem(key)) {
+        if (isUnseen(r) && !localStorage.getItem(key)) {
           notifications.push({ type: "wfh", data: r });
         }
       });
     }
     
     return notifications;
-  }, [recentLeaves, recentWfh, user?.id, requestBannerDismissTick]);
+  }, [recentLeaves, recentWfh, user?.id, requestBannerDismissTick, requestsSeenAt]);
 
   const { data: teamStatus } = useQuery({
     queryKey: ["dashboard-team-today"],
@@ -358,7 +372,7 @@ export default function DashboardPage() {
     }
   };
 
-  const dismissRequestNotifications = () => {
+  const dismissRequestNotifications = async () => {
     if (!visibleRequestNotifications || visibleRequestNotifications.length === 0) return;
     
     visibleRequestNotifications.forEach((n) => {
@@ -367,6 +381,8 @@ export default function DashboardPage() {
     });
     
     setRequestBannerDismissTick(t => t + 1);
+    await supabase.auth.updateUser({ data: { requests_seen_at: new Date().toISOString() } });
+    queryClient.invalidateQueries({ queryKey: ["requests-seen-at"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard-recent-leaves"] });
     queryClient.invalidateQueries({ queryKey: ["dashboard-recent-wfh"] });
   };
@@ -510,36 +526,9 @@ export default function DashboardPage() {
     );
   }
 
-  // ——— CLIENT DASHBOARD ———
+  // ——— CLIENT: always land on My Projects ———
   if (isClient) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, {profile?.full_name ?? "User"}</p>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/projects")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-blue-50"><FolderKanban className="h-5 w-5 text-blue-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Projects</p><p className="text-2xl font-bold">—</p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/announcements")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-green-50"><FileText className="h-5 w-5 text-green-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Announcements</p><p className="text-2xl font-bold">—</p></div>
-            </div>
-          </Card>
-          <Card className="p-5 cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigate("/profile")}>
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-md bg-purple-50"><Users className="h-5 w-5 text-purple-600" /></div>
-              <div><p className="text-sm text-muted-foreground">Profile</p><p className="text-2xl font-bold">—</p></div>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
+    return <Navigate to="/projects" replace />;
   }
 
   // ——— EMPLOYEE DASHBOARD ———

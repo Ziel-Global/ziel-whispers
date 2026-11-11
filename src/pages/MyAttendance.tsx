@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, getPKTISOString, formatPKTTime, getLatenessInfo, isAttendanceLate, isLogSubmissionLate } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatShiftTimeLocal, formatLateness, getPKTDateString, getPKTISOString, formatPKTTime, getLatenessInfo, isAttendanceLate, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -526,7 +526,7 @@ export default function MyAttendancePage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">My Attendance</h1>
         <Badge variant="outline" className="text-sm font-normal">
-          Your Shift: {formatShiftTime(shiftStart)} – {formatShiftTime(shiftEnd)}
+          Your Shift: {formatShiftTimeLocal(shiftStart)} – {formatShiftTimeLocal(shiftEnd)}
         </Badge>
       </div>
 
@@ -535,7 +535,7 @@ export default function MyAttendancePage() {
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You were late by <strong>{formatLateness(todayRecord.minutes_late ?? 0)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You were late by <strong>{formatLateness(todayRecord.minutes_late ?? 0)}</strong>. Your shift starts at <strong>{formatShiftTimeLocal(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -788,7 +788,7 @@ export default function MyAttendancePage() {
               Late Clock-in Warning
             </AlertDialogTitle>
             <AlertDialogDescription>
-              You are clocking in late (exceeding the {graceMinutes}-minute grace period). Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+              You are clocking in late (exceeding the {graceMinutes}-minute grace period). Your shift starts at <strong>{formatShiftTimeLocal(shiftStart)}</strong>.
               <br /><br />
               Are you sure you want to proceed? This will be recorded as a late arrival.
             </AlertDialogDescription>

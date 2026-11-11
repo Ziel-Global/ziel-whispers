@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { CalendarClock, CheckCircle2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
+import { formatDecimal } from "@/lib/utils";
 
 export interface LogProgressHeaderProps {
   selectedDate: string;
@@ -60,16 +61,16 @@ export function LogProgressHeader({
         <div className="flex justify-between items-center mt-2 text-xs">
           <div>
             <p className="font-medium text-black">
-              {totalHoursForSelectedDate} of {expectedDailyHours} hours total
+              {formatDecimal(totalHoursForSelectedDate)} of {expectedDailyHours} hours total
             </p>
             {submittedHours > 0 && (
               <p className="text-[10px] text-muted-foreground">
-                ({submittedHours}h already submitted)
+                ({formatDecimal(submittedHours)}h already submitted)
               </p>
             )}
           </div>
           {remainingHoursForTarget > 0 ? (
-            <p className="text-muted-foreground">{remainingHoursForTarget}h remaining</p>
+            <p className="text-muted-foreground">{formatDecimal(remainingHoursForTarget)}h remaining</p>
           ) : (
             <p className="text-green-600 font-bold flex items-center gap-1">
               <CheckCircle2 className="h-3 w-3" /> Day Limit Reached

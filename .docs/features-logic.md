@@ -13,12 +13,13 @@ Ziel Log System (internally referred to as *Ziel Whispers* / *Ziel CMS*) is an e
 - **Auth Provider**: Supabase Auth (JWT access token + refresh tokens)
 
 ### 1.2 User Roles & Permissions
-The system enforces five system-level user roles:
+The system enforces six system-level user roles:
 1. **`admin`**: Unrestricted access to all modules, employee master profiles, financial/audit logs, system configurations, and override powers.
-2. **`manager`**: Operational management access: oversees attendance, work logs, project settings, sprint/phase planning, task allocation, and leaves. Restricted from global system settings and employee deactivation.
-3. **`employee`**: Standard workforce access: clocks in/out, logs daily tasks, views assigned projects and tasks, requests leaves, and monitors personal statistics.
-4. **`client`**: External organization client sponsor: access restricted to assigned client portal projects, milestone tracking, client action items, and project communication.
-5. **`client member`**: External collaborator attached to a client account: read-only access to scoped project deliverables, action items, and status feeds.
+2. **`project_manager`**: Project delivery management access: full CRUD on all workspace projects, clients, phases, sprints, tasks, workflow templates, automation rules, and client action items; views daily work logs and project/delivery analytics.
+3. **`hr_manager`**: Operations & people management access: oversees attendance, leave approvals, remote work requests, leave balances, company holidays, announcements, and views daily work logs.
+4. **`employee`**: Standard workforce access: clocks in/out, logs daily tasks, views assigned projects and tasks, requests leaves, and monitors personal statistics.
+5. **`client`**: External organization client sponsor: access restricted to assigned client portal projects, milestone tracking, client action items, and project communication.
+6. **`client member`**: External collaborator attached to a client account: read-only access to scoped project deliverables, action items, and status feeds.
 
 ### 1.3 Step-by-Step Business Logic & Data Flow
 1. **Login Flow (`/login`)**:

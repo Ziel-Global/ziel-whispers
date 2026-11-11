@@ -24,7 +24,6 @@ export function EmployeeDashboard() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             Welcome back, {profile?.full_name?.split(" ")[0] || "there"}
-            <span className="text-xl">👋</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Your personal command center for daily logging, shift hygiene, and sprint focus.

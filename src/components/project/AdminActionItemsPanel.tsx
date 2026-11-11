@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { getAvatarUrl, truncateWords } from "@/lib/utils";
+import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
 import {
   avatarStyleFor,
   initialsFromName,
@@ -73,10 +74,11 @@ export function AdminActionItemsPanel({
 
   const createItem = async () => {
     if (!createTitle.trim() || !profile || !id) return;
+    const itemTitle = createTitle.trim();
     setCreating(true);
     const { error } = await supabase.from("client_action_items").insert({
       project_id: id,
-      title: createTitle.trim(),
+      title: itemTitle,
       status: "pending",
       priority: "medium",
       requested_by: profile.id,
@@ -91,6 +93,15 @@ export function AdminActionItemsPanel({
     setCreateTitle("");
     setShowCreate(false);
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId: id,
+      type: "action_item_created",
+      title: "Action Item Created",
+      message: `${profile.full_name || "A user"} created action item "${itemTitle}"`,
+      recipientUserIds: [],
+    });
   };
 
   return (

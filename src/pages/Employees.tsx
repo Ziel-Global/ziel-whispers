@@ -84,10 +84,11 @@ export default function EmployeesPage() {
         { key: "reminder_offset_minutes", value: reminderOffset },
         { key: "annual_leave_entitlement", value: leaveEntitlement },
       ];
+      const tenantId = profile?.tenant_id || "00000000-0000-0000-0000-000000000001";
       for (const entry of entries) {
         await supabase.from("system_settings").upsert(
-          { ...entry, updated_by: profile?.id },
-          { onConflict: "key" }
+          { ...entry, tenant_id: tenantId, updated_by: profile?.id },
+          { onConflict: "tenant_id,key" }
         );
       }
       await supabase.from("audit_logs").insert({
@@ -272,7 +273,6 @@ export default function EmployeesPage() {
                 <SelectItem value="admin">Admin</SelectItem>
                 <SelectItem value="hr_manager">HR / Operational Manager</SelectItem>
                 <SelectItem value="project_manager">Project Manager</SelectItem>
-                <SelectItem value="manager">Manager (Legacy)</SelectItem>
                 <SelectItem value="employee">Employee</SelectItem>
                 <SelectItem value="client member">Client Member</SelectItem>
               </SelectContent>

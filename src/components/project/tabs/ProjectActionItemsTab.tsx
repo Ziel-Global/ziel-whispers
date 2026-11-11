@@ -7,10 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, TableHeader, editButtonClass } from "@/components/ui/data-row";
-import { ChevronDown, ChevronRight, CheckCircle2, Send } from "lucide-react";
+import { ChevronDown, ChevronRight, CheckCircle2, Send, AlertTriangle, Link2 } from "lucide-react";
 import { getAvatarUrl, truncateWords } from "@/lib/utils";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 import { AdminActionItemsPanel } from "@/components/project/AdminActionItemsPanel";
+import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
 
 interface ProjectActionItemsTabProps {
   id: string;
@@ -110,6 +111,12 @@ export function ProjectActionItemsTab({
     toast.success("Action item completed");
 
     if (completedItem?.blocker_id) {
+      const { data: blockerRow } = await supabase
+        .from("task_blockers")
+        .select("id, description, raised_by, task_id")
+        .eq("id", completedItem.blocker_id)
+        .maybeSingle();
+
       const { error: rpcErr } = await supabase.rpc("resolve_blocker_cascade", {
         p_blocker_id: completedItem.blocker_id,
         p_resolved_by: profile.id,
@@ -121,6 +128,30 @@ export function ProjectActionItemsTab({
           .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile.id })
           .eq("id", completedItem.blocker_id);
       }
+
+      const linkedTask = (tasks || []).find((t: any) => t.id === blockerRow?.task_id);
+      await createProjectRelatedNotifications({
+        createdByUserId: profile.id,
+        projectId: id,
+        type: "blocker_resolved",
+        title: "Blocker Resolved",
+        message: `${profile.full_name || "A user"} resolved blocker "${blockerRow?.description || completedItem.title}"${linkedTask?.title ? ` on task "${linkedTask.title}"` : ""}`,
+        recipientUserIds: [
+          blockerRow?.raised_by,
+          linkedTask?.assigned_to,
+          completedItem?.assigned_to,
+          completedItem?.requested_by,
+        ],
+      });
+    } else {
+      await createProjectRelatedNotifications({
+        createdByUserId: profile.id,
+        projectId: id,
+        type: "action_item_completed",
+        title: "Action Item Completed",
+        message: `${profile.full_name || "A user"} completed action item "${completedItem?.title || "Action Item"}"`,
+        recipientUserIds: [completedItem?.assigned_to, completedItem?.requested_by],
+      });
     }
 
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
@@ -428,8 +459,8 @@ export function ProjectActionItemsTab({
                       : "text-gray-600 hover:bg-gray-100"
                   }`}
                 >
-                  {tab.key === "blockers" ? "⚠️ " : ""}
-                  {tab.key === "dependencies" ? "🔗 " : ""}
+                  {tab.key === "blockers" && <AlertTriangle className="w-3.5 h-3.5 inline mr-1 text-rose-500" />}
+                  {tab.key === "dependencies" && <Link2 className="w-3.5 h-3.5 inline mr-1 text-blue-500" />}
                   {tab.label}
                   <Badge
                     className={

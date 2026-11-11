@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
-import { createProjectRelatedNotifications, getAdminManagerIds, notifyTaskAssigned } from "@/lib/notification-helpers";
+import { createProjectRelatedNotifications, getProjectAdminManagerIds, notifyTaskAssigned } from "@/lib/notification-helpers";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -237,12 +237,13 @@ export default function ProjectDetailPage() {
 
   const addStatusUpdate = async () => {
     if (!newStatusUpdate.trim() || !profile || !id) return;
+    const visibleToClient = newStatusUpdateVisible;
     const { error } = await supabase.from("project_status_updates").insert({
       project_id: id,
       author_id: profile.id,
       author_type: "human",
       summary: newStatusUpdate.trim(),
-      visible_to_client: newStatusUpdateVisible,
+      visible_to_client: visibleToClient,
     });
     if (error) {
       toast.error(error.message);
@@ -259,6 +260,8 @@ export default function ProjectDetailPage() {
       type: "project_update",
       title: "New Project Update",
       message: `${profile.full_name} posted a project update`,
+      includeAllProjectMembers: true,
+      requiresClientAction: visibleToClient,
     });
   };
 
@@ -360,11 +363,13 @@ export default function ProjectDetailPage() {
         type: "task_created",
         title: "Task Created",
         message: `${profile?.full_name || "A user"} created task "${createdTitle}" in project "${project?.name}"`,
+        recipientUserIds: [],
       });
 
       if (createdAssignee) {
         await notifyTaskAssigned({
           assigneeUserId: createdAssignee,
+          assignedByUserId: profile?.id,
           taskTitle: createdTitle,
           projectId: id,
           projectName: project?.name || "Project",
@@ -486,10 +491,11 @@ export default function ProjectDetailPage() {
       toast.success("Task updated");
 
       const newAssignedTo = updates.assigned_to;
+      const assigneeChanged = oldAssignedTo !== newAssignedTo;
       if (newAssignedTo) {
-        const assigneeChanged = oldAssignedTo !== newAssignedTo;
         await notifyTaskAssigned({
           assigneeUserId: newAssignedTo,
+          assignedByUserId: profile?.id,
           taskTitle: editTaskTitle.trim(),
           projectId: id,
           projectName: project?.name || "Project",
@@ -501,9 +507,9 @@ export default function ProjectDetailPage() {
       }
 
       if (wasCompleted) {
-        const adminIds = await getAdminManagerIds(profile?.id);
+        const adminIds = await getProjectAdminManagerIds(id, profile?.id);
         const notifyIds = new Set(adminIds);
-        if (oldAssignedTo) notifyIds.add(oldAssignedTo);
+        if (oldAssignedTo && oldAssignedTo !== profile?.id) notifyIds.add(oldAssignedTo);
         const notifications = Array.from(notifyIds).map((userId) => ({
           user_id: userId,
           type: "task_returned",
@@ -524,6 +530,7 @@ export default function ProjectDetailPage() {
         type: "task_edited",
         title: "Task Updated",
         message: `${profile?.full_name || "A user"} updated task "${editTaskTitle.trim()}" in project "${project?.name}"`,
+        recipientUserIds: [assigneeChanged ? oldAssignedTo : newAssignedTo],
       });
 
       setEditTaskOpen(false);
@@ -545,7 +552,7 @@ export default function ProjectDetailPage() {
     if (!deleteTaskConfirmId || !id) return;
     const { data: delTask } = await supabase
       .from("tasks")
-      .select("status_id, title, parent_id")
+      .select("status_id, title, parent_id, assigned_to")
       .eq("id", deleteTaskConfirmId)
       .single();
     if (delTask?.status_id && doneStatusIds.has(delTask.status_id)) {
@@ -581,6 +588,7 @@ export default function ProjectDetailPage() {
       type: "task_deleted",
       title: "Task Deleted",
       message: `${profile?.full_name || "A user"} deleted task "${delTask?.title || "(untitled)"}" in project "${project?.name}"`,
+      recipientUserIds: [delTask?.assigned_to],
     });
   };
 
@@ -1002,7 +1010,7 @@ export default function ProjectDetailPage() {
   };
   const setTab = (tab: string) => setSearchParams({ tab });
   const ownerMember =
-    resourceMembers.find((m: any) => m.users?.role === "admin" || m.users?.role === "manager") ||
+    resourceMembers.find((m: any) => m.users?.role === "admin" || m.users?.role === "project_manager") ||
     resourceMembers[0];
   const ownerName = ownerMember?.users?.full_name || profile?.full_name || null;
   const tabBodyClass =

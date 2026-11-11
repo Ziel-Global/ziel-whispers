@@ -11,7 +11,7 @@ export interface AttendanceScoreGaugeProps {
 export function getAttendanceScoreDetails(score: number) {
   if (score >= 90) {
     return {
-      title: "Great attendance this week ✓",
+      title: "Great attendance this week",
       description: "Team attendance is trending above target with minimal lateness across the whole team this week.",
     };
   }

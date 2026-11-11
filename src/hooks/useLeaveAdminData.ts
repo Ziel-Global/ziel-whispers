@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, addMonths, subMonths } from "date-fns";
 import { getPKTDateString } from "@/hooks/useWorkSettings";
 import { getLeaveTypeName, getCurrentLeaveYear, getLeaveYearRange } from "@/lib/utils";
+import { getAdminManagerIds } from "@/lib/notification-helpers";
 
 export const LEAVE_CATEGORIES = ["Sick Leave", "Casual Leave", "Hourly Leave", "Others"];
 
@@ -66,9 +67,10 @@ export function useLeaveAdminData() {
   const handleSaveEntitlement = async () => {
     setSavingEntitlement(true);
     try {
+      const tenantId = profile?.tenant_id || "00000000-0000-0000-0000-000000000001";
       await supabase.from("system_settings").upsert(
-        { key: "annual_leave_entitlement", value: annualEntitlement, updated_by: profile?.id },
-        { onConflict: "key" }
+        { tenant_id: tenantId, key: "annual_leave_entitlement", value: annualEntitlement, updated_by: profile?.id },
+        { onConflict: "tenant_id,key" }
       );
       await supabase.from("audit_logs").insert({
         actor_id: profile?.id,
@@ -321,6 +323,24 @@ export function useLeaveAdminData() {
         read: false,
       });
 
+      // Also notify Admins if an HR Manager (or another admin) reviewed the request
+      const adminIds = await getAdminManagerIds(user!.id);
+      const otherAdminIds = adminIds.filter((aid) => aid !== userId);
+      if (otherAdminIds.length > 0) {
+        await supabase.from("notifications").insert(
+          otherAdminIds.map((aid) => ({
+            user_id: aid,
+            type: `remote_work.${newStatus}`,
+            channel: "in_app",
+            metadata: {
+              title: `Remote Work Request ${newStatus === "approved" ? "Approved" : "Rejected"}`,
+              message: `${profile?.full_name || "HR/Admin"} ${newStatus} a remote work request`,
+            },
+            read: false,
+          }))
+        );
+      }
+
       supabase.functions.invoke("send-request-notification", {
         body: { type: "wfh", action: newStatus, request_id: id, app_url: window.location.origin },
       }).catch(() => {});
@@ -376,13 +396,38 @@ export function useLeaveAdminData() {
         metadata: { employee: request.users?.full_name, days: request.days_count, leave_type: getLeaveTypeName(request) },
       });
 
+      const leaveTypeName = getLeaveTypeName(request);
       await supabase.from("notifications").insert({
         user_id: request.user_id,
         type: `leave.${newStatus}`,
         channel: "in_app",
-        metadata: { leave_type: getLeaveTypeName(request), days: request.days_count },
+        metadata: {
+          title: `Leave Request ${newStatus === "approved" ? "Approved" : "Rejected"}`,
+          message: `Your ${leaveTypeName} request (${request.days_count} day${request.days_count === 1 ? "" : "s"}) was ${newStatus}${adminComment ? `: ${adminComment}` : ""}`,
+          leave_type: leaveTypeName,
+          days: request.days_count,
+        },
         read: false,
       });
+
+      const adminIds = await getAdminManagerIds(user!.id);
+      const otherAdminIds = adminIds.filter((aid) => aid !== request.user_id);
+      if (otherAdminIds.length > 0) {
+        await supabase.from("notifications").insert(
+          otherAdminIds.map((aid) => ({
+            user_id: aid,
+            type: `leave.${newStatus}`,
+            channel: "in_app",
+            metadata: {
+              title: `Leave Request ${newStatus === "approved" ? "Approved" : "Rejected"}`,
+              message: `${profile?.full_name || "HR/Admin"} ${newStatus} ${request.users?.full_name || "an employee"}'s ${leaveTypeName} request (${request.days_count} day${request.days_count === 1 ? "" : "s"})`,
+              leave_type: leaveTypeName,
+              days: request.days_count,
+            },
+            read: false,
+          }))
+        );
+      }
 
       supabase.functions.invoke("send-request-notification", {
         body: { type: "leave", action: newStatus, request_id: request.id, admin_comment: adminComment || undefined, app_url: window.location.origin },
@@ -425,7 +470,10 @@ export function useLeaveAdminData() {
                   user_id: request.user_id,
                   type: "leave.balance_exhausted",
                   channel: "in_app",
-                  metadata: { message: "You have run out of Annual Leave days. Please contact your admin." },
+                  metadata: {
+                    title: "Leave Balance Exhausted",
+                    message: "You have run out of Annual Leave days. Please contact your admin.",
+                  },
                   read: false,
                 });
               }

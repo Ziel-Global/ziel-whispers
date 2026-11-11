@@ -137,6 +137,11 @@ Whenever you implement a new feature, alter business logic, change a database sc
 2. Do not wait for the user to explicitly ask you to update the documentation.
 3. Only update the documentation for structural, logical, or database changes. Do not update documentation for pure UI styling tweaks, typo fixes, or minor refactors that do not change system behavior.
 
+### 4.7 Zero-Emoji Design Invariant (STRICT)
+- **Mandatory Rule**: Do NOT use emojis anywhere in the system UI (headings, titles, dropdowns, buttons, toasts, tables, badges, cards, or sidebar menus).
+- **Icons Standard**: Use clean, modern SVG vector icons from `lucide-react` exclusively.
+- **Tone & Typography**: Maintain clean, professional, enterprise-grade typography. Never insert decorative Unicode pictograms, emoticons, or emojis.
+
 ---
 
 ## 5. File System & Directory Map

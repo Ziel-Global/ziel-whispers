@@ -27,6 +27,7 @@ import { truncateWords, cn, getInitials } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
+import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
 
 export interface TaskModalsProps {
   addTaskOpen: boolean;
@@ -246,6 +247,8 @@ export function TaskModals(props: TaskModalsProps) {
       toast.success("Blocker reported");
     }
 
+    const assignedBlockerUserId = newBlockerAssignUserId || null;
+
     setViewBlockers([blocker, ...viewBlockers]);
     setShowViewAddBlocker(false);
     setNewViewBlockerDescription("");
@@ -258,12 +261,27 @@ export function TaskModals(props: TaskModalsProps) {
     queryClient.invalidateQueries({ queryKey: ["client-sidebar-nav-counts", projectId] });
     queryClient.invalidateQueries({ queryKey: ["project-action-items", projectId] });
     queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId,
+      type: "blocker_created",
+      title: "Blocker Reported",
+      message: `${profile.full_name || "A team member"} reported a blocker on task "${task.title || "Task"}": "${description}"`,
+      recipientUserIds: [assignedBlockerUserId, task.assigned_to],
+    });
   };
 
   const resolveBlocker = async (blockerId: string, taskId?: string) => {
     const profile = props.profile;
     if (!profile?.id) return;
     const projectId = props.viewTaskData?.project_id || props.project?.id || "";
+    const existingBlocker = viewBlockers.find((b: any) => b.id === blockerId);
+
+    const { data: linkedItems } = await supabase
+      .from("client_action_items")
+      .select("assigned_to, requested_by")
+      .eq("blocker_id", blockerId);
 
     const { error: rpcErr } = await supabase.rpc("resolve_blocker_cascade", {
       p_blocker_id: blockerId,
@@ -302,6 +320,17 @@ export function TaskModals(props: TaskModalsProps) {
       queryClient.invalidateQueries({ queryKey: ["client-sidebar-nav-counts", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-action-items", projectId] });
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
+
+      const linkedUsers = (linkedItems || []).flatMap((item: any) => [item.assigned_to, item.requested_by]);
+      const blockerDesc = existingBlocker?.description || "Blocker";
+      await createProjectRelatedNotifications({
+        createdByUserId: profile.id,
+        projectId,
+        type: "blocker_resolved",
+        title: "Blocker Resolved",
+        message: `${profile.full_name || "A team member"} resolved blocker "${blockerDesc}" on task "${props.viewTaskData?.title || "Task"}"`,
+        recipientUserIds: [existingBlocker?.raised_by, props.viewTaskData?.assigned_to, ...linkedUsers],
+      });
     }
   };
 
@@ -1505,9 +1534,35 @@ export function TaskModals(props: TaskModalsProps) {
                       return;
                     }
                     toast.success("Task status updated successfully!");
+                    const prevStatusId = viewTaskData.status_id;
                     const { data: updated } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
                     if (updated) setViewTaskData(updated);
                     queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+
+                    const projectId = viewTaskData.project_id || props.project?.id || id;
+                    if (projectId && profile?.id) {
+                      const wasDone = prevStatusId ? doneStatusIds?.has(prevStatusId) : false;
+                      const isNowDone = doneStatusIds?.has(toStatusId) ?? false;
+                      if (!wasDone && isNowDone) {
+                        await createProjectRelatedNotifications({
+                          createdByUserId: profile.id,
+                          projectId,
+                          type: "task_completed",
+                          title: "Task Completed",
+                          message: `${profile.full_name || "A user"} completed task "${viewTaskData.title}"`,
+                          recipientUserIds: [viewTaskData.assigned_to],
+                        });
+                      } else if (wasDone && !isNowDone) {
+                        await createProjectRelatedNotifications({
+                          createdByUserId: profile.id,
+                          projectId,
+                          type: "task_returned",
+                          title: "Task Returned",
+                          message: `${profile.full_name || "A user"} moved task "${viewTaskData.title}" back from completed`,
+                          recipientUserIds: [viewTaskData.assigned_to],
+                        });
+                      }
+                    }
                   }}
                   onTargetChange={(toStatusId) => {
                     if (!toStatusId) {
@@ -1530,8 +1585,9 @@ export function TaskModals(props: TaskModalsProps) {
                   isSystemAdmin={isAdmin}
                 />
                 {viewDependencyWarning && (
-                  <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-                    <span className="font-medium">⚠ {viewDependencyWarning}</span>
+                  <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800 flex items-center gap-1.5">
+                    <AlertCircle className="w-4 h-4 text-yellow-700 shrink-0" />
+                    <span className="font-medium">{viewDependencyWarning}</span>
                   </div>
                 )}
               </div>

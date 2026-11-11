@@ -1,5 +1,15 @@
 "use client";
-import { Bell } from "lucide-react";
+import {
+  Bell,
+  FileText,
+  CheckCircle2,
+  AlertTriangle,
+  Wrench,
+  Calendar,
+  Home,
+  RefreshCw,
+  User,
+} from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,25 +29,33 @@ export function NotificationBell() {
   const getNotificationIcon = (type: string) => {
     switch (type) {
       case "project_update":
-        return "📝";
+      case "task_created":
+      case "task_edited":
+      case "task_deleted":
+        return <FileText className="h-5 w-5 text-blue-500" />;
       case "action_item_created":
-        return "✅";
       case "action_item_completed":
-        return "✔️";
+      case "task_completed":
+        return <CheckCircle2 className="h-5 w-5 text-emerald-500" />;
       case "blocker_created":
-        return "⚠️";
+        return <AlertTriangle className="h-5 w-5 text-rose-500" />;
       case "blocker_resolved":
-        return "🔧";
+        return <Wrench className="h-5 w-5 text-emerald-500" />;
       case "leave_request":
-        return "📅";
+      case "leave.approved":
+      case "leave.rejected":
+      case "leave.balance_exhausted":
+        return <Calendar className="h-5 w-5 text-amber-500" />;
       case "remote_work_request":
-        return "🏠";
+      case "remote_work.approved":
+      case "remote_work.rejected":
+        return <Home className="h-5 w-5 text-indigo-500" />;
       case "task_returned":
-        return "🔄";
+        return <RefreshCw className="h-5 w-5 text-amber-500" />;
       case "task_assigned":
-        return "👤";
+        return <User className="h-5 w-5 text-primary" />;
       default:
-        return "🔔";
+        return <Bell className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -83,7 +101,19 @@ export function NotificationBell() {
             <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
           ) : notifications && notifications.length > 0 ? (
             (notifications.slice(0, 7)).map((notification) => {
-              const meta = notification.metadata as { title?: string; message?: string; project_id?: string };
+              const meta = notification.metadata as { title?: string; message?: string; project_id?: string; leave_type?: string; days?: number };
+              const fallbackTitle =
+                notification.type === "leave.approved"
+                  ? "Leave Request Approved"
+                  : notification.type === "leave.rejected"
+                  ? "Leave Request Rejected"
+                  : notification.type === "leave.balance_exhausted"
+                  ? "Leave Balance Exhausted"
+                  : notification.type;
+              const fallbackMessage =
+                !meta?.message && (notification.type === "leave.approved" || notification.type === "leave.rejected")
+                  ? `Your ${meta?.leave_type || "leave"} request${meta?.days ? ` (${meta.days} day${meta.days === 1 ? "" : "s"})` : ""} was ${notification.type.endsWith("approved") ? "approved" : "rejected"}`
+                  : meta?.message || "";
               return (
                 <div
                   key={notification.id}
@@ -94,15 +124,15 @@ export function NotificationBell() {
                   }}
                 >
                   <div className="flex gap-3">
-                    <div className="text-2xl mt-0.5">{getNotificationIcon(notification.type)}</div>
+                    <div className="mt-0.5 shrink-0">{getNotificationIcon(notification.type)}</div>
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between">
-                        <p className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>{meta?.title || notification.type}</p>
+                        <p className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>{meta?.title || fallbackTitle}</p>
                         <p className="text-xs text-muted-foreground whitespace-nowrap ml-2">
                           {formatDistanceToNow(new Date(notification.triggered_at), { addSuffix: true })}
                         </p>
                       </div>
-                      <p className="text-sm text-muted-foreground line-clamp-2 break-words">{formatMessage(meta?.message || "")}</p>
+                      <p className="text-sm text-muted-foreground line-clamp-2 break-words">{formatMessage(fallbackMessage)}</p>
                       {meta?.project_id && (
                         <span className="text-xs text-blue-600">Project notification</span>
                       )}

@@ -24,6 +24,8 @@ import {
   AlertCircle,
   CheckSquare,
   MessageSquare,
+  ShieldCheck,
+  Building2,
 } from "lucide-react";
 import { useLocation, Link, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -91,7 +93,7 @@ const CLIENT_NAV_GROUPS: {
 ];
 
 export function AppSidebar() {
-  const { profile, user } = useAuth();
+  const { profile, user, tenant, branding, isSSA, platformRole } = useAuth();
   const { state, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const location = useLocation();
@@ -105,21 +107,45 @@ export function AppSidebar() {
 
   const role = profile?.role;
   const isClient = profile?.designation === "Client" || profile?.designation === "Client Member";
-  const isAdminOrManager = role === "admin" || role === "manager" || role === "hr_manager" || role === "project_manager";
+  const isAdminOrManager = role === "admin" || role === "hr_manager" || role === "project_manager";
 
   const sections = useMemo<NavSection[]>(() => {
-    if (isClient) {
+    // Dedicated Super Super Admin (Platform Owner) Navigation:
+    // Completely replaces tenant-internal HR, leave, attendance, and project administration
+    if (isSSA) {
       return [
         {
-          label: "PORTAL",
+          label: "PLATFORM MANAGEMENT",
           items: [
-            { title: "My Projects", url: "/projects", icon: FolderKanban },
-            { title: "Announcements", url: "/announcements", icon: Megaphone },
-            { title: "Notifications", url: "/notifications", icon: Bell },
+            { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
+            { title: "Tenants", url: "/tenants", icon: Building2 },
+            { title: "SSA Sub-Admins", url: "/platform-admins", icon: ShieldCheck },
+            { title: "Analytics & Reports", url: "/platform-analytics", icon: BarChart3 },
+            { title: "Audit Logs", url: "/audit", icon: Shield },
+          ],
+        },
+        {
+          label: "SYSTEM",
+          items: [
+            { title: "Settings", url: "/settings", icon: Settings },
           ],
         },
       ];
     }
+
+    const getBase = (): NavSection[] => {
+      if (isClient) {
+        return [
+          {
+            label: "PORTAL",
+            items: [
+              { title: "My Projects", url: "/projects", icon: FolderKanban },
+              { title: "Announcements", url: "/announcements", icon: Megaphone },
+              { title: "Notifications", url: "/notifications", icon: Bell },
+            ],
+          },
+        ];
+      }
 
     if (role === "admin") {
       return [
@@ -219,6 +245,7 @@ export function AppSidebar() {
             { title: "Projects", url: "/projects", icon: FolderKanban },
             { title: "Logs Review", url: "/logs/all", icon: FileText },
             { title: "Clients", url: "/clients", icon: Briefcase },
+            { title: "Workflow", url: "/workflow-templates", icon: GitBranch },
           ],
         },
         {
@@ -234,43 +261,7 @@ export function AppSidebar() {
         {
           label: "TOOLS",
           items: [
-            { title: "Reports", url: "/reports", icon: BarChart3 },
-            { title: "Announcements", url: "/announcements", icon: Megaphone },
-            { title: "Notifications", url: "/notifications", icon: Bell },
-          ],
-        },
-      ];
-    }
-
-    if (role === "manager") {
-      return [
-        {
-          label: "OVERVIEW",
-          items: [
-            { title: "Dashboard", url: "/", icon: LayoutDashboard },
-          ],
-        },
-        {
-          label: "MANAGEMENT",
-          items: [
-            { title: "Attendance", url: "/attendance", icon: Clock },
-            { title: "Daily Logs", url: "/logs/all", icon: FileText },
-            { title: "Leave", url: "/leave/requests", icon: Calendar },
-            { title: "Projects", url: "/projects", icon: FolderKanban },
-          ],
-        },
-        {
-          label: "MY WORKSPACE",
-          items: [
-            { title: "Clock In/Out", url: "/attendance/my", icon: Clock },
-            { title: "Submit Log", url: "/logs/submit", icon: Send },
-            { title: "My Logs", url: "/logs/my", icon: ClipboardList },
-            { title: "Leave & Requests", url: "/leave/my", icon: CalendarCheck },
-          ],
-        },
-        {
-          label: "TOOLS",
-          items: [
+            { title: "Analytics", url: "/analytics", icon: BarChart3 },
             { title: "Reports", url: "/reports", icon: BarChart3 },
             { title: "Announcements", url: "/announcements", icon: Megaphone },
             { title: "Notifications", url: "/notifications", icon: Bell },
@@ -306,16 +297,19 @@ export function AppSidebar() {
         ],
       },
     ];
-  }, [role, isClient]);
+  };
+
+    return getBase();
+  }, [role, isClient, isSSA]);
 
   const portalSubtitle = useMemo(() => {
+    if (isSSA) return "Multi-Tenant Console";
     if (isClient) return "Client Portal";
     if (role === "admin") return "Admin Console";
     if (role === "hr_manager") return "HR Console";
     if (role === "project_manager") return "PM Console";
-    if (role === "manager") return "Manager Console";
     return "Employee Portal";
-  }, [role, isClient]);
+  }, [role, isClient, isSSA]);
 
   const projectMatch = location.pathname.match(/^\/projects\/([^/]+)/);
   const currentProjectSlug = projectMatch?.[1] || null;
@@ -533,15 +527,27 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-black/10 bg-white">
       <div className="flex items-center justify-between p-4 pb-3 border-b border-black/5">
         <Link
-          to="/projects"
-          className="flex items-center gap-2.5 min-w-0 rounded-[9px] outline-none focus-visible:ring-2 focus-visible:ring-[#EB5A1E]/40"
+          to={isSSA ? "/dashboard" : isClient ? "/projects" : "/"}
+          className="flex items-center gap-2.5 min-w-0 rounded-[9px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
-          <div className="w-[34px] h-[34px] rounded-[9px] bg-[#17171A] flex items-center justify-center shrink-0">
-            <span className="text-[#EB5A1E] font-extrabold text-[15px] tracking-tight">Zi</span>
-          </div>
+          {branding?.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={branding.appName || "Logo"}
+              className="w-[34px] h-[34px] rounded-[9px] object-contain shrink-0 bg-white border border-black/5"
+            />
+          ) : (
+            <div className="w-[34px] h-[34px] rounded-[9px] bg-[#17171A] flex items-center justify-center shrink-0">
+              <span className="text-primary font-extrabold text-[15px] tracking-tight">
+                {(branding?.appName || tenant?.name || "Zi").slice(0, 2)}
+              </span>
+            </div>
+          )}
           {!collapsed && (
             <div>
-              <div className="font-bold text-[15px] leading-tight text-[#17171A]">Ziel</div>
+              <div className="font-bold text-[15px] leading-tight text-[#17171A]">
+                {branding?.appName || tenant?.name || "Ziel"}
+              </div>
               <div className="text-[11.5px] text-[#8B8B92] font-medium">{portalSubtitle}</div>
             </div>
           )}
@@ -799,7 +805,9 @@ export function AppSidebar() {
             >
               <div
                 className={`w-8 h-8 shrink-0 flex items-center justify-center font-bold text-[12.5px] ${
-                  isClient
+                  isSSA
+                    ? "rounded-[10px] bg-rose-500/10 text-rose-600 border border-rose-500/20"
+                    : isClient
                     ? "rounded-[10px] bg-gradient-to-br from-[#FF7A3D] to-[#EB5A1E] text-white shadow-[0_6px_16px_rgba(235,90,30,0.2)]"
                     : "rounded-full bg-[#DFF6E4] text-[#1FAA59]"
                 }`}
@@ -811,7 +819,7 @@ export function AppSidebar() {
                   {profile?.full_name || user?.email}
                 </div>
                 <div className="text-[11px] text-[#8B8B92] capitalize truncate">
-                  {profile?.designation || role || "User"}
+                  {isSSA ? (platformRole?.replace("_", " ") || "Master SSA") : (profile?.designation || role || "User")}
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-[#B0B0B6] shrink-0" />

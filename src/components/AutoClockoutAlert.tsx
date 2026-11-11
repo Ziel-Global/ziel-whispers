@@ -4,10 +4,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { AlertTriangle } from "lucide-react";
+import { toast } from "sonner";
 import { format } from "date-fns";
 
 export function AutoClockoutAlert() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const queryClient = useQueryClient();
 
   // Fetch admin-configured display label for auto clock-out time
@@ -47,12 +48,32 @@ export function AutoClockoutAlert() {
     refetchInterval: 60000,
   });
 
-  const handleAcknowledge = async (attendanceId: string) => {
-    await supabase.from("auto_clockout_acks").insert({
-      user_id: user!.id,
-      attendance_id: attendanceId,
-    });
-    queryClient.invalidateQueries({ queryKey: ["auto-clockout-unacked"] });
+  const unackedKey = ["auto-clockout-unacked", user?.id];
+
+  // Optimistic: close instantly, persist in background, roll back on failure.
+  const handleAcknowledge = (attendanceId: string) => {
+    const previous = queryClient.getQueryData<{ id: string }[]>(unackedKey);
+    queryClient.setQueryData<{ id: string }[]>(unackedKey, (old = []) =>
+      old.filter((r) => r.id !== attendanceId)
+    );
+
+    supabase
+      .from("auto_clockout_acks")
+      .upsert(
+        {
+          user_id: user!.id,
+          attendance_id: attendanceId,
+          tenant_id: profile?.tenant_id,
+        } as any,
+        { onConflict: "user_id,attendance_id", ignoreDuplicates: true }
+      )
+      .then(({ error }) => {
+        if (error) {
+          console.error("Failed to acknowledge auto clock-out:", error);
+          queryClient.setQueryData(unackedKey, previous);
+          toast.error("Couldn't save your acknowledgement. Please try again.");
+        }
+      });
   };
 
   if (unackedAutoClockouts.length === 0) return null;
@@ -61,7 +82,7 @@ export function AutoClockoutAlert() {
   const displayTime = autoClockoutLabel || "12:00 AM";
 
   return (
-    <Dialog open={true} onOpenChange={() => {}}>
+    <Dialog open={true} onOpenChange={(open) => { if (!open) handleAcknowledge(current.id); }}>
       <DialogContent className="sm:max-w-md" onPointerDownOutside={(e) => e.preventDefault()} onEscapeKeyDown={(e) => e.preventDefault()}>
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">

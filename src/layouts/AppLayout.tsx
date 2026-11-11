@@ -8,7 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 
 export default function AppLayout() {
   const { profile } = useAuth();
-  const showMissingLog = profile?.role === "employee" || profile?.role === "manager" || profile?.role === "hr_manager" || profile?.role === "project_manager";
+  const showMissingLog = profile?.role === "employee" || profile?.role === "hr_manager" || profile?.role === "project_manager";
   const isClient = profile?.role === "client" || profile?.role === "client member"
     || profile?.designation === "Client" || profile?.designation === "Client Member";
 

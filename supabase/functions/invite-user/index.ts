@@ -57,10 +57,17 @@ Deno.serve(async (req) => {
       global: { headers: { Origin: supabaseUrl } },
     });
 
+    // Tenant of the inviting admin: new users, settings lookups and audit rows are scoped to it.
+    const { data: callerTenantId } = await callerClient.rpc("user_tenant_id");
+    if (!callerTenantId) {
+      return jsonResponse({ ok: false, error: "Could not resolve your workspace (tenant)" });
+    }
+
     // Pull defaults from system_settings — no hardcoded shift/reminder values here.
     const { data: settingsRows } = await adminClient
       .from("system_settings")
       .select("key, value")
+      .eq("tenant_id", callerTenantId)
       .in("key", ["default_shift_start", "default_shift_end", "reminder_offset_minutes"]);
     const settingsMap: Record<string, string> = {};
     (settingsRows || []).forEach((s: any) => { settingsMap[s.key] = s.value; });
@@ -91,6 +98,7 @@ Deno.serve(async (req) => {
     // with default values, so we always update to ensure the admin-entered values are saved.
     const profileData = {
       id: userId,
+      tenant_id: callerTenantId,
       email,
       full_name,
       department,

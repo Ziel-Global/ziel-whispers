@@ -64,6 +64,7 @@ Deno.serve(async (req) => {
       .select(`
         id,
         user_id,
+        tenant_id,
         clock_in,
         date
       `)
@@ -79,7 +80,7 @@ Deno.serve(async (req) => {
     console.log(`Found ${openSessions?.length || 0} open stale sessions. Processing...`);
 
     const tzOffset = "+05:00"; // Asia/Karachi fixed offset
-    const succeeded: Array<{ id: string; user_id: string; sessionDate: string; clock_out: string }> = [];
+    const succeeded: Array<{ id: string; user_id: string; tenant_id: string; sessionDate: string; clock_out: string }> = [];
     
     for (const session of openSessions || []) {
       // Calculate clock out based on session date + config time
@@ -112,7 +113,7 @@ Deno.serve(async (req) => {
           .is("clock_out", null);
           
         if (!updateError) {
-          succeeded.push({ id: session.id, user_id: session.user_id, sessionDate: session.date, clock_out: clockOutValue });
+          succeeded.push({ id: session.id, user_id: session.user_id, tenant_id: session.tenant_id, sessionDate: session.date, clock_out: clockOutValue });
         } else {
           console.error(`Failed to update attendance ${session.id}:`, updateError);
         }
@@ -124,6 +125,7 @@ Deno.serve(async (req) => {
     const processed = succeeded.length;
     if (processed > 0) {
       const auditRows = succeeded.map(s => ({
+        tenant_id: s.tenant_id,
         actor_id: null,
         action: "attendance.auto_clockout",
         target_entity: "attendance",

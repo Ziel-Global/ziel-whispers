@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ListPlus, Calendar as CalendarIcon, Lock } from "lucide-react";
+import { ListPlus, Calendar as CalendarIcon, Lock, AlertTriangle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -359,8 +359,9 @@ export function LogSubmissionFormCard({
               )}
 
               {dependencyWarning && (
-                <div className="ml-7 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800">
-                  <span className="font-medium">⚠ {dependencyWarning}</span>
+                <div className="ml-7 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800 flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-yellow-700 shrink-0" />
+                  <span className="font-medium">{dependencyWarning}</span>
                 </div>
               )}
             </div>

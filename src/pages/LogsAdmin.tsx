@@ -42,7 +42,7 @@ function getShiftHours(shiftStart: string, shiftEnd: string): number {
 
 export default function LogsAdminPage() {
   const { user: _user, profile } = useAuth();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "hr_manager" || profile?.role === "project_manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "hr_manager" || profile?.role === "project_manager";
   const isSuperAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(getPKTDateString());
@@ -136,10 +136,11 @@ export default function LogsAdminPage() {
         { key: "utilization_low", value: utilLow },
         { key: "utilization_high", value: utilHigh },
       ];
+      const tenantId = profile?.tenant_id || "00000000-0000-0000-0000-000000000001";
       for (const entry of entries) {
         await supabase.from("system_settings").upsert(
-          { ...entry, updated_by: profile?.id },
-          { onConflict: "key" }
+          { ...entry, tenant_id: tenantId, updated_by: profile?.id },
+          { onConflict: "tenant_id,key" }
         );
       }
       await supabase.from("audit_logs").insert({

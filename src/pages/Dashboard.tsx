@@ -22,9 +22,14 @@ import { WorkforceSplitDonut } from "@/components/dashboard/WorkforceSplitDonut"
 import { AttendanceTrendChart } from "@/components/dashboard/AttendanceTrendChart";
 import { DailyLogsHeatmap } from "@/components/dashboard/DailyLogsHeatmap";
 import { EmployeeDashboard } from "@/components/employee/dashboard/EmployeeDashboard";
+import { SSADashboard } from "@/components/platform-admin/SSADashboard";
 
 export default function DashboardPage() {
-  const { profile, user } = useAuth();
+  const { profile, user, isSSA } = useAuth();
+
+  if (isSSA) {
+    return <SSADashboard />;
+  }
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [requestBannerDismissTick, setRequestBannerDismissTick] = useState(0);
@@ -417,7 +422,7 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between pb-1">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-[#17171A]">Admin Dashboard</h1>
-            <p className="text-sm text-[#8B8B92] mt-0.5">Welcome back, {profile?.full_name ?? "User"} 👋</p>
+            <p className="text-sm text-[#8B8B92] mt-0.5">Welcome back, {profile?.full_name ?? "User"}</p>
           </div>
           <div className="text-right hidden sm:block">
             <span className="text-xs font-semibold text-[#8B8B92] block">{format(new Date(), "EEEE, MMMM d, yyyy")}</span>
@@ -459,7 +464,7 @@ export default function DashboardPage() {
               <h3 className="font-medium text-sm">Pending Leave Requests</h3>
             </div>
             {(!pendingLeaveList || pendingLeaveList.length === 0) ? (
-              <p className="text-sm text-muted-foreground">No pending requests ✓</p>
+              <p className="text-sm text-muted-foreground">No pending requests</p>
             ) : (
               <div>
                 <TableHeader gridCols="1fr 112px 112px 112px 96px 80px">

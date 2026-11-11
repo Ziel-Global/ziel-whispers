@@ -746,7 +746,9 @@ export default function MyAttendancePage() {
                         </p>
                       )}
                       {rec.is_late && (
-                        <p className="text-amber-600 font-medium">⚠️ Late by {formatLateness(rec.minutes_late ?? 0)}</p>
+                        <p className="text-amber-600 font-medium flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" /> Late by {formatLateness(rec.minutes_late ?? 0)}
+                        </p>
                       )}
                       {rec.notes && <p><strong>Notes:</strong> {rec.notes}</p>}
                     </div>

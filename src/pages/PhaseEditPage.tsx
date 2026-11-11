@@ -20,7 +20,7 @@ export default function PhaseEditPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
   const queryClient = useQueryClient();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "project_manager";
 
   const [editingTitle, setEditingTitle] = useState("");
   const [editingDueDate, setEditingDueDate] = useState("");

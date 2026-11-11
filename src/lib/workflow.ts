@@ -22,12 +22,12 @@ export function isClientRole(profile: { role?: string | null } | null | undefine
 
 export function isProjectManagerRole(profile: { role?: string | null } | null | undefined): boolean {
   const role = profile?.role;
-  return role === "admin" || role === "project_manager" || role === "manager";
+  return role === "admin" || role === "project_manager";
 }
 
 export function isHRManagerRole(profile: { role?: string | null } | null | undefined): boolean {
   const role = profile?.role;
-  return role === "admin" || role === "hr_manager" || role === "manager";
+  return role === "admin" || role === "hr_manager";
 }
 
 /** Client portal lists and navigation — archived projects are hidden. */

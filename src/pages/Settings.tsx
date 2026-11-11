@@ -24,8 +24,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Save, Settings2, MapPin, Shield, Bell, Check } from "lucide-react";
+import { Save, Settings2, MapPin, Shield, Bell, Check, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TenantBrandingSettingsTab } from "@/components/settings/TenantBrandingSettingsTab";
 
 type SettingsMap = Record<string, string>;
 
@@ -154,11 +156,12 @@ export default function SettingsPage() {
   const handleSave = async () => {
     setSaving(true);
     try {
+      const tenantId = profile?.tenant_id || "00000000-0000-0000-0000-000000000001";
       for (const key of PERSISTED_KEYS) {
         const value = form[key] ?? defaultsFor(key);
-        await supabase.from("system_settings").upsert(
-          { key, value, updated_by: profile?.id },
-          { onConflict: "key" }
+        await (supabase as any).from("system_settings").upsert(
+          { tenant_id: tenantId, key, value, updated_by: profile?.id },
+          { onConflict: "tenant_id,key" }
         );
       }
       await supabase.from("audit_logs").insert({
@@ -206,8 +209,19 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      <div className="grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] gap-3.5">
-        {/* Left stack — wired to system_settings */}
+      <Tabs defaultValue="general" className="w-full space-y-4">
+        <TabsList className="bg-white border p-1 rounded-xl">
+          <TabsTrigger value="general" className="gap-2 text-xs font-semibold">
+            <Settings2 className="w-3.5 h-3.5" /> General & Security
+          </TabsTrigger>
+          <TabsTrigger value="branding" className="gap-2 text-xs font-semibold">
+            <Palette className="w-3.5 h-3.5" /> Branding & White-Label
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general">
+          <div className="grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] gap-3.5">
+            {/* Left stack — wired to system_settings */}
         <div className="flex flex-col gap-3.5 min-w-0">
           <section className="bg-white border border-black/[0.075] rounded-[13px] p-[17px]">
             <SectionHead
@@ -420,6 +434,12 @@ export default function SettingsPage() {
           </section>
         </div>
       </div>
+    </TabsContent>
+
+    <TabsContent value="branding">
+      <TenantBrandingSettingsTab />
+    </TabsContent>
+  </Tabs>
     </div>
   );
 }

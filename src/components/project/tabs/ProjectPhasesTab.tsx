@@ -4,7 +4,7 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, ChevronDown } from "lucide-react";
 
 interface ProjectPhasesTabProps {
   id: string;
@@ -232,12 +232,9 @@ export function ProjectPhasesTab({
                           </div>
                         </td>
                         <td className="px-3.5 py-[13px] align-middle text-[#A0A0A6] text-[12px]">
-                          <span
-                            className={`inline-block transition-transform ${expanded ? "rotate-180" : ""}`}
-                            aria-hidden
-                          >
-                            ⌄
-                          </span>
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+                          />
                         </td>
                       </tr>
                       {expanded && (

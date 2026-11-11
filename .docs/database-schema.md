@@ -1,9 +1,12 @@
 # Ziel Log System — Database Schema & Relational Architecture
 
 ## Schema Overview
-The database layer is hosted on PostgreSQL (Supabase 14+), featuring Row Level Security (RLS) on all production tables, database-level constraint enforcement, automated audit triggers, dynamic `pg_cron` jobs, and high-performance RPC functions.
+The database layer is hosted on PostgreSQL (Supabase 14+), featuring **Multi-Tenant Row Level Security (RLS)** across all production tables, database-level constraint enforcement, automated audit triggers, dynamic `pg_cron` jobs, and high-performance RPC functions.
 
-The schema comprises **49 relational tables** grouped into functional domains:
+All platform tables are strictly scoped to a tenant via `tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE`. Cross-tenant data access is mathematically blocked at the database engine level via `AS RESTRICTIVE` RLS policies evaluated using `public.current_tenant_id()`.
+
+The schema comprises relational tables grouped into functional domains:
+0. **Multi-Tenancy & Platform Governance**: `tenants`, `tenant_branding`, `platform_roles`
 1. **User Identity & Access**: `users`, `login_attempts`, `system_settings`, `audit_logs`
 2. **Attendance & Time Tracking**: `attendance`, `auto_clockout_acks`, `remote_work_requests`
 3. **Daily Work Logs & Standups**: `daily_logs`, `daily_standups`, `missed_logs`
@@ -20,12 +23,45 @@ The schema comprises **49 relational tables** grouped into functional domains:
 
 ## 1. Complete Table Definitions & Column Specifications
 
+### `tenants`
+Master tenant workspace directory.
+- `id` (uuid, PK, DEFAULT `gen_random_uuid()`): Unique workspace identifier.
+- `name` (text, NOT NULL): Organization display name.
+- `slug` (text, NOT NULL, UNIQUE): URL-friendly workspace identifier.
+- `status` (`tenant_status`, NOT NULL, DEFAULT `'active'`): Status: `'active'`, `'suspended'`, `'trial'`, `'archived'`.
+- `created_at` (timestamptz, NOT NULL, DEFAULT `now()`).
+- `updated_at` (timestamptz, NOT NULL, DEFAULT `now()`).
+
+---
+
+### `tenant_branding`
+Tenant-specific white-label identity and CSS custom color tokens.
+- `tenant_id` (uuid, PK, FK -> `tenants.id` ON DELETE CASCADE).
+- `app_name` (text, NOT NULL, DEFAULT `'Ziel Whispers'`).
+- `logo_url` (text, nullable): Public URL in `tenant-assets/<tenant_id>/...`.
+- `favicon_url` (text, nullable): Custom favicon asset URL.
+- `primary_color` (text, NOT NULL, DEFAULT `'17 84% 52%'`): HSL brand color string.
+- `secondary_color` (text, NOT NULL, DEFAULT `'40 8% 96%'`): HSL secondary accent color string.
+- `updated_at` (timestamptz, NOT NULL, DEFAULT `now()`).
+
+---
+
+### `platform_roles`
+Super Super Admin (SSA) platform authority registry.
+- `id` (uuid, PK, DEFAULT `gen_random_uuid()`).
+- `user_id` (uuid, NOT NULL, UNIQUE, FK -> `auth.users.id` ON DELETE CASCADE).
+- `role` (`platform_role_type`, NOT NULL): Allowed values: `'Master_SSA'`, `'Provisioning_SSA'`, `'Support_SSA'`.
+- `granted_by` (uuid, nullable, FK -> `auth.users.id`).
+- `created_at` (timestamptz, NOT NULL, DEFAULT `now()`).
+
+---
+
 ### `users`
 Master employee, manager, administrator, and client account directory.
 - `id` (uuid, PK): Maps 1:1 with Supabase Auth `auth.users.id`.
 - `full_name` (text, NOT NULL): Employee full legal/display name.
 - `email` (text, NOT NULL, UNIQUE): System login email.
-- `role` (text, NOT NULL): Allowed values: `'admin'`, `'manager'`, `'employee'`, `'client'`, `'client member'`.
+- `role` (text, NOT NULL): Allowed values: `'admin'`, `'project_manager'`, `'hr_manager'`, `'employee'`, `'client'`, `'client member'`.
 - `department` (text, NOT NULL): Department name (e.g., Engineering, Design, HR, SQA).
 - `designation` (text, NOT NULL): Professional role title.
 - `status` (text, NOT NULL, DEFAULT `'active'`): Status flag (`'active'`, `'inactive'`).
@@ -617,6 +653,16 @@ Predecessor planning structures superseded by `project_phases`, `sprints`, and `
 | `delete_user_complete` | `void` | `p_user_id` | Comprehensive cascade removal of a user across all operational tables. |
 | `get_my_role` | `text` | *None* | RLS helper returning current authenticated user's role from `public.users`. |
 | `is_project_member` | `boolean` | `p_project_id` | RLS helper checking whether current user is active on a project. |
+| `current_tenant_id` | `uuid` | *None* | Fast cached RLS helper returning caller's active tenant UUID (NULL if workspace is suspended). |
+| `user_tenant_id` | `uuid` | *None* | Returns raw tenant UUID regardless of suspension for UI guards. |
+| `platform_role` | `platform_role_type` | *None* | Returns caller's platform role (`Master_SSA`, `Provisioning_SSA`, `Support_SSA`, or NULL). |
+| `is_ssa` | `boolean` | *None* | Boolean flag indicating whether caller is a Super Super Admin. |
+| `bootstrap_first_master_ssa` | `boolean` | `p_user_id` | One-time bootstrap function allowing root platform owner to claim Master SSA. |
+| `provision_tenant_workspace` | `uuid` | `p_tenant_name`, `p_tenant_slug`, `p_admin_user_id`, `p_admin_email`, `p_admin_full_name`, `p_primary_color`, `p_secondary_color`, `p_logo_url` | Atomic RPC provisioning tenant, branding, admin account, system settings, and leave types. |
+| `set_tenant_status` | `boolean` | `p_tenant_id`, `p_status` | Master SSA procedure to switch tenant status (`active`, `suspended`, `trial`, `archived`). |
+| `assign_platform_role` | `boolean` | `p_user_id`, `p_role` | Master SSA procedure to delegate platform roles. |
+| `revoke_platform_role` | `boolean` | `p_user_id` | Master SSA procedure to revoke platform roles. |
+| `get_tenants_overview` | `TABLE(...)` | *None* | Telemetry procedure returning all tenants, seat statistics, and admin contacts. |
 
 ---
 

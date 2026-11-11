@@ -8,7 +8,7 @@ vi.mock("@/integrations/supabase/client", () => ({ supabase: {} }));
 import { isClientRole } from "@/lib/workflow";
 import { buildTaskCommentInsert } from "@/lib/taskComments";
 import { computeBurndownData } from "@/lib/projectBurndown";
-import { excludeClientUsers, sortPresentFirst } from "@/lib/attendance";
+import { sortPresentFirst } from "@/lib/attendance";
 
 describe("1. Client login lands on My Projects", () => {
   it("treats client and client member as clients", () => {
@@ -39,76 +39,34 @@ describe("2. Task comments are saved", () => {
   });
 });
 
-describe("3. Client burndown (Done = 0); admin charts unchanged", () => {
+describe("3. Client burndown = admin formula, fed per-task logged totals", () => {
   const project = { start_date: "2026-01-01", end_date: "2026-12-31" };
-  const workflowStatuses = [
-    { id: "todo", category: "todo" },
-    { id: "done", category: "done" },
+  const tasks = [
+    { id: "a", estimated_hours: 20 },
+    { id: "b", estimated_hours: 40 },
   ];
-  const base = { burndownScope: "project", phases: [], sprints: [], project, workflowStatuses };
+  const base = { burndownScope: "project", phases: [], sprints: [], project, tasks };
 
-  it("client: done task counts as 0 remaining even with no visible logs", () => {
-    const r: any = computeBurndownData({
+  it("per-task totals (client RPC) give the same numbers as raw logs (admin)", () => {
+    const admin: any = computeBurndownData({
       ...base,
-      tasks: [
-        { id: "a", estimated_hours: 20, status_id: "done" },
-        { id: "b", estimated_hours: 40, status_id: "todo" },
-      ],
-      logs: [],
-    });
-    expect(r.totalEst).toBe(60);
-    expect(r.remaining).toBe(40); // was a flat 60 before the fix
-  });
-
-  it("client: open task = estimate minus its own logged hours, never below 0", () => {
-    const r: any = computeBurndownData({
-      ...base,
-      tasks: [
-        { id: "a", estimated_hours: 10, status_id: "todo" },
-        { id: "b", estimated_hours: 10, status_id: "todo" },
-      ],
       logs: [
-        { task_id: "a", hours: 4 },
-        { task_id: "b", hours: 15 },
+        { task_id: "a", hours: 5 },
+        { task_id: "a", hours: 7.5 },
+        { task_id: "b", hours: 10 },
       ],
     });
-    expect(r.remaining).toBe(6);
-  });
-
-  it("client: completed_at also marks a task done", () => {
-    const r: any = computeBurndownData({
+    const client: any = computeBurndownData({
       ...base,
-      tasks: [{ id: "a", estimated_hours: 10, status_id: "todo", completed_at: "2026-02-01" }],
-      logs: [],
-    });
-    expect(r.remaining).toBe(0);
-  });
-
-  it("admin (no workflowStatuses passed): original formula, total minus logged", () => {
-    const r: any = computeBurndownData({
-      burndownScope: "project",
-      phases: [],
-      sprints: [],
-      project,
-      tasks: [
-        { id: "a", estimated_hours: 20, status_id: "done" },
-        { id: "b", estimated_hours: 40, status_id: "todo" },
+      logs: [
+        { task_id: "a", hours: "12.5" }, // numeric may arrive as a string
+        { task_id: "b", hours: 10 },
       ],
-      logs: [{ task_id: "b", hours: 5 }],
     });
-    expect(r.remaining).toBe(55);
-  });
-});
-
-describe("4. Attendance hides client members", () => {
-  it("removes client and client member users only", () => {
-    const users = [
-      { id: "1", role: "employee" },
-      { id: "2", role: "client" },
-      { id: "3", role: "client member" },
-      { id: "4", role: "manager" },
-    ];
-    expect(excludeClientUsers(users).map((u) => u.id)).toEqual(["1", "4"]);
+    expect(admin.logged).toBe(22.5);
+    expect(admin.remaining).toBe(37.5);
+    expect(client.logged).toBe(admin.logged);
+    expect(client.remaining).toBe(admin.remaining);
   });
 });
 

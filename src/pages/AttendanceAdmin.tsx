@@ -18,7 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Download, Pencil, AlertTriangle, Search } from "lucide-react";
 import { format } from "date-fns";
 import { formatLateness, getPKTDateString, formatPKTTime, isAttendanceLate } from "@/hooks/useWorkSettings";
-import { excludeClientUsers, sortPresentFirst } from "@/lib/attendance";
+import { sortPresentFirst } from "@/lib/attendance";
 
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
@@ -67,10 +67,10 @@ export default function AttendanceAdminPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("users")
-        .select("id, full_name, department, is_oversight, shift_start, has_custom_shift, role")
+        .select("id, full_name, department, is_oversight, shift_start, has_custom_shift")
         .eq("status", "active")
         .lte("join_date", selectedDate);
-      return excludeClientUsers(data || []);
+      return data || [];
     },
   });
 

@@ -14,7 +14,7 @@ import { Plus, Search, FolderKanban, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { getDoneStatusIds, isClientRole, isProjectVisibleToClientPortal } from "@/lib/workflow";
@@ -477,11 +477,12 @@ export default function ProjectsPage() {
 
             <div className="space-y-1.5">
               <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Description</label>
-              <Textarea
+              <ClassicEditor
                 value={editForm.description}
-                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                onChange={(v) => setEditForm((f) => ({ ...f, description: v }))}
                 rows={3}
-                className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+                variant="full"
+                placeholder="Project scope and deliverables..."
               />
             </div>
 

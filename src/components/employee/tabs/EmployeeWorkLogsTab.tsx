@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Download, Trash2 } from "lucide-react";
 import { format } from "date-fns";
-import { formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
+import { formatHours, MISC_PROJECT_ID, getProjectName, stripHtml } from "@/lib/utils";
 import { CATEGORIES } from "@/utils/logDateUtils";
 import { cn } from "@/lib/utils";
 
@@ -65,7 +65,7 @@ function categoryLabel(cat?: string | null) {
 function workSubtitle(log: any) {
   const taskTitle = log.tasks?.title?.trim();
   if (taskTitle) return taskTitle;
-  return log.description?.trim() || "";
+  return stripHtml(log.description)?.trim() || "";
 }
 
 export function EmployeeWorkLogsTab({

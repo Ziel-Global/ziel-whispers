@@ -22,7 +22,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
+import { hasRichContent } from "@/lib/utils";
 import { healthPill } from "@/lib/adminProjectNav";
 import { computeBurndownData } from "@/lib/projectBurndown";
 
@@ -721,20 +723,22 @@ export function AdminProjectOverview({
                       {u.created_at ? format(new Date(u.created_at), "MMM d, h:mm a") : ""}
                     </span>
                   </div>
-                  <div className="text-[13.5px] text-[#4B4B52] mt-[3px] whitespace-pre-wrap break-words">
-                    {u.summary}
-                  </div>
+                  <RichTextDisplay
+                    content={u.summary}
+                    className="text-[13.5px] text-[#4B4B52] mt-[3px]"
+                  />
                 </div>
               </div>
             ))
           )}
         </div>
         <div>
-          <Textarea
+          <ClassicEditor
             value={newStatusUpdate}
-            onChange={(e) => setNewStatusUpdate(e.target.value)}
+            onChange={setNewStatusUpdate}
             placeholder="Post a status update..."
-            className="min-h-[70px] rounded-[10px] border-black/10 text-[13.5px] resize-y px-3 py-3 shadow-none focus-visible:ring-[#EB5A1E]/30"
+            variant="compact"
+            rows={2}
           />
           <div className="flex items-center justify-end mt-2.5 gap-3 flex-wrap">
             {/* Not wired up — hidden for now
@@ -750,7 +754,7 @@ export function AdminProjectOverview({
             <button
               type="button"
               onClick={addStatusUpdate}
-              disabled={!newStatusUpdate.trim()}
+              disabled={!hasRichContent(newStatusUpdate)}
               className="bg-[#EB5A1E] text-white font-semibold text-[13px] px-[22px] py-2.5 rounded-[10px] disabled:opacity-50 hover:bg-[#d64f18] transition-colors"
             >
               Post

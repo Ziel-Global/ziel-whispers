@@ -5,14 +5,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
-import { cn } from "@/lib/utils";
+import { cn, getPlainTextLength } from "@/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { MetricCard } from "@/components/ui/metric-card";
 import { DEPARTMENTS } from "@/lib/constants";
@@ -35,10 +36,6 @@ const emptyForm: AnnouncementForm = { title: "", body: "", priority: "normal", a
 
 function audienceLabel(audience: string) {
   return audience === "all" ? "Company-wide" : audience;
-}
-
-function stripHtml(html: string) {
-  return html.replace(/<[^>]*>/g, "");
 }
 
 export default function AnnouncementsPage() {
@@ -173,7 +170,7 @@ export default function AnnouncementsPage() {
       toast.error("Title is required");
       return;
     }
-    if (form.body.length < 10) {
+    if (getPlainTextLength(form.body) < 10) {
       toast.error("Body must be at least 10 characters");
       return;
     }
@@ -431,8 +428,13 @@ export default function AnnouncementsPage() {
                     </span>
                   )}
                 </div>
-                <div className="text-[10.5px] text-[#77777E] mt-1 leading-normal line-clamp-2 whitespace-pre-wrap">
-                  {stripHtml(a.body)}
+                <div className="mt-1">
+                  <RichTextDisplay
+                    content={a.body}
+                    collapsible
+                    collapseWords={30}
+                    className="text-[11px] text-[#55555C] leading-normal"
+                  />
                 </div>
                 <div className="flex items-center gap-[9px] mt-[7px] text-[8.5px] text-[#9A9AA0] flex-wrap">
                   <span>{formatDistanceToNow(new Date(a.publish_at), { addSuffix: true })}</span>
@@ -508,13 +510,14 @@ export default function AnnouncementsPage() {
             </div>
             <div>
               <div className="text-[9px] font-semibold text-[#A0A0A7] mb-1 uppercase tracking-wide">Message</div>
-              <Textarea
+              <ClassicEditor
                 value={form.body}
-                onChange={(e) => setForm({ ...form, body: e.target.value })}
+                onChange={(v) => setForm({ ...form, body: v })}
                 placeholder="Write the announcement message"
-                className="min-h-[96px] text-[12px] resize-y"
+                variant="full"
+                rows={4}
               />
-              <p className="text-[9px] text-[#A0A0A7] mt-1">{form.body.length} chars (min 10)</p>
+              <p className="text-[9px] text-[#A0A0A7] mt-1">{getPlainTextLength(form.body)} chars (min 10)</p>
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>

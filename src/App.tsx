@@ -58,8 +58,6 @@ function HomeRouter() {
   if (isSSA) {
     return <Navigate to="/dashboard" replace />;
   }
-  if (profile?.role === "client" || profile?.role === "client member") {
-  const { profile } = useAuth();
   // Right after login the profile is still loading; wait so clients aren't sent to /dashboard.
   if (!profile) {
     return <div className="flex flex-1 items-center justify-center animate-pulse text-muted-foreground">Loading…</div>;

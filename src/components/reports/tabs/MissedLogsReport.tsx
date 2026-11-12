@@ -27,6 +27,7 @@ import {
 import { getPKTDateString, formatPKTTime, formatTime12h } from "@/hooks/useWorkSettings";
 import { CATEGORIES } from "@/utils/logDateUtils";
 import html2canvas from "html2canvas";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { DEPARTMENTS } from "@/lib/constants";
 import {

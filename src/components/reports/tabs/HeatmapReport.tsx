@@ -41,6 +41,30 @@ import {
   type UtilStatus,
 } from "./legacyReportHelpers";
 
+type HeatmapHoursBand = "all" | "0" | "1-6" | "7-9" | ">9";
+
+function heatmapBandForHours(h: number): Exclude<HeatmapHoursBand, "all"> {
+  if (h <= 0) return "0";
+  if (h <= 6) return "1-6";
+  if (h <= 9) return "7-9";
+  return ">9";
+}
+
+function heatmapCellBg(h: number, isWeekend: boolean, notJoined: boolean) {
+  if (isWeekend) return "#F7F7F8";
+  if (notJoined) return "#FAFAFB";
+  switch (heatmapBandForHours(h)) {
+    case "0":
+      return "#F0F0F2";
+    case "1-6":
+      return "#C6F1D1";
+    case "7-9":
+      return "#72D891";
+    default:
+      return "#F5C6C7";
+  }
+}
+
 export function HeatmapReport() {
   const heatmapRef = useRef<HTMLDivElement>(null);
   const [month, setMonth] = useState(getPKTDateString().slice(0, 7));

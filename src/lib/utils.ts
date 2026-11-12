@@ -39,7 +39,7 @@ export function toSlug(name: string): string {
 export function getAvatarUrl(path: string | null | undefined) {
   if (!path) return undefined;
   if (path.startsWith("http")) return path;
-  
+
   const { data } = supabase.storage.from("avatars").getPublicUrl(path);
   return `${data.publicUrl}?t=${avatarCacheBuster}`;
 }

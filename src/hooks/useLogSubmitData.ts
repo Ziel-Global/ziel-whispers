@@ -73,7 +73,7 @@ export function useLogSubmitData() {
         .eq("user_id", user!.id)
         .eq("status", "submitted")
         .gte("log_date", minDate);
-      
+
       const totals: Record<string, number> = {};
       data?.forEach((l: any) => {
         totals[l.log_date] = (totals[l.log_date] || 0) + Number(l.hours);
@@ -92,10 +92,10 @@ export function useLogSubmitData() {
   const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
   const missedDate =
     logsTotalsFetched && perEmployeeLogEditDays !== undefined &&
-    profile && profile.role !== "admin" && !missed.isWeekend &&
-    !(createdAtDate && missed.targetDateStr <= createdAtDate) &&
-    !logsTotals[missed.targetDateStr] &&
-    isWithinLogEditWindow(missed.targetDateStr, today, effectiveLogEditDays, profileWorkingDays)
+      profile && profile.role !== "admin" && !missed.isWeekend &&
+      !(createdAtDate && missed.targetDateStr <= createdAtDate) &&
+      !logsTotals[missed.targetDateStr] &&
+      isWithinLogEditWindow(missed.targetDateStr, today, effectiveLogEditDays, profileWorkingDays)
       ? missed.targetDateStr
       : null;
   const defaultDate = missedDate ?? today;
@@ -343,11 +343,11 @@ export function useLogSubmitData() {
   });
 
   const submittedHours = useMemo(() => dateLogs.reduce((sum, l) => sum + Number(l.hours), 0), [dateLogs]);
-  const pendingHoursForSelectedDate = useMemo(() => 
+  const pendingHoursForSelectedDate = useMemo(() =>
     pendingLogs.filter((p: any) => p.log_date === selectedDate && p.id !== editId).reduce((sum: number, l: any) => sum + Number(l.hours), 0),
     [pendingLogs, selectedDate, editId]
   );
-  
+
   const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
   const logsAreAllForToday = useMemo(() =>
     pendingLogs.length > 0 && pendingLogs.every((log: any) => log.log_date === today),

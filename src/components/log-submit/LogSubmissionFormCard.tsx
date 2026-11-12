@@ -235,9 +235,8 @@ export function LogSubmissionFormCard({
                 {tasksWithRemaining.map((t: any) => (
                   <div
                     key={t.id}
-                    className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
-                      form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                    }`}
+                    className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                      }`}
                     onClick={() =>
                       form.setValue(
                         "task_id",
@@ -248,9 +247,8 @@ export function LogSubmissionFormCard({
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <div
-                        className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                          form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
-                        }`}
+                        className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
+                          }`}
                       >
                         {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
                       </div>
@@ -268,9 +266,8 @@ export function LogSubmissionFormCard({
                 ))}
                 <div
                   key="other-task-option"
-                  className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${
-                    form.watch("task_id") === "other" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                  }`}
+                  className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === "other" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                    }`}
                   onClick={() =>
                     form.setValue(
                       "task_id",
@@ -281,9 +278,8 @@ export function LogSubmissionFormCard({
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
-                        form.watch("task_id") === "other" ? "border-primary" : "border-muted-foreground"
-                      }`}
+                      className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === "other" ? "border-primary" : "border-muted-foreground"
+                        }`}
                     >
                       {form.watch("task_id") === "other" && <div className="w-2 h-2 rounded-full bg-primary" />}
                     </div>
@@ -390,9 +386,8 @@ export function LogSubmissionFormCard({
                     <div className="flex justify-between items-center px-1">
                       <FormMessage />
                       <span
-                        className={`text-[10px] font-mono ${
-                          getPlainTextLength(descValue) < 20 ? "text-destructive" : "text-muted-foreground"
-                        }`}
+                        className={`text-[10px] font-mono ${getPlainTextLength(descValue) < 20 ? "text-destructive" : "text-muted-foreground"
+                          }`}
                       >
                         {getPlainTextLength(descValue)} / 20 chars min
                       </span>

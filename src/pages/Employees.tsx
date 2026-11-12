@@ -1,6 +1,6 @@
 // Active Users (Employees Page) Component - Fully audited & verified JSX structure
 import { useState, useEffect, useMemo } from "react"
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -32,6 +32,8 @@ import { getAvatarUrl } from "@/lib/utils";
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const initialTab = searchParams.get("tab") === "client-members" ? "client-members" : "list";
   const { profile } = useAuth();
   const isAdmin = profile?.role === "admin";
   const [search, setSearch] = useState("");
@@ -45,6 +47,12 @@ export default function EmployeesPage() {
   const [deleting, setDeleting] = useState(false);
   const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<string>>(new Set());
   const [bulkDeleteEmployeeOpen, setBulkDeleteEmployeeOpen] = useState(false);
+
+  // Client Members tab state
+  const [clientSearch, setClientSearch] = useState("");
+  const [clientStatusFilter, setClientStatusFilter] = useState("all");
+  const [selectedClientMemberIds, setSelectedClientMemberIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteClientMemberOpen, setBulkDeleteClientMemberOpen] = useState(false);
 
   // Shift Settings State
   const [shiftStart, setShiftStart] = useState("");
@@ -136,6 +144,26 @@ export default function EmployeesPage() {
     finally { setDeleting(false); }
   };
 
+  const handleBulkDeleteClientMembers = async () => {
+    const ids = Array.from(selectedClientMemberIds);
+    if (!ids.length) return;
+    setDeleting(true);
+    try {
+      let deleted = 0;
+      for (const id of ids) {
+        if (id === profile?.id) continue;
+        const ok = await deleteUserRecord(id);
+        if (ok) deleted++;
+      }
+      if (deleted > 0) toast.success(`${deleted} client member${deleted > 1 ? "s" : ""} deleted`);
+      setSelectedClientMemberIds(new Set());
+      setBulkDeleteClientMemberOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["employees"] });
+      queryClient.invalidateQueries({ queryKey: ["client-members-project-map"] });
+    } catch (err: any) { toast.error(err?.message || String(err)); }
+    finally { setDeleting(false); }
+  };
+
   const { data: employees = [], isLoading } = useQuery({
     queryKey: ["employees"],
     queryFn: async () => {
@@ -148,8 +176,37 @@ export default function EmployeesPage() {
     },
   });
 
+  const { data: clientProjectsMap = {} } = useQuery({
+    queryKey: ["client-members-project-map"],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("project_members")
+        .select("user_id, projects(id, name)")
+        .is("removed_at", null);
+      const map: Record<string, string[]> = {};
+      (data || []).forEach((row: any) => {
+        const pName = row.projects?.name;
+        if (row.user_id && pName) {
+          if (!map[row.user_id]) map[row.user_id] = [];
+          map[row.user_id].push(pName);
+        }
+      });
+      return map;
+    },
+  });
+
+  const staffUsers = useMemo(
+    () => employees.filter((e) => e.role !== "client member" && e.role !== "client"),
+    [employees]
+  );
+
+  const clientMembers = useMemo(
+    () => employees.filter((e) => e.role === "client member" || e.role === "client"),
+    [employees]
+  );
+
   const filtered = useMemo(() => {
-    return employees.filter((e) => {
+    return staffUsers.filter((e) => {
       const q = search.toLowerCase();
       const matchSearch = !q || e.full_name.toLowerCase().includes(q) || e.email.toLowerCase().includes(q) || e.designation.toLowerCase().includes(q);
       const matchDept = deptFilter === "all" || e.department === deptFilter;
@@ -158,7 +215,20 @@ export default function EmployeesPage() {
       const matchRole = roleFilter === "all" || e.role === roleFilter;
       return matchSearch && matchDept && matchStatus && matchType && matchRole;
     });
-  }, [employees, search, deptFilter, statusFilter, typeFilter, roleFilter]);
+  }, [staffUsers, search, deptFilter, statusFilter, typeFilter, roleFilter]);
+
+  const filteredClientMembers = useMemo(() => {
+    return clientMembers.filter((cm) => {
+      const q = clientSearch.toLowerCase();
+      const matchSearch =
+        !q ||
+        cm.full_name?.toLowerCase().includes(q) ||
+        cm.email?.toLowerCase().includes(q) ||
+        (clientProjectsMap[cm.id] || []).some((pName) => pName.toLowerCase().includes(q));
+      const matchStatus = clientStatusFilter === "all" || cm.status === clientStatusFilter;
+      return matchSearch && matchStatus;
+    });
+  }, [clientMembers, clientSearch, clientStatusFilter, clientProjectsMap]);
 
   const getAvatarColors = (nameOrId: string) => {
     const palette = [
@@ -183,7 +253,7 @@ export default function EmployeesPage() {
     <div className="flex flex-col flex-1 h-full min-h-0 gap-4 font-sans overflow-hidden">
       <PageHeader
         title="Users"
-        subtitle={`${employees.length} total users`}
+        subtitle={`${staffUsers.length} users · ${clientMembers.length} client members`}
         actions={
           isAdmin && (
             <>
@@ -208,13 +278,19 @@ export default function EmployeesPage() {
         }
       />
 
-      <Tabs defaultValue="list" className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <Tabs defaultValue={initialTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
           <TabsTrigger
             value="list"
             className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
           >
             All Users
+          </TabsTrigger>
+          <TabsTrigger
+            value="client-members"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+          >
+            Client Members
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger
@@ -274,7 +350,6 @@ export default function EmployeesPage() {
                 <SelectItem value="hr_manager">HR / Operational Manager</SelectItem>
                 <SelectItem value="project_manager">Project Manager</SelectItem>
                 <SelectItem value="employee">Employee</SelectItem>
-                <SelectItem value="client member">Client Member</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -384,52 +459,167 @@ export default function EmployeesPage() {
               </div>
             )}
           </div>
-          <Dialog open={!!deletingUser} onOpenChange={(open) => { if (!open) setDeletingUser(null); }}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete user — {deletingUser?.full_name}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <p className="text-sm text-destructive font-medium">Warning: This will permanently delete the user account and all related data (attendance, logs, leave requests, notifications, balances, etc.). This action cannot be undone.</p>
-                <p className="text-sm">Are you sure you want to delete <strong>{deletingUser?.full_name}</strong> ({deletingUser?.email})?</p>
+        </TabsContent>
+
+        <TabsContent value="client-members" className="mt-4 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden">
+          <div className="flex flex-wrap gap-2.5 items-center shrink-0">
+            <SearchInput
+              placeholder="Search client members by name, email, project…"
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+            />
+
+            <Select value={clientStatusFilter} onValueChange={setClientStatusFilter}>
+              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                {STATUSES.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
+            {isLoading ? (
+              <EmptyState variant="inline" isLoading message="Loading…" />
+            ) : filteredClientMembers.length === 0 ? (
+              <EmptyState variant="inline" message="No client members found" />
+            ) : (
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <TableHeader gridCols="40px 1.8fr 1.6fr 1.6fr 0.8fr 1fr 0.7fr" className="sticky top-0 z-10 bg-white px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
+                  <div className="flex items-center justify-center">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
+                      checked={selectedClientMemberIds.size === filteredClientMembers.length && filteredClientMembers.length > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedClientMemberIds(new Set(filteredClientMembers.map((cm) => cm.id)));
+                        else setSelectedClientMemberIds(new Set());
+                      }}
+                    />
+                  </div>
+                  <span>CLIENT MEMBER</span>
+                  <span>EMAIL</span>
+                  <span>ASSIGNED PROJECTS</span>
+                  <span>STATUS</span>
+                  <span>JOIN DATE</span>
+                  <span className="text-right">ACTIONS</span>
+                </TableHeader>
+                {selectedClientMemberIds.size > 0 && (
+                  <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+                    <span className="text-xs font-semibold">
+                      {selectedClientMemberIds.size} client member{selectedClientMemberIds.size > 1 ? "s" : ""} selected
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedClientMemberIds(new Set())}
+                        className="px-3 py-1 text-xs font-medium text-white/80 hover:text-white border border-white/20 rounded-md bg-transparent"
+                      >
+                        Clear selection
+                      </button>
+                      <button
+                        onClick={() => setBulkDeleteClientMemberOpen(true)}
+                        className="px-3 py-1 text-xs bg-[#E5484D] text-white rounded-md hover:bg-red-700 flex items-center gap-1 font-semibold"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Delete selected
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {filteredClientMembers.map((cm) => {
+                  const initials = (cm.full_name || "")
+                    .split(" ")
+                    .map((n: string) => n[0])
+                    .join("")
+                    .toUpperCase()
+                    .slice(0, 2);
+                  const avatarStyle = getAvatarColors(cm.full_name || cm.id);
+                  const assignedProjects = clientProjectsMap[cm.id] || [];
+                  return (
+                    <DataRow
+                      key={cm.id}
+                      onClick={() => navigate(`/employees/${cm.id}`)}
+                      className="px-5 py-3 border-b border-black/[0.05] transition-colors hover:bg-[#F6F5F3]/50"
+                      gridCols="40px 1.8fr 1.6fr 1.6fr 0.8fr 1fr 0.7fr"
+                    >
+                      <div className="flex items-center justify-center">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
+                          checked={selectedClientMemberIds.has(cm.id)}
+                          onChange={(e) => {
+                            const next = new Set(selectedClientMemberIds);
+                            if (e.target.checked) next.add(cm.id);
+                            else next.delete(cm.id);
+                            setSelectedClientMemberIds(next);
+                          }}
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8 shrink-0 font-bold text-[11.5px]" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
+                          <AvatarImage src={getAvatarUrl(cm.avatar_url)} />
+                          <AvatarFallback className="font-bold text-[11.5px] border-0" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
+                            {initials}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <RowPrimary className="font-bold text-[13.5px] text-[#17171A] truncate">{cm.full_name}</RowPrimary>
+                          <RowSecondary className="text-[12px] text-[#8B8B92] truncate capitalize">
+                            {cm.role || "Client Member"}
+                          </RowSecondary>
+                        </div>
+                      </div>
+                      <RowDataItem label="EMAIL" className="text-[13px] text-[#4B4B52] truncate">
+                        {cm.email}
+                      </RowDataItem>
+                      <RowDataItem
+                        label="ASSIGNED PROJECTS"
+                        className="text-[13px] text-[#4B4B52] truncate"
+                      >
+                        {assignedProjects.length === 0 ? (
+                          <span className="text-[#8B8B92]">No projects</span>
+                        ) : (
+                          <span title={assignedProjects.join(", ")} className="font-medium text-[#17171A]">
+                            {assignedProjects.slice(0, 2).join(", ")}
+                            {assignedProjects.length > 2 ? ` +${assignedProjects.length - 2}` : ""}
+                          </span>
+                        )}
+                      </RowDataItem>
+                      <RowBadgeItem label="STATUS">
+                        <StatusBadge status={cm.status} />
+                      </RowBadgeItem>
+                      <RowDataItem label="JOIN DATE" className="text-[13px] text-[#4B4B52]">
+                        {cm.join_date ? format(new Date(cm.join_date), "MMM d, yyyy") : "—"}
+                      </RowDataItem>
+                      <RowActions className="justify-self-end flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); navigate(`/employees/${cm.id}`); }}
+                          className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EBEBEB] text-[#4B4B52] flex items-center justify-center transition-colors"
+                          title="View Profile"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-[#4B4B52]" />
+                        </button>
+                        {isAdmin && (
+                          <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); setDeletingUser(cm); }}
+                            className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
+                            title="Delete Client Member"
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
+                          </button>
+                        )}
+                      </RowActions>
+                    </DataRow>
+                  );
+                })}
               </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setDeletingUser(null)}>Cancel</Button>
-                <Button className="bg-destructive text-destructive-foreground" onClick={async () => {
-                  if (!deletingUser) return;
-                  if (deletingUser.id === profile?.id) { toast.error("You cannot delete your own account."); return; }
-                  setDeleting(true);
-                    try {
-                      const ok = await deleteUserRecord(deletingUser.id);
-                      if (ok) {
-                        toast.success("User and related data deleted");
-                        queryClient.invalidateQueries({ queryKey: ["employees"] });
-                        setDeletingUser(null);
-                      } else {
-                        toast.error("Failed to delete user");
-                      }
-                    } catch (err: any) {
-                    toast.error(err?.message || String(err));
-                  } finally { setDeleting(false); }
-                }} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          <Dialog open={bulkDeleteEmployeeOpen} onOpenChange={setBulkDeleteEmployeeOpen}>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Delete {selectedEmployeeIds.size} User{selectedEmployeeIds.size > 1 ? "s" : ""}</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <p className="text-sm text-destructive font-medium">Warning: This will permanently delete the selected user accounts and all related data. This action cannot be undone.</p>
-                <p className="text-sm">Are you sure you want to delete {selectedEmployeeIds.size} user{selectedEmployeeIds.size > 1 ? "s" : ""}?</p>
-              </div>
-              <DialogFooter>
-                <Button variant="outline" onClick={() => setBulkDeleteEmployeeOpen(false)}>Cancel</Button>
-                <Button className="bg-destructive text-destructive-foreground" onClick={handleBulkDeleteEmployees} disabled={deleting}>{deleting ? "Deleting..." : "Delete all"}</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+            )}
+          </div>
         </TabsContent>
 
         {isAdmin && (
@@ -493,6 +683,71 @@ export default function EmployeesPage() {
           </TabsContent>
         )}
       </Tabs>
+
+      <Dialog open={!!deletingUser} onOpenChange={(open) => { if (!open) setDeletingUser(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete user — {deletingUser?.full_name}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-destructive font-medium">Warning: This will permanently delete the user account and all related data (attendance, logs, leave requests, notifications, balances, etc.). This action cannot be undone.</p>
+            <p className="text-sm">Are you sure you want to delete <strong>{deletingUser?.full_name}</strong> ({deletingUser?.email})?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeletingUser(null)}>Cancel</Button>
+            <Button className="bg-destructive text-destructive-foreground" onClick={async () => {
+              if (!deletingUser) return;
+              if (deletingUser.id === profile?.id) { toast.error("You cannot delete your own account."); return; }
+              setDeleting(true);
+                try {
+                  const ok = await deleteUserRecord(deletingUser.id);
+                  if (ok) {
+                    toast.success("User and related data deleted");
+                    queryClient.invalidateQueries({ queryKey: ["employees"] });
+                    queryClient.invalidateQueries({ queryKey: ["client-members-project-map"] });
+                    setDeletingUser(null);
+                  } else {
+                    toast.error("Failed to delete user");
+                  }
+                } catch (err: any) {
+                toast.error(err?.message || String(err));
+              } finally { setDeleting(false); }
+            }} disabled={deleting}>{deleting ? "Deleting…" : "Delete"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDeleteEmployeeOpen} onOpenChange={setBulkDeleteEmployeeOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedEmployeeIds.size} User{selectedEmployeeIds.size > 1 ? "s" : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-destructive font-medium">Warning: This will permanently delete the selected user accounts and all related data. This action cannot be undone.</p>
+            <p className="text-sm">Are you sure you want to delete {selectedEmployeeIds.size} user{selectedEmployeeIds.size > 1 ? "s" : ""}?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteEmployeeOpen(false)}>Cancel</Button>
+            <Button className="bg-destructive text-destructive-foreground" onClick={handleBulkDeleteEmployees} disabled={deleting}>{deleting ? "Deleting..." : "Delete all"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkDeleteClientMemberOpen} onOpenChange={setBulkDeleteClientMemberOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedClientMemberIds.size} Client Member{selectedClientMemberIds.size > 1 ? "s" : ""}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-destructive font-medium">Warning: This will permanently delete the selected client member accounts and all related data. This action cannot be undone.</p>
+            <p className="text-sm">Are you sure you want to delete {selectedClientMemberIds.size} client member{selectedClientMemberIds.size > 1 ? "s" : ""}?</p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteClientMemberOpen(false)}>Cancel</Button>
+            <Button className="bg-destructive text-destructive-foreground" onClick={handleBulkDeleteClientMembers} disabled={deleting}>{deleting ? "Deleting..." : "Delete all"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <CSVImportDialog open={csvOpen} onOpenChange={setCsvOpen} />
     </div>

@@ -167,7 +167,7 @@ export function AdminAddLogDialog({ employees }: { employees: any[] }) {
                 <FormMessage />
               </FormItem>
             )} />
-            
+
             <FormField control={form.control} name="log_date" render={({ field }) => (
               <FormItem>
                 <FormLabel>Date</FormLabel>

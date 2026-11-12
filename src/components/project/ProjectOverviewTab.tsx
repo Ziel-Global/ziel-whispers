@@ -817,8 +817,8 @@ export function ProjectOverviewTab({
             {latestHealth ? (
               <Badge className={
                 latestHealth.health_status === "on_track" ? "bg-green-100 text-green-800" :
-                latestHealth.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800" :
-                "bg-red-100 text-red-800"
+                  latestHealth.health_status === "at_risk" ? "bg-yellow-100 text-yellow-800" :
+                    "bg-red-100 text-red-800"
               }>
                 {latestHealth.health_status.replace(/_/g, " ")}
               </Badge>
@@ -885,17 +885,17 @@ export function ProjectOverviewTab({
         )}
 
         <>
-            <Separator className="my-6" />
-            <BurndownSection
-              burndownScope={burndownScope}
-              setBurndownScope={setBurndownScope}
-              phases={phases}
-              tasks={tasks}
-              sprints={sprints}
-              logs={logs}
-              project={project}
-            />
-          </>
+          <Separator className="my-6" />
+          <BurndownSection
+            burndownScope={burndownScope}
+            setBurndownScope={setBurndownScope}
+            phases={phases}
+            tasks={tasks}
+            sprints={sprints}
+            logs={logs}
+            project={project}
+          />
+        </>
 
         {!isClient && (
           <>

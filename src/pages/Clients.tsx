@@ -86,13 +86,13 @@ export default function ClientsPage() {
   const openAdd = () => { setEditId(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (c: any) => {
     setEditId(c.id);
-    setForm({ 
-      name: c.name, 
-      industry: c.industry || "", 
-      contact_name: c.contact_name || "", 
-      contact_email: c.contact_email || "", 
+    setForm({
+      name: c.name,
+      industry: c.industry || "",
+      contact_name: c.contact_name || "",
+      contact_email: c.contact_email || "",
       location: c.contact_phone || "", // Mapping contact_phone to location
-      notes: (c as any).notes || "" 
+      notes: (c as any).notes || ""
     });
     setDialogOpen(true);
   };
@@ -151,22 +151,22 @@ export default function ClientsPage() {
 
       const { error } = await supabase.from("clients").delete().eq("id", deleteId);
       if (error) throw error;
-      
-      await supabase.from("audit_logs").insert({ 
-        actor_id: profile?.id, 
-        action: "client.deleted", 
+
+      await supabase.from("audit_logs").insert({
+        actor_id: profile?.id,
+        action: "client.deleted",
         target_entity: "clients",
-        target_id: deleteId 
+        target_id: deleteId
       });
-      
+
       toast.success("Client deleted permanently");
       setDeleteId(null);
       queryClient.invalidateQueries({ queryKey: ["clients"] });
       queryClient.invalidateQueries({ queryKey: ["client-project-counts"] });
-    } catch (err: any) { 
-      toast.error(err.message); 
-    } finally { 
-      setDeleting(false); 
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -245,134 +245,134 @@ export default function ClientsPage() {
       {!isLoading && filtered.length > 0 && (
         <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm font-sans flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="sticky top-0 z-10 bg-white grid grid-cols-[40px_2.2fr_0.8fr_0.9fr_1fr_0.9fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
-            <div className="flex items-center justify-center">
-              <input
-                type="checkbox"
-                className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
-                checked={selectedClientIds.size === filtered.length && filtered.length > 0}
-                onChange={(e) => {
-                  if (e.target.checked) setSelectedClientIds(new Set(filtered.map((c) => c.id)));
-                  else setSelectedClientIds(new Set());
-                }}
-              />
-            </div>
-            <span>CLIENT</span>
-            <span>PROJECTS</span>
-            <span>STATUS</span>
-            <span>CREATED</span>
-            <span className="text-right pr-2">ACTIONS</span>
-          </div>
-
-          {selectedClientIds.size > 0 && (
-            <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
-              <span className="text-xs font-semibold">
-                {selectedClientIds.size} client{selectedClientIds.size > 1 ? "s" : ""} selected
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setSelectedClientIds(new Set())}
-                  className="px-3 py-1 text-xs font-medium text-white/80 hover:text-white border border-white/20 rounded-md bg-transparent"
-                >
-                  Clear selection
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBulkDeleteClientOpen(true)}
-                  className="px-3 py-1 text-xs bg-[#E5484D] text-white rounded-md hover:bg-red-700 flex items-center gap-1 font-semibold"
-                >
-                  <Trash2 className="h-3.5 w-3.5" /> Delete selected
-                </button>
-              </div>
-            </div>
-          )}
-
-          {filtered.map((c) => (
-            <div
-              key={c.id}
-              className="grid grid-cols-[40px_2.2fr_0.8fr_0.9fr_1fr_0.9fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] hover:bg-[#F6F5F3]/50 transition-colors"
-            >
+            <div className="sticky top-0 z-10 bg-white grid grid-cols-[40px_2.2fr_0.8fr_0.9fr_1fr_0.9fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
               <div className="flex items-center justify-center">
                 <input
                   type="checkbox"
                   className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
-                  checked={selectedClientIds.has(c.id)}
+                  checked={selectedClientIds.size === filtered.length && filtered.length > 0}
                   onChange={(e) => {
-                    const next = new Set(selectedClientIds);
-                    if (e.target.checked) next.add(c.id);
-                    else next.delete(c.id);
-                    setSelectedClientIds(next);
+                    if (e.target.checked) setSelectedClientIds(new Set(filtered.map((c) => c.id)));
+                    else setSelectedClientIds(new Set());
                   }}
-                  onClick={(e) => e.stopPropagation()}
                 />
               </div>
-
-              {/* CLIENT */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-[34px] h-[34px] rounded-[9px] bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center shrink-0">
-                  <Building2 className="h-4 w-4 text-[#EB5A1E]" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[13.5px] font-bold text-[#17171A] truncate">{c.name}</p>
-                  <p className="text-[12px] text-[#8B8B92] truncate">
-                    {c.contact_email || "—"} · {c.contact_phone || "—"}
-                  </p>
-                </div>
-              </div>
-
-              {/* PROJECTS */}
-              <div className="text-[13.5px] font-bold text-[#4B4B52]">{projectCounts?.[c.id] || 0}</div>
-
-              {/* STATUS */}
-              <div>
-                <Badge
-                  className={
-                    c.status === "active"
-                      ? "bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
-                      : "bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
-                  }
-                >
-                  {c.status}
-                </Badge>
-              </div>
-
-              {/* CREATED */}
-              <div className="text-[13px] text-[#4B4B52]">{format(new Date(c.created_at), "MMM d, yyyy")}</div>
-
-              {/* ACTIONS */}
-              <div className="flex items-center justify-end gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => openEdit(c)}
-                  className="w-7 h-7 rounded-[8px] bg-[#FDECE3] hover:bg-[#FCD8C8] text-[#EB5A1E] flex items-center justify-center transition-colors"
-                  title="Edit"
-                >
-                  <Pencil className="h-3.5 w-3.5 text-[#EB5A1E]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleArchive(c.id, c.status)}
-                  className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EAE8E5] text-[#8B8B92] flex items-center justify-center transition-colors"
-                  title={c.status === "archived" ? "Restore" : "Archive"}
-                >
-                  {c.status === "archived" ? (
-                    <ArchiveRestore className="h-3.5 w-3.5 text-[#8B8B92]" />
-                  ) : (
-                    <Archive className="h-3.5 w-3.5 text-[#8B8B92]" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteId(c.id)}
-                  className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
-                </button>
-              </div>
+              <span>CLIENT</span>
+              <span>PROJECTS</span>
+              <span>STATUS</span>
+              <span>CREATED</span>
+              <span className="text-right pr-2">ACTIONS</span>
             </div>
-          ))}
+
+            {selectedClientIds.size > 0 && (
+              <div className="sticky top-[45px] z-10 flex items-center justify-between px-5 py-2.5 bg-[#17171A] text-white">
+                <span className="text-xs font-semibold">
+                  {selectedClientIds.size} client{selectedClientIds.size > 1 ? "s" : ""} selected
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedClientIds(new Set())}
+                    className="px-3 py-1 text-xs font-medium text-white/80 hover:text-white border border-white/20 rounded-md bg-transparent"
+                  >
+                    Clear selection
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBulkDeleteClientOpen(true)}
+                    className="px-3 py-1 text-xs bg-[#E5484D] text-white rounded-md hover:bg-red-700 flex items-center gap-1 font-semibold"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" /> Delete selected
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {filtered.map((c) => (
+              <div
+                key={c.id}
+                className="grid grid-cols-[40px_2.2fr_0.8fr_0.9fr_1fr_0.9fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] hover:bg-[#F6F5F3]/50 transition-colors"
+              >
+                <div className="flex items-center justify-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
+                    checked={selectedClientIds.has(c.id)}
+                    onChange={(e) => {
+                      const next = new Set(selectedClientIds);
+                      if (e.target.checked) next.add(c.id);
+                      else next.delete(c.id);
+                      setSelectedClientIds(next);
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                </div>
+
+                {/* CLIENT */}
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-[34px] h-[34px] rounded-[9px] bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center shrink-0">
+                    <Building2 className="h-4 w-4 text-[#EB5A1E]" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[13.5px] font-bold text-[#17171A] truncate">{c.name}</p>
+                    <p className="text-[12px] text-[#8B8B92] truncate">
+                      {c.contact_email || "—"} · {c.contact_phone || "—"}
+                    </p>
+                  </div>
+                </div>
+
+                {/* PROJECTS */}
+                <div className="text-[13.5px] font-bold text-[#4B4B52]">{projectCounts?.[c.id] || 0}</div>
+
+                {/* STATUS */}
+                <div>
+                  <Badge
+                    className={
+                      c.status === "active"
+                        ? "bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                        : "bg-[#F6F5F3] text-[#8B8B92] font-semibold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none capitalize"
+                    }
+                  >
+                    {c.status}
+                  </Badge>
+                </div>
+
+                {/* CREATED */}
+                <div className="text-[13px] text-[#4B4B52]">{format(new Date(c.created_at), "MMM d, yyyy")}</div>
+
+                {/* ACTIONS */}
+                <div className="flex items-center justify-end gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(c)}
+                    className="w-7 h-7 rounded-[8px] bg-[#FDECE3] hover:bg-[#FCD8C8] text-[#EB5A1E] flex items-center justify-center transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-[#EB5A1E]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleArchive(c.id, c.status)}
+                    className="w-7 h-7 rounded-[8px] bg-[#F6F5F3] hover:bg-[#EAE8E5] text-[#8B8B92] flex items-center justify-center transition-colors"
+                    title={c.status === "archived" ? "Restore" : "Archive"}
+                  >
+                    {c.status === "archived" ? (
+                      <ArchiveRestore className="h-3.5 w-3.5 text-[#8B8B92]" />
+                    ) : (
+                      <Archive className="h-3.5 w-3.5 text-[#8B8B92]" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteId(c.id)}
+                    className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -116,9 +116,8 @@ export function AdminProjectOverview({
   const health = healthPill(latestHealth?.health_status);
   const dueLabel = project.end_date ? format(new Date(project.end_date), "MMM d") : "—";
   const dueSub = project.end_date
-    ? `${format(new Date(project.end_date), "yyyy")} · ${
-        isBefore(startOfDay(new Date(project.end_date)), today) ? "past due" : "on schedule"
-      }`
+    ? `${format(new Date(project.end_date), "yyyy")} · ${isBefore(startOfDay(new Date(project.end_date)), today) ? "past due" : "on schedule"
+    }`
     : "No end date set";
 
   const attentionItems = [
@@ -226,11 +225,10 @@ export function AdminProjectOverview({
   });
 
   const healthBody = latestHealth
-    ? `${health.label}. ${latestHealth.tasks_complete ?? 0}/${latestHealth.tasks_total ?? 0} tasks complete, ${
-        latestHealth.tasks_overdue ?? 0
-      } overdue, ${latestHealth.open_blockers ?? 0} open blockers. Planned ${Number(
-        latestHealth.planned_hours || 0
-      ).toFixed(1)}h · logged ${Number(latestHealth.logged_hours || 0).toFixed(1)}h.`
+    ? `${health.label}. ${latestHealth.tasks_complete ?? 0}/${latestHealth.tasks_total ?? 0} tasks complete, ${latestHealth.tasks_overdue ?? 0
+    } overdue, ${latestHealth.open_blockers ?? 0} open blockers. Planned ${Number(
+      latestHealth.planned_hours || 0
+    ).toFixed(1)}h · logged ${Number(latestHealth.logged_hours || 0).toFixed(1)}h.`
     : null;
 
   return (

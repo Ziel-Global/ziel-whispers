@@ -189,8 +189,8 @@ export function ProjectActionItemsTab({
     actionItemSubTab === "blockers"
       ? "No client-visible blocker action items."
       : actionItemSubTab === "dependencies"
-      ? "No client-visible dependency action items."
-      : "No action items for this project.";
+        ? "No client-visible dependency action items."
+        : "No action items for this project.";
 
   if (isAdmin && !isClient && setAddTaskOpen && setTaskTitle) {
     return (
@@ -299,14 +299,14 @@ export function ProjectActionItemsTab({
                       a.status === "completed"
                         ? "bg-[#E5F7EA] text-[#188344]"
                         : a.status === "waived"
-                        ? "bg-[#F2F2F4] text-[#5D5D64]"
-                        : "bg-[#FFF4D8] text-[#8F6811]";
+                          ? "bg-[#F2F2F4] text-[#5D5D64]"
+                          : "bg-[#FFF4D8] text-[#8F6811]";
                     const blockerTone =
                       !a.blockers
                         ? null
                         : a.blockers.status === "resolved"
-                        ? "bg-[#E5F7EA] text-[#188344]"
-                        : "bg-[#FFF4D8] text-[#8F6811]";
+                          ? "bg-[#E5F7EA] text-[#188344]"
+                          : "bg-[#FFF4D8] text-[#8F6811]";
 
                     return (
                       <React.Fragment key={a.id}>
@@ -329,9 +329,8 @@ export function ProjectActionItemsTab({
                           </td>
                           <td className="px-2.5 py-3 align-middle">
                             <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-semibold capitalize max-w-full truncate ${
-                                PRIORITY_PILL_CLASS[a.priority] || "bg-[#F0F0F2] text-[#55555B]"
-                              }`}
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-semibold capitalize max-w-full truncate ${PRIORITY_PILL_CLASS[a.priority] || "bg-[#F0F0F2] text-[#55555B]"
+                                }`}
                             >
                               {a.priority || "medium"}
                             </span>
@@ -450,15 +449,14 @@ export function ProjectActionItemsTab({
                   key={tab.key}
                   type="button"
                   onClick={() => setActionItemSubTab(tab.key)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${
-                    active
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${active
                       ? tab.key === "blockers"
                         ? "bg-rose-50 text-rose-700 border border-rose-200 shadow-sm"
                         : tab.key === "dependencies"
-                        ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
-                        : "bg-gray-800 text-white shadow-sm"
+                          ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
+                          : "bg-gray-800 text-white shadow-sm"
                       : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
                   {tab.key === "blockers" && <AlertTriangle className="w-3.5 h-3.5 inline mr-1 text-rose-500" />}
                   {tab.key === "dependencies" && <Link2 className="w-3.5 h-3.5 inline mr-1 text-blue-500" />}
@@ -469,8 +467,8 @@ export function ProjectActionItemsTab({
                         ? tab.key === "blockers"
                           ? "bg-rose-600 text-white hover:bg-rose-600"
                           : tab.key === "dependencies"
-                          ? "bg-blue-600 text-white hover:bg-blue-600"
-                          : "bg-gray-700 text-white hover:bg-gray-700"
+                            ? "bg-blue-600 text-white hover:bg-blue-600"
+                            : "bg-gray-700 text-white hover:bg-gray-700"
                         : "bg-gray-200 text-gray-700"
                     }
                   >
@@ -486,8 +484,8 @@ export function ProjectActionItemsTab({
               {actionItemSubTab === "blockers"
                 ? "No active task blockers."
                 : actionItemSubTab === "dependencies"
-                ? "No task dependencies."
-                : "No action items for this project."}
+                  ? "No task dependencies."
+                  : "No action items for this project."}
             </p>
           ) : (
             <div>
@@ -530,8 +528,8 @@ export function ProjectActionItemsTab({
                             a.status === "completed"
                               ? "bg-green-100 text-green-800"
                               : a.status === "waived"
-                              ? "bg-gray-100 text-gray-800"
-                              : "bg-yellow-100 text-yellow-800"
+                                ? "bg-gray-100 text-gray-800"
+                                : "bg-yellow-100 text-yellow-800"
                           }
                         >
                           {a.status}

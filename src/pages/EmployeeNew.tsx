@@ -450,7 +450,7 @@ function ClientForm({ onBack }: { onBack: () => void }) {
       }
 
       toast.success("Client created successfully. A welcome email with password setup link has been sent.");
-      navigate("/employees");
+      navigate("/employees?tab=client-members");
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }
   };
@@ -608,7 +608,7 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
       }
 
       toast.success("Client Member created successfully. A welcome email with password setup link has been sent.");
-      navigate("/employees");
+      navigate("/employees?tab=client-members");
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }
   };

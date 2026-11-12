@@ -41,7 +41,7 @@ export interface TaskModalsProps {
   setEditTaskOpen: (open: boolean) => void;
   viewTaskData: any;
   setViewTaskData: (task: any) => void;
-  
+
   taskTitle: string; setTaskTitle: (v: string) => void;
   taskDescription: string; setTaskDescription: (v: string) => void;
   taskPriority: string; setTaskPriority: (v: string) => void;
@@ -50,7 +50,7 @@ export interface TaskModalsProps {
   taskEstimatedHours: string; setTaskEstimatedHours: (v: string) => void;
   taskDueDate: string; setTaskDueDate: (v: string) => void;
   taskClientVisible: boolean; setTaskClientVisible: (v: boolean) => void;
-  
+
   editTaskTitle: string; setEditTaskTitle: (v: string) => void;
   editTaskDescription: string; setEditTaskDescription: (v: string) => void;
   editTaskPriority: string; setEditTaskPriority: (v: string) => void;
@@ -66,14 +66,14 @@ export interface TaskModalsProps {
   csvFileName: string; setCsvFileName: (name: string) => void;
   uploading: boolean; setUploading: (u: boolean) => void;
   replaceDuplicates: boolean; setReplaceDuplicates: (r: boolean) => void;
-  
+
   handleCreateTask: (e: React.FormEvent) => void;
   handleEditTaskSave: (e: React.FormEvent) => void;
   handleBulkUpload: () => void;
   handleCSVUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
   toggleFlag?: (taskId: string, current: boolean) => void;
   openEditTask: (task: any) => void;
-  
+
   members: any[];
   sprints: any[];
   phases: any[];
@@ -201,7 +201,7 @@ export function TaskModals(props: TaskModalsProps) {
     setViewAddDepTaskId("");
   };
 
-  const queryClient = props.queryClient || { invalidateQueries: (_arg: any) => {} };
+  const queryClient = props.queryClient || { invalidateQueries: (_arg: any) => { } };
 
   const addViewBlocker = async () => {
     const task = props.viewTaskData;
@@ -738,7 +738,7 @@ export function TaskModals(props: TaskModalsProps) {
         <DialogContent
           className={cn(
             isClient &&
-              "flex flex-col !w-[min(1100px,calc(100vw-36px))] sm:!w-[min(1100px,calc(100vw-36px))] h-[min(860px,calc(100vh-36px))] max-w-none max-h-none p-0 gap-0 overflow-hidden rounded-2xl border-[#DCDCE1] shadow-[0_24px_72px_rgba(20,20,24,0.22)] [&>button.absolute]:hidden"
+            "flex flex-col !w-[min(1100px,calc(100vw-36px))] sm:!w-[min(1100px,calc(100vw-36px))] h-[min(860px,calc(100vh-36px))] max-w-none max-h-none p-0 gap-0 overflow-hidden rounded-2xl border-[#DCDCE1] shadow-[0_24px_72px_rgba(20,20,24,0.22)] [&>button.absolute]:hidden"
           )}
         >
           {isClient ? (
@@ -1064,7 +1064,7 @@ export function TaskModals(props: TaskModalsProps) {
                           label: "Priority",
                           value: viewTaskData?.priority
                             ? String(viewTaskData.priority).charAt(0).toUpperCase() +
-                              String(viewTaskData.priority).slice(1)
+                            String(viewTaskData.priority).slice(1)
                             : "—",
                         },
                         { label: "Task type", value: "—" },
@@ -1188,435 +1188,435 @@ export function TaskModals(props: TaskModalsProps) {
             </>
           ) : (
             <>
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              {viewTaskData?.title || "Task Details"}
-              {viewTaskData?.is_flagged && <Flag className="h-4 w-4 text-red-500 shrink-0" />}
-            </DialogTitle>
-            {viewTaskData?.description && (
-              <div className="mt-1">
-                <RichTextDisplay
-                  content={viewTaskData.description}
-                  collapsible
-                  collapseWords={8}
-                  expanded={descExpanded}
-                  onExpandedChange={setDescExpanded}
-                  className="text-sm text-muted-foreground"
-                />
-              </div>
-            )}
-          </DialogHeader>
-
-          <div className="flex flex-wrap gap-2 mt-2">
-            {viewTaskData?.priority && <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>}
-            {viewTaskData?.status_id && <Badge className={statusColor(viewTaskData.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}</Badge>}
-            {viewTaskData?.parent_id && <Badge variant="outline">Subtask</Badge>}
-            {viewTaskData?.estimated_hours && <span className="text-xs text-muted-foreground">{viewTaskData.estimated_hours}h est.</span>}
-            {viewTaskData?.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d")}</span>}
-            {viewTaskData?.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null; })()}
-          </div>
-
-          {viewTaskData?.parent_id && (
-            <p className="text-xs text-muted-foreground mt-2">
-              Subtask of{" "}
-              <button
-                type="button"
-                className="underline font-medium text-foreground"
-                onClick={() => {
-                  const parent = (tasks || []).find((t: any) => t.id === viewTaskData.parent_id);
-                  if (parent) setViewTaskData(parent);
-                }}
-              >
-                {(tasks || []).find((t: any) => t.id === viewTaskData.parent_id)?.title || "parent task"}
-              </button>
-            </p>
-          )}
-
-          {!viewTaskData?.parent_id && viewTaskData?.id && (
-            <>
-              <Separator className="my-4" />
-              <div className="space-y-3">
-                <div className="flex items-center justify-between gap-2 flex-wrap">
-                  <h4 className="text-sm font-semibold">Subtasks</h4>
-                  {isAdmin && props.onAddSubtasks && (
-                    <Button type="button" size="sm" variant="outline" onClick={() => props.onAddSubtasks?.(viewTaskData)}>
-                      Add subtasks (CSV)
-                    </Button>
-                  )}
-                </div>
-                {(() => {
-                  const children = (tasks || []).filter((t: any) => t.parent_id === viewTaskData.id);
-                  const doneSet = doneStatusIds instanceof Set ? doneStatusIds : new Set(doneStatusIds || []);
-                  const doneN = children.filter((t: any) => (t.status_id && doneSet.has(t.status_id)) || !!t.completed_at).length;
-                  return (
-                    <>
-                      <p className="text-xs text-muted-foreground">
-                        {children.length === 0 ? "No subtasks yet." : `${doneN} of ${children.length} done`}
-                      </p>
-                      {isAdmin && (
-                        <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
-                          <div>
-                            <p className="text-sm font-medium">Require all subtasks done before closing</p>
-                            <p className="text-xs text-muted-foreground">Blocks moving this parent to Done while subtasks are open.</p>
-                          </div>
-                          <Switch
-                            checked={!!viewTaskData.require_subtasks_done}
-                            onCheckedChange={async (checked) => {
-                              const { error } = await supabase
-                                .from("tasks")
-                                .update({ require_subtasks_done: checked })
-                                .eq("id", viewTaskData.id);
-                              if (error) {
-                                toast.error(error.message);
-                                return;
-                              }
-                              setViewTaskData({ ...viewTaskData, require_subtasks_done: checked });
-                              props.queryClient?.invalidateQueries({ queryKey: ["project-tasks"] });
-                              toast.success(checked ? "Close gate enabled" : "Close gate disabled");
-                            }}
-                          />
-                        </div>
-                      )}
-                      {children.length > 0 && (
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                          {children.map((c: any) => (
-                            <button
-                              key={c.id}
-                              type="button"
-                              className="w-full text-left flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-sm hover:bg-muted/40"
-                              onClick={() => setViewTaskData(c)}
-                            >
-                              <span className="truncate font-medium">{c.title}</span>
-                              <span className="text-xs text-muted-foreground shrink-0">
-                                {c.users?.full_name || "Unassigned"} · {getStatusDisplay(workflowStatuses || [], c.status_id).name}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-            </>
-          )}
-
-          <Separator className="my-4" />
-
-          {/* Collaborators */}
-          {viewTaskData?.id && (
-            <>
-              <TaskCollaboratorsSection
-                taskId={viewTaskData.id}
-                projectMembers={resourceMembers}
-                primaryOwnerId={viewTaskData.assigned_to}
-                readOnly={isClient}
-              />
-              <Separator className="my-4" />
-            </>
-          )}
-
-          {/* Comments */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Comments</h4>
-            {viewCommentsLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : viewComments.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No comments yet.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {viewComments.map((c: any) => (
-                  <div key={c.id} className="flex gap-2 bg-muted/30 rounded-md p-2.5">
-                    <Avatar className="h-6 w-6 shrink-0 mt-0.5">
-                      <AvatarImage src={getAvatarUrl(c.author?.full_name)} />
-                      <AvatarFallback className="text-[10px]">{c.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
-                    </Avatar>
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}</span>
-                        <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), "MMM d, h:mm a")}</span>
-                      </div>
-                      <RichTextDisplay content={c.body} className="text-sm mt-0.5" />
-                    </div>
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  {viewTaskData?.title || "Task Details"}
+                  {viewTaskData?.is_flagged && <Flag className="h-4 w-4 text-red-500 shrink-0" />}
+                </DialogTitle>
+                {viewTaskData?.description && (
+                  <div className="mt-1">
+                    <RichTextDisplay
+                      content={viewTaskData.description}
+                      collapsible
+                      collapseWords={8}
+                      expanded={descExpanded}
+                      onExpandedChange={setDescExpanded}
+                      className="text-sm text-muted-foreground"
+                    />
                   </div>
-                ))}
-              </div>
-            )}
-            {!isClient && (
-            <div className="space-y-2">
-              <ClassicEditor
-                value={newViewComment}
-                onChange={setNewViewComment}
-                placeholder="Add a comment..."
-                variant="compact"
-                rows={2}
-              />
-              <div className="flex justify-end">
-                <Button type="button" size="sm" onClick={addViewComment} disabled={!hasRichContent(newViewComment)} className="shrink-0">Comment</Button>
-              </div>
-            </div>
-            )}
-          </div>
+                )}
+              </DialogHeader>
 
-          <Separator className="my-4" />
+              <div className="flex flex-wrap gap-2 mt-2">
+                {viewTaskData?.priority && <Badge className={PRIORITY_COLORS[viewTaskData.priority] || ""}>{viewTaskData.priority}</Badge>}
+                {viewTaskData?.status_id && <Badge className={statusColor(viewTaskData.status_id) || ""}>{getStatusDisplay(workflowStatuses || [], viewTaskData.status_id).name}</Badge>}
+                {viewTaskData?.parent_id && <Badge variant="outline">Subtask</Badge>}
+                {viewTaskData?.estimated_hours && <span className="text-xs text-muted-foreground">{viewTaskData.estimated_hours}h est.</span>}
+                {viewTaskData?.due_date && <span className="text-xs text-muted-foreground">Due {format(new Date(viewTaskData.due_date + "T00:00:00"), "MMM d")}</span>}
+                {viewTaskData?.sprint_id && (() => { const s = sprints.find((sp: any) => sp.id === viewTaskData.sprint_id); return s ? <Badge className="bg-blue-100 text-blue-800 text-[10px]">{s.name}</Badge> : null; })()}
+              </div>
 
-          {/* Dependencies */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg> Dependencies</h4>
-            {viewDepsLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : viewDeps.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No dependencies.</p>
-            ) : (
-              <div className="space-y-2 max-h-40 overflow-y-auto">
-                {viewDeps.map((d: any) => (
-                  <div key={d.id} className="flex items-center justify-between bg-muted/30 rounded-md p-2.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-sm truncate">{d.depends_on?.title || "Unknown"}</span>
-                      <Badge variant="outline" className="text-[10px]">{d.dependency_type.replace(/_/g, " ")}</Badge>
+              {viewTaskData?.parent_id && (
+                <p className="text-xs text-muted-foreground mt-2">
+                  Subtask of{" "}
+                  <button
+                    type="button"
+                    className="underline font-medium text-foreground"
+                    onClick={() => {
+                      const parent = (tasks || []).find((t: any) => t.id === viewTaskData.parent_id);
+                      if (parent) setViewTaskData(parent);
+                    }}
+                  >
+                    {(tasks || []).find((t: any) => t.id === viewTaskData.parent_id)?.title || "parent task"}
+                  </button>
+                </p>
+              )}
+
+              {!viewTaskData?.parent_id && viewTaskData?.id && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <h4 className="text-sm font-semibold">Subtasks</h4>
+                      {isAdmin && props.onAddSubtasks && (
+                        <Button type="button" size="sm" variant="outline" onClick={() => props.onAddSubtasks?.(viewTaskData)}>
+                          Add subtasks (CSV)
+                        </Button>
+                      )}
                     </div>
-                    {!isClient && (
-                    <button
-                      type="button"
-                      onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(viewTaskData?.id); }}
-                      className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors text-muted-foreground hover:text-red-600"
-                      title="Remove dependency"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {!isClient && (viewAddDepOpen ? (
-              <div className="space-y-2 border rounded-md p-3">
-                <div className="space-y-2">
-                  <label className="text-xs font-medium">Depends on</label>
-                  <Select value={viewAddDepTaskId} onValueChange={setViewAddDepTaskId}>
-                    <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
-                    <SelectContent>
-                      {(tasks || [])
-                        .filter((t: any) => t.id !== viewTaskData?.id && !(t.status_id && doneStatusIds.has(t.status_id)) && t.assigned_to !== profile?.id)
-                        .map((t: any) => (
-                          <SelectItem key={t.id} value={t.id}>
-                            <div className="flex items-center gap-2">
-                              <span>{t.title}</span>
-                              <span className="text-xs text-muted-foreground">— {t.users?.full_name || "Unassigned"}</span>
-                              <Badge className={`text-[10px] ${statusColor(t.status_id) || ""}`}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                    {(() => {
+                      const children = (tasks || []).filter((t: any) => t.parent_id === viewTaskData.id);
+                      const doneSet = doneStatusIds instanceof Set ? doneStatusIds : new Set(doneStatusIds || []);
+                      const doneN = children.filter((t: any) => (t.status_id && doneSet.has(t.status_id)) || !!t.completed_at).length;
+                      return (
+                        <>
+                          <p className="text-xs text-muted-foreground">
+                            {children.length === 0 ? "No subtasks yet." : `${doneN} of ${children.length} done`}
+                          </p>
+                          {isAdmin && (
+                            <div className="flex items-center justify-between gap-3 rounded-lg border p-3">
+                              <div>
+                                <p className="text-sm font-medium">Require all subtasks done before closing</p>
+                                <p className="text-xs text-muted-foreground">Blocks moving this parent to Done while subtasks are open.</p>
+                              </div>
+                              <Switch
+                                checked={!!viewTaskData.require_subtasks_done}
+                                onCheckedChange={async (checked) => {
+                                  const { error } = await supabase
+                                    .from("tasks")
+                                    .update({ require_subtasks_done: checked })
+                                    .eq("id", viewTaskData.id);
+                                  if (error) {
+                                    toast.error(error.message);
+                                    return;
+                                  }
+                                  setViewTaskData({ ...viewTaskData, require_subtasks_done: checked });
+                                  props.queryClient?.invalidateQueries({ queryKey: ["project-tasks"] });
+                                  toast.success(checked ? "Close gate enabled" : "Close gate disabled");
+                                }}
+                              />
                             </div>
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-xs font-medium">Dependency type</label>
-                  <Select value={viewAddDepType} onValueChange={setViewAddDepType}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="finish_to_start">Finish → Start</SelectItem>
-                      <SelectItem value="start_to_start">Start → Start</SelectItem>
-                      <SelectItem value="finish_to_finish">Finish → Finish</SelectItem>
-                      <SelectItem value="start_to_finish">Start → Finish</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={addViewDependency} disabled={!viewAddDepTaskId}>Add</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setViewAddDepOpen(false); setViewAddDepTaskId(""); }}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => setViewAddDepOpen(true)} className="w-full">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Dependency
-              </Button>
-            ))}
-          </div>
-
-          <Separator className="my-4" />
-
-          {/* Blockers */}
-          <div className="space-y-3">
-            <h4 className="text-sm font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Blockers</h4>
-            {viewBlockersLoading ? (
-              <p className="text-xs text-muted-foreground">Loading...</p>
-            ) : viewBlockers.length === 0 ? (
-              <p className="text-xs text-muted-foreground">No blockers reported.</p>
-            ) : (
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {viewBlockers.map((b: any) => (
-                  <div key={b.id} className="flex items-start justify-between gap-2 bg-muted/30 rounded-md p-2.5">
-                    <div className="min-w-0">
-                      <div className="flex items-start gap-2">
-                        <RichTextDisplay content={b.description} className="text-sm font-medium" />
-                        {b.status === "resolved" ? (
-                          <Badge className="bg-green-100 text-green-700 text-[10px] shrink-0">Resolved</Badge>
-                        ) : (
-                          <Badge className="bg-red-100 text-red-700 text-[10px] shrink-0">Open</Badge>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] text-muted-foreground">by {b.raiser?.full_name || "Unknown"}</span>
-                        <span className="text-[10px] text-muted-foreground">{format(new Date(b.raised_at), "MMM d")}</span>
-                        {b.status === "resolved" && b.resolver && (
-                          <span className="text-[10px] text-muted-foreground">· resolved by {b.resolver.full_name}</span>
-                        )}
-                      </div>
-                    </div>
-                    {b.status !== "resolved" && !isClient && (
-                      <Button type="button" size="sm" variant="ghost" onClick={() => resolveBlocker(b.id, viewTaskData?.id)} className="shrink-0 h-7 px-2" title="Resolve">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                      </Button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-            {!isClient && (showViewAddBlocker ? (
-              <div className="space-y-3 border rounded-md p-3">
-                <ClassicEditor
-                  value={newViewBlockerDescription}
-                  onChange={setNewViewBlockerDescription}
-                  placeholder="Describe the blocker..."
-                  variant="compact"
-                  rows={2}
-                />
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Visibility</label>
-                  <Select value={newBlockerVisibility} onValueChange={(v: "all" | "team") => setNewBlockerVisibility(v)}>
-                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">View To All</SelectItem>
-                      <SelectItem value="team">View To Team Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">Assign To</label>
-                  <Select value={newBlockerAssignType} onValueChange={(v: "employee" | "client") => { setNewBlockerAssignType(v); setNewBlockerAssignUserId(""); }}>
-                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="client">Client</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-medium">{newBlockerAssignType === "employee" ? "Select Employee" : "Select Client Member"}</label>
-                  <Select value={newBlockerAssignUserId} onValueChange={setNewBlockerAssignUserId}>
-                    <SelectTrigger className="w-full h-8 text-sm"><SelectValue placeholder="Choose..." /></SelectTrigger>
-                    <SelectContent>
-                      {(members || [])
-                        .filter((m: any) => {
-                          if (newBlockerAssignType === "employee") return m.users?.role === "employee";
-                          return m.users?.role === "client member";
-                        })
-                        .map((m: any) => (
-                          <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={addViewBlocker} disabled={!hasRichContent(newViewBlockerDescription) || !newBlockerAssignUserId}>Add</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => { setShowViewAddBlocker(false); setNewViewBlockerDescription(""); setNewBlockerVisibility("all"); setNewBlockerAssignType("employee"); setNewBlockerAssignUserId(""); }}>Cancel</Button>
-                </div>
-              </div>
-            ) : (
-              <Button type="button" variant="outline" size="sm" onClick={() => setShowViewAddBlocker(true)} className="w-full">
-                <Plus className="h-3.5 w-3.5 mr-1" /> Report Blocker
-              </Button>
-            ))}
-          </div>
-
-          {(viewTaskData?.assigned_to === profile?.id || isAdmin || viewTaskData?.created_by === profile?.id) && viewTaskData?.status_id && workflowStatuses && !isClient && (
-            <>
-              <Separator className="my-4" />
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold flex items-center gap-2">
-                  <ArrowRightCircle className="h-4 w-4 text-primary" /> Task Stage & Workflow
-                </h4>
-                <StageOutcomeSelector
-                  taskId={viewTaskData.id}
-                  currentStatusId={viewTaskData.status_id}
-                  workflowStatuses={workflowStatuses}
-                  transitions={workflowTransitions}
-                  onDeclare={async (toStatusId) => {
-                    const isBlocked = await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
-                    if (isBlocked) return;
-                    const { error } = await supabase.rpc("declare_stage_outcome", {
-                      p_task_id: viewTaskData.id,
-                      p_to_status_id: toStatusId,
-                      p_changed_by_type: isAdmin ? "admin" : "employee",
-                    });
-                    if (error) {
-                      toast.error(`Could not move task: ${error.message}`);
-                      if (error.message.toLowerCase().includes("blocker")) {
-                        await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
-                      }
-                      return;
-                    }
-                    toast.success("Task status updated successfully!");
-                    const prevStatusId = viewTaskData.status_id;
-                    const { data: updated } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
-                    if (updated) setViewTaskData(updated);
-                    queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
-
-                    const projectId = viewTaskData.project_id || props.project?.id || id;
-                    if (projectId && profile?.id) {
-                      const wasDone = prevStatusId ? doneStatusIds?.has(prevStatusId) : false;
-                      const isNowDone = doneStatusIds?.has(toStatusId) ?? false;
-                      if (!wasDone && isNowDone) {
-                        await createProjectRelatedNotifications({
-                          createdByUserId: profile.id,
-                          projectId,
-                          type: "task_completed",
-                          title: "Task Completed",
-                          message: `${profile.full_name || "A user"} completed task "${viewTaskData.title}"`,
-                          recipientUserIds: [viewTaskData.assigned_to],
-                        });
-                      } else if (wasDone && !isNowDone) {
-                        await createProjectRelatedNotifications({
-                          createdByUserId: profile.id,
-                          projectId,
-                          type: "task_returned",
-                          title: "Task Returned",
-                          message: `${profile.full_name || "A user"} moved task "${viewTaskData.title}" back from completed`,
-                          recipientUserIds: [viewTaskData.assigned_to],
-                        });
-                      }
-                    }
-                  }}
-                  onTargetChange={(toStatusId) => {
-                    if (!toStatusId) {
-                      setViewDependencyWarning("");
-                      return;
-                    }
-                    const target = workflowStatuses.find((s: any) => s.id === toStatusId);
-                    if (!target || !isDependencyWarnTarget(target.category)) {
-                      setViewDependencyWarning("");
-                      return;
-                    }
-                    getUnfinishedDependencies(viewTaskData.id, workflowStatuses).then((deps) => {
-                      setViewDependencyWarning(
-                        deps.length > 0 ? `Unfinished dependencies: ${deps.map((d) => d.title).join(", ")}` : ""
+                          )}
+                          {children.length > 0 && (
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                              {children.map((c: any) => (
+                                <button
+                                  key={c.id}
+                                  type="button"
+                                  className="w-full text-left flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-sm hover:bg-muted/40"
+                                  onClick={() => setViewTaskData(c)}
+                                >
+                                  <span className="truncate font-medium">{c.title}</span>
+                                  <span className="text-xs text-muted-foreground shrink-0">
+                                    {c.users?.full_name || "Unassigned"} · {getStatusDisplay(workflowStatuses || [], c.status_id).name}
+                                  </span>
+                                </button>
+                              ))}
+                            </div>
+                          )}
+                        </>
                       );
-                    });
-                  }}
-                  compact
-                  userRoleId={currentUserProjectRoleId ?? null}
-                  isSystemAdmin={isAdmin}
-                />
-                {viewDependencyWarning && (
-                  <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800 flex items-center gap-1.5">
-                    <AlertCircle className="w-4 h-4 text-yellow-700 shrink-0" />
-                    <span className="font-medium">{viewDependencyWarning}</span>
+                    })()}
+                  </div>
+                </>
+              )}
+
+              <Separator className="my-4" />
+
+              {/* Collaborators */}
+              {viewTaskData?.id && (
+                <>
+                  <TaskCollaboratorsSection
+                    taskId={viewTaskData.id}
+                    projectMembers={resourceMembers}
+                    primaryOwnerId={viewTaskData.assigned_to}
+                    readOnly={isClient}
+                  />
+                  <Separator className="my-4" />
+                </>
+              )}
+
+              {/* Comments */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2"><MessageSquare className="h-4 w-4" /> Comments</h4>
+                {viewCommentsLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading...</p>
+                ) : viewComments.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No comments yet.</p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {viewComments.map((c: any) => (
+                      <div key={c.id} className="flex gap-2 bg-muted/30 rounded-md p-2.5">
+                        <Avatar className="h-6 w-6 shrink-0 mt-0.5">
+                          <AvatarImage src={getAvatarUrl(c.author?.full_name)} />
+                          <AvatarFallback className="text-[10px]">{c.author?.full_name?.charAt(0) || "?"}</AvatarFallback>
+                        </Avatar>
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), "MMM d, h:mm a")}</span>
+                          </div>
+                          <RichTextDisplay content={c.body} className="text-sm mt-0.5" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!isClient && (
+                  <div className="space-y-2">
+                    <ClassicEditor
+                      value={newViewComment}
+                      onChange={setNewViewComment}
+                      placeholder="Add a comment..."
+                      variant="compact"
+                      rows={2}
+                    />
+                    <div className="flex justify-end">
+                      <Button type="button" size="sm" onClick={addViewComment} disabled={!hasRichContent(newViewComment)} className="shrink-0">Comment</Button>
+                    </div>
                   </div>
                 )}
               </div>
-            </>
-          )}
+
+              <Separator className="my-4" />
+
+              {/* Dependencies */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2"><svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" /><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" /></svg> Dependencies</h4>
+                {viewDepsLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading...</p>
+                ) : viewDeps.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No dependencies.</p>
+                ) : (
+                  <div className="space-y-2 max-h-40 overflow-y-auto">
+                    {viewDeps.map((d: any) => (
+                      <div key={d.id} className="flex items-center justify-between bg-muted/30 rounded-md p-2.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="text-sm truncate">{d.depends_on?.title || "Unknown"}</span>
+                          <Badge variant="outline" className="text-[10px]">{d.dependency_type.replace(/_/g, " ")}</Badge>
+                        </div>
+                        {!isClient && (
+                          <button
+                            type="button"
+                            onClick={() => { setConfirmDepDelId(d.id); setConfirmDepDelTaskId(viewTaskData?.id); }}
+                            className="shrink-0 p-1 rounded hover:bg-red-100 transition-colors text-muted-foreground hover:text-red-600"
+                            title="Remove dependency"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!isClient && (viewAddDepOpen ? (
+                  <div className="space-y-2 border rounded-md p-3">
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Depends on</label>
+                      <Select value={viewAddDepTaskId} onValueChange={setViewAddDepTaskId}>
+                        <SelectTrigger><SelectValue placeholder="Select task..." /></SelectTrigger>
+                        <SelectContent>
+                          {(tasks || [])
+                            .filter((t: any) => t.id !== viewTaskData?.id && !(t.status_id && doneStatusIds.has(t.status_id)) && t.assigned_to !== profile?.id)
+                            .map((t: any) => (
+                              <SelectItem key={t.id} value={t.id}>
+                                <div className="flex items-center gap-2">
+                                  <span>{t.title}</span>
+                                  <span className="text-xs text-muted-foreground">— {t.users?.full_name || "Unassigned"}</span>
+                                  <Badge className={`text-[10px] ${statusColor(t.status_id) || ""}`}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
+                                </div>
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <label className="text-xs font-medium">Dependency type</label>
+                      <Select value={viewAddDepType} onValueChange={setViewAddDepType}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="finish_to_start">Finish → Start</SelectItem>
+                          <SelectItem value="start_to_start">Start → Start</SelectItem>
+                          <SelectItem value="finish_to_finish">Finish → Finish</SelectItem>
+                          <SelectItem value="start_to_finish">Start → Finish</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" onClick={addViewDependency} disabled={!viewAddDepTaskId}>Add</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => { setViewAddDepOpen(false); setViewAddDepTaskId(""); }}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setViewAddDepOpen(true)} className="w-full">
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Add Dependency
+                  </Button>
+                ))}
+              </div>
+
+              <Separator className="my-4" />
+
+              {/* Blockers */}
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold flex items-center gap-2"><AlertCircle className="h-4 w-4" /> Blockers</h4>
+                {viewBlockersLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading...</p>
+                ) : viewBlockers.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No blockers reported.</p>
+                ) : (
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {viewBlockers.map((b: any) => (
+                      <div key={b.id} className="flex items-start justify-between gap-2 bg-muted/30 rounded-md p-2.5">
+                        <div className="min-w-0">
+                          <div className="flex items-start gap-2">
+                            <RichTextDisplay content={b.description} className="text-sm font-medium" />
+                            {b.status === "resolved" ? (
+                              <Badge className="bg-green-100 text-green-700 text-[10px] shrink-0">Resolved</Badge>
+                            ) : (
+                              <Badge className="bg-red-100 text-red-700 text-[10px] shrink-0">Open</Badge>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="text-[10px] text-muted-foreground">by {b.raiser?.full_name || "Unknown"}</span>
+                            <span className="text-[10px] text-muted-foreground">{format(new Date(b.raised_at), "MMM d")}</span>
+                            {b.status === "resolved" && b.resolver && (
+                              <span className="text-[10px] text-muted-foreground">· resolved by {b.resolver.full_name}</span>
+                            )}
+                          </div>
+                        </div>
+                        {b.status !== "resolved" && !isClient && (
+                          <Button type="button" size="sm" variant="ghost" onClick={() => resolveBlocker(b.id, viewTaskData?.id)} className="shrink-0 h-7 px-2" title="Resolve">
+                            <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {!isClient && (showViewAddBlocker ? (
+                  <div className="space-y-3 border rounded-md p-3">
+                    <ClassicEditor
+                      value={newViewBlockerDescription}
+                      onChange={setNewViewBlockerDescription}
+                      placeholder="Describe the blocker..."
+                      variant="compact"
+                      rows={2}
+                    />
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Visibility</label>
+                      <Select value={newBlockerVisibility} onValueChange={(v: "all" | "team") => setNewBlockerVisibility(v)}>
+                        <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">View To All</SelectItem>
+                          <SelectItem value="team">View To Team Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">Assign To</label>
+                      <Select value={newBlockerAssignType} onValueChange={(v: "employee" | "client") => { setNewBlockerAssignType(v); setNewBlockerAssignUserId(""); }}>
+                        <SelectTrigger className="w-full h-8 text-sm"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="client">Client</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-xs font-medium">{newBlockerAssignType === "employee" ? "Select Employee" : "Select Client Member"}</label>
+                      <Select value={newBlockerAssignUserId} onValueChange={setNewBlockerAssignUserId}>
+                        <SelectTrigger className="w-full h-8 text-sm"><SelectValue placeholder="Choose..." /></SelectTrigger>
+                        <SelectContent>
+                          {(members || [])
+                            .filter((m: any) => {
+                              if (newBlockerAssignType === "employee") return m.users?.role === "employee";
+                              return m.users?.role === "client member";
+                            })
+                            .map((m: any) => (
+                              <SelectItem key={m.user_id} value={m.user_id}>{m.users?.full_name}</SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button type="button" size="sm" onClick={addViewBlocker} disabled={!hasRichContent(newViewBlockerDescription) || !newBlockerAssignUserId}>Add</Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => { setShowViewAddBlocker(false); setNewViewBlockerDescription(""); setNewBlockerVisibility("all"); setNewBlockerAssignType("employee"); setNewBlockerAssignUserId(""); }}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button type="button" variant="outline" size="sm" onClick={() => setShowViewAddBlocker(true)} className="w-full">
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Report Blocker
+                  </Button>
+                ))}
+              </div>
+
+              {(viewTaskData?.assigned_to === profile?.id || isAdmin || viewTaskData?.created_by === profile?.id) && viewTaskData?.status_id && workflowStatuses && !isClient && (
+                <>
+                  <Separator className="my-4" />
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold flex items-center gap-2">
+                      <ArrowRightCircle className="h-4 w-4 text-primary" /> Task Stage & Workflow
+                    </h4>
+                    <StageOutcomeSelector
+                      taskId={viewTaskData.id}
+                      currentStatusId={viewTaskData.status_id}
+                      workflowStatuses={workflowStatuses}
+                      transitions={workflowTransitions}
+                      onDeclare={async (toStatusId) => {
+                        const isBlocked = await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
+                        if (isBlocked) return;
+                        const { error } = await supabase.rpc("declare_stage_outcome", {
+                          p_task_id: viewTaskData.id,
+                          p_to_status_id: toStatusId,
+                          p_changed_by_type: isAdmin ? "admin" : "employee",
+                        });
+                        if (error) {
+                          toast.error(`Could not move task: ${error.message}`);
+                          if (error.message.toLowerCase().includes("blocker")) {
+                            await checkAndTriggerBlockerAlert(viewTaskData.id, viewTaskData.title, "status");
+                          }
+                          return;
+                        }
+                        toast.success("Task status updated successfully!");
+                        const prevStatusId = viewTaskData.status_id;
+                        const { data: updated } = await supabase.from("tasks").select("*").eq("id", viewTaskData.id).single();
+                        if (updated) setViewTaskData(updated);
+                        queryClient.invalidateQueries({ queryKey: ["project-tasks", id] });
+
+                        const projectId = viewTaskData.project_id || props.project?.id || id;
+                        if (projectId && profile?.id) {
+                          const wasDone = prevStatusId ? doneStatusIds?.has(prevStatusId) : false;
+                          const isNowDone = doneStatusIds?.has(toStatusId) ?? false;
+                          if (!wasDone && isNowDone) {
+                            await createProjectRelatedNotifications({
+                              createdByUserId: profile.id,
+                              projectId,
+                              type: "task_completed",
+                              title: "Task Completed",
+                              message: `${profile.full_name || "A user"} completed task "${viewTaskData.title}"`,
+                              recipientUserIds: [viewTaskData.assigned_to],
+                            });
+                          } else if (wasDone && !isNowDone) {
+                            await createProjectRelatedNotifications({
+                              createdByUserId: profile.id,
+                              projectId,
+                              type: "task_returned",
+                              title: "Task Returned",
+                              message: `${profile.full_name || "A user"} moved task "${viewTaskData.title}" back from completed`,
+                              recipientUserIds: [viewTaskData.assigned_to],
+                            });
+                          }
+                        }
+                      }}
+                      onTargetChange={(toStatusId) => {
+                        if (!toStatusId) {
+                          setViewDependencyWarning("");
+                          return;
+                        }
+                        const target = workflowStatuses.find((s: any) => s.id === toStatusId);
+                        if (!target || !isDependencyWarnTarget(target.category)) {
+                          setViewDependencyWarning("");
+                          return;
+                        }
+                        getUnfinishedDependencies(viewTaskData.id, workflowStatuses).then((deps) => {
+                          setViewDependencyWarning(
+                            deps.length > 0 ? `Unfinished dependencies: ${deps.map((d) => d.title).join(", ")}` : ""
+                          );
+                        });
+                      }}
+                      compact
+                      userRoleId={currentUserProjectRoleId ?? null}
+                      isSystemAdmin={isAdmin}
+                    />
+                    {viewDependencyWarning && (
+                      <div className="mt-2 bg-yellow-50 border border-yellow-200 rounded-md p-3 text-sm text-yellow-800 flex items-center gap-1.5">
+                        <AlertCircle className="w-4 h-4 text-yellow-700 shrink-0" />
+                        <span className="font-medium">{viewDependencyWarning}</span>
+                      </div>
+                    )}
+                  </div>
+                </>
+              )}
             </>
           )}
         </DialogContent>

@@ -5,6 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { isClientRole } from "@/lib/workflow";
 import AppLayout from "@/layouts/AppLayout";
 import LoginPage from "@/pages/Login";
 import SetPasswordPage from "@/pages/SetPassword";
@@ -58,6 +59,12 @@ function HomeRouter() {
     return <Navigate to="/dashboard" replace />;
   }
   if (profile?.role === "client" || profile?.role === "client member") {
+  const { profile } = useAuth();
+  // Right after login the profile is still loading; wait so clients aren't sent to /dashboard.
+  if (!profile) {
+    return <div className="flex flex-1 items-center justify-center animate-pulse text-muted-foreground">Loading…</div>;
+  }
+  if (isClientRole(profile)) {
     return <Navigate to="/projects" replace />;
   }
   return <Navigate to="/dashboard" replace />;

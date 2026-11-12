@@ -116,6 +116,19 @@ export function formatTime12h(time: string | undefined | null): string {
   return `${hour12}:${m.toString().padStart(2, "0")} ${suffix}`;
 }
 
+/**
+ * Shift times are stored as PKT wall-clock ("10:00"). Show them in the user's device timezone,
+ * 12-hour (PKT user: "10:00 AM"; Dubai user: "9:00 AM"). Admin settings screens keep formatTime12h.
+ */
+export function formatShiftTimeLocal(time: string | undefined | null): string {
+  if (!time) return "--";
+  const [h, m] = time.split(":").map(Number);
+  if (Number.isNaN(h) || Number.isNaN(m)) return "--";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const d = new Date(`${getPKTDateString()}T${pad(h)}:${pad(m)}:00+05:00`);
+  return new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", hour12: true }).format(d);
+}
+
 /** @deprecated use formatTime12h */
 export const formatShiftTime = formatTime12h;
 
@@ -179,17 +192,15 @@ export function getPKTISOString(baseDate: Date = new Date()): string {
 }
 
 /**
- * Formats a Date or ISO string into a 12-hour PKT time string (e.g. "09:30 AM").
+ * Formats a Date or ISO string into a 12-hour time in the user's device timezone (e.g. "09:30 AM").
+ * Display only — lateness/deadline rules stay on PKT.
  */
 export function formatPKTTime(dateInput: Date | string | null | undefined): string {
   if (!dateInput) return "--";
   const date = typeof dateInput === "string" ? new Date(dateInput) : dateInput;
   if (isNaN(date.getTime())) return "--";
 
-  // If the input string has a +05:00 offset, browser Date handles it.
-  // If not, we normalize to PKT.
   const options: Intl.DateTimeFormatOptions = {
-    timeZone: "Asia/Karachi",
     hour: "2-digit",
     minute: "2-digit",
     hour12: true,
@@ -264,8 +275,14 @@ export function isAttendanceLate(clockIn: string, shiftStart: string, graceMinut
   };
 }
 
-/** Grace minutes after shift end before a same-day log submission counts as late. */
-export const LOG_SUBMISSION_GRACE_MINUTES = 30;
+/** Grace minutes after shift end before a same-day log submission counts as late.
+ *  Minute precision: shift end 19:00 → 19:05:59 is on time, 19:06:00 is late. */
+export const LOG_SUBMISSION_GRACE_MINUTES = 5;
+
+/** True when `time` is past the grace window that starts at `shiftEndDeadline`'s minute. */
+export function isPastLogGrace(time: Date, shiftEndDeadline: Date): boolean {
+  return time.getTime() >= shiftEndDeadline.getTime() + (LOG_SUBMISSION_GRACE_MINUTES + 1) * 60000;
+}
 
 /**
  * Checks whether a daily log submission was late.
@@ -290,7 +307,6 @@ export function isLogSubmissionLate(submittedAt: string, shiftEnd: string, logDa
 
   const deadline = new Date(pktTime);
   deadline.setHours(Number(parts[0]), Number(parts[1]), 0, 0);
-  deadline.setMinutes(deadline.getMinutes() + LOG_SUBMISSION_GRACE_MINUTES);
 
-  return pktTime.getTime() > deadline.getTime();
+  return isPastLogGrace(pktTime, deadline);
 }

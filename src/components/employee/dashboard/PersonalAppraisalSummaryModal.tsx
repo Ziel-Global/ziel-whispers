@@ -52,8 +52,8 @@ export function PersonalAppraisalSummaryModal({
           Appraisal Summary Card
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-xl p-0 overflow-hidden">
-        <DialogHeader className="p-5 pb-3 border-b border-black/[0.08] dark:border-white/[0.08] flex flex-row items-center justify-between">
+      <DialogContent className="max-w-xl p-0 gap-0 max-h-[90vh] flex flex-col overflow-hidden">
+        <DialogHeader className="shrink-0 p-5 pr-12 pb-3 border-b border-black/[0.08] dark:border-white/[0.08] flex flex-row items-center justify-between">
           <div>
             <DialogTitle className="text-base font-bold">
               Performance & Appraisal Pack
@@ -72,7 +72,7 @@ export function PersonalAppraisalSummaryModal({
           </Button>
         </DialogHeader>
 
-        <div ref={printRef} className="p-6 space-y-6 text-foreground">
+        <div ref={printRef} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 text-foreground">
           {/* Header */}
           <div className="flex items-center justify-between pb-4 border-b border-black/[0.06] dark:border-white/[0.06]">
             <div>

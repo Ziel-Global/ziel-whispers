@@ -28,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
+import { buildTaskCommentInsert } from "@/lib/taskComments";
 
 export interface TaskModalsProps {
   addTaskOpen: boolean;
@@ -177,10 +178,17 @@ export function TaskModals(props: TaskModalsProps) {
 
   const resourceMembers = (props.members || []).map((m: any) => m.users).filter(Boolean);
 
-  const addViewComment = () => {
-    if (!newViewComment.trim()) return;
-    setViewComments([...viewComments, { id: Date.now().toString(), body: newViewComment, created_at: new Date().toISOString(), author: props.profile }]);
+  const addViewComment = async () => {
+    const row = buildTaskCommentInsert(props.viewTaskData?.id, props.profile?.id, newViewComment);
+    if (!row) return;
+    const { error } = await supabase.from("task_comments").insert(row);
+    if (error) {
+      toast.error(error.message || "Failed to add comment");
+      return;
+    }
+    setViewComments([...viewComments, { id: Date.now().toString(), body: row.body, created_at: new Date().toISOString(), author: props.profile }]);
     setNewViewComment("");
+    queryClient.invalidateQueries({ queryKey: ["task-comments-view", row.task_id] });
   };
 
   const addViewDependency = () => {

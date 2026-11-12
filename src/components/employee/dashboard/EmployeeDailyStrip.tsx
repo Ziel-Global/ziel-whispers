@@ -1,4 +1,5 @@
 import React from "react";
+import { formatShiftTimeLocal } from "@/hooks/useWorkSettings";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,7 +100,7 @@ export function EmployeeDailyStrip({
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Today's Shift</p>
                 <p className="text-sm font-semibold tracking-tight text-foreground">
-                  {shiftStart} – {shiftEnd} ({shiftHours}h)
+                  {formatShiftTimeLocal(shiftStart)} – {formatShiftTimeLocal(shiftEnd)} ({shiftHours}h)
                 </p>
               </div>
             </div>

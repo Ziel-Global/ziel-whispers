@@ -1,14 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkSettings, getPKTDateString, getPKTISOString, LOG_SUBMISSION_GRACE_MINUTES } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, getPKTISOString, isPastLogGrace } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { MISC_PROJECT_ID } from "@/lib/utils";
+import { MISC_PROJECT_ID, formatDecimal } from "@/lib/utils";
 import { getAllowedTransitions, getStatusDisplay } from "@/lib/workflow";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 import { getMinDateStr, getPreviousWorkingDay, isWithinLogEditWindow } from "@/utils/logDateUtils";
@@ -425,7 +425,7 @@ export function useLogSubmitData() {
     const currentHours = Number(data.hours);
     const maxDaily = 24;
     if (submittedHours + pendingHoursForSelectedDate + currentHours > maxDaily + 0.01 && profile?.role !== "admin") {
-      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
+      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${formatDecimal(submittedHours)}h and have ${formatDecimal(pendingHoursForSelectedDate)}h pending.`);
       return;
     }
     if (declareOutcome && allowedTransitions.length > 1 && !selectedOutcomeStatusId) {
@@ -548,8 +548,7 @@ export function useLogSubmitData() {
           if (shiftStart && resolvedShiftEnd < shiftStart) {
             todayDeadline.setDate(todayDeadline.getDate() + 1);
           }
-          todayDeadline.setMinutes(todayDeadline.getMinutes() + LOG_SUBMISSION_GRACE_MINUTES);
-          return nowPKT.getTime() > todayDeadline.getTime();
+          return isPastLogGrace(nowPKT, todayDeadline);
         }
         return false;
       };

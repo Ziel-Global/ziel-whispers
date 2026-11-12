@@ -162,7 +162,7 @@ export default function AuditLogPage() {
 
   const exportCSV = () => {
     const rows = filtered.map((l) => ({
-      Timestamp: format(new Date(l.created_at), "yyyy-MM-dd HH:mm:ss"),
+      Timestamp: format(new Date(l.created_at), "yyyy-MM-dd hh:mm:ss a"),
       Actor: (l as any).users?.full_name || "System",
       Action: ACTION_LABELS[l.action] || l.action,
       Target: l.target_entity || "",

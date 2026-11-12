@@ -76,8 +76,8 @@ export default function ProjectsPage() {
       const userClientId = (profile as any)?.client_id;
       list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
     }
-    if (isClient) {
-      list = list.filter(isProjectVisibleToClientPortal);
+    if (profile?.role !== "admin") {
+      list = list.filter(isProjectVisibleToClientPortal); // archived = admin only
     }
     return list.map((p) => p.id);
   }, [isAdmin, isClient, projects, myMemberships, profile]);
@@ -139,8 +139,8 @@ export default function ProjectsPage() {
       const userClientId = (profile as any)?.client_id;
       list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
     }
-    if (isClient) {
-      list = list.filter(isProjectVisibleToClientPortal);
+    if (profile?.role !== "admin") {
+      list = list.filter(isProjectVisibleToClientPortal); // archived = admin only
     }
     if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
     if (clientFilter !== "all") list = list.filter((p) => p.client_id === clientFilter);

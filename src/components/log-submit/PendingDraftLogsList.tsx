@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Send, Trash2, Pencil } from "lucide-react";
 import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { format, parseISO } from "date-fns";
-import { formatHours } from "@/lib/utils";
+import { formatHours, stripHtml } from "@/lib/utils";
 
 export interface PendingDraftLogsListProps {
   pendingLogs: any[];
@@ -118,7 +118,7 @@ export function PendingDraftLogsList({
             <RowDataItem label="DATE">{format(parseISO(log.log_date), "MMM d, yyyy")}</RowDataItem>
             <RowDataItem label="HOURS">{formatHours(log.hours)}</RowDataItem>
             <RowDataItem label="DESCRIPTION" className="truncate">
-              {log.description}
+              {stripHtml(log.description)}
             </RowDataItem>
             <RowActions className="justify-self-end">
               <button onClick={() => startEdit(log)} className={editButtonClass} title="Edit">

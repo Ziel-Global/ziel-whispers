@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { ArrowLeft } from "lucide-react";
 import { format } from "date-fns";
-import { getAvatarUrl, parseCSVLine } from "@/lib/utils";
+import { getAvatarUrl, parseCSVLine, hasRichContent } from "@/lib/utils";
 
 import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STATUS_COLORS } from "@/lib/workflow";
 import { BlockerAlertModal, BlockerDetail } from "@/components/BlockerAlertModal";
@@ -236,7 +236,7 @@ export default function ProjectDetailPage() {
   };
 
   const addStatusUpdate = async () => {
-    if (!newStatusUpdate.trim() || !profile || !id) return;
+    if (!hasRichContent(newStatusUpdate) || !profile || !id) return;
     const visibleToClient = newStatusUpdateVisible;
     const { error } = await supabase.from("project_status_updates").insert({
       project_id: id,
@@ -329,7 +329,7 @@ export default function ProjectDetailPage() {
       const { error } = await supabase.from("tasks").insert({
         project_id: id,
         title: taskTitle.trim(),
-        description: taskDescription.trim() || null,
+        description: hasRichContent(taskDescription) ? taskDescription.trim() : null,
         priority: taskPriority,
         estimated_hours: taskEstimatedHours ? parseFloat(taskEstimatedHours) : null,
         due_date: taskDueDate || null,
@@ -430,7 +430,7 @@ export default function ProjectDetailPage() {
 
       const updates: any = {
         title: editTaskTitle.trim(),
-        description: editTaskDescription.trim() || null,
+        description: hasRichContent(editTaskDescription) ? editTaskDescription.trim() : null,
         priority: editTaskPriority,
         due_date: editTaskDueDate || null,
         client_visible: editTaskClientVisible,

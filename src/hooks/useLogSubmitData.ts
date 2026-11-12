@@ -8,7 +8,7 @@ import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { MISC_PROJECT_ID, formatDecimal } from "@/lib/utils";
+import { MISC_PROJECT_ID, formatDecimal, getPlainTextLength } from "@/lib/utils";
 import { getAllowedTransitions, getStatusDisplay } from "@/lib/workflow";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 import { getMinDateStr, getPreviousWorkingDay, isWithinLogEditWindow } from "@/utils/logDateUtils";
@@ -105,7 +105,7 @@ export function useLogSubmitData() {
     project_id: z.string().min(1, "Please select a project"),
     category: z.string().min(1, "Category is required"),
     hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
-    description: z.string().min(20, "Min 20 characters"),
+    description: z.string().refine((v) => getPlainTextLength(v) >= 20, "Min 20 characters"),
     log_date: z.string().min(1, "Date is required").refine((v) => {
       const day = new Date(v + "T00:00:00").getDay();
       if (overtimeEnabled) return true;

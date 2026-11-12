@@ -105,11 +105,60 @@ export function getLeaveYearOptions() {
 }
 
 
+export function isRichHtml(str: string | null | undefined): boolean {
+  if (!str) return false;
+  return /<(p|div|br|strong|b|em|i|u|s|strike|del|code|pre|ul|ol|li|blockquote|h[1-6]|a|img|hr|span|input)\b/i.test(str);
+}
+
+export function stripHtml(html: string | null | undefined): string {
+  if (!html) return "";
+  const hasImg = /<img\b/i.test(html);
+  const text = html
+    .replace(/<(br|hr)\s*\/?>/gi, " ")
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|pre)>/gi, " ")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!text && hasImg) return "[Image]";
+  return text;
+}
+
+export function getPlainTextLength(html: string | null | undefined): number {
+  if (!html) return 0;
+  if (!isRichHtml(html)) return html.length;
+  const plain = html
+    .replace(/<(br|hr)\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|h[1-6]|blockquote|pre)>/gi, "\n")
+    .replace(/<[^>]*>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .trim();
+  return plain.length;
+}
+
+export function hasRichContent(html: string | null | undefined): boolean {
+  if (!html) return false;
+  if (/<img\b/i.test(html)) return true;
+  return getPlainTextLength(html) > 0;
+}
+
 export const truncateWords = (str: string | null | undefined, n: number) => {
   if (!str) return null;
-  const words = str.split(/\s+/);
-  if (words.length <= n) return str;
-  return words.slice(0, n).join(' ') + '...';
+  const clean = isRichHtml(str) ? stripHtml(str) : str;
+  if (!clean) return null;
+  const words = clean.split(/\s+/);
+  if (words.length <= n) return clean;
+  return words.slice(0, n).join(" ") + "...";
 };
 
 export function getInitials(name?: string | null): string {

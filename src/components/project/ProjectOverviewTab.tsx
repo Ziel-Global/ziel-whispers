@@ -6,6 +6,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
+import { hasRichContent } from "@/lib/utils";
 // import { Checkbox } from "@/components/ui/checkbox"; // used by commented "Visible to client"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
@@ -667,7 +670,7 @@ export function ProjectOverviewTab({
     return (
       <div className="space-y-5">
         {project.description && (
-          <p className="text-[13px] text-[#5D5D64] leading-relaxed max-w-3xl m-0">{project.description}</p>
+          <RichTextDisplay content={project.description} className="text-[13px] text-[#5D5D64] leading-relaxed max-w-3xl" />
         )}
 
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 border border-[#E7E7EA] rounded-[15px] overflow-hidden bg-white">
@@ -803,7 +806,7 @@ export function ProjectOverviewTab({
   return (
     <>
       <Card className="p-6 space-y-4">
-        {project.description && <p className="text-muted-foreground">{project.description}</p>}
+        {project.description && <RichTextDisplay content={project.description} className="text-muted-foreground" />}
         <div className="grid grid-cols-2 md:grid-cols-6 gap-4 text-sm">
           <div><span className="text-muted-foreground block">Client</span><span className="font-medium">{(project.clients as any)?.name}</span></div>
           <div><span className="text-muted-foreground block">Start Date</span><span className="font-medium">{format(new Date(project.start_date), "MMM d, yyyy")}</span></div>
@@ -922,28 +925,28 @@ export function ProjectOverviewTab({
                             <EyeOff className="h-3 w-3 text-muted-foreground" title="Internal only" />
                           )}
                         </div>
-                        <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{u.summary}</p>
+                        <RichTextDisplay content={u.summary} className="text-sm mt-0.5" />
                       </div>
                     </div>
                   ))}
                 </div>
               )}
-              <div className="flex gap-2 items-start">
-                <Textarea
+              <div className="space-y-2">
+                <ClassicEditor
                   value={newStatusUpdate}
-                  onChange={(e) => setNewStatusUpdate(e.target.value)}
+                  onChange={setNewStatusUpdate}
                   placeholder="Post a status update..."
+                  variant="compact"
                   rows={2}
-                  className="text-sm resize-none flex-1"
                 />
-                <div className="flex flex-col gap-2 shrink-0">
+                <div className="flex justify-end">
                   {/* Not wired up — hidden for now
                   <div className="flex items-center gap-1.5">
                     <Checkbox id="status-update-visible" checked={newStatusUpdateVisible} onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)} />
                     <label htmlFor="status-update-visible" className="text-[10px] cursor-pointer text-muted-foreground">Visible to client</label>
                   </div>
                   */}
-                  <Button type="button" size="sm" onClick={addStatusUpdate} disabled={!newStatusUpdate.trim()} className="shrink-0">Post</Button>
+                  <Button type="button" size="sm" onClick={addStatusUpdate} disabled={!hasRichContent(newStatusUpdate)} className="shrink-0">Post</Button>
                 </div>
               </div>
             </div>

@@ -3,14 +3,14 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { ListPlus, Calendar as CalendarIcon, Lock, AlertTriangle } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
-import { cn, MISC_PROJECT_ID } from "@/lib/utils";
+import { cn, MISC_PROJECT_ID, getPlainTextLength } from "@/lib/utils";
 import { CATEGORIES, isWithinLogEditWindow } from "@/utils/logDateUtils";
 import { PRIORITY_COLORS, getStatusDisplay, getStatusColor } from "@/lib/workflow";
 
@@ -378,10 +378,11 @@ export function LogSubmissionFormCard({
                       Description
                     </FormLabel>
                     <FormControl>
-                      <Textarea
-                        {...field}
+                      <ClassicEditor
+                        value={field.value || ""}
+                        onChange={field.onChange}
                         rows={3}
-                        className="bg-background resize-none"
+                        variant="full"
                         placeholder="Explain your progress..."
                         disabled={isLocked}
                       />
@@ -390,10 +391,10 @@ export function LogSubmissionFormCard({
                       <FormMessage />
                       <span
                         className={`text-[10px] font-mono ${
-                          descValue?.length < 20 ? "text-destructive" : "text-muted-foreground"
+                          getPlainTextLength(descValue) < 20 ? "text-destructive" : "text-muted-foreground"
                         }`}
                       >
-                        {descValue?.length || 0} / 20 chars min
+                        {getPlainTextLength(descValue)} / 20 chars min
                       </span>
                     </div>
                   </FormItem>

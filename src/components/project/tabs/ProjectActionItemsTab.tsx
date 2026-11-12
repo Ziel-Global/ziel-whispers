@@ -4,11 +4,12 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { ChevronDown, ChevronRight, CheckCircle2, Send, AlertTriangle, Link2 } from "lucide-react";
-import { getAvatarUrl, truncateWords } from "@/lib/utils";
+import { getAvatarUrl, truncateWords, hasRichContent, stripHtml } from "@/lib/utils";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 import { AdminActionItemsPanel } from "@/components/project/AdminActionItemsPanel";
 import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
@@ -75,7 +76,7 @@ export function ProjectActionItemsTab({
   };
 
   const sendActionItemMessage = async (actionItemId: string) => {
-    if (!newActionItemMessage.trim() || !profile) return;
+    if (!hasRichContent(newActionItemMessage) || !profile) return;
     const { error } = await supabase.from("client_action_item_messages").insert({
       action_item_id: actionItemId,
       sender_id: profile.id,
@@ -135,7 +136,7 @@ export function ProjectActionItemsTab({
         projectId: id,
         type: "blocker_resolved",
         title: "Blocker Resolved",
-        message: `${profile.full_name || "A user"} resolved blocker "${blockerRow?.description || completedItem.title}"${linkedTask?.title ? ` on task "${linkedTask.title}"` : ""}`,
+        message: `${profile.full_name || "A user"} resolved blocker "${stripHtml(blockerRow?.description) || completedItem.title}"${linkedTask?.title ? ` on task "${linkedTask.title}"` : ""}`,
         recipientUserIds: [
           blockerRow?.raised_by,
           linkedTask?.assigned_to,
@@ -397,7 +398,7 @@ export function ProjectActionItemsTab({
                           <tr>
                             <td colSpan={9} className="px-3.5 py-4 bg-[#FAFAFB]">
                               {a.description ? (
-                                <p className="text-[11px] text-[#5D5D64] whitespace-pre-wrap mb-2">{a.description}</p>
+                                <RichTextDisplay content={a.description} className="text-[11px] text-[#5D5D64] mb-2" />
                               ) : (
                                 <p className="text-[9.5px] text-[#96969D]">No additional details.</p>
                               )}
@@ -562,7 +563,7 @@ export function ProjectActionItemsTab({
                     </DataRow>
                     {isExpanded && (
                       <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
-                        {a.description && <div className="text-sm text-muted-foreground">{a.description}</div>}
+                        {a.description && <RichTextDisplay content={a.description} className="text-sm text-muted-foreground" />}
                         <div className="flex flex-wrap gap-3 text-sm">
                           {due && (
                             <span className="text-muted-foreground">
@@ -596,28 +597,31 @@ export function ProjectActionItemsTab({
                                     <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "member"}</Badge>
                                     <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
                                   </div>
-                                  <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                  <RichTextDisplay content={m.content} className="text-sm mt-0.5" />
                                 </div>
                               </div>
                             ))
                           )}
                         </div>
                         {a.status === "pending" && (
-                          <div className="flex gap-2">
-                            <Textarea
+                          <div className="space-y-2">
+                            <ClassicEditor
                               value={newActionItemMessage}
-                              onChange={(e) => setNewActionItemMessage(e.target.value)}
+                              onChange={setNewActionItemMessage}
                               placeholder="Type a reply..."
-                              className="min-h-[60px] text-sm"
+                              variant="compact"
+                              rows={2}
                             />
-                            <Button
-                              size="sm"
-                              className="rounded-button shrink-0"
-                              disabled={!newActionItemMessage.trim()}
-                              onClick={() => sendActionItemMessage(a.id)}
-                            >
-                              <Send className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                className="rounded-button shrink-0"
+                                disabled={!hasRichContent(newActionItemMessage)}
+                                onClick={() => sendActionItemMessage(a.id)}
+                              >
+                                <Send className="h-4 w-4 mr-1.5" /> Send Reply
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>

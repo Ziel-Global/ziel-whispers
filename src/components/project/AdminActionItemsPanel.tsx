@@ -8,8 +8,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { getAvatarUrl, truncateWords } from "@/lib/utils";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
+import { getAvatarUrl, truncateWords, hasRichContent } from "@/lib/utils";
 import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
 import {
   avatarStyleFor,
@@ -250,7 +251,7 @@ export function AdminActionItemsPanel({
                 {isExpanded && (
                   <div className="bg-[#F9F9F8] border-b border-black/[0.05] px-[22px] py-4 space-y-3 ml-0">
                     {a.description && (
-                      <p className="text-sm text-[#4B4B52] m-0">{a.description}</p>
+                      <RichTextDisplay content={a.description} className="text-sm text-[#4B4B52]" />
                     )}
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {actionItemMessages.length === 0 ? (
@@ -279,30 +280,34 @@ export function AdminActionItemsPanel({
                                   {format(new Date(m.created_at), "MMM d, h:mm a")}
                                 </span>
                               </div>
-                              <p className="text-sm mt-0.5 whitespace-pre-wrap break-words m-0">
-                                {renderMessageContent(m.content)}
-                              </p>
+                              <RichTextDisplay
+                                content={m.content}
+                                className="text-sm mt-0.5"
+                              />
                             </div>
                           </div>
                         ))
                       )}
                     </div>
                     {a.status === "pending" && (
-                      <div className="flex gap-2">
-                        <Textarea
+                      <div className="space-y-2">
+                        <ClassicEditor
                           value={newActionItemMessage}
-                          onChange={(e) => setNewActionItemMessage(e.target.value)}
+                          onChange={setNewActionItemMessage}
                           placeholder="Type a reply..."
-                          className="min-h-[60px] text-sm rounded-[10px]"
+                          variant="compact"
+                          rows={2}
                         />
-                        <Button
-                          size="sm"
-                          className="bg-[#EB5A1E] hover:bg-[#d64f18] text-white rounded-[10px] shrink-0"
-                          disabled={!newActionItemMessage.trim()}
-                          onClick={() => sendActionItemMessage(a.id)}
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            className="bg-[#EB5A1E] hover:bg-[#d64f18] text-white rounded-[10px] shrink-0"
+                            disabled={!hasRichContent(newActionItemMessage)}
+                            onClick={() => sendActionItemMessage(a.id)}
+                          >
+                            <Send className="h-4 w-4 mr-1.5" /> Send Reply
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>

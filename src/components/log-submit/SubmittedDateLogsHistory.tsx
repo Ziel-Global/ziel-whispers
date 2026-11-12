@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { History } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { formatHours } from "@/lib/utils";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { formatPKTTime, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 
 export interface SubmittedDateLogsHistoryProps {
@@ -56,7 +57,7 @@ export function SubmittedDateLogsHistory({
                       <Badge className="bg-yellow-100 text-yellow-800 text-[10px]">Late</Badge>
                     )}
                 </div>
-                <p className="text-sm text-black">{log.description}</p>
+                <RichTextDisplay content={log.description} className="text-sm text-black" />
               </div>
 
               <div className="flex flex-col items-end gap-1">

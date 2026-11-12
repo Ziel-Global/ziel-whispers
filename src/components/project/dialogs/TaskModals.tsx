@@ -23,7 +23,9 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { Flag, Paperclip, Send, Trash2, Download, Upload, FileText, CheckCircle2, Clock, AlertCircle, Calendar as CalendarIcon, MessageSquare, Plus, Search, Eye, EyeOff, XCircle, Pencil, ArrowRightCircle, Info, List, Link2, LayoutGrid } from "lucide-react";
 import { format } from "date-fns";
-import { truncateWords, cn, getInitials } from "@/lib/utils";
+import { truncateWords, cn, getInitials, stripHtml, hasRichContent } from "@/lib/utils";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
@@ -204,7 +206,7 @@ export function TaskModals(props: TaskModalsProps) {
   const addViewBlocker = async () => {
     const task = props.viewTaskData;
     const profile = props.profile;
-    if (!newViewBlockerDescription.trim() || !task?.id || !profile?.id) return;
+    if (!hasRichContent(newViewBlockerDescription) || !task?.id || !profile?.id) return;
     const projectId = task.project_id || props.project?.id;
     if (!projectId) {
       toast.error("Missing project for this task");
@@ -213,6 +215,7 @@ export function TaskModals(props: TaskModalsProps) {
 
     const clientVisible = newBlockerVisibility === "all";
     const description = newViewBlockerDescription.trim();
+    const plainSummary = truncateWords(description, 10) || "Blocker";
 
     // Columns must match live task_blockers schema (no title / requires_client_action).
     const { data: blocker, error } = await supabase
@@ -235,8 +238,8 @@ export function TaskModals(props: TaskModalsProps) {
     if (newBlockerAssignUserId) {
       const { error: actionError } = await supabase.from("client_action_items").insert({
         project_id: projectId,
-        title: `Resolve Blocker: ${description}`,
-        description: null,
+        title: `Resolve Blocker: ${plainSummary}`,
+        description,
         status: "pending",
         priority: "medium",
         requested_by: profile.id,
@@ -275,7 +278,7 @@ export function TaskModals(props: TaskModalsProps) {
       projectId,
       type: "blocker_created",
       title: "Blocker Reported",
-      message: `${profile.full_name || "A team member"} reported a blocker on task "${task.title || "Task"}": "${description}"`,
+      message: `${profile.full_name || "A team member"} reported a blocker on task "${task.title || "Task"}": "${stripHtml(description)}"`,
       recipientUserIds: [assignedBlockerUserId, task.assigned_to],
     });
   };
@@ -330,7 +333,7 @@ export function TaskModals(props: TaskModalsProps) {
       queryClient.invalidateQueries({ queryKey: ["project-tasks", projectId] });
 
       const linkedUsers = (linkedItems || []).flatMap((item: any) => [item.assigned_to, item.requested_by]);
-      const blockerDesc = existingBlocker?.description || "Blocker";
+      const blockerDesc = stripHtml(existingBlocker?.description) || "Blocker";
       await createProjectRelatedNotifications({
         createdByUserId: profile.id,
         projectId,
@@ -427,7 +430,7 @@ export function TaskModals(props: TaskModalsProps) {
     <>
       {/* Add Task Dialog */}
       <Dialog open={addTaskOpen} onOpenChange={setAddTaskOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Add Task</DialogTitle></DialogHeader>
           <form onSubmit={handleCreateTask} className="space-y-4">
             <div className="space-y-2">
@@ -436,7 +439,7 @@ export function TaskModals(props: TaskModalsProps) {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Description</label>
-              <Textarea value={taskDescription} onChange={(e) => setTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
+              <ClassicEditor value={taskDescription} onChange={setTaskDescription} placeholder="Optional description" variant="full" rows={3} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Priority *</label>
@@ -626,7 +629,7 @@ export function TaskModals(props: TaskModalsProps) {
 
       {/* Edit Task Dialog */}
       <Dialog open={editTaskOpen} onOpenChange={setEditTaskOpen}>
-        <DialogContent>
+        <DialogContent className="sm:max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Task</DialogTitle></DialogHeader>
           <form onSubmit={handleEditTaskSave} className="space-y-4">
             <div className="space-y-2">
@@ -635,7 +638,7 @@ export function TaskModals(props: TaskModalsProps) {
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Description</label>
-              <Textarea value={editTaskDescription} onChange={(e) => setEditTaskDescription(e.target.value)} placeholder="Optional description" rows={3} />
+              <ClassicEditor value={editTaskDescription} onChange={setEditTaskDescription} placeholder="Optional description" variant="full" rows={3} />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">Priority *</label>
@@ -856,8 +859,8 @@ export function TaskModals(props: TaskModalsProps) {
                         Overview
                       </div>
                     </div>
-                    <div className="px-4 py-[15px] border border-[#E9E9EC] bg-[#FCFCFD] rounded-[11px] text-[11px] leading-[1.75] text-[#5E5E65] whitespace-pre-wrap">
-                      {viewTaskData?.description || "No description provided for this task."}
+                    <div className="px-4 py-[15px] border border-[#E9E9EC] bg-[#FCFCFD] rounded-[11px] text-[11px] leading-[1.75] text-[#5E5E65]">
+                      <RichTextDisplay content={viewTaskData?.description} emptyText="No description provided for this task." />
                     </div>
                   </section>
 
@@ -968,9 +971,10 @@ export function TaskModals(props: TaskModalsProps) {
                                       {c.created_at ? format(new Date(c.created_at), "MMM d, h:mm a") : ""}
                                     </span>
                                   </div>
-                                  <p className="text-[9.5px] text-[#64646B] leading-[1.6] mt-[5px] whitespace-pre-wrap break-words">
-                                    {c.body}
-                                  </p>
+                                  <RichTextDisplay
+                                    content={c.body}
+                                    className="text-[9.5px] text-[#64646B] leading-[1.6] mt-[5px]"
+                                  />
                                 </div>
                               </div>
                             );
@@ -982,16 +986,17 @@ export function TaskModals(props: TaskModalsProps) {
                           {getInitials(profile?.full_name || "CT")}
                         </div>
                         <div>
-                          <textarea
+                          <ClassicEditor
                             value={newViewComment}
-                            onChange={(e) => setNewViewComment(e.target.value)}
+                            onChange={setNewViewComment}
                             placeholder="Add a client-visible comment…"
-                            className="w-full min-h-[64px] resize-y box-border border border-[#DCDCE1] rounded-[9px] bg-white outline-none px-[11px] py-2.5 text-[9.5px] text-[#333338] focus:border-[#B8B8BF]"
+                            variant="compact"
+                            rows={2}
                           />
                           <div className="flex justify-end mt-[7px]">
                             <button
                               type="button"
-                              disabled={!newViewComment.trim()}
+                              disabled={!hasRichContent(newViewComment)}
                               onClick={addViewComment}
                               className="h-[30px] px-3 rounded-[7px] bg-[#17171A] text-white text-[8.5px] font-semibold disabled:bg-[#D7D7DC] disabled:cursor-not-allowed"
                             >
@@ -1139,9 +1144,10 @@ export function TaskModals(props: TaskModalsProps) {
                           className="p-[9px] border border-[#E7E7EA] rounded-[9px] bg-white mb-[7px] last:mb-0"
                         >
                           <div className="flex items-center justify-between gap-2">
-                            <div className="text-[8.5px] font-semibold text-[#48484F] leading-snug">
-                              {b.description}
-                            </div>
+                            <RichTextDisplay
+                              content={b.description}
+                              className="text-[8.5px] font-semibold text-[#48484F] leading-snug"
+                            />
                             <span
                               className={cn(
                                 "inline-flex items-center rounded-full px-2 py-0.5 text-[7.5px] font-semibold shrink-0",
@@ -1189,12 +1195,14 @@ export function TaskModals(props: TaskModalsProps) {
             </DialogTitle>
             {viewTaskData?.description && (
               <div className="mt-1">
-                <p className="text-sm text-muted-foreground">{descExpanded ? viewTaskData.description : truncateWords(viewTaskData.description, 4)}</p>
-                {viewTaskData.description.split(/\s+/).length > 4 && (
-                  <Button type="button" variant="link" size="sm" className="h-auto p-0 text-xs text-foreground" onClick={() => setDescExpanded(!descExpanded)}>
-                    {descExpanded ? "Show less" : "Show more"}
-                  </Button>
-                )}
+                <RichTextDisplay
+                  content={viewTaskData.description}
+                  collapsible
+                  collapseWords={8}
+                  expanded={descExpanded}
+                  onExpandedChange={setDescExpanded}
+                  className="text-sm text-muted-foreground"
+                />
               </div>
             )}
           </DialogHeader>
@@ -1328,22 +1336,24 @@ export function TaskModals(props: TaskModalsProps) {
                         <span className="text-xs font-semibold">{c.author?.full_name || (c.author_type === "ai" ? "AI" : c.author_type === "system" ? "System" : "Unknown")}</span>
                         <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), "MMM d, h:mm a")}</span>
                       </div>
-                      <p className="text-sm whitespace-pre-wrap break-words">{c.body}</p>
+                      <RichTextDisplay content={c.body} className="text-sm mt-0.5" />
                     </div>
                   </div>
                 ))}
               </div>
             )}
             {!isClient && (
-            <div className="flex gap-2">
-              <Textarea
+            <div className="space-y-2">
+              <ClassicEditor
                 value={newViewComment}
-                onChange={(e) => setNewViewComment(e.target.value)}
+                onChange={setNewViewComment}
                 placeholder="Add a comment..."
+                variant="compact"
                 rows={2}
-                className="text-sm resize-none"
               />
-              <Button type="button" size="sm" onClick={addViewComment} disabled={!newViewComment.trim()} className="shrink-0 self-end">Comment</Button>
+              <div className="flex justify-end">
+                <Button type="button" size="sm" onClick={addViewComment} disabled={!hasRichContent(newViewComment)} className="shrink-0">Comment</Button>
+              </div>
             </div>
             )}
           </div>
@@ -1438,12 +1448,12 @@ export function TaskModals(props: TaskModalsProps) {
                 {viewBlockers.map((b: any) => (
                   <div key={b.id} className="flex items-start justify-between gap-2 bg-muted/30 rounded-md p-2.5">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{b.description}</span>
+                      <div className="flex items-start gap-2">
+                        <RichTextDisplay content={b.description} className="text-sm font-medium" />
                         {b.status === "resolved" ? (
-                          <Badge className="bg-green-100 text-green-700 text-[10px]">Resolved</Badge>
+                          <Badge className="bg-green-100 text-green-700 text-[10px] shrink-0">Resolved</Badge>
                         ) : (
-                          <Badge className="bg-red-100 text-red-700 text-[10px]">Open</Badge>
+                          <Badge className="bg-red-100 text-red-700 text-[10px] shrink-0">Open</Badge>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-1">
@@ -1465,7 +1475,13 @@ export function TaskModals(props: TaskModalsProps) {
             )}
             {!isClient && (showViewAddBlocker ? (
               <div className="space-y-3 border rounded-md p-3">
-                <Textarea value={newViewBlockerDescription} onChange={(e) => setNewViewBlockerDescription(e.target.value)} placeholder="Describe the blocker..." rows={2} className="text-sm resize-none" />
+                <ClassicEditor
+                  value={newViewBlockerDescription}
+                  onChange={setNewViewBlockerDescription}
+                  placeholder="Describe the blocker..."
+                  variant="compact"
+                  rows={2}
+                />
                 <div className="space-y-1">
                   <label className="text-xs font-medium">Visibility</label>
                   <Select value={newBlockerVisibility} onValueChange={(v: "all" | "team") => setNewBlockerVisibility(v)}>
@@ -1503,7 +1519,7 @@ export function TaskModals(props: TaskModalsProps) {
                   </Select>
                 </div>
                 <div className="flex gap-2">
-                  <Button type="button" size="sm" onClick={addViewBlocker} disabled={!newViewBlockerDescription.trim() || !newBlockerAssignUserId}>Add</Button>
+                  <Button type="button" size="sm" onClick={addViewBlocker} disabled={!hasRichContent(newViewBlockerDescription) || !newBlockerAssignUserId}>Add</Button>
                   <Button type="button" size="sm" variant="outline" onClick={() => { setShowViewAddBlocker(false); setNewViewBlockerDescription(""); setNewBlockerVisibility("all"); setNewBlockerAssignType("employee"); setNewBlockerAssignUserId(""); }}>Cancel</Button>
                 </div>
               </div>

@@ -2,6 +2,7 @@ import { StatusBadge } from "@/components/ui/status-badge";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { formatHours, getInitials } from "@/lib/utils";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { Flag, Trash2, Pencil, Lock, ChevronDown, ChevronRight } from "lucide-react";
 
@@ -185,7 +186,7 @@ export function LogsAdminTable({
                                   )}
                                 </div>
                                 {log.description && (
-                                  <p className="text-[13px] text-[#4B4B52] whitespace-pre-wrap">{log.description}</p>
+                                  <RichTextDisplay content={log.description} className="text-[13px] text-[#4B4B52]" />
                                 )}
                                 {log.admin_comment && (
                                   <p className="text-xs text-[#1C6FC9] italic font-medium">Admin: {log.admin_comment}</p>

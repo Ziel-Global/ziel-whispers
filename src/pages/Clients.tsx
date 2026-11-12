@@ -13,7 +13,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
 import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeItem, RowActions, TableHeader, editButtonClass } from "@/components/ui/data-row";
 import { Plus, Search, Archive, ArchiveRestore, Pencil, Building2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
@@ -434,11 +434,12 @@ export default function ClientsPage() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-[12.5px] font-semibold text-[#4B4B52]">Notes</Label>
-              <Textarea
+              <ClassicEditor
                 value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
+                onChange={(v) => setForm({ ...form, notes: v })}
+                variant="compact"
                 rows={3}
-                className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+                placeholder="Internal client notes..."
               />
             </div>
           </div>

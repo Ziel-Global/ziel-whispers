@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
@@ -73,11 +74,12 @@ export function EditLogModal({
           </div>
           <div className="space-y-2">
             <Label className="text-sm font-medium">Description</Label>
-            <Textarea
+            <ClassicEditor
               rows={3}
+              variant="full"
               placeholder="Log description..."
               value={editDescription}
-              onChange={(e) => setEditDescription(e.target.value)}
+              onChange={setEditDescription}
             />
           </div>
           <div className="space-y-2">

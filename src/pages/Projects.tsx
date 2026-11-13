@@ -27,7 +27,7 @@ export default function ProjectsPage() {
   const isAdmin = profile?.role === "admin" || profile?.role === "project_manager";
   const isClient = isClientRole(profile);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [clientFilter, setClientFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -143,7 +143,7 @@ export default function ProjectsPage() {
     if (profile?.role !== "admin") {
       list = list.filter(isProjectVisibleToClientPortal); // archived = admin only
     }
-    if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
+    if (isAdmin && statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
     if (clientFilter !== "all") list = list.filter((p) => p.client_id === clientFilter);
     if (search) list = list.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     return list;

@@ -25,7 +25,7 @@ export default function AttendanceAdminPage() {
   const isAdmin = profile?.role === "admin";
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(getPKTDateString());
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("present");
   const [workModeFilter, setWorkModeFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [editRecord, setEditRecord] = useState<any>(null);

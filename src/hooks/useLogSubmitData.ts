@@ -587,6 +587,30 @@ export function useLogSubmitData() {
         }
       }
 
+      const createdOtherTasks: Record<string, { taskId: string; statusId: string | null }> = {};
+      const otherProjectLogs = pendingLogs.filter((l: any) => l.project_id && !l.task_id);
+      if (otherProjectLogs.length > 0) {
+        await Promise.all(
+          otherProjectLogs.map(async (log: any) => {
+            const { data: rpcData, error: rpcError } = await supabase.rpc(
+              "create_task_for_other_log" as any,
+              {
+                p_project_id: log.project_id,
+                p_description: log.description || "",
+              }
+            );
+            if (rpcError) throw rpcError;
+            const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+            if (row?.task_id) {
+              createdOtherTasks[log.id] = {
+                taskId: row.task_id,
+                statusId: row.status_id || null,
+              };
+            }
+          })
+        );
+      }
+
       const touchedTaskIds = [...new Set(
         pendingLogs.filter((l: any) => l.task_id).map((l: any) => l.task_id)
       )] as string[];
@@ -601,7 +625,11 @@ export function useLogSubmitData() {
 
       await Promise.all(
         pendingLogs.map(async (log: any) => {
-          const activeStatusId = log.task_id ? (taskStatusMap[log.task_id] || null) : null;
+          const createdTask = createdOtherTasks[log.id];
+          const resolvedTaskId = createdTask ? createdTask.taskId : (log.task_id || null);
+          const activeStatusId = createdTask
+            ? createdTask.statusId
+            : (log.task_id ? (taskStatusMap[log.task_id] || null) : null);
           const transitionTarget = log.declared_transition_to || log.declared_outcome_status_id || null;
 
           const { error } = await supabase.from("daily_logs").update({
@@ -609,6 +637,7 @@ export function useLogSubmitData() {
             is_late: isLateForDate(log.log_date),
             is_overtime: overtimeFlags[log.id] || false,
             submitted_at: nowPKTStr,
+            task_id: resolvedTaskId,
             status_id: activeStatusId,
             hours_status_id: log.hours_status_id || activeStatusId,
             declared_transition_to: transitionTarget,
@@ -699,6 +728,8 @@ export function useLogSubmitData() {
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-totals-range"] });
       await queryClient.invalidateQueries({ queryKey: ["my-project-tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["project-tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
       await queryClient.invalidateQueries({ queryKey: ["missing-log-check"] });
       await queryClient.invalidateQueries({ queryKey: ["my-day-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-month-logs"] });

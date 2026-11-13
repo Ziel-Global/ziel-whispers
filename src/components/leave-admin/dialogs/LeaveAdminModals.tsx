@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -88,6 +88,29 @@ export function LeaveAdminModals({
   setShowBulkDisableConfirm,
   handleBulkDisable,
 }: LeaveAdminModalsProps) {
+  const anyModalOpen = Boolean(
+    showBalanceDialog ||
+      actionModal ||
+      deleteId ||
+      wfhDeleteId ||
+      bulkDeleteLeaveOpen ||
+      bulkDeleteWfhOpen ||
+      showBulkEnableConfirm ||
+      showBulkDisableConfirm
+  );
+
+  useEffect(() => {
+    if (anyModalOpen) return;
+    const clearPointerLock = () => {
+      if (document.body.style.pointerEvents === "none") {
+        document.body.style.pointerEvents = "";
+      }
+    };
+    clearPointerLock();
+    const timer = window.setTimeout(clearPointerLock, 250);
+    return () => window.clearTimeout(timer);
+  }, [anyModalOpen]);
+
   return (
     <>
       {/* Employee Leave Balance Dialog */}

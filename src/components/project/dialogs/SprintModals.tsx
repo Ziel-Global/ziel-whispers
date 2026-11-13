@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Search, X } from "lucide-react";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 export interface SprintModalsProps {
   addSprintOpen: boolean; setAddSprintOpen: (open: boolean) => void;
@@ -163,7 +164,7 @@ export function SprintModals(props: SprintModalsProps) {
                               className="flex items-center gap-2"
                             >
                               <Checkbox checked={isSelected} disabled={disabled} className="pointer-events-none" />
-                              <span className="flex-1 truncate font-medium">{t.title}</span>
+                              <TruncatedTitle text={t.title} className="flex-1 truncate font-medium" />
                               <Badge variant="secondary" className="text-[10px] shrink-0">{t.users?.full_name || "Unassigned"}</Badge>
                               <Badge className={`text-[10px] shrink-0 ${statusColor(t.status_id) || ""}`}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                               {isAssignedToSprint && <span className="text-[10px] text-amber-600 shrink-0 whitespace-nowrap">In: {sprintMap[t.sprint_id] || "Sprint"}</span>}
@@ -252,7 +253,7 @@ export function SprintModals(props: SprintModalsProps) {
                               className="flex items-center gap-2"
                             >
                               <Checkbox checked={isSelected} disabled={disabled} className="pointer-events-none" />
-                              <span className="flex-1 truncate font-medium">{t.title}</span>
+                              <TruncatedTitle text={t.title} className="flex-1 truncate font-medium" />
                               <Badge variant="secondary" className="text-[10px] shrink-0">{t.users?.full_name || "Unassigned"}</Badge>
                               <Badge className={`text-[10px] shrink-0 ${statusColor(t.status_id) || ""}`}>{getStatusDisplay(workflowStatuses || [], t.status_id).name}</Badge>
                               {isAssignedToOtherSprint && <span className="text-[10px] text-amber-600 shrink-0 whitespace-nowrap">In: {sprintMap[t.sprint_id] || "Sprint"}</span>}

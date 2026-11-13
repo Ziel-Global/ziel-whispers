@@ -26,6 +26,7 @@ import { format } from "date-fns";
 import { truncateWords, cn, getInitials, stripHtml, hasRichContent } from "@/lib/utils";
 import { ClassicEditor } from "@/components/ui/classic-editor";
 import { RichTextDisplay } from "@/components/ui/rich-text-display";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
@@ -1286,7 +1287,7 @@ export function TaskModals(props: TaskModalsProps) {
                                   className="w-full text-left flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-sm hover:bg-muted/40"
                                   onClick={() => setViewTaskData(c)}
                                 >
-                                  <span className="truncate font-medium">{c.title}</span>
+                                  <TruncatedTitle text={c.title} className="truncate font-medium" />
                                   <span className="text-xs text-muted-foreground shrink-0">
                                     {c.users?.full_name || "Unassigned"} · {getStatusDisplay(workflowStatuses || [], c.status_id).name}
                                   </span>
@@ -1372,7 +1373,7 @@ export function TaskModals(props: TaskModalsProps) {
                     {viewDeps.map((d: any) => (
                       <div key={d.id} className="flex items-center justify-between bg-muted/30 rounded-md p-2.5">
                         <div className="flex items-center gap-2 min-w-0">
-                          <span className="text-sm truncate">{d.depends_on?.title || "Unknown"}</span>
+                          <TruncatedTitle text={d.depends_on?.title || "Unknown"} className="text-sm truncate" />
                           <Badge variant="outline" className="text-[10px]">{d.dependency_type.replace(/_/g, " ")}</Badge>
                         </div>
                         {!isClient && (

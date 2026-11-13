@@ -18,6 +18,7 @@ import { ClassicEditor } from "@/components/ui/classic-editor";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { getDoneStatusIds, isClientRole, isProjectVisibleToClientPortal } from "@/lib/workflow";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
@@ -282,10 +283,16 @@ export default function ProjectsPage() {
               >
                 {p.status}
               </span>
-              <div className="project-name text-[14px] font-bold tracking-tight text-[#17171A] max-w-[78%] truncate" title={p.name}>
-                {p.name}
-              </div>
-              <p className="text-[10px] text-[#8B8B92] mt-[3px] truncate">{(p.clients as any)?.name || "No Client"}</p>
+              <TruncatedTitle
+                as="div"
+                text={p.name}
+                className="project-name text-[14px] font-bold tracking-tight text-[#17171A] max-w-[78%] truncate"
+              />
+              <TruncatedTitle
+                as="p"
+                text={(p.clients as any)?.name || "No Client"}
+                className="text-[10px] text-[#8B8B92] mt-[3px] truncate"
+              />
               <span className="absolute left-5 bottom-[18px] bg-[#F3F3F5] text-[#5D5D64] text-[8.5px] font-semibold px-2.5 py-0.5 rounded-full">
                 {getMemberRole(p.id)}
               </span>
@@ -392,10 +399,16 @@ export default function ProjectsPage() {
                 className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 items-center px-[22px] py-3.5 border-b border-black/[0.05] last:border-b-0 cursor-pointer hover:bg-[#F6F5F3] transition-colors"
               >
                 <div className="min-w-0">
-                  <div className="text-[13.5px] font-bold text-[#17171A] truncate whitespace-nowrap">{p.name}</div>
-                  <div className="text-[12px] text-[#8B8B92] truncate whitespace-nowrap">
-                    {(p.clients as any)?.name || "—"}
-                  </div>
+                  <TruncatedTitle
+                    as="div"
+                    text={p.name}
+                    className="text-[13.5px] font-bold text-[#17171A] truncate whitespace-nowrap"
+                  />
+                  <TruncatedTitle
+                    as="div"
+                    text={(p.clients as any)?.name || "—"}
+                    className="text-[12px] text-[#8B8B92] truncate whitespace-nowrap"
+                  />
                 </div>
 
                 <div>

@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { BarChart2, ChevronRight, Circle, Flag, Info, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { cn, truncateWords } from "@/lib/utils";
 import { getStatusDisplay } from "@/lib/workflow";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   AdminWorkFilters,
   DEFAULT_ADMIN_WORK_FILTERS,
@@ -292,14 +293,13 @@ export function AdminTasksPanel({
             ) : (
               <span className="w-4 shrink-0" aria-hidden />
             )}
-            <span
+            <TruncatedTitle
+              text={t.title}
               className={cn(
                 "text-[14px] text-foreground truncate",
                 isParent ? "font-medium" : "font-normal"
               )}
-            >
-              {t.title}
-            </span>
+            />
             {isParent && (
               <>
                 <span className="text-[11px] leading-none px-[7px] py-px rounded-[6px] whitespace-nowrap shrink-0 bg-primary/20 text-primary">

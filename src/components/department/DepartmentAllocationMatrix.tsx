@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LayoutGrid, AlertCircle, CheckCircle2 } from "lucide-react";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface AllocationMatrixProps {
   projects: { id: string; name: string }[];
@@ -57,9 +58,10 @@ export function DepartmentAllocationMatrix({ projects, rows }: AllocationMatrixP
               <th className="py-2.5 font-semibold sticky left-0 bg-card z-10 min-w-[180px]">Employee</th>
               {projects.map((p) => (
                 <th key={p.id} className="py-2.5 font-semibold text-center px-3 min-w-[110px]">
-                  <span className="truncate block max-w-[120px] mx-auto" title={p.name}>
-                    {p.name}
-                  </span>
+                  <TruncatedTitle
+                    text={p.name}
+                    className="truncate block max-w-[120px] mx-auto"
+                  />
                 </th>
               ))}
               <th className="py-2.5 font-semibold text-center px-3 min-w-[100px]">Total FTE</th>

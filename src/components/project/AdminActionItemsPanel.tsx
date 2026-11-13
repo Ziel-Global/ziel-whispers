@@ -12,6 +12,7 @@ import { ClassicEditor } from "@/components/ui/classic-editor";
 import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { getAvatarUrl, truncateWords, hasRichContent } from "@/lib/utils";
 import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   avatarStyleFor,
   initialsFromName,
@@ -186,9 +187,11 @@ export function AdminActionItemsPanel({
                       <ChevronRight className="h-4 w-4 text-[#8B8B92] shrink-0" />
                     )}
                     <div className="min-w-0">
-                      <div className="text-[13.5px] font-semibold text-[#17171A] truncate">
-                        {a.title}
-                      </div>
+                      <TruncatedTitle
+                        as="div"
+                        text={a.title}
+                        className="text-[13.5px] font-semibold text-[#17171A] truncate"
+                      />
                       {a.description && (
                         <div className="text-[12px] text-[#8B8B92] truncate">
                           {truncateWords(a.description, 8)}

@@ -1,3 +1,4 @@
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   LayoutDashboard,
   Users,
@@ -709,7 +710,7 @@ export function AppSidebar() {
                                   active ? "text-[#EB5A1E]" : "text-[#9A9AA0]"
                                 }`}
                               />
-                              <span className="truncate flex-1">{item.label}</span>
+                              <TruncatedTitle text={item.label} className="truncate flex-1" side="right" />
                               {count != null && (
                                 <span
                                   className={`text-[9px] font-semibold rounded-full min-w-[18px] h-[16px] px-1 flex items-center justify-center ${
@@ -773,7 +774,7 @@ export function AppSidebar() {
                             />
                             {!collapsed && (
                               <span className="flex items-center justify-between flex-1 min-w-0">
-                                <span className="truncate">{item.title}</span>
+                                <TruncatedTitle text={item.title} className="truncate" side="right" />
                                 {showBadge && (
                                   <span className="bg-[#EB5A1E] text-white text-[10px] font-bold rounded-full h-4 min-w-[18px] flex items-center justify-center px-1 shrink-0">
                                     {badgeCount > 99 ? "99+" : badgeCount}

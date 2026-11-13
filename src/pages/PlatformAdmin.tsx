@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { PageHeader } from "@/components/ui/page-header";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -469,7 +470,7 @@ export default function PlatformAdminPage() {
                           )}
                           <div className="min-w-0">
                             <div className="font-semibold text-sm text-foreground flex items-center gap-1.5">
-                              <span className="truncate">{t.name}</span>
+                              <TruncatedTitle text={t.name} className="truncate" />
                               {t.id === "00000000-0000-0000-0000-000000000001" && (
                                 <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
                                   Default

@@ -18,6 +18,7 @@ import { DataRow, RowPrimary, RowSecondary, RowDataGrid, RowDataItem, RowBadgeIt
 import { Plus, Search, Archive, ArchiveRestore, Pencil, Building2, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface ClientForm {
   name: string;
@@ -314,7 +315,11 @@ export default function ClientsPage() {
                     <Building2 className="h-4 w-4 text-[#EB5A1E]" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-[13.5px] font-bold text-[#17171A] truncate">{c.name}</p>
+                    <TruncatedTitle
+                      as="p"
+                      text={c.name}
+                      className="text-[13.5px] font-bold text-[#17171A] truncate"
+                    />
                     <p className="text-[12px] text-[#8B8B92] truncate">
                       {c.contact_email || "—"} · {c.contact_phone || "—"}
                     </p>

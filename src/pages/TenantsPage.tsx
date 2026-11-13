@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import {
@@ -210,9 +211,11 @@ export default function TenantsPage() {
                         </div>
                       )}
                       <div className="min-w-0">
-                        <CardTitle className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors">
-                          {tenant.name}
-                        </CardTitle>
+                        <TruncatedTitle
+                          as="h3"
+                          text={tenant.name}
+                          className="text-sm font-bold text-foreground truncate group-hover:text-primary transition-colors tracking-tight leading-none"
+                        />
                         <CardDescription className="text-xs font-mono text-muted-foreground truncate">
                           /{tenant.slug}
                         </CardDescription>

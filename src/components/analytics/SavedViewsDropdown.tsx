@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Bookmark, Plus, Trash2, Check, Sparkles } from "lucide-react";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import { toast } from "sonner";
 import { AnalyticsFilterState, DEFAULT_ANALYTICS_FILTERS } from "@/lib/analytics-filter-utils";
 
@@ -150,9 +151,10 @@ export function SavedViewsDropdown({ currentFilters, onApplyView }: SavedViewsDr
             className="h-8 text-xs font-semibold px-2.5 border-black/[0.1] dark:border-white/[0.1] flex items-center gap-1.5"
           >
             <Bookmark className="h-3.5 w-3.5 text-primary" />
-            <span className="max-w-[130px] truncate">
-              {activeView ? activeView.name : "Saved Views"}
-            </span>
+            <TruncatedTitle
+              text={activeView ? activeView.name : "Saved Views"}
+              className="max-w-[130px] truncate"
+            />
           </Button>
         </DropdownMenuTrigger>
 

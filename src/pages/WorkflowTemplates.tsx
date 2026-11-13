@@ -12,6 +12,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogTrigger,
 } from "@/components/ui/dialog";
@@ -556,10 +557,10 @@ export default function WorkflowTemplatesPage() {
                     </TooltipTrigger>
                     <SelectContent className="w-[300px]">
                       {templates.map(t => (
-                        <SelectItem key={t.id} value={t.id} title={t.name}>
+                        <SelectItem key={t.id} value={t.id}>
                           <div className="flex min-w-0 max-w-[220px] items-center gap-2">
                             <div className="h-2 w-2 shrink-0 rounded-full bg-orange-500" />
-                            <span className="truncate">{t.name}</span>
+                            <TruncatedTitle text={t.name} className="truncate" />
                           </div>
                         </SelectItem>
                       ))}
@@ -717,7 +718,7 @@ export default function WorkflowTemplatesPage() {
                         className="h-[9px] w-[9px] shrink-0 rounded-full"
                         style={{ backgroundColor: statusDotHex(s.color) }}
                       />
-                      <span className={`text-[13px] font-bold text-gray-900 truncate ${s.retired ? "line-through opacity-50" : ""}`}>{s.name}</span>
+                      <TruncatedTitle text={s.name} className={`text-[13px] font-bold text-gray-900 truncate ${s.retired ? "line-through opacity-50" : ""}`} />
                     </div>
                     <div>
                       <span className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-bold ${

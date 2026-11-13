@@ -10,6 +10,9 @@
 --      `run_automation_rules`, `create_default_project_settings`) to use `project_manager` / `hr_manager`.
 -- ============================================================================
 
+-- Ensure client_id column exists on public.users (referenced in client RLS policies)
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS client_id UUID REFERENCES public.clients(id) ON DELETE SET NULL;
+
 -- 1. Migrate existing 'manager' users to 'project_manager'
 UPDATE public.users
 SET role = 'project_manager'

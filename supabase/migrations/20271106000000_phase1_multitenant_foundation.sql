@@ -51,6 +51,35 @@ BEGIN
 END $$;
 
 -- 5. Helper Function / Loop to Add tenant_id, Backfill Tenant 1, and Set NOT NULL
+-- Pre-step: Ensure any historical logs in production don't fail CHECK constraint on UPDATE
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1 FROM pg_constraint
+        WHERE conname = 'daily_logs_category_check'
+          AND conrelid = 'public.daily_logs'::regclass
+    ) THEN
+        ALTER TABLE public.daily_logs DROP CONSTRAINT daily_logs_category_check;
+        ALTER TABLE public.daily_logs ADD CONSTRAINT daily_logs_category_check
+        CHECK (category = ANY (ARRAY[
+          'development'::text, 
+          'meeting'::text, 
+          'bug_fix'::text, 
+          'code_review'::text, 
+          'deployment'::text, 
+          'documentation'::text, 
+          'testing'::text, 
+          'marketing'::text, 
+          'seo'::text, 
+          'research'::text, 
+          'posting'::text, 
+          'designing'::text, 
+          'other'::text,
+          'outbound_calls'::text
+        ])) NOT VALID;
+    END IF;
+END $$;
+
 DO $$
 DECLARE
     v_default_tenant_id UUID := '00000000-0000-0000-0000-000000000001'::uuid;

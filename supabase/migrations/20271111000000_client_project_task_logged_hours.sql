@@ -18,7 +18,7 @@ AS $$
     AND dl.task_id IS NOT NULL
     -- caller must be admin/manager or an active member of this project
     AND (
-      public.get_my_role() = ANY (ARRAY['admin', 'manager'])
+      public.get_my_role() = ANY (ARRAY['admin', 'project_manager', 'hr_manager', 'manager'])
       OR public.is_project_member(p_project_id)
     )
     -- archived projects stay admin-only (matches archived_project_logs_admin_only)

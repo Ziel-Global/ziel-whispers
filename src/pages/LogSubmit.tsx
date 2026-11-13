@@ -86,6 +86,7 @@ export default function LogSubmitPage() {
       <LogSubmitModals
         showSubmitConfirm={data.showSubmitConfirm}
         setShowSubmitConfirm={data.setShowSubmitConfirm}
+        submitting={data.submitting}
         pendingLogs={data.pendingLogs}
         declaredMoves={data.declaredMoves}
         logsAreAllForToday={data.logsAreAllForToday}

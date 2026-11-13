@@ -33,6 +33,22 @@ export function useLogSubmitData() {
   const [selectedOutcomeStatusId, setSelectedOutcomeStatusId] = useState<string>("");
   const [dependencyWarning, setDependencyWarning] = useState("");
 
+  // Prevent leaving or closing the page while logs are actively being submitted
+  useEffect(() => {
+    if (!submitting) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [submitting]);
+
   const today = getPKTDateString();
 
   // 1. Fetch draft logs from database
@@ -583,21 +599,23 @@ export function useLogSubmitData() {
         (taskStatuses || []).forEach((t: any) => { taskStatusMap[t.id] = t.status_id; });
       }
 
-      for (const log of pendingLogs) {
-        const activeStatusId = log.task_id ? (taskStatusMap[log.task_id] || null) : null;
-        const transitionTarget = log.declared_transition_to || log.declared_outcome_status_id || null;
+      await Promise.all(
+        pendingLogs.map(async (log: any) => {
+          const activeStatusId = log.task_id ? (taskStatusMap[log.task_id] || null) : null;
+          const transitionTarget = log.declared_transition_to || log.declared_outcome_status_id || null;
 
-        const { error } = await supabase.from("daily_logs").update({
-          status: "submitted",
-          is_late: isLateForDate(log.log_date),
-          is_overtime: overtimeFlags[log.id] || false,
-          submitted_at: nowPKTStr,
-          status_id: activeStatusId,
-          hours_status_id: log.hours_status_id || activeStatusId,
-          declared_transition_to: transitionTarget,
-        }).eq("id", log.id).eq("status", "draft");
-        if (error) throw error;
-      }
+          const { error } = await supabase.from("daily_logs").update({
+            status: "submitted",
+            is_late: isLateForDate(log.log_date),
+            is_overtime: overtimeFlags[log.id] || false,
+            submitted_at: nowPKTStr,
+            status_id: activeStatusId,
+            hours_status_id: log.hours_status_id || activeStatusId,
+            declared_transition_to: transitionTarget,
+          }).eq("id", log.id).eq("status", "draft");
+          if (error) throw error;
+        })
+      );
 
       const outcomeErrors: string[] = [];
       const declaredByTask: Record<string, string> = {};
@@ -606,14 +624,16 @@ export function useLogSubmitData() {
           declaredByTask[log.task_id] = log.declared_outcome_status_id;
         }
       }
-      for (const [taskId, toStatusId] of Object.entries(declaredByTask)) {
-        const { error } = await supabase.rpc("declare_stage_outcome", {
-          p_task_id: taskId,
-          p_to_status_id: toStatusId,
-          p_changed_by_type: "admin",
-        });
-        if (error) outcomeErrors.push(error.message);
-      }
+      await Promise.all(
+        Object.entries(declaredByTask).map(async ([taskId, toStatusId]) => {
+          const { error } = await supabase.rpc("declare_stage_outcome", {
+            p_task_id: taskId,
+            p_to_status_id: toStatusId,
+            p_changed_by_type: "admin",
+          });
+          if (error) outcomeErrors.push(error.message);
+        })
+      );
       const movedTasks = declaredMoves.filter((m: any) => m.toStatusId);
       const outcomeApplied = movedTasks.length > 0 && outcomeErrors.length === 0;
 

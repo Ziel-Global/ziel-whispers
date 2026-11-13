@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useWorkSettings, getPKTDateString, isAttendanceLate } from "@/hooks/useWorkSettings";
+import { getCurrentLeaveYear } from "@/lib/utils";
 import {
   startOfWeek,
   endOfWeek,
@@ -243,16 +244,24 @@ export function useEmployeeDashboardData() {
     enabled: !!userId,
   });
 
+  const currentLeaveYear = useMemo(() => getCurrentLeaveYear(), []);
+
   const { data: leaveBalances = [] } = useQuery({
-    queryKey: ["employee-leave-balances", userId],
+    queryKey: ["employee-leave-balances", userId, currentLeaveYear.startYear, annualLeaveEntitlement],
     queryFn: async () => {
       if (!userId) return [];
       const { data, error } = await supabase
-        .from("leave_balances")
-        .select("allocated, used, leave_types(name)")
-        .eq("user_id", userId);
+        .from("leave_requests")
+        .select("days_count, hours")
+        .eq("user_id", userId)
+        .eq("status", "approved")
+        .gte("start_date", currentLeaveYear.start)
+        .lte("start_date", currentLeaveYear.end);
       if (error) throw error;
-      return data || [];
+      const daySum = (data || []).reduce((sum, r) => sum + (Number(r.days_count) || 0), 0);
+      const hourSum = (data || []).reduce((sum, r) => sum + (Number(r.hours) || 0), 0);
+      const used = daySum + Math.floor(hourSum / 8);
+      return [{ allocated: annualLeaveEntitlement, used }];
     },
     enabled: !!userId,
   });

@@ -13,6 +13,7 @@ import { getAvatarUrl, truncateWords, hasRichContent, stripHtml } from "@/lib/ut
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 import { AdminActionItemsPanel } from "@/components/project/AdminActionItemsPanel";
 import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface ProjectActionItemsTabProps {
   id: string;
@@ -320,9 +321,11 @@ export function ProjectActionItemsTab({
                                 {isExpanded ? "▾" : "▸"}
                               </span>
                               <div className="min-w-0 overflow-hidden">
-                                <div className="text-[10.5px] font-semibold text-[#202024] leading-[1.45] truncate" title={a.title}>
-                                  {a.title}
-                                </div>
+                                <TruncatedTitle
+                                  as="div"
+                                  text={a.title}
+                                  className="text-[10.5px] font-semibold text-[#202024] leading-[1.45] truncate"
+                                />
                                 <div className="text-[8.3px] text-[#96969D] mt-0.5 truncate">Client action item</div>
                               </div>
                             </div>

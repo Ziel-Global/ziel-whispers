@@ -5,6 +5,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { buildProjectActivityFeed } from "@/lib/projectActivityFeed";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   Area,
   ComposedChart,
@@ -415,7 +416,7 @@ export function AdminProjectOverview({
                     className="w-[7px] h-[7px] rounded-full shrink-0"
                     style={{ background: PRIORITY_DOT[t.priority] || "#B0B0B6" }}
                   />
-                  <div className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate">{t.title}</div>
+                  <TruncatedTitle as="div" text={t.title} className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate" />
                   <div className="text-xs text-[#8B8B92] shrink-0">
                     {format(new Date(t.due_date), "MMM d")}
                   </div>
@@ -437,7 +438,7 @@ export function AdminProjectOverview({
                   className="flex items-center gap-2.5 min-w-0 pb-2.5 mb-2.5 border-b border-black/[0.06] last:border-0 last:mb-0 last:pb-0"
                 >
                   <Check className="h-[15px] w-[15px] text-[#1FAA59] shrink-0" strokeWidth={2.2} />
-                  <div className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate">{t.title}</div>
+                  <TruncatedTitle as="div" text={t.title} className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate" />
                 </div>
               ))}
             </div>
@@ -624,7 +625,7 @@ export function AdminProjectOverview({
                     <span className="font-bold shrink-0">
                       {format(new Date(ct.task.due_date), "d MMM")}
                     </span>
-                    <span className="truncate">{ct.task.title}</span>
+                    <TruncatedTitle text={ct.task.title} className="truncate" />
                   </div>
                 ))
               )}

@@ -16,6 +16,7 @@ import {
   RotateCw,
 } from "lucide-react";
 import { TenantDetails } from "@/components/platform-admin/InspectTenantModal";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 export default function PlatformAnalyticsPage() {
   const { isSSA } = useAuth();
@@ -213,7 +214,7 @@ export default function PlatformAnalyticsPage() {
                   return (
                     <div key={t.id} className="space-y-1">
                       <div className="flex items-center justify-between text-xs">
-                        <span className="font-medium text-foreground truncate max-w-[180px]">{t.name}</span>
+                        <TruncatedTitle text={t.name} className="font-medium text-foreground truncate max-w-[180px]" />
                         <span className="text-muted-foreground font-mono">
                           {t.total_users || 0} seats ({pct}%)
                         </span>

@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { formatDistanceToNow } from "date-fns";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 export function NotificationBell() {
@@ -127,7 +128,11 @@ export function NotificationBell() {
                     <div className="mt-0.5 shrink-0">{getNotificationIcon(notification.type)}</div>
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between">
-                        <p className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}>{meta?.title || fallbackTitle}</p>
+                        <TruncatedTitle
+                          as="p"
+                          text={meta?.title || fallbackTitle}
+                          className={`text-sm font-medium truncate ${!notification.read ? "text-foreground" : "text-muted-foreground"}`}
+                        />
                         <p className="text-xs text-muted-foreground whitespace-nowrap ml-2">
                           {formatDistanceToNow(new Date(notification.triggered_at), { addSuffix: true })}
                         </p>

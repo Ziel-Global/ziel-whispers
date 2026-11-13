@@ -5,6 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Pencil, Plus, Trash2, ChevronDown } from "lucide-react";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface ProjectPhasesTabProps {
   id: string;
@@ -126,7 +127,7 @@ export function ProjectPhasesTab({
                       <Trash2 className="h-3 w-3 text-[#E5484D]" strokeWidth={2} />
                     </span>
                   </div>
-                  <div className="text-[15px] font-bold text-[#17171A] mb-1.5 pr-14 truncate">{p.title}</div>
+                  <TruncatedTitle as="div" text={p.title} className="text-[15px] font-bold text-[#17171A] mb-1.5 pr-14 truncate" />
                   <div className="text-[12.5px] text-[#8B8B92] mb-3.5">
                     {sprintCount} sprint{sprintCount === 1 ? "" : "s"}
                   </div>

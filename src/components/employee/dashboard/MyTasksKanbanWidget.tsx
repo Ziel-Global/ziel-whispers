@@ -6,6 +6,7 @@ import { ListTodo, AlertCircle, Calendar, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { format, parseISO } from "date-fns";
 import { toSlug } from "@/lib/utils";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 export interface MyTasksKanbanWidgetProps {
   tasks: any[];
@@ -94,9 +95,11 @@ export function MyTasksKanbanWidget({ tasks }: MyTasksKanbanWidgetProps) {
                       className={`p-2.5 bg-background border border-black/[0.08] dark:border-white/[0.08] rounded-lg shadow-sm hover:shadow-md transition-all cursor-pointer border-l-4 ${col.color}`}
                     >
                     <div className="flex items-start justify-between gap-1.5 mb-1.5">
-                      <p className="text-xs font-semibold text-foreground line-clamp-2">
-                        {task.title}
-                      </p>
+                      <TruncatedTitle
+                        as="p"
+                        text={task.title}
+                        className="text-xs font-semibold text-foreground line-clamp-2"
+                      />
                       {task.is_flagged && (
                         <AlertCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                       )}

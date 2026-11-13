@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { avatarStyleFor, initialsFromName } from "@/components/project/AdminWorkFilters";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 const PRIORITY_PILL: Record<string, { bg: string; color: string }> = {
   high: { bg: "#FDECEC", color: "#E5484D" },
@@ -28,14 +29,18 @@ export function KanbanTaskCard({ task: t, sprints, showProgressBar, onClick }: P
       className="bg-white border border-black/[0.07] rounded-[11px] p-3.5 text-left min-w-0 w-full hover:border-[#EB5A1E]/40 transition-colors"
     >
       <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="text-[13.5px] font-bold text-[#17171A] truncate min-w-0">
+        <TruncatedTitle
+          as="div"
+          text={t.title}
+          className="text-[13.5px] font-bold text-[#17171A] truncate min-w-0"
+        >
           {t.title}
           {t.parent_id ? (
             <span className="ml-1.5 inline-flex align-middle bg-[#F0F0F2] text-[#55555B] text-[10px] font-bold px-1.5 py-0.5 rounded-xl">
               Subtask
             </span>
           ) : null}
-        </div>
+        </TruncatedTitle>
         <span
           className="text-[10.5px] font-bold px-2 py-0.5 rounded-full shrink-0 capitalize"
           style={{ background: pri.bg, color: pri.color }}

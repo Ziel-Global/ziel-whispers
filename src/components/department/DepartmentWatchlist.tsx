@@ -3,6 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, Flame, BatteryLow, Clock, ArrowRight, CheckCircle2 } from "lucide-react";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface WatchlistItem {
   id: string;
@@ -86,7 +87,7 @@ export function DepartmentWatchlist({ alerts, onMemberClick }: DepartmentWatchli
                       )}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-semibold truncate">{alert.title}</p>
+                      <TruncatedTitle as="p" text={alert.title} className="font-semibold truncate" />
                       <p className="text-[11px] opacity-80 truncate">{alert.subtitle}</p>
                     </div>
                   </div>

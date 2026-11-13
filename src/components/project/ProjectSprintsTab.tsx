@@ -10,6 +10,7 @@ import {
   TableHeader,
 } from "@/components/ui/data-row";
 import { Badge } from "@/components/ui/badge";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 export interface ProjectSprintsTabProps {
   tasks: any[];
@@ -66,7 +67,7 @@ function SprintCard({
       className="bg-white border border-black/[0.08] rounded-[14px] p-[18px] text-left min-w-0 hover:border-[#EB5A1E]/35 transition-colors"
     >
       <div className="flex items-center justify-between gap-2 mb-2.5">
-        <div className="text-[15px] font-bold text-[#17171A] truncate min-w-0">{sprint.name}</div>
+        <TruncatedTitle as="div" text={sprint.name} className="text-[15px] font-bold text-[#17171A] truncate min-w-0" />
         <span
           className="text-[11px] font-bold px-[9px] py-[3px] rounded-full whitespace-nowrap shrink-0 capitalize"
           style={{ background: st.bg, color: st.color }}

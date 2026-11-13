@@ -35,16 +35,18 @@ export default function AttendanceAdminPage() {
   const [editWorkMode, setEditWorkMode] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const ALLOWED_ATTENDANCE_ROLES = ["employee", "hr_manager", "project_manager"];
+
   const { data: records = [], isLoading } = useQuery({
     queryKey: ["admin-attendance", selectedDate],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance")
-        .select("*, users!attendance_user_id_fkey(full_name, department, email, is_oversight, shift_start, has_custom_shift)")
+        .select("*, users!attendance_user_id_fkey(full_name, department, email, role, is_oversight, shift_start, has_custom_shift)")
         .eq("date", selectedDate)
         .order("clock_in", { ascending: true });
       if (error) throw error;
-      return data || [];
+      return (data || []).filter((r: any) => ALLOWED_ATTENDANCE_ROLES.includes(r.users?.role));
     },
   });
 
@@ -53,12 +55,12 @@ export default function AttendanceAdminPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("attendance")
-        .select("*, users!attendance_user_id_fkey(full_name, department, is_oversight)")
+        .select("*, users!attendance_user_id_fkey(full_name, department, role, is_oversight)")
         .is("clock_out", null)
         .not("clock_in", "is", null)
         .order("clock_in", { ascending: true });
       if (error) throw error;
-      return data || [];
+      return (data || []).filter((s: any) => ALLOWED_ATTENDANCE_ROLES.includes(s.users?.role));
     },
   });
 
@@ -67,8 +69,9 @@ export default function AttendanceAdminPage() {
     queryFn: async () => {
       const { data } = await supabase
         .from("users")
-        .select("id, full_name, department, is_oversight, shift_start, has_custom_shift")
+        .select("id, full_name, department, role, is_oversight, shift_start, has_custom_shift")
         .eq("status", "active")
+        .in("role", ALLOWED_ATTENDANCE_ROLES)
         .lte("join_date", selectedDate);
       return data || [];
     },

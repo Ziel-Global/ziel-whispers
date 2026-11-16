@@ -66,18 +66,34 @@ export function useProjectDetailData() {
     queryKey: ["project-members", id],
     queryFn: async () => {
       const [membersResult, logsResult] = await Promise.all([
-        supabase
-          .from("project_members")
-          .select("*, users(id, full_name, designation, avatar_url, role), project_roles(name)")
-          .eq("project_id", id!)
-          .is("removed_at", null),
+        (supabase as any).rpc("get_project_members", { p_project_id: id! }),
         supabase
           .from("daily_logs")
           .select("user_id, hours")
           .eq("project_id", id!)
           .eq("status", "submitted"),
       ]);
-      const membersData = membersResult.data || [];
+      if (membersResult.error) throw membersResult.error;
+      const membersData = (membersResult.data || []).map((m: any) => ({
+        id: m.id,
+        project_id: m.project_id,
+        user_id: m.user_id,
+        project_role_id: m.project_role_id,
+        allocation_percentage: m.allocation_percentage,
+        assigned_at: m.assigned_at,
+        removed_at: m.removed_at,
+        notified: m.notified,
+        users: m.user_id
+          ? {
+              id: m.user_id,
+              full_name: m.full_name,
+              designation: m.designation,
+              avatar_url: m.avatar_url,
+              role: m.user_role,
+            }
+          : null,
+        project_roles: m.project_role_name ? { name: m.project_role_name } : null,
+      }));
       const logsData = logsResult.data || [];
       const hoursByUser: Record<string, number> = {};
       logsData.forEach((l: any) => {

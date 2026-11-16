@@ -34,6 +34,7 @@ type Props = {
   newActionItemMessage: string;
   setNewActionItemMessage: (s: string) => void;
   renderMessageContent: (content: string) => ReactNode;
+  isAdmin?: boolean;
 };
 
 function statusPill(a: any) {
@@ -67,6 +68,7 @@ export function AdminActionItemsPanel({
   newActionItemMessage,
   setNewActionItemMessage,
   renderMessageContent,
+  isAdmin = true,
 }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
@@ -115,17 +117,19 @@ export function AdminActionItemsPanel({
             Commitments and follow-ups from meetings, reviews, and client requests
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate((v) => !v)}
-          className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
-          Add Action Item
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setShowCreate((v) => !v)}
+            className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
+            Add Action Item
+          </button>
+        )}
       </div>
 
-      {showCreate && (
+      {isAdmin && showCreate && (
         <div className="bg-white border border-black/[0.08] rounded-[14px] p-4 mb-4 flex gap-2 items-start flex-wrap">
           <Input
             value={createTitle}
@@ -237,7 +241,7 @@ export function AdminActionItemsPanel({
                         Resolve
                       </button>
                     )}
-                    {a.status !== "completed" && (
+                    {isAdmin && a.status !== "completed" && (
                       <button
                         type="button"
                         onClick={() => {

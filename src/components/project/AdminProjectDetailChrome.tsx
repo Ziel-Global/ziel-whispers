@@ -30,9 +30,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  ADMIN_PRIMARY_TABS,
   ADMIN_SECONDARY,
   defaultTabForPrimary,
+  getProjectPrimaryTabs,
+  getProjectSecondaryTabs,
   healthPill,
   primaryFromTab,
   type AdminNavIcon,
@@ -102,6 +103,7 @@ export type AdminProjectDetailChromeProps = {
   onArchive?: () => void;
   onExport?: () => void;
   counts?: AdminNavCounts;
+  isAdmin?: boolean;
 };
 
 export function AdminProjectDetailChrome({
@@ -123,9 +125,11 @@ export function AdminProjectDetailChrome({
   onArchive,
   onExport,
   counts = {},
+  isAdmin = true,
 }: AdminProjectDetailChromeProps) {
   const primary = primaryFromTab(activeTab);
-  const secondaries = ADMIN_SECONDARY[primary] || null;
+  const primaryTabs = getProjectPrimaryTabs(isAdmin);
+  const secondaries = getProjectSecondaryTabs(primary, isAdmin);
   const health = healthPill(latestHealth?.health_status);
   const statusStyle = STATUS_PILL[project.status] || STATUS_PILL.archived;
   const clientName = (project.clients as any)?.name;
@@ -201,7 +205,8 @@ export function AdminProjectDetailChrome({
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0 ml-auto">
+        {isAdmin && (
+          <div className="flex items-center gap-2.5 shrink-0 ml-auto">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <button
@@ -339,12 +344,13 @@ export function AdminProjectDetailChrome({
           >
             <Settings className="h-4 w-4 text-[#4B4B52]" strokeWidth={1.8} />
           </button>
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="pt-3.5 pb-3.5">
           <div className="inline-flex items-center gap-1 overflow-x-auto max-w-full bg-[#F6F5F3] rounded-[11px] p-[5px] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
-            {ADMIN_PRIMARY_TABS.map((t) => {
+            {primaryTabs.map((t) => {
               const active = primary === t.key;
               const Icon = NAV_ICONS[t.icon];
               return (

@@ -52,6 +52,7 @@ type Props = {
   newStatusUpdateVisible: boolean;
   setNewStatusUpdateVisible: (v: boolean) => void;
   addStatusUpdate: () => void;
+  isAdmin?: boolean;
 };
 
 function initials(name?: string | null) {
@@ -98,6 +99,7 @@ export function AdminProjectOverview({
   newStatusUpdateVisible: _newStatusUpdateVisible,
   setNewStatusUpdateVisible: _setNewStatusUpdateVisible,
   addStatusUpdate,
+  isAdmin = true,
 }: Props) {
   const list = tasks || [];
   const today = startOfDay(new Date());
@@ -731,35 +733,37 @@ export function AdminProjectOverview({
             ))
           )}
         </div>
-        <div>
-          <ClassicEditor
-            value={newStatusUpdate}
-            onChange={setNewStatusUpdate}
-            placeholder="Post a status update..."
-            variant="compact"
-            rows={2}
-          />
-          <div className="flex items-center justify-end mt-2.5 gap-3 flex-wrap">
-            {/* Not wired up — hidden for now
-            <label className="inline-flex items-center gap-[7px] text-[13px] text-[#4B4B52] cursor-pointer">
-              <Checkbox
-                checked={newStatusUpdateVisible}
-                onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)}
-                className="h-[15px] w-[15px] border-[#C6C6CC] data-[state=checked]:bg-[#EB5A1E] data-[state=checked]:border-[#EB5A1E]"
-              />
-              Visible to client
-            </label>
-            */}
-            <button
-              type="button"
-              onClick={addStatusUpdate}
-              disabled={!hasRichContent(newStatusUpdate)}
-              className="bg-[#EB5A1E] text-white font-semibold text-[13px] px-[22px] py-2.5 rounded-[10px] disabled:opacity-50 hover:bg-[#d64f18] transition-colors"
-            >
-              Post
-            </button>
+        {isAdmin && (
+          <div>
+            <ClassicEditor
+              value={newStatusUpdate}
+              onChange={setNewStatusUpdate}
+              placeholder="Post a status update..."
+              variant="compact"
+              rows={2}
+            />
+            <div className="flex items-center justify-end mt-2.5 gap-3 flex-wrap">
+              {/* Not wired up — hidden for now
+              <label className="inline-flex items-center gap-[7px] text-[13px] text-[#4B4B52] cursor-pointer">
+                <Checkbox
+                  checked={newStatusUpdateVisible}
+                  onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)}
+                  className="h-[15px] w-[15px] border-[#C6C6CC] data-[state=checked]:bg-[#EB5A1E] data-[state=checked]:border-[#EB5A1E]"
+                />
+                Visible to client
+              </label>
+              */}
+              <button
+                type="button"
+                onClick={addStatusUpdate}
+                disabled={!hasRichContent(newStatusUpdate)}
+                className="bg-[#EB5A1E] text-white font-semibold text-[13px] px-[22px] py-2.5 rounded-[10px] disabled:opacity-50 hover:bg-[#d64f18] transition-colors"
+              >
+                Post
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

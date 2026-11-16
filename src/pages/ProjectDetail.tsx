@@ -397,8 +397,8 @@ export default function ProjectDetailPage() {
       !task.parent_id && (tasks || []).some((t: any) => t.parent_id === task.id);
     const childSum = isContainer
       ? (tasks || [])
-          .filter((t: any) => t.parent_id === task.id)
-          .reduce((acc: number, t: any) => acc + (Number(t.estimated_hours) || 0), 0)
+        .filter((t: any) => t.parent_id === task.id)
+        .reduce((acc: number, t: any) => acc + (Number(t.estimated_hours) || 0), 0)
       : null;
     setEditTaskEstimatedHours(
       isContainer
@@ -1022,8 +1022,9 @@ export default function ProjectDetailPage() {
   return (
     <div className={`${isClient ? "client-page w-full min-w-0 flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4" : "flex flex-col flex-1 h-full min-h-0 overflow-hidden gap-4"} ${kanbanPageScroll}`}>
       <div className="shrink-0">
-      {isAdmin && !isClient ? (
+      {!isClient ? (
         <AdminProjectDetailChrome
+          isAdmin={isAdmin}
           project={project}
           latestHealth={latestHealth}
           ownerName={ownerName}
@@ -1047,8 +1048,12 @@ export default function ProjectDetailPage() {
           onAddActionItem={() => setTab("action-items")}
           onArchive={() => changeStatus("archived")}
           counts={{
-            tasks: tasks?.length ?? 0,
-            actionItems: actionItems?.length ?? 0,
+            tasks: isAdmin
+              ? tasks?.length ?? 0
+              : (tasks || []).filter((t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id).length,
+            actionItems: isAdmin
+              ? actionItems?.length ?? 0
+              : actionItems.filter((a: any) => a.assigned_to === profile?.id || a.requested_by === profile?.id).length,
             sprints: sprints?.length ?? 0,
             resources: resourceMembers?.length ?? 0,
             clients: clientMembers?.length ?? 0,
@@ -1068,72 +1073,55 @@ export default function ProjectDetailPage() {
           }
         />
       ) : (
-        <div className={`flex items-center gap-3 ${isClient ? "items-start mb-1" : ""}`}>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={goBack}
-            className={
-              isClient
-                ? "h-[34px] w-[34px] rounded-lg bg-transparent border-0 shadow-none hover:bg-[#F6F6F7] -ml-2 mt-1 shrink-0"
-                : ""
-            }
-          >
-            <ArrowLeft className={isClient ? "h-4 w-4 text-[#17171A]" : "h-4 w-4"} />
-          </Button>
-          <div className="flex-1 min-w-0">
-            <h1
+          <div className={`flex items-center gap-3 ${isClient ? "items-start mb-1" : ""}`}>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goBack}
               className={
                 isClient
-                  ? "text-[22px] font-bold tracking-[-0.55px] text-[#17171A] leading-tight m-0"
-                  : "text-2xl font-bold tracking-tight"
+                  ? "h-[34px] w-[34px] rounded-lg bg-transparent border-0 shadow-none hover:bg-[#F6F6F7] -ml-2 mt-1 shrink-0"
+                  : ""
               }
             >
-              {project.name}
-            </h1>
-            <div className={`flex items-center gap-2 ${isClient ? "mt-[5px] flex-wrap gap-2.5" : "mt-1"}`}>
-              <Badge
+              <ArrowLeft className={isClient ? "h-4 w-4 text-[#17171A]" : "h-4 w-4"} />
+            </Button>
+            <div className="flex-1 min-w-0">
+              <h1
                 className={
                   isClient
-                    ? project.status === "active"
-                      ? "bg-[#DFF6E4] text-[#168744] hover:bg-[#DFF6E4] border-0 shadow-none text-[9px] font-semibold px-2.5 py-[3px] rounded-full capitalize"
-                      : project.status === "on_hold"
-                      ? "bg-[#FFF1B8] text-[#A9720B] hover:bg-[#FFF1B8] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
-                      : project.status === "completed"
-                      ? "bg-[#EAF3FF] text-[#1C6FC9] hover:bg-[#EAF3FF] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
-                      : "bg-[#F5F5F6] text-[#8B8B92] hover:bg-[#F5F5F6] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
-                    : STATUS_COLORS[project.status] || ""
+                    ? "text-[22px] font-bold tracking-[-0.55px] text-[#17171A] leading-tight m-0"
+                    : "text-2xl font-bold tracking-tight"
                 }
               >
-                {project.status}
-              </Badge>
-              <span className={isClient ? "text-[12px] text-[#8B8B92] font-medium" : "text-muted-foreground text-sm"}>
-                {(project.clients as any)?.name}
-              </span>
+                {project.name}
+              </h1>
+              <div className={`flex items-center gap-2 ${isClient ? "mt-[5px] flex-wrap gap-2.5" : "mt-1"}`}>
+                <Badge
+                  className={
+                    isClient
+                      ? project.status === "active"
+                        ? "bg-[#DFF6E4] text-[#168744] hover:bg-[#DFF6E4] border-0 shadow-none text-[9px] font-semibold px-2.5 py-[3px] rounded-full capitalize"
+                        : project.status === "on_hold"
+                          ? "bg-[#FFF1B8] text-[#A9720B] hover:bg-[#FFF1B8] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                          : project.status === "completed"
+                            ? "bg-[#EAF3FF] text-[#1C6FC9] hover:bg-[#EAF3FF] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                            : "bg-[#F5F5F6] text-[#8B8B92] hover:bg-[#F5F5F6] text-[9px] font-semibold px-2.5 py-[3px] rounded-full border-0 shadow-none capitalize"
+                      : STATUS_COLORS[project.status] || ""
+                  }
+                >
+                  {project.status}
+                </Badge>
+                <span className={isClient ? "text-[12px] text-[#8B8B92] font-medium" : "text-muted-foreground text-sm"}>
+                  {(project.clients as any)?.name}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
       </div>
 
       <Tabs value={activeTab} onValueChange={setTab} className={`flex flex-col flex-1 min-h-0 overflow-hidden ${kanbanPageScroll}`}>
-        {!isClient && !isAdmin && (
-          <TabsList className="overflow-x-auto shrink-0">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="skills">Skills & Matching</TabsTrigger>
-            <TabsTrigger value="resources">Resources ({resourceMembers.length})</TabsTrigger>
-            <TabsTrigger value="clients">Client's Member ({clientMembers.length})</TabsTrigger>
-            <TabsTrigger value="stats">Stats</TabsTrigger>
-            <TabsTrigger value="tasks">
-              Tasks ({(tasks || []).filter((t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id).length})
-            </TabsTrigger>
-            <TabsTrigger value="kanban">Kanban</TabsTrigger>
-            <TabsTrigger value="sprints">Sprints ({sprints?.length || 0})</TabsTrigger>
-            <TabsTrigger value="action-items">
-              Action Items ({actionItems.filter((a: any) => a.assigned_to === profile?.id || a.requested_by === profile?.id).length})
-            </TabsTrigger>
-          </TabsList>
-        )}
 
         <TabsContent value="overview" className={tabBodyClass}>
           <ProjectOverviewTab
@@ -1182,8 +1170,8 @@ export default function ProjectDetailPage() {
             progressPct={
               phases.length > 0
                 ? Math.round(
-                    phases.reduce((sum: number, p: any) => sum + (phaseProgress[p.id] || 0), 0) / phases.length
-                  )
+                  phases.reduce((sum: number, p: any) => sum + (phaseProgress[p.id] || 0), 0) / phases.length
+                )
                 : 0
             }
             inDevelopmentCount={(tasks || []).filter((t: any) => {
@@ -1211,70 +1199,70 @@ export default function ProjectDetailPage() {
 
         <TabsContent value="skills" className={tabBodyClass}>
           {!isAdmin && (
-          <ProjectSkillsTab
-            projectId={project.id}
-            projectName={project.name}
-            isAdmin={isAdmin}
-            onAssignCandidate={async (candidateUserId) => {
-              const emp = (allEmployees || []).find((e: any) => e.id === candidateUserId);
-              const roleName = emp?.designation || "Member";
-              let roleId: string | null = null;
-              const { data: existingRole } = await supabase
-                .from("project_roles")
-                .select("id")
-                .eq("project_id", project.id)
-                .eq("name", roleName)
-                .maybeSingle();
-
-              if (existingRole) {
-                roleId = existingRole.id;
-              } else {
-                const { data: newRole } = await supabase
+            <ProjectSkillsTab
+              projectId={project.id}
+              projectName={project.name}
+              isAdmin={isAdmin}
+              onAssignCandidate={async (candidateUserId) => {
+                const emp = (allEmployees || []).find((e: any) => e.id === candidateUserId);
+                const roleName = emp?.designation || "Member";
+                let roleId: string | null = null;
+                const { data: existingRole } = await supabase
                   .from("project_roles")
-                  .insert({ project_id: project.id, name: roleName })
                   .select("id")
-                  .single();
-                roleId = newRole?.id || null;
-              }
+                  .eq("project_id", project.id)
+                  .eq("name", roleName)
+                  .maybeSingle();
 
-              const { data: existingMember } = await supabase
-                .from("project_members")
-                .select("id, removed_at")
-                .eq("project_id", project.id)
-                .eq("user_id", candidateUserId)
-                .maybeSingle();
-
-              if (existingMember) {
-                if (existingMember.removed_at) {
-                  await supabase
-                    .from("project_members")
-                    .update({ removed_at: null, project_role_id: roleId } as any)
-                    .eq("id", existingMember.id);
+                if (existingRole) {
+                  roleId = existingRole.id;
                 } else {
-                  toast.info(`${emp?.full_name || "Employee"} is already assigned to this project.`);
-                  return;
+                  const { data: newRole } = await supabase
+                    .from("project_roles")
+                    .insert({ project_id: project.id, name: roleName })
+                    .select("id")
+                    .single();
+                  roleId = newRole?.id || null;
                 }
-              } else {
-                await supabase.from("project_members").insert({
-                  project_id: project.id,
-                  user_id: candidateUserId,
-                  project_role_id: roleId,
+
+                const { data: existingMember } = await supabase
+                  .from("project_members")
+                  .select("id, removed_at")
+                  .eq("project_id", project.id)
+                  .eq("user_id", candidateUserId)
+                  .maybeSingle();
+
+                if (existingMember) {
+                  if (existingMember.removed_at) {
+                    await supabase
+                      .from("project_members")
+                      .update({ removed_at: null, project_role_id: roleId } as any)
+                      .eq("id", existingMember.id);
+                  } else {
+                    toast.info(`${emp?.full_name || "Employee"} is already assigned to this project.`);
+                    return;
+                  }
+                } else {
+                  await supabase.from("project_members").insert({
+                    project_id: project.id,
+                    user_id: candidateUserId,
+                    project_role_id: roleId,
+                  });
+                }
+
+                await supabase.from("audit_logs").insert({
+                  actor_id: profile?.id,
+                  action: "project.member_added",
+                  target_entity: "project_members",
+                  target_id: project.id,
+                  metadata: { user_id: candidateUserId },
                 });
-              }
 
-              await supabase.from("audit_logs").insert({
-                actor_id: profile?.id,
-                action: "project.member_added",
-                target_entity: "project_members",
-                target_id: project.id,
-                metadata: { user_id: candidateUserId },
-              });
-
-              toast.success(`${emp?.full_name || "Candidate"} assigned to project successfully!`);
-              queryClient.invalidateQueries({ queryKey: ["project-members", project.id] });
-              queryClient.invalidateQueries({ queryKey: ["resource-recommendations"] });
-            }}
-          />
+                toast.success(`${emp?.full_name || "Candidate"} assigned to project successfully!`);
+                queryClient.invalidateQueries({ queryKey: ["project-members", project.id] });
+                queryClient.invalidateQueries({ queryKey: ["resource-recommendations"] });
+              }}
+            />
           )}
         </TabsContent>
 
@@ -1336,7 +1324,7 @@ export default function ProjectDetailPage() {
         )}
 
         <TabsContent value="stats" className={`${tabBodyClass} space-y-6`}>
-          {isAdmin ? (
+          {!isClient ? (
             <AdminProgressPanel
               latestHealth={latestHealth}
               hoursByMember={hoursByMember as { name: string; hours: number }[]}
@@ -1344,14 +1332,14 @@ export default function ProjectDetailPage() {
               progressPct={
                 phases.length > 0
                   ? Math.round(
-                      phases.reduce((sum: number, p: any) => sum + (phaseProgress[p.id] || 0), 0) /
-                        phases.length
-                    )
+                    phases.reduce((sum: number, p: any) => sum + (phaseProgress[p.id] || 0), 0) /
+                    phases.length
+                  )
                   : latestHealth?.tasks_total
                     ? Math.round(
-                        (100 * Number(latestHealth.tasks_complete || 0)) /
-                          Math.max(1, Number(latestHealth.tasks_total))
-                      )
+                      (100 * Number(latestHealth.tasks_complete || 0)) /
+                      Math.max(1, Number(latestHealth.tasks_total))
+                    )
                     : 0
               }
             />
@@ -1413,6 +1401,8 @@ export default function ProjectDetailPage() {
             phases={phases}
             workflowStatuses={workflowStatuses}
             isAdmin={isAdmin}
+            isClient={isClient}
+            profileId={profile?.id}
             setViewTaskData={setViewTaskData}
             PRIORITY_COLORS={PRIORITY_COLORS}
             setAddTaskOpen={setAddTaskOpen}
@@ -1444,7 +1434,7 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="status-updates" className={`${tabBodyClass} space-y-4`}>
-          {isAdmin ? (
+          {!isClient ? (
             <AdminProjectActivityPanel
               tasks={tasks || []}
               workflowStatuses={workflowStatuses || []}
@@ -1462,7 +1452,7 @@ export default function ProjectDetailPage() {
           )}
         </TabsContent>
 
-        {isAdmin && (
+        {!isClient && (
           <TabsContent value="phases" className={tabBodyClass}>
             <ProjectPhasesTab
               id={id!}
@@ -1471,6 +1461,7 @@ export default function ProjectDetailPage() {
               sprints={sprints}
               phaseProgress={phaseProgress}
               isAdmin={isAdmin}
+              isClient={isClient}
               setAddPhaseOpen={setAddPhaseOpen}
               openPhaseTasks={openPhaseTasks}
               queryClient={queryClient}
@@ -1494,23 +1485,23 @@ export default function ProjectDetailPage() {
         </TabsContent>
 
         <TabsContent value="action-items" className={`${tabBodyClass} space-y-4`}>
-            <ProjectActionItemsTab
-              id={id!}
-              actionItems={actionItems}
-              tasks={tasks}
-              profile={profile}
-              isAdmin={isAdmin}
-              isClient={isClient}
-              queryClient={queryClient}
-              expandedActionItemId={expandedActionItemId}
-              setExpandedActionItemId={setExpandedActionItemId}
-              actionItemMessages={actionItemMessages}
-              PRIORITY_COLORS={PRIORITY_COLORS}
-              project={project}
-              setAddTaskOpen={setAddTaskOpen}
-              setTaskTitle={setTaskTitle}
-            />
-          </TabsContent>
+          <ProjectActionItemsTab
+            id={id!}
+            actionItems={actionItems}
+            tasks={tasks}
+            profile={profile}
+            isAdmin={isAdmin}
+            isClient={isClient}
+            queryClient={queryClient}
+            expandedActionItemId={expandedActionItemId}
+            setExpandedActionItemId={setExpandedActionItemId}
+            actionItemMessages={actionItemMessages}
+            PRIORITY_COLORS={PRIORITY_COLORS}
+            project={project}
+            setAddTaskOpen={setAddTaskOpen}
+            setTaskTitle={setTaskTitle}
+          />
+        </TabsContent>
 
         {isAdmin && (
           <>

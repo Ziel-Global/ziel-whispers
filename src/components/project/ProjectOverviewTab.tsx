@@ -637,7 +637,7 @@ export function ProjectOverviewTab({
   const progressPct = progressPctProp ?? (taskCount > 0 ? Math.round((doneCount / taskCount) * 100) : 0);
   const assignedCount = (tasks || []).filter((t: any) => !!t.assigned_to).length;
 
-  if (isAdmin && !isClient && onNavigateTab) {
+  if (!isClient && onNavigateTab) {
     return (
       <AdminProjectOverview
         project={project}
@@ -662,6 +662,7 @@ export function ProjectOverviewTab({
         newStatusUpdateVisible={newStatusUpdateVisible}
         setNewStatusUpdateVisible={setNewStatusUpdateVisible}
         addStatusUpdate={addStatusUpdate}
+        isAdmin={isAdmin}
       />
     );
   }

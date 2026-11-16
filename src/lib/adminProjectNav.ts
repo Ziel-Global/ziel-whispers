@@ -47,6 +47,11 @@ export const ADMIN_PRIMARY_TABS: {
   { key: "Automation", label: "Automation", icon: "bolt" },
 ];
 
+export function getProjectPrimaryTabs(isAdmin: boolean) {
+  if (isAdmin) return ADMIN_PRIMARY_TABS;
+  return ADMIN_PRIMARY_TABS.filter((t) => t.key !== "Automation");
+}
+
 export const ADMIN_SECONDARY: Record<string, AdminSecondaryDef[]> = {
   Work: [
     { key: "Tasks", label: "Tasks", tab: "tasks", icon: "check", countKey: "tasks" },
@@ -99,6 +104,7 @@ const TAB_TO_PRIMARY: Record<string, AdminPrimaryKey> = {
   sprints: "Planning",
   resources: "People",
   clients: "People",
+  skills: "People",
   "status-updates": "Activity",
   logs: "Activity",
   stats: "Insights",
@@ -109,6 +115,26 @@ const TAB_TO_PRIMARY: Record<string, AdminPrimaryKey> = {
   "automation-templates": "Automation",
   "automation-run-history": "Automation",
 };
+
+export function getProjectSecondaryTabs(primary: AdminPrimaryKey, isAdmin: boolean): AdminSecondaryDef[] | null {
+  const list = ADMIN_SECONDARY[primary];
+  if (!list) return null;
+  if (isAdmin) return list;
+
+  if (primary === "People") {
+    return [
+      ...list,
+      { key: "Skills & Matching", label: "Skills & Matching", tab: "skills", icon: "users" },
+    ];
+  }
+  if (primary === "Activity") {
+    return list.filter((s) => s.tab === "status-updates");
+  }
+  if (primary === "Insights") {
+    return list.filter((s) => s.tab === "stats");
+  }
+  return list;
+}
 
 export function primaryFromTab(tab: string): AdminPrimaryKey {
   return TAB_TO_PRIMARY[tab] || "Overview";

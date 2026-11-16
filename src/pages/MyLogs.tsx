@@ -12,6 +12,7 @@ import { Lock, MessageSquare, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useWorkSettings, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { formatHours, MISC_PROJECT_ID, getProjectName } from "@/lib/utils";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 
 const PAGE_SIZE = 20;
 
@@ -162,7 +163,7 @@ export default function MyLogsPage() {
                             <div className="text-sm"><span className="text-muted-foreground">Submitted</span><p className="font-medium">{format(new Date(log.submitted_at), "MMM d, yyyy h:mm a")}</p></div>
                           )}
                           {log.description && (
-                            <div className="text-sm"><span className="text-muted-foreground">Description</span><p className="mt-1 text-sm whitespace-pre-wrap">{log.description}</p></div>
+                            <div className="text-sm"><span className="text-muted-foreground">Description</span><RichTextDisplay content={log.description} className="mt-1 text-sm" /></div>
                           )}
                         </div>
                       </PopoverContent>

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkSettings, formatShiftTime, formatLateness, getPKTDateString, getPKTISOString, formatPKTTime, getLatenessInfo, isAttendanceLate, isLogSubmissionLate } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatShiftTimeLocal, formatLateness, getPKTDateString, getPKTISOString, formatPKTTime, getLatenessInfo, isAttendanceLate, isLogSubmissionLate } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle, Loader2 } from "lucide-react";
+import { Clock, LogIn, LogOut, ChevronLeft, ChevronRight, AlertTriangle, Loader2, CalendarOff } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isWeekend, isSameDay, addMonths, subMonths } from "date-fns";
 
@@ -100,6 +100,25 @@ export default function MyAttendancePage() {
     },
     staleTime: 30000,
     enabled: !!user?.id,
+  });
+
+  // Today's approved leave check (independent of calendar month navigation)
+  const { data: todayApprovedLeave, isLoading: isLoadingTodayLeave } = useQuery({
+    queryKey: ["my-approved-leave-today", user?.id, today],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("id, start_date, end_date, leave_types(name)")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .lte("start_date", today)
+        .gte("end_date", today)
+        .limit(1)
+        .maybeSingle();
+      return data;
+    },
+    enabled: !!user?.id,
+    staleTime: 30000,
   });
 
   // Monthly approved leave requests
@@ -287,6 +306,10 @@ export default function MyAttendancePage() {
   };
 
   const performClockIn = async () => {
+    if (isOnApprovedLeaveToday) {
+      toast.error("You cannot clock in on an approved leave day.");
+      return;
+    }
     setLoading(true);
     setLateConfirmOpen(false);
     try {
@@ -334,6 +357,10 @@ export default function MyAttendancePage() {
   };
 
   const handleClockIn = async () => {
+    if (isOnApprovedLeaveToday) {
+      toast.error("You cannot clock in on an approved leave day.");
+      return;
+    }
     if (!workMode) { toast.error("Select work mode first"); return; }
 
     if (workMode === "onsite" && geofenceEnabled) {
@@ -420,7 +447,8 @@ export default function MyAttendancePage() {
 
   const hasOpenSession = !!openSession?.clock_in && !openSession?.clock_out;
   const isOpenSessionFromDifferentDay = hasOpenSession && openSession?.date !== today;
-  const canClockIn = !hasOpenSession && !todayRecord;
+  const isOnApprovedLeaveToday = !!todayApprovedLeave;
+  const canClockIn = !hasOpenSession && !todayRecord && !isOnApprovedLeaveToday;
 
   // Calendar
   const days = eachDayOfInterval({ start: startOfMonth(calMonth), end: endOfMonth(calMonth) });
@@ -526,7 +554,7 @@ export default function MyAttendancePage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold tracking-tight">My Attendance</h1>
         <Badge variant="outline" className="text-sm font-normal">
-          Your Shift: {formatShiftTime(shiftStart)} – {formatShiftTime(shiftEnd)}
+          Your Shift: {formatShiftTimeLocal(shiftStart)} – {formatShiftTimeLocal(shiftEnd)}
         </Badge>
       </div>
 
@@ -535,7 +563,7 @@ export default function MyAttendancePage() {
         <div className="flex items-center gap-2 bg-yellow-50 border border-yellow-200 rounded-md p-3">
           <AlertTriangle className="h-5 w-5 text-yellow-600 shrink-0" />
           <p className="text-sm text-yellow-800">
-            You were late by <strong>{formatLateness(todayRecord.minutes_late ?? 0)}</strong>. Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+            You were late by <strong>{formatLateness(todayRecord.minutes_late ?? 0)}</strong>. Your shift starts at <strong>{formatShiftTimeLocal(shiftStart)}</strong>.
           </p>
         </div>
       )}
@@ -543,7 +571,7 @@ export default function MyAttendancePage() {
       {/* Clock In/Out Widget */}
       <Card className="p-6">
         <div className="flex flex-col items-center gap-4">
-          {(isLoadingOpen || isLoadingToday) ? (
+          {(isLoadingOpen || isLoadingToday || isLoadingTodayLeave) ? (
             <div className="flex flex-col items-center gap-4 w-full py-4">
               <Skeleton className="h-4 w-48" />
               <Skeleton className="h-12 w-12 rounded-full" />
@@ -581,6 +609,35 @@ export default function MyAttendancePage() {
                       Duration: {formatDuration(Math.floor((new Date(todayRecord.clock_out).getTime() - new Date(todayRecord.clock_in).getTime()) / 1000))}
                     </p>
                   )}
+                </div>
+              )}
+
+              {!hasOpenSession && !todayRecord && isOnApprovedLeaveToday && (
+                <div className="w-full max-w-md text-center space-y-3 py-2">
+                  <div className="mx-auto w-12 h-12 rounded-full bg-purple-100 text-purple-700 flex items-center justify-center">
+                    <CalendarOff className="h-6 w-6" />
+                  </div>
+                  <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 border-none">
+                    {(todayApprovedLeave as any)?.leave_types?.name || "Approved Leave"}
+                  </Badge>
+                  <p className="text-sm font-medium text-foreground">
+                    Clock-in is disabled on approved leave days
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    You have an approved leave from{" "}
+                    <strong>{format(new Date(todayApprovedLeave.start_date + "T00:00:00"), "MMM d, yyyy")}</strong>
+                    {todayApprovedLeave.start_date !== todayApprovedLeave.end_date && (
+                      <>
+                        {" "}to{" "}
+                        <strong>{format(new Date(todayApprovedLeave.end_date + "T00:00:00"), "MMM d, yyyy")}</strong>
+                      </>
+                    )}
+                    .
+                  </p>
+                  <Button disabled size="lg" className="w-full max-w-xs rounded-button">
+                    <LogIn className="h-5 w-5 mr-2" />
+                    Clock In Disabled (On Leave)
+                  </Button>
                 </div>
               )}
 
@@ -746,7 +803,9 @@ export default function MyAttendancePage() {
                         </p>
                       )}
                       {rec.is_late && (
-                        <p className="text-amber-600 font-medium">⚠️ Late by {formatLateness(rec.minutes_late ?? 0)}</p>
+                        <p className="text-amber-600 font-medium flex items-center gap-1">
+                          <AlertTriangle className="w-3.5 h-3.5" /> Late by {formatLateness(rec.minutes_late ?? 0)}
+                        </p>
                       )}
                       {rec.notes && <p><strong>Notes:</strong> {rec.notes}</p>}
                     </div>
@@ -786,7 +845,7 @@ export default function MyAttendancePage() {
               Late Clock-in Warning
             </AlertDialogTitle>
             <AlertDialogDescription>
-              You are clocking in late (exceeding the {graceMinutes}-minute grace period). Your shift starts at <strong>{formatShiftTime(shiftStart)}</strong>.
+              You are clocking in late (exceeding the {graceMinutes}-minute grace period). Your shift starts at <strong>{formatShiftTimeLocal(shiftStart)}</strong>.
               <br /><br />
               Are you sure you want to proceed? This will be recorded as a late arrival.
             </AlertDialogDescription>

@@ -158,7 +158,7 @@ export async function extractSchema(
   connectionString: string,
   outputFile?: string
 ): Promise<string> {
-  console.log("🔍 Extracting schema...");
+  console.log("[INFO] Extracting schema...");
 
   try {
     const { stdout } = await execPromise(
@@ -168,7 +168,7 @@ export async function extractSchema(
 
     if (outputFile) {
       fs.writeFileSync(outputFile, stdout);
-      console.log(`✅ Schema extracted to: ${outputFile}`);
+      console.log(`[SUCCESS] Schema extracted to: ${outputFile}`);
     }
 
     return stdout;
@@ -184,7 +184,7 @@ export async function applySchema(
   connectionString: string,
   schemaSql: string
 ): Promise<void> {
-  console.log("📤 Applying schema...");
+  console.log("[INFO] Applying schema...");
 
   const tempFile = path.join(os.tmpdir(), `schema-${Date.now()}.sql`);
 
@@ -196,7 +196,7 @@ export async function applySchema(
       { maxBuffer: 50 * 1024 * 1024 }
     );
 
-    console.log("✅ Schema applied successfully");
+    console.log("[SUCCESS] Schema applied successfully");
     fs.unlinkSync(tempFile);
   } catch (error) {
     console.error("Error applying schema:", error);
@@ -216,7 +216,7 @@ export async function compareSchemas(
   prodStats: SchemaStats;
   match: boolean;
 }> {
-  console.log("🔎 Comparing schemas...");
+  console.log("[INFO] Comparing schemas...");
 
   const devStats = await getSchemaStats(devConnectionString);
   const prodStats = await getSchemaStats(prodConnectionString);
@@ -245,14 +245,14 @@ export async function replicateSchema(
 ): Promise<void> {
   const { dryRun = false, backup = true, verify = true } = options;
 
-  console.log("🚀 Starting schema replication...\n");
+  console.log("[INFO] Starting schema replication...\n");
 
   try {
     // Step 1: Extract
     const schema = await extractSchema(devConnectionString);
 
     if (dryRun) {
-      console.log("📋 Dry run - schema extracted but not applied");
+      console.log("[INFO] Dry run - schema extracted but not applied");
       console.log(`Schema size: ${(schema.length / 1024).toFixed(2)} KB`);
       return;
     }
@@ -261,7 +261,7 @@ export async function replicateSchema(
     if (backup) {
       const backupFile = `schema-backup-prod-${Date.now()}.sql`;
       await extractSchema(prodConnectionString, backupFile);
-      console.log(`📦 Backup created: ${backupFile}\n`);
+      console.log(`[BACKUP] Backup created: ${backupFile}\n`);
     }
 
     // Step 3: Apply
@@ -275,7 +275,7 @@ export async function replicateSchema(
         prodConnectionString
       );
 
-      console.log("📊 Schema comparison:");
+      console.log("[REPORT] Schema comparison:");
       console.log(
         `  Tables: dev=${comparison.devStats.tables}, prod=${comparison.prodStats.tables}`
       );
@@ -293,15 +293,15 @@ export async function replicateSchema(
       );
 
       if (comparison.match) {
-        console.log("\n✅ Schemas match perfectly!");
+        console.log("\n[SUCCESS] Schemas match perfectly!");
       } else {
-        console.warn("\n⚠️  Warning: Schemas may differ - manual review recommended");
+        console.warn("\n[WARNING] Warning: Schemas may differ - manual review recommended");
       }
     }
 
-    console.log("\n✨ Schema replication completed!");
+    console.log("\n[SUCCESS] Schema replication completed!");
   } catch (error) {
-    console.error("\n❌ Error during replication:", error);
+    console.error("\n[ERROR] Error during replication:", error);
     throw error;
   }
 }
@@ -316,10 +316,10 @@ export async function testConnection(
     const { stdout } = await execPromise(
       `psql --dbname="${connectionString}" --command="SELECT version();" -t`
     );
-    console.log("✅ Connection successful");
+    console.log("[SUCCESS] Connection successful");
     return true;
   } catch (error) {
-    console.error("❌ Connection failed:", error);
+    console.error("[ERROR] Connection failed:", error);
     return false;
   }
 }

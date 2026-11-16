@@ -1255,18 +1255,21 @@ export type Database = {
       system_settings: {
         Row: {
           key: string
+          tenant_id?: string
           updated_at: string
           updated_by: string | null
           value: string
         }
         Insert: {
           key: string
+          tenant_id?: string
           updated_at?: string
           updated_by?: string | null
           value: string
         }
         Update: {
           key?: string
+          tenant_id?: string
           updated_at?: string
           updated_by?: string | null
           value?: string

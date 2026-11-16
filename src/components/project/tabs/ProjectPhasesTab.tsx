@@ -4,7 +4,8 @@ import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, Trash2, ChevronDown } from "lucide-react";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface ProjectPhasesTabProps {
   id: string;
@@ -13,6 +14,7 @@ interface ProjectPhasesTabProps {
   sprints: any[];
   phaseProgress: Record<string, number>;
   isAdmin: boolean;
+  isClient?: boolean;
   setAddPhaseOpen: (open: boolean) => void;
   openPhaseTasks: (phase: any) => void;
   queryClient: any;
@@ -32,6 +34,7 @@ export function ProjectPhasesTab({
   sprints,
   phaseProgress,
   isAdmin,
+  isClient = false,
   setAddPhaseOpen,
   openPhaseTasks,
   queryClient,
@@ -59,19 +62,21 @@ export function ProjectPhasesTab({
     return (tasks || []).filter((t: any) => t.sprint_id === sprintId).length;
   };
 
-  if (isAdmin) {
+  if (!isClient) {
     return (
       <div>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2.5">
           <div className="text-[18px] font-bold text-[#17171A]">Phases</div>
-          <button
-            type="button"
-            onClick={() => setAddPhaseOpen(true)}
-            className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
-            Add Phase
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setAddPhaseOpen(true)}
+              className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Add Phase
+            </button>
+          )}
         </div>
 
         {phases.length === 0 ? (
@@ -88,45 +93,47 @@ export function ProjectPhasesTab({
                   onClick={() => openPhaseTasks(p)}
                   className="bg-white border border-black/[0.08] rounded-[14px] p-5 text-left min-w-0 hover:border-[#EB5A1E]/35 transition-colors relative group"
                 >
-                  <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate(`/projects/${slug}/phases/${p.id}`);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                  {isAdmin && (
+                    <div className="absolute top-3.5 right-3.5 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
                           e.stopPropagation();
                           navigate(`/projects/${slug}/phases/${p.id}`);
-                        }
-                      }}
-                      className="w-[26px] h-[26px] rounded-lg bg-[#FDECE3] flex items-center justify-center"
-                      title="Edit Phase"
-                    >
-                      <Pencil className="h-3 w-3 text-[#EB5A1E]" strokeWidth={2} />
-                    </span>
-                    <span
-                      role="button"
-                      tabIndex={0}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmPhaseDelId(p.id);
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            navigate(`/projects/${slug}/phases/${p.id}`);
+                          }
+                        }}
+                        className="w-[26px] h-[26px] rounded-lg bg-[#FDECE3] flex items-center justify-center"
+                        title="Edit Phase"
+                      >
+                        <Pencil className="h-3 w-3 text-[#EB5A1E]" strokeWidth={2} />
+                      </span>
+                      <span
+                        role="button"
+                        tabIndex={0}
+                        onClick={(e) => {
                           e.stopPropagation();
                           setConfirmPhaseDelId(p.id);
-                        }
-                      }}
-                      className="w-[26px] h-[26px] rounded-lg bg-[#FDECEC] flex items-center justify-center"
-                      title="Delete Phase"
-                    >
-                      <Trash2 className="h-3 w-3 text-[#E5484D]" strokeWidth={2} />
-                    </span>
-                  </div>
-                  <div className="text-[15px] font-bold text-[#17171A] mb-1.5 pr-14 truncate">{p.title}</div>
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.stopPropagation();
+                            setConfirmPhaseDelId(p.id);
+                          }
+                        }}
+                        className="w-[26px] h-[26px] rounded-lg bg-[#FDECEC] flex items-center justify-center"
+                        title="Delete Phase"
+                      >
+                        <Trash2 className="h-3 w-3 text-[#E5484D]" strokeWidth={2} />
+                      </span>
+                    </div>
+                  )}
+                  <TruncatedTitle as="div" text={p.title} className="text-[15px] font-bold text-[#17171A] mb-1.5 pr-14 truncate" />
                   <div className="text-[12.5px] text-[#8B8B92] mb-3.5">
                     {sprintCount} sprint{sprintCount === 1 ? "" : "s"}
                   </div>
@@ -232,12 +239,9 @@ export function ProjectPhasesTab({
                           </div>
                         </td>
                         <td className="px-3.5 py-[13px] align-middle text-[#A0A0A6] text-[12px]">
-                          <span
-                            className={`inline-block transition-transform ${expanded ? "rotate-180" : ""}`}
-                            aria-hidden
-                          >
-                            ⌄
-                          </span>
+                          <ChevronDown
+                            className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+                          />
                         </td>
                       </tr>
                       {expanded && (

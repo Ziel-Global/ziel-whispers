@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { parseCSVLine, cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Card } from "@/components/ui/card";
@@ -319,7 +319,7 @@ export function ParentTaskModal({
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Description</label>
-                <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder="Optional" />
+                <ClassicEditor value={description} onChange={setDescription} rows={3} placeholder="Optional" variant="full" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">Priority *</label>

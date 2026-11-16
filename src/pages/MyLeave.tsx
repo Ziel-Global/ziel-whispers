@@ -19,7 +19,7 @@ import { Plus, X, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
 import { getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
-import { createNotification, getAdminManagerIds } from "@/lib/notification-helpers";
+import { createNotification, getLeaveAdminIds } from "@/lib/notification-helpers";
 
 const LEAVE_CATEGORIES = [
   { value: "sick", label: "Sick Leave" },
@@ -102,14 +102,7 @@ export default function MyLeavePage() {
 
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "wfh.requested", target_entity: "remote_work_requests" });
 
-      await createNotification({
-        userId: user!.id,
-        type: "remote_work_request",
-        title: "New Remote Work Request",
-        message: `${user!.email} submitted a remote work request from ${wfhStartDate} to ${wfhEndDate}`,
-      });
-
-      const wfhAdminIds = await getAdminManagerIds(user!.id);
+      const wfhAdminIds = await getLeaveAdminIds(user!.id);
       for (const adminId of wfhAdminIds) {
         await createNotification({
           userId: adminId,
@@ -356,14 +349,7 @@ export default function MyLeavePage() {
       if (error) throw error;
       await supabase.from("audit_logs").insert({ actor_id: user!.id, action: "leave.requested", target_entity: "leave_requests" });
       
-      await createNotification({
-        userId: user!.id,
-        type: "leave_request",
-        title: "New Leave Request",
-        message: `${user!.email} submitted a leave request from ${startDate} to ${finalEndDate}`,
-      });
-
-      const leaveAdminIds = await getAdminManagerIds(user!.id);
+      const leaveAdminIds = await getLeaveAdminIds(user!.id);
       for (const adminId of leaveAdminIds) {
         await createNotification({
           userId: adminId,

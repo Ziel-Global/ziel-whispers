@@ -12,7 +12,11 @@ import { Sparkles, Calendar, FileText, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toSlug } from "@/lib/utils";
 
-export function EmployeeDashboard() {
+export interface EmployeeDashboardProps {
+  teamStatus?: any[];
+}
+
+export function EmployeeDashboard({ teamStatus = [] }: EmployeeDashboardProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const data = useEmployeeDashboardData();
@@ -24,7 +28,6 @@ export function EmployeeDashboard() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-foreground flex items-center gap-2">
             Welcome back, {profile?.full_name?.split(" ")[0] || "there"}
-            <span className="text-xl">👋</span>
           </h1>
           <p className="text-xs text-muted-foreground mt-0.5">
             Your personal command center for daily logging, shift hygiene, and sprint focus.
@@ -58,6 +61,7 @@ export function EmployeeDashboard() {
       {/* 1. Daily Action Strip */}
       <EmployeeDailyStrip
         todayAttendance={data.todayAttendance}
+        todayApprovedLeave={data.todayApprovedLeave}
         loadingAttendance={data.loadingAttendance}
         todayStandup={data.todayStandup}
         todaySubmittedHours={data.todaySubmittedHours}
@@ -67,6 +71,7 @@ export function EmployeeDashboard() {
         shiftEnd={data.shiftEnd}
         unacknowledgedAutoClockout={data.unacknowledgedAutoClockout}
         hasTeammates={data.hasTeammates}
+        teamStatus={teamStatus}
         onStandupComplete={() => data.standupMutation.mutate()}
         isStandupPending={data.standupMutation.isPending}
         onAcknowledgeAutoClockout={(id) => data.acknowledgeAutoClockoutMutation.mutate(id)}

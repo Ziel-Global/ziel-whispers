@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useSkillMetricsData } from "@/hooks/useSkillMetricsData";
 import { getAvatarUrl } from "@/lib/utils";
-import { Sparkles, CheckCircle2, AlertTriangle, UserPlus, Zap } from "lucide-react";
+import { Sparkles, CheckCircle2, AlertTriangle, UserPlus, Zap, Star } from "lucide-react";
 
 export interface ResourceRecommendationModalProps {
   open: boolean;
@@ -72,8 +72,8 @@ export function ResourceRecommendationModal({
             {recommendations.map((cand, idx) => (
               <Card key={cand.userId} className="p-4 transition-all hover:border-primary/50 relative overflow-hidden">
                 {idx === 0 && (
-                  <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] uppercase font-bold px-3 py-1 rounded-bl">
-                    ★ Best Match
+                  <div className="absolute top-0 right-0 bg-amber-500 text-white text-[10px] uppercase font-bold px-3 py-1 rounded-bl flex items-center gap-1">
+                    <Star className="w-3 h-3 fill-current" /> Best Match
                   </div>
                 )}
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">

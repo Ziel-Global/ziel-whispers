@@ -2,6 +2,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { useEffect, useRef } from "react";
+import { WorkspaceSuspendedScreen } from "@/components/WorkspaceSuspendedScreen";
 
 type Props = {
   children: React.ReactNode;
@@ -9,11 +10,17 @@ type Props = {
 };
 
 export function ProtectedRoute({ children, allowedRoles }: Props) {
-  const { session, profile, loading } = useAuth();
+  const { session, profile, isSuspended, isSSA, loading } = useAuth();
   const location = useLocation();
   const toastShown = useRef(false);
 
-  const unauthorized = !!(allowedRoles && profile && !allowedRoles.includes(profile.role));
+  // If user is an SSA, they possess universal access to platform views
+  const unauthorized = !!(
+    allowedRoles &&
+    profile &&
+    !isSSA &&
+    !allowedRoles.includes(profile.role)
+  );
 
   useEffect(() => {
     if (unauthorized && !toastShown.current) {
@@ -34,13 +41,16 @@ export function ProtectedRoute({ children, allowedRoles }: Props) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  // Intercept suspended workspace before loading any application routes
+  if (isSuspended && !isSSA) {
+    return <WorkspaceSuspendedScreen />;
+  }
+
   if (location.pathname === "/set-password" && profile && !profile.must_change_password) {
-    // If we're in the immediate password-set flow, don't redirect to dashboard to avoid a UI flash.
-    // This flow sets a short-lived localStorage flag `_zl_just_set_password` which we honor here.
     try {
       const justSet = localStorage.getItem("_zl_just_set_password");
       if (justSet === "1") {
-        // allow staying on /set-password until the client finishes sign-out
+        // allow staying on /set-password until client finishes sign-out
       } else {
         return <Navigate to="/" replace />;
       }

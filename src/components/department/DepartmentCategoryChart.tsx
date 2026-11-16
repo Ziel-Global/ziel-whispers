@@ -1,6 +1,7 @@
 import React from "react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, Cell } from "recharts";
 import { AnalyticsChartCard } from "@/components/analytics/AnalyticsChartCard";
+import { formatDecimal } from "@/lib/utils";
 
 interface CategoryDistributionItem {
   name: string;
@@ -60,7 +61,7 @@ export function DepartmentCategoryChart({ data, isLoading }: DepartmentCategoryC
     <AnalyticsChartCard
       question="What activities consume the department's working hours?"
       title="Department Category Breakdown"
-      subtitle={`${totalHours} total logged hours in period`}
+      subtitle={`${formatDecimal(totalHours)} total logged hours in period`}
       formula="SUM(hours) grouped by task category"
       target="Development ≥ 65%"
       targetMet={true}

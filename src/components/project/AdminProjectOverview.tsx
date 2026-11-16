@@ -5,6 +5,7 @@ import {
   ListChecks,
 } from "lucide-react";
 import { buildProjectActivityFeed } from "@/lib/projectActivityFeed";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   Area,
   ComposedChart,
@@ -22,7 +23,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
+import { hasRichContent } from "@/lib/utils";
 import { healthPill } from "@/lib/adminProjectNav";
 import { computeBurndownData } from "@/lib/projectBurndown";
 
@@ -49,6 +52,7 @@ type Props = {
   newStatusUpdateVisible: boolean;
   setNewStatusUpdateVisible: (v: boolean) => void;
   addStatusUpdate: () => void;
+  isAdmin?: boolean;
 };
 
 function initials(name?: string | null) {
@@ -95,6 +99,7 @@ export function AdminProjectOverview({
   newStatusUpdateVisible: _newStatusUpdateVisible,
   setNewStatusUpdateVisible: _setNewStatusUpdateVisible,
   addStatusUpdate,
+  isAdmin = true,
 }: Props) {
   const list = tasks || [];
   const today = startOfDay(new Date());
@@ -114,9 +119,8 @@ export function AdminProjectOverview({
   const health = healthPill(latestHealth?.health_status);
   const dueLabel = project.end_date ? format(new Date(project.end_date), "MMM d") : "—";
   const dueSub = project.end_date
-    ? `${format(new Date(project.end_date), "yyyy")} · ${
-        isBefore(startOfDay(new Date(project.end_date)), today) ? "past due" : "on schedule"
-      }`
+    ? `${format(new Date(project.end_date), "yyyy")} · ${isBefore(startOfDay(new Date(project.end_date)), today) ? "past due" : "on schedule"
+    }`
     : "No end date set";
 
   const attentionItems = [
@@ -224,11 +228,10 @@ export function AdminProjectOverview({
   });
 
   const healthBody = latestHealth
-    ? `${health.label}. ${latestHealth.tasks_complete ?? 0}/${latestHealth.tasks_total ?? 0} tasks complete, ${
-        latestHealth.tasks_overdue ?? 0
-      } overdue, ${latestHealth.open_blockers ?? 0} open blockers. Planned ${Number(
-        latestHealth.planned_hours || 0
-      ).toFixed(1)}h · logged ${Number(latestHealth.logged_hours || 0).toFixed(1)}h.`
+    ? `${health.label}. ${latestHealth.tasks_complete ?? 0}/${latestHealth.tasks_total ?? 0} tasks complete, ${latestHealth.tasks_overdue ?? 0
+    } overdue, ${latestHealth.open_blockers ?? 0} open blockers. Planned ${Number(
+      latestHealth.planned_hours || 0
+    ).toFixed(1)}h · logged ${Number(latestHealth.logged_hours || 0).toFixed(1)}h.`
     : null;
 
   return (
@@ -415,7 +418,7 @@ export function AdminProjectOverview({
                     className="w-[7px] h-[7px] rounded-full shrink-0"
                     style={{ background: PRIORITY_DOT[t.priority] || "#B0B0B6" }}
                   />
-                  <div className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate">{t.title}</div>
+                  <TruncatedTitle as="div" text={t.title} className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate" />
                   <div className="text-xs text-[#8B8B92] shrink-0">
                     {format(new Date(t.due_date), "MMM d")}
                   </div>
@@ -437,7 +440,7 @@ export function AdminProjectOverview({
                   className="flex items-center gap-2.5 min-w-0 pb-2.5 mb-2.5 border-b border-black/[0.06] last:border-0 last:mb-0 last:pb-0"
                 >
                   <Check className="h-[15px] w-[15px] text-[#1FAA59] shrink-0" strokeWidth={2.2} />
-                  <div className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate">{t.title}</div>
+                  <TruncatedTitle as="div" text={t.title} className="text-[13px] text-[#17171A] flex-1 min-w-0 truncate" />
                 </div>
               ))}
             </div>
@@ -624,7 +627,7 @@ export function AdminProjectOverview({
                     <span className="font-bold shrink-0">
                       {format(new Date(ct.task.due_date), "d MMM")}
                     </span>
-                    <span className="truncate">{ct.task.title}</span>
+                    <TruncatedTitle text={ct.task.title} className="truncate" />
                   </div>
                 ))
               )}
@@ -721,42 +724,46 @@ export function AdminProjectOverview({
                       {u.created_at ? format(new Date(u.created_at), "MMM d, h:mm a") : ""}
                     </span>
                   </div>
-                  <div className="text-[13.5px] text-[#4B4B52] mt-[3px] whitespace-pre-wrap break-words">
-                    {u.summary}
-                  </div>
+                  <RichTextDisplay
+                    content={u.summary}
+                    className="text-[13.5px] text-[#4B4B52] mt-[3px]"
+                  />
                 </div>
               </div>
             ))
           )}
         </div>
-        <div>
-          <Textarea
-            value={newStatusUpdate}
-            onChange={(e) => setNewStatusUpdate(e.target.value)}
-            placeholder="Post a status update..."
-            className="min-h-[70px] rounded-[10px] border-black/10 text-[13.5px] resize-y px-3 py-3 shadow-none focus-visible:ring-[#EB5A1E]/30"
-          />
-          <div className="flex items-center justify-end mt-2.5 gap-3 flex-wrap">
-            {/* Not wired up — hidden for now
-            <label className="inline-flex items-center gap-[7px] text-[13px] text-[#4B4B52] cursor-pointer">
-              <Checkbox
-                checked={newStatusUpdateVisible}
-                onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)}
-                className="h-[15px] w-[15px] border-[#C6C6CC] data-[state=checked]:bg-[#EB5A1E] data-[state=checked]:border-[#EB5A1E]"
-              />
-              Visible to client
-            </label>
-            */}
-            <button
-              type="button"
-              onClick={addStatusUpdate}
-              disabled={!newStatusUpdate.trim()}
-              className="bg-[#EB5A1E] text-white font-semibold text-[13px] px-[22px] py-2.5 rounded-[10px] disabled:opacity-50 hover:bg-[#d64f18] transition-colors"
-            >
-              Post
-            </button>
+        {isAdmin && (
+          <div>
+            <ClassicEditor
+              value={newStatusUpdate}
+              onChange={setNewStatusUpdate}
+              placeholder="Post a status update..."
+              variant="compact"
+              rows={2}
+            />
+            <div className="flex items-center justify-end mt-2.5 gap-3 flex-wrap">
+              {/* Not wired up — hidden for now
+              <label className="inline-flex items-center gap-[7px] text-[13px] text-[#4B4B52] cursor-pointer">
+                <Checkbox
+                  checked={newStatusUpdateVisible}
+                  onCheckedChange={(v) => setNewStatusUpdateVisible(v === true)}
+                  className="h-[15px] w-[15px] border-[#C6C6CC] data-[state=checked]:bg-[#EB5A1E] data-[state=checked]:border-[#EB5A1E]"
+                />
+                Visible to client
+              </label>
+              */}
+              <button
+                type="button"
+                onClick={addStatusUpdate}
+                disabled={!hasRichContent(newStatusUpdate)}
+                className="bg-[#EB5A1E] text-white font-semibold text-[13px] px-[22px] py-2.5 rounded-[10px] disabled:opacity-50 hover:bg-[#d64f18] transition-colors"
+              >
+                Post
+              </button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );

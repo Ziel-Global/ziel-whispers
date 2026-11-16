@@ -122,23 +122,25 @@ export function ProjectResourcesTab({
     }
   };
 
-  // ── Admin: Client Members ──────────────────────────────────────────────
-  if (type === "client" && isAdmin) {
+  // ── Client Members (Admin + Employee; admin actions gated) ────────────
+  if (type === "client" && !isClient) {
     return (
       <div>
         <div className="flex items-center justify-between mb-[18px] flex-wrap gap-2.5">
           <div className="text-[18px] font-bold text-[#17171A]">Client Members</div>
-          <button
-            type="button"
-            onClick={() => {
-              setAddMemberMode("client");
-              setAddMemberOpen(true);
-            }}
-            className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
-            Add Client Member
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => {
+                setAddMemberMode("client");
+                setAddMemberOpen(true);
+              }}
+              className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Add Client Member
+            </button>
+          )}
         </div>
 
         <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden">
@@ -168,17 +170,19 @@ export function ProjectResourcesTab({
                     <div className="text-[14px] font-bold text-[#17171A] truncate">{name}</div>
                     <div className="text-[12.5px] text-[#8B8B92] truncate mt-0.5">{subtitle}</div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setConfirmMemberDelId(m.id);
-                      setConfirmMemberDelUserId(user?.id);
-                    }}
-                    className="w-[30px] h-[30px] rounded-lg bg-[#FDECEC] flex items-center justify-center shrink-0"
-                    title="Remove"
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" strokeWidth={2} />
-                  </button>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmMemberDelId(m.id);
+                        setConfirmMemberDelUserId(user?.id);
+                      }}
+                      className="w-[30px] h-[30px] rounded-lg bg-[#FDECEC] flex items-center justify-center shrink-0"
+                      title="Remove"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" strokeWidth={2} />
+                    </button>
+                  )}
                 </div>
               );
             })
@@ -196,8 +200,9 @@ export function ProjectResourcesTab({
     );
   }
 
-  // ── Admin: Team ────────────────────────────────────────────────────────
-  if (type === "resource" && isAdmin) {
+  // ── Team (Admin + Employee; admin actions gated) ───────────────────────
+  if (type === "resource" && !isClient) {
+    const teamCols = isAdmin ? "2fr .8fr 1fr .8fr 1fr .5fr" : "2fr .8fr 1fr 1fr";
     return (
       <div>
         <div className="bg-white border border-black/[0.08] rounded-[14px] overflow-hidden">
@@ -205,17 +210,19 @@ export function ProjectResourcesTab({
             <div className="text-[15px] font-bold text-[#17171A]">
               {members.length} team member{members.length === 1 ? "" : "s"}
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setAddMemberMode("resource");
-                setAddMemberOpen(true);
-              }}
-              className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
-            >
-              <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
-              Add Team Member
-            </button>
+            {isAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setAddMemberMode("resource");
+                  setAddMemberOpen(true);
+                }}
+                className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
+              >
+                <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
+                Add Team Member
+              </button>
+            )}
           </div>
 
           {members.length === 0 ? (
@@ -224,13 +231,13 @@ export function ProjectResourcesTab({
             <>
               <div
                 className="grid gap-3 px-5 py-2.5 border-b border-black/[0.06] bg-[#FAFAFB] text-[10px] font-bold uppercase tracking-[0.05em] text-[#B0B0B6]"
-                style={{ gridTemplateColumns: "2fr .8fr 1fr .8fr 1fr .5fr" }}
+                style={{ gridTemplateColumns: teamCols }}
               >
                 <span>Team Member</span>
                 <span>Active Projects</span>
                 <span>Hours Spent</span>
                 <span>Assigned</span>
-                <span className="text-right">Actions</span>
+                {isAdmin && <span className="text-right">Actions</span>}
               </div>
               {sortedMembers(members).map((m) => {
                 const user = m.users as any;
@@ -245,7 +252,7 @@ export function ProjectResourcesTab({
                   <div
                     key={m.id}
                     className="grid gap-3 px-5 py-3.5 border-b border-black/[0.06] last:border-0 items-center"
-                    style={{ gridTemplateColumns: "2fr .8fr 1fr .8fr 1fr .5fr" }}
+                    style={{ gridTemplateColumns: teamCols }}
                   >
                     <div className="flex items-center gap-2.5 min-w-0">
                       <Avatar className="h-8 w-8 shrink-0">
@@ -268,19 +275,21 @@ export function ProjectResourcesTab({
                     <div className="text-[13px] text-[#4B4B52]">
                       {m.assigned_at ? format(new Date(m.assigned_at), "MMM d, yyyy") : "—"}
                     </div>
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setConfirmMemberDelId(m.id);
-                          setConfirmMemberDelUserId(userId);
-                        }}
-                        className="w-[30px] h-[30px] rounded-lg bg-[#FDECEC] flex items-center justify-center"
-                        title="Remove"
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" strokeWidth={2} />
-                      </button>
-                    </div>
+                    {isAdmin && (
+                      <div className="flex justify-end">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setConfirmMemberDelId(m.id);
+                            setConfirmMemberDelUserId(userId);
+                          }}
+                          className="w-[30px] h-[30px] rounded-lg bg-[#FDECEC] flex items-center justify-center"
+                          title="Remove"
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" strokeWidth={2} />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

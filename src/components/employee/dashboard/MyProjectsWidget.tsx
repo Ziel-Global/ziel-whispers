@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { FolderKanban, ArrowRight, Building, ShieldCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { toSlug } from "@/lib/utils";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 export interface MyProjectsWidgetProps {
   projects: any[];
@@ -50,9 +51,10 @@ export function MyProjectsWidget({ projects }: MyProjectsWidgetProps) {
               >
                 <div>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <span className="text-sm font-bold text-foreground group-hover:text-[#EB5A1E] transition-colors line-clamp-1">
-                      {project.name}
-                    </span>
+                    <TruncatedTitle
+                      text={project.name}
+                      className="text-sm font-bold text-foreground group-hover:text-[#EB5A1E] transition-colors line-clamp-1"
+                    />
                     <Badge
                       variant="outline"
                       className={`text-[10px] shrink-0 font-semibold ${

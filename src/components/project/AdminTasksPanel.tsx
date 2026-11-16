@@ -3,6 +3,7 @@ import { format } from "date-fns";
 import { BarChart2, ChevronRight, Circle, Flag, Info, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import { cn, truncateWords } from "@/lib/utils";
 import { getStatusDisplay } from "@/lib/workflow";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   AdminWorkFilters,
   DEFAULT_ADMIN_WORK_FILTERS,
@@ -30,9 +31,11 @@ type Props = {
   setDeleteTaskConfirmId: (id: string | null) => void;
   setViewTaskData: (data: any) => void;
   doneStatusIds: Set<string>;
+  isAdmin?: boolean;
 };
 
-const GRID_COLS = "28px 1.8fr .8fr .7fr .8fr 1.1fr .6fr .6fr .5fr .9fr";
+const ADMIN_GRID_COLS = "28px 1.8fr .8fr .7fr .8fr 1.1fr .6fr .6fr .5fr .9fr";
+const EMP_GRID_COLS = "1.8fr .8fr .7fr .8fr 1.1fr .6fr .6fr .5fr .6fr";
 
 function filtersAreActive(filters: AdminWorkFilterState) {
   return (
@@ -62,7 +65,9 @@ export function AdminTasksPanel({
   setDeleteTaskConfirmId,
   setViewTaskData,
   doneStatusIds,
+  isAdmin = true,
 }: Props) {
+  const gridCols = isAdmin ? ADMIN_GRID_COLS : EMP_GRID_COLS;
   const [filters, setFilters] = useState<AdminWorkFilterState>(DEFAULT_ADMIN_WORK_FILTERS);
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
 
@@ -217,7 +222,7 @@ export function AdminTasksPanel({
           kind === "standalone" && "px-[22px] border-b border-border/60 last:border-b-0",
           (isParent || isSubtask) && showBottomDivider && "border-b border-border/50"
         )}
-        style={{ gridTemplateColumns: GRID_COLS }}
+        style={{ gridTemplateColumns: gridCols }}
       >
         {/* Continuous group accent bar */}
         {(isParent || isSubtask) && (
@@ -243,18 +248,19 @@ export function AdminTasksPanel({
           </>
         )}
 
-        {isSubtask ? (
-          <div aria-hidden />
-        ) : (
-          <div data-no-toggle onClick={(e) => e.stopPropagation()}>
-            <input
-              type="checkbox"
-              className="rounded"
-              checked={selectedTaskIds.has(t.id)}
-              onChange={(e) => toggleTaskSelected(t.id, e.target.checked, isParent)}
-            />
-          </div>
-        )}
+        {isAdmin &&
+          (isSubtask ? (
+            <div aria-hidden />
+          ) : (
+            <div data-no-toggle onClick={(e) => e.stopPropagation()}>
+              <input
+                type="checkbox"
+                className="rounded"
+                checked={selectedTaskIds.has(t.id)}
+                onChange={(e) => toggleTaskSelected(t.id, e.target.checked, isParent)}
+              />
+            </div>
+          ))}
 
         <div className="min-w-0 relative">
           <div className="flex items-center gap-[7px] min-w-0">
@@ -292,14 +298,13 @@ export function AdminTasksPanel({
             ) : (
               <span className="w-4 shrink-0" aria-hidden />
             )}
-            <span
+            <TruncatedTitle
+              text={t.title}
               className={cn(
                 "text-[14px] text-foreground truncate",
                 isParent ? "font-medium" : "font-normal"
               )}
-            >
-              {t.title}
-            </span>
+            />
             {isParent && (
               <>
                 <span className="text-[11px] leading-none px-[7px] py-px rounded-[6px] whitespace-nowrap shrink-0 bg-primary/20 text-primary">
@@ -391,17 +396,19 @@ export function AdminTasksPanel({
           >
             <Info className="h-3 w-3 text-[#EB5A1E]" strokeWidth={2} />
           </button>
-          <button
-            type="button"
-            onClick={() => openEditTask(t)}
-            className={cn(
-              "w-[26px] h-[26px] rounded-[7px] flex items-center justify-center",
-              isParent ? "bg-white border border-black/[0.08]" : "bg-[#FDECE3]"
-            )}
-            title="Edit"
-          >
-            <Pencil className="h-3 w-3 text-[#EB5A1E]" strokeWidth={2} />
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => openEditTask(t)}
+              className={cn(
+                "w-[26px] h-[26px] rounded-[7px] flex items-center justify-center",
+                isParent ? "bg-white border border-black/[0.08]" : "bg-[#FDECE3]"
+              )}
+              title="Edit"
+            >
+              <Pencil className="h-3 w-3 text-[#EB5A1E]" strokeWidth={2} />
+            </button>
+          )}
           {profile?.role === "admin" && (
             <button
               type="button"
@@ -423,33 +430,35 @@ export function AdminTasksPanel({
   return (
     <div>
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2.5">
-        <div className="text-[18px] font-bold text-[#17171A]">Tasks</div>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setBulkTaskOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-white border border-black/[0.08] text-[#4B4B52] font-semibold text-[13px] px-4 py-2.5 rounded-[10px] hover:bg-[#F6F5F3] transition-colors"
-          >
-            <Upload className="h-3.5 w-3.5" />
-            Bulk Add
-          </button>
-          <button
-            type="button"
-            onClick={() => setParentTaskOpen?.(true)}
-            className="inline-flex items-center gap-1.5 bg-white border border-black/[0.08] text-[#4B4B52] font-semibold text-[13px] px-4 py-2.5 rounded-[10px] hover:bg-[#F6F5F3] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add Parent Task
-          </button>
-          <button
-            type="button"
-            onClick={() => setAddTaskOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-2.5 rounded-[10px] hover:bg-[#d64f18] transition-colors"
-          >
-            <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
-            Add Task
-          </button>
-        </div>
+        <div className="text-[18px] font-bold text-[#17171A]">{isAdmin ? "Tasks" : "My Tasks"}</div>
+        {isAdmin && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setBulkTaskOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-white border border-black/[0.08] text-[#4B4B52] font-semibold text-[13px] px-4 py-2.5 rounded-[10px] hover:bg-[#F6F5F3] transition-colors"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              Bulk Add
+            </button>
+            <button
+              type="button"
+              onClick={() => setParentTaskOpen?.(true)}
+              className="inline-flex items-center gap-1.5 bg-white border border-black/[0.08] text-[#4B4B52] font-semibold text-[13px] px-4 py-2.5 rounded-[10px] hover:bg-[#F6F5F3] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Parent Task
+            </button>
+            <button
+              type="button"
+              onClick={() => setAddTaskOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-2.5 rounded-[10px] hover:bg-[#d64f18] transition-colors"
+            >
+              <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
+              Add Task
+            </button>
+          </div>
+        )}
       </div>
 
       <AdminWorkFilters
@@ -461,7 +470,7 @@ export function AdminTasksPanel({
         assigneeOptions={assigneeOptions}
       />
 
-      {selectedTaskIds.size > 0 && (
+      {isAdmin && selectedTaskIds.size > 0 && (
         <div className="flex items-center gap-3 bg-[#F6F5F3] rounded-[10px] px-4 py-2 mb-3">
           <span className="text-sm font-medium text-[#17171A]">{selectedTaskIds.size} selected</span>
           <button
@@ -490,19 +499,21 @@ export function AdminTasksPanel({
             <div className="min-w-[1100px]">
               <div
                 className="grid gap-2.5 px-[22px] py-[13px] text-[11px] font-bold text-muted-foreground tracking-[0.05em] border-b border-border bg-card sticky top-0 z-[1]"
-                style={{ gridTemplateColumns: GRID_COLS }}
+                style={{ gridTemplateColumns: gridCols }}
               >
-                <div>
-                  <input
-                    type="checkbox"
-                    className="rounded"
-                    checked={visibleIds.length > 0 && visibleIds.every((id) => selectedTaskIds.has(id))}
-                    onChange={(e) => {
-                      if (e.target.checked) setSelectedTaskIds(new Set(visibleIds));
-                      else setSelectedTaskIds(new Set());
-                    }}
-                  />
-                </div>
+                {isAdmin && (
+                  <div>
+                    <input
+                      type="checkbox"
+                      className="rounded"
+                      checked={visibleIds.length > 0 && visibleIds.every((id) => selectedTaskIds.has(id))}
+                      onChange={(e) => {
+                        if (e.target.checked) setSelectedTaskIds(new Set(visibleIds));
+                        else setSelectedTaskIds(new Set());
+                      }}
+                    />
+                  </div>
+                )}
                 <div>TASK</div>
                 <div className="text-center">ASSIGNED TO</div>
                 <div>PRIORITY</div>

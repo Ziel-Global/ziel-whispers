@@ -28,6 +28,9 @@ export default function LogSubmitPage() {
         projects={data.projects}
         editId={data.editId}
         isLocked={data.isLocked}
+        selectedDateApprovedLeave={data.selectedDateApprovedLeave}
+        isOnApprovedLeaveForSelectedDate={data.isOnApprovedLeaveForSelectedDate}
+        isApprovedLeaveDate={data.isApprovedLeaveDate}
         isCalendarOpen={data.isCalendarOpen}
         setIsCalendarOpen={data.setIsCalendarOpen}
         overtimeEnabled={data.overtimeEnabled}
@@ -86,6 +89,7 @@ export default function LogSubmitPage() {
       <LogSubmitModals
         showSubmitConfirm={data.showSubmitConfirm}
         setShowSubmitConfirm={data.setShowSubmitConfirm}
+        submitting={data.submitting}
         pendingLogs={data.pendingLogs}
         declaredMoves={data.declaredMoves}
         logsAreAllForToday={data.logsAreAllForToday}

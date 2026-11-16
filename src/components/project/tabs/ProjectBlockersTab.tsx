@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 
 interface ProjectBlockersTabProps {
   blockers: any[];
@@ -48,7 +49,7 @@ export function ProjectBlockersTab({ blockers, tasks }: ProjectBlockersTabProps)
                 {blockers.map((b: any) => (
                   <tr key={b.id} className="border-b border-[#F3F3F5] last:border-0 hover:bg-[#FAFAFB]">
                     <td className="px-4 py-3">
-                      <div className="text-[13px] font-semibold text-[#17171A] break-words">{b.description || "—"}</div>
+                      <RichTextDisplay content={b.description} emptyText="—" className="text-[13px] font-semibold text-[#17171A]" />
                       <div className="text-[11px] text-[#8B8B92] mt-0.5">by {b.raiser?.full_name || "Unknown"}</div>
                     </td>
                     <td className="px-4 py-3 text-[13px] text-[#374151] break-words">{taskTitle(b.task_id)}</td>

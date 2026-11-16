@@ -46,34 +46,36 @@ export default function EmployeeProfilePage() {
         </div>
         {data.isAdmin && !data.isOwnProfile && (
           <div className="flex gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className={data.employee.is_oversight ? "border-amber-500 text-amber-700 bg-amber-50 hover:bg-amber-100" : "border-amber-300 text-amber-700 hover:bg-amber-50"}
-                  disabled={data.togglingOversight}
-                >
-                  {data.employee.is_oversight ? "Remove Oversight" : "Mark as Oversight"}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{data.employee.is_oversight ? "Remove Oversight?" : "Mark as Oversight?"}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {data.employee.is_oversight
-                      ? "This employee will no longer be visually highlighted as needing closer attention."
-                      : "This employee will be visually highlighted across admin pages for closer attention. This has no impact on their access or permissions."}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction onClick={data.handleOversightToggle} className="bg-amber-500 text-white hover:bg-amber-600">
+            {!data.isClientMember && (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className={data.employee.is_oversight ? "border-amber-500 text-amber-700 bg-amber-50 hover:bg-amber-100" : "border-amber-300 text-amber-700 hover:bg-amber-50"}
+                    disabled={data.togglingOversight}
+                  >
                     {data.employee.is_oversight ? "Remove Oversight" : "Mark as Oversight"}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{data.employee.is_oversight ? "Remove Oversight?" : "Mark as Oversight?"}</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      {data.employee.is_oversight
+                        ? "This employee will no longer be visually highlighted as needing closer attention."
+                        : "This employee will be visually highlighted across admin pages for closer attention. This has no impact on their access or permissions."}
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={data.handleOversightToggle} className="bg-amber-500 text-white hover:bg-amber-600">
+                      {data.employee.is_oversight ? "Remove Oversight" : "Mark as Oversight"}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            )}
             {data.employee.status === "active" || data.employee.status === "pending" ? (
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -84,7 +86,7 @@ export default function EmployeeProfilePage() {
                 </AlertDialogTrigger>
                 <AlertDialogContent>
                   <AlertDialogHeader>
-                    <AlertDialogTitle>Deactivate Employee?</AlertDialogTitle>
+                    <AlertDialogTitle>Deactivate {data.isClientMember ? "Client Member" : "Employee"}?</AlertDialogTitle>
                     <AlertDialogDescription>
                       This will immediately revoke their system access and force logout. All historical data is preserved.
                     </AlertDialogDescription>
@@ -116,6 +118,15 @@ export default function EmployeeProfilePage() {
             clientEditForm={data.clientEditForm}
             clientEditOnSubmit={data.clientEditOnSubmit}
             saving={data.saving}
+            canEdit={data.canEdit}
+            showPasswordCard={data.isAdmin && !data.isOwnProfile}
+            adminNewPassword={data.adminNewPassword}
+            setAdminNewPassword={data.setAdminNewPassword}
+            adminConfirmPassword={data.adminConfirmPassword}
+            setAdminConfirmPassword={data.setAdminConfirmPassword}
+            adminPwError={data.adminPwError}
+            settingPassword={data.settingPassword}
+            handleUpdatePassword={data.handleUpdatePassword}
           />
         </div>
       ) : (

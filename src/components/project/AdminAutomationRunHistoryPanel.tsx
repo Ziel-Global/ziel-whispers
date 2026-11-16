@@ -1,4 +1,5 @@
 import { format } from "date-fns";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 type RunRow = {
   id: string;
@@ -52,7 +53,7 @@ export function AdminAutomationRunHistoryPanel({ runs }: Props) {
                   className="flex items-center justify-between gap-3 px-[18px] py-3.5 border-b border-black/[0.06] last:border-0"
                 >
                   <div className="min-w-0">
-                    <div className="text-[14px] font-semibold text-[#17171A] truncate">{name}</div>
+                    <TruncatedTitle as="div" text={name} className="text-[14px] font-semibold text-[#17171A] truncate" />
                     <div className="text-[12px] text-[#B0B0B6] mt-0.5">{time}</div>
                     {run.error_message && (
                       <div className="text-[11.5px] text-[#E5484D] mt-1 truncate" title={run.error_message}>

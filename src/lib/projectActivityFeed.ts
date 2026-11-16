@@ -1,4 +1,5 @@
 import { format, isBefore, startOfDay } from "date-fns";
+import { stripHtml } from "@/lib/utils";
 import {
   AlertTriangle,
   Check,
@@ -75,7 +76,7 @@ export function buildProjectActivityFeed({
   openBlockers.forEach((b: any, i: number) => {
     items.push({
       key: `blocker-${i}-${b.description || ""}`,
-      text: b.description || "Open blocker needs resolution",
+      text: stripHtml(b.description) || "Open blocker needs resolution",
       time: "",
       iconBg: "#FDECEC",
       iconColor: "#E5484D",
@@ -101,7 +102,7 @@ export function buildProjectActivityFeed({
     const created = u.created_at ? new Date(u.created_at).getTime() : 0;
     items.push({
       key: `su-${u.id}`,
-      text: u.summary || "Status update posted",
+      text: stripHtml(u.summary) || "Status update posted",
       time: u.created_at ? format(new Date(u.created_at), "MMM d, h:mm a") : "",
       iconBg: "#FDECE3",
       iconColor: "#EB5A1E",

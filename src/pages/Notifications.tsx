@@ -94,9 +94,21 @@ export default function NotificationsPage() {
         <div className="flex flex-col flex-1 min-h-0 gap-3 overflow-hidden">
           <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-0.5">
           {paginatedNotifications.map((notification) => {
-            const meta = notification.metadata as { title?: string; message?: string; project_id?: string; is_bulk?: boolean };
+            const meta = notification.metadata as { title?: string; message?: string; project_id?: string; is_bulk?: boolean; leave_type?: string; days?: number };
             const badge = getNotificationBadge(notification.type, meta?.is_bulk);
             const isUnread = !notification.read;
+            const fallbackTitle =
+              notification.type === "leave.approved"
+                ? "Leave Request Approved"
+                : notification.type === "leave.rejected"
+                ? "Leave Request Rejected"
+                : notification.type === "leave.balance_exhausted"
+                ? "Leave Balance Exhausted"
+                : notification.type;
+            const displayMessage =
+              !meta?.message && (notification.type === "leave.approved" || notification.type === "leave.rejected")
+                ? `Your ${meta?.leave_type || "leave"} request${meta?.days ? ` (${meta.days} day${meta.days === 1 ? "" : "s"})` : ""} was ${notification.type.endsWith("approved") ? "approved" : "rejected"}`
+                : meta?.message;
 
             return (
               <div
@@ -120,15 +132,15 @@ export default function NotificationsPage() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-3 mb-1">
                     <p className={`text-[14px] font-bold ${isUnread ? "text-[#17171A]" : "text-[#4B4B52]"}`}>
-                      {meta?.title || notification.type}
+                      {meta?.title || fallbackTitle}
                     </p>
                     <span className="text-[12px] text-[#8B8B92] whitespace-nowrap shrink-0">
                       {formatDistanceToNow(new Date(notification.triggered_at), { addSuffix: true })}
                     </span>
                   </div>
 
-                  {meta?.message && (
-                    <p className="text-[13px] text-[#4B4B52] leading-relaxed">{meta.message}</p>
+                  {displayMessage && (
+                    <p className="text-[13px] text-[#4B4B52] leading-relaxed">{displayMessage}</p>
                   )}
 
                   {meta?.project_id && (

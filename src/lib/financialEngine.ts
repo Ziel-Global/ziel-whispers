@@ -36,7 +36,6 @@ export interface PortfolioFinancialSummary {
 
 export const DEFAULT_COST_RATES: Record<string, number> = {
   admin: 50,
-  manager: 45,
   hr_manager: 35,
   project_manager: 45,
   employee: 30,

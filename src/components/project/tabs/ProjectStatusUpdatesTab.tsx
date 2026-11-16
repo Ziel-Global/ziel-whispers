@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 
 interface ProjectStatusUpdatesTabProps {
   statusUpdates: any[];
@@ -46,9 +47,10 @@ export function ProjectStatusUpdatesTab({
                     {format(new Date(u.created_at), "MMM d, h:mm a")}
                   </span>
                 </div>
-                <p className="text-[13px] text-[#3F3F45] mt-1.5 whitespace-pre-wrap break-words leading-relaxed">
-                  {u.summary}
-                </p>
+                <RichTextDisplay
+                  content={u.summary}
+                  className="text-[13px] text-[#3F3F45] mt-1.5 leading-relaxed"
+                />
               </div>
             </div>
           ))}

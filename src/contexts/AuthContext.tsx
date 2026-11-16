@@ -3,16 +3,20 @@ import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
+import { applyTenantTheme, TenantBranding, TenantInfo } from "@/lib/tenantTheme";
 
 const ACTIVITY_KEY = "ziel_last_activity";
 const SESSION_ID_KEY = "ziel_session_id";
 const SESSION_START_KEY = "ziel_session_start";
 const STATUS_CHECK_INTERVAL = 30000; // 30 seconds
-const MAX_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000; // 12 hours — absolute max, regardless of activity
+const MAX_SESSION_LIFETIME_MS = 12 * 60 * 60 * 1000; // 12 hours — absolute max
 const SESSION_AGE_CHECK_INTERVAL = 60000; // check every 60 seconds
 
-type UserProfile = {
+export type PlatformRole = "Master_SSA" | "Provisioning_SSA" | "Support_SSA" | null;
+
+export type UserProfile = {
   id: string;
+  tenant_id: string | null;
   full_name: string;
   email: string;
   role: string;
@@ -34,16 +38,28 @@ type AuthContextType = {
   session: Session | null;
   user: User | null;
   profile: UserProfile | null;
+  tenant: TenantInfo | null;
+  branding: TenantBranding | null;
+  platformRole: PlatformRole;
+  isSSA: boolean;
+  isSuspended: boolean;
   loading: boolean;
   signOut: () => Promise<void>;
+  refreshTenantBranding: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType>({
   session: null,
   user: null,
   profile: null,
+  tenant: null,
+  branding: null,
+  platformRole: null,
+  isSSA: false,
+  isSuspended: false,
   loading: true,
   signOut: async () => {},
+  refreshTenantBranding: async () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -55,7 +71,6 @@ async function getSessionTimeoutMs(): Promise<number> {
     .eq("key", "session_timeout_hours")
     .maybeSingle();
   const hours = Number(data?.value);
-  // If setting is missing or invalid, fall back to 12h to avoid locking users out
   if (!hours || Number.isNaN(hours) || hours <= 0) return 12 * 60 * 60 * 1000;
   return hours * 60 * 60 * 1000;
 }
@@ -63,7 +78,12 @@ async function getSessionTimeoutMs(): Promise<number> {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [tenant, setTenant] = useState<TenantInfo | null>(null);
+  const [branding, setBranding] = useState<TenantBranding | null>(null);
+  const [platformRole, setPlatformRole] = useState<PlatformRole>(null);
+  const [isSuspended, setIsSuspended] = useState(false);
   const [loading, setLoading] = useState(true);
+
   const sessionIdRef = useRef<string | null>(null);
   const inactivityTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -71,10 +91,75 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const sessionTimeoutMsRef = useRef<number>(12 * 60 * 60 * 1000);
   const queryClient = useQueryClient();
 
+  const fetchTenantData = useCallback(async (tenantId: string) => {
+    try {
+      // 1. Fetch Tenant Status
+      const { data: tenantData } = await (supabase as any)
+        .from("tenants")
+        .select("id, name, slug, status")
+        .eq("id", tenantId)
+        .maybeSingle();
+
+      if (tenantData) {
+        setTenant(tenantData as TenantInfo);
+        if (tenantData.status === "suspended") {
+          setIsSuspended(true);
+        } else {
+          setIsSuspended(false);
+        }
+      }
+
+      // 2. Fetch Tenant Branding
+      const { data: brandData } = await (supabase as any)
+        .from("tenant_branding")
+        .select("app_name, logo_url, favicon_url, primary_color, secondary_color")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+
+      if (brandData) {
+        const mappedBranding: TenantBranding = {
+          appName: brandData.app_name || "Ziel Whispers",
+          logoUrl: brandData.logo_url,
+          faviconUrl: brandData.favicon_url,
+          primaryColor: brandData.primary_color || "17 84% 52%",
+          secondaryColor: brandData.secondary_color || "40 8% 96%",
+        };
+        setBranding(mappedBranding);
+        applyTenantTheme(mappedBranding);
+      }
+    } catch (err) {
+      console.error("Failed to load tenant metadata:", err);
+    }
+  }, []);
+
+  const refreshTenantBranding = useCallback(async () => {
+    if (profile?.tenant_id) {
+      await fetchTenantData(profile.tenant_id);
+    }
+  }, [profile?.tenant_id, fetchTenantData]);
+
   const fetchProfile = async (userId: string) => {
+    // 1. Check Platform Roles (SSA)
+    try {
+      const { data: ssaData } = await (supabase as any)
+        .from("platform_roles")
+        .select("role")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (ssaData?.role) {
+        setPlatformRole(ssaData.role as PlatformRole);
+      } else {
+        setPlatformRole(null);
+      }
+    } catch {
+      setPlatformRole(null);
+    }
+
+    // 2. Fetch User Profile
     const { data, error } = await supabase
       .from("users")
-      .select("id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days, overtime_enabled, remote_access, remote_access_from, remote_access_to")
+      .select("id, tenant_id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days, overtime_enabled, remote_access, remote_access_from, remote_access_to")
       .eq("id", userId)
       .maybeSingle();
 
@@ -84,7 +169,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return null;
     }
 
-    const nextProfile = data as UserProfile | null;
+    const nextProfile = data as unknown as UserProfile | null;
     if (nextProfile && nextProfile.status === "inactive") {
       toast.error("Your account has been deactivated. Please contact your administrator.");
       await supabase.auth.signOut();
@@ -94,22 +179,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setProfile(nextProfile);
+
+    // 3. Load Tenant Context & Branding
+    if (nextProfile?.tenant_id) {
+      await fetchTenantData(nextProfile.tenant_id);
+    }
+
     return nextProfile;
   };
 
-  const startStatusCheck = useCallback((userId: string) => {
+  const startStatusCheck = useCallback((userId: string, tenantId?: string | null) => {
     if (statusCheckRef.current) clearInterval(statusCheckRef.current);
     statusCheckRef.current = setInterval(async () => {
-      const { data } = await supabase
+      // Check user status
+      const { data: userData } = await supabase
         .from("users")
         .select("status")
         .eq("id", userId)
         .maybeSingle();
-      if (data?.status === "inactive") {
+
+      if (userData?.status === "inactive") {
         toast.error("Your account has been deactivated. Please contact your administrator.");
         await supabase.auth.signOut();
         setSession(null);
         setProfile(null);
+        return;
+      }
+
+      // Check tenant status
+      if (tenantId) {
+        const { data: tData } = await (supabase as any)
+          .from("tenants")
+          .select("status")
+          .eq("id", tenantId)
+          .maybeSingle();
+
+        if (tData?.status === "suspended") {
+          setIsSuspended(true);
+        } else if (tData?.status === "active") {
+          setIsSuspended(false);
+        }
       }
     }, STATUS_CHECK_INTERVAL);
   }, []);
@@ -133,7 +242,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return false;
   }, []);
 
-  // Check if the absolute max session lifetime (24h) has been exceeded
+  // Check absolute max session lifetime
   const checkMaxSessionLifetime = useCallback(async () => {
     const start = localStorage.getItem(SESSION_START_KEY);
     if (start && Date.now() - Number(start) > MAX_SESSION_LIFETIME_MS) {
@@ -182,7 +291,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session, resetInactivityTimer]);
 
-  // Periodic check for absolute max session lifetime (every 60s)
   useEffect(() => {
     if (!session) {
       if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
@@ -206,8 +314,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!nextSession?.user) {
         setProfile(null);
+        setTenant(null);
+        setBranding(null);
+        setPlatformRole(null);
+        setIsSuspended(false);
         setLoading(false);
         if (statusCheckRef.current) clearInterval(statusCheckRef.current);
+        // Reset to default theme on logout
+        applyTenantTheme({
+          primaryColor: "17 84% 52%",
+          secondaryColor: "40 8% 96%",
+          appName: "Ziel Whispers",
+        });
         return;
       }
 
@@ -215,16 +333,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       sessionIdRef.current = newSid;
       localStorage.setItem(SESSION_ID_KEY, newSid);
 
-      // Record session start time if not already set (first login)
       if (!localStorage.getItem(SESSION_START_KEY)) {
         localStorage.setItem(SESSION_START_KEY, Date.now().toString());
       }
 
-      // Check absolute max session lifetime (24h)
       const maxExpired = await checkMaxSessionLifetime();
       if (maxExpired) { setLoading(false); return; }
 
-      // Refresh session timeout from settings on each session sync
       sessionTimeoutMsRef.current = await getSessionTimeoutMs();
 
       const expired = await checkInactivityExpiry();
@@ -233,7 +348,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const prof = await fetchProfile(nextSession.user.id);
         if (prof) {
-          startStatusCheck(nextSession.user.id);
+          startStatusCheck(nextSession.user.id, prof.tenant_id);
         }
       } finally {
         if (isMounted) setLoading(false);
@@ -245,19 +360,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (_event === "SIGNED_OUT") {
           setSession(null);
           setProfile(null);
+          setTenant(null);
+          setBranding(null);
+          setPlatformRole(null);
+          setIsSuspended(false);
           setLoading(false);
           localStorage.removeItem(SESSION_ID_KEY);
           localStorage.removeItem(ACTIVITY_KEY);
           localStorage.removeItem(SESSION_START_KEY);
           if (statusCheckRef.current) clearInterval(statusCheckRef.current);
           if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
+          applyTenantTheme({
+            primaryColor: "17 84% 52%",
+            secondaryColor: "40 8% 96%",
+            appName: "Ziel Whispers",
+          });
           return;
         }
-        // Never set loading = true here. The initial useState(true) handles
-        // the first app bootstrap. All subsequent auth events (SIGNED_IN from
-        // token refreshes on tab re-focus, TOKEN_REFRESHED, etc.) should sync
-        // silently in the background so the UI isn't torn down and in-progress
-        // user work (file imports, form edits, etc.) is preserved.
         void syncSession(nextSession);
       }
     );
@@ -291,13 +410,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     queryClient.clear();
     if (statusCheckRef.current) clearInterval(statusCheckRef.current);
     if (sessionAgeCheckRef.current) clearInterval(sessionAgeCheckRef.current);
+    applyTenantTheme({
+      primaryColor: "17 84% 52%",
+      secondaryColor: "40 8% 96%",
+      appName: "Ziel Whispers",
+    });
     await supabase.auth.signOut();
     setSession(null);
     setProfile(null);
+    setTenant(null);
+    setBranding(null);
+    setPlatformRole(null);
+    setIsSuspended(false);
   };
 
+  const isSSA = platformRole !== null;
+
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, profile, loading, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        user: session?.user ?? null,
+        profile,
+        tenant,
+        branding,
+        platformRole,
+        isSSA,
+        isSuspended,
+        loading,
+        signOut,
+        refreshTenantBranding,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

@@ -33,6 +33,9 @@ export const adminSchema = z.object({
 export const clientEditSchema = z.object({
   full_name: z.string().min(3, "Name must be between 3 and 60 characters").max(60).regex(/^[a-zA-Z\s.'-]+$/, "Name must contain only letters"),
   email: z.string().email("Please enter a valid email address").refine((v) => !/\s/.test(v), "No spaces allowed"),
+  phone: z.string().optional().refine((v) => !v || /^03\d{9}$/.test(v), "Please enter a valid Pakistani phone number (03XXXXXXXXX)"),
+  join_date: z.string().min(1, "Join date is required"),
+  role: z.string().min(1, "Role is required"),
   project_ids: z.array(z.string()).optional(),
 });
 
@@ -181,7 +184,7 @@ export function useEmployeeProfileData(id: string | undefined) {
         .order("name");
       return data || [];
     },
-    enabled: !!employee && employee.role === "client member",
+    enabled: !!employee && (employee.role === "client member" || employee.role === "client"),
   });
 
   // Client Member edit: current project memberships
@@ -195,14 +198,21 @@ export function useEmployeeProfileData(id: string | undefined) {
         .is("removed_at", null);
       return (data || []).map((m: any) => m.project_id as string);
     },
-    enabled: !!id && !!employee && employee.role === "client member",
+    enabled: !!id && !!employee && (employee.role === "client member" || employee.role === "client"),
   });
 
-  const isClientMember = employee?.role === "client member";
+  const isClientMember = employee?.role === "client member" || employee?.role === "client";
 
   const clientEditForm = useForm<z.infer<typeof clientEditSchema>>({
     resolver: zodResolver(clientEditSchema),
-    defaultValues: { full_name: "", email: "", project_ids: [] },
+    defaultValues: {
+      full_name: "",
+      email: "",
+      phone: "",
+      join_date: "",
+      role: "client member",
+      project_ids: [],
+    },
   });
 
   useEffect(() => {
@@ -210,6 +220,9 @@ export function useEmployeeProfileData(id: string | undefined) {
       clientEditForm.reset({
         full_name: employee.full_name || "",
         email: employee.email || "",
+        phone: employee.phone || "",
+        join_date: employee.join_date || new Date().toISOString().split("T")[0],
+        role: employee.role || "client member",
         project_ids: clientProjectIds || [],
       });
     }
@@ -467,19 +480,21 @@ export function useEmployeeProfileData(id: string | undefined) {
     await saveProfile(data);
   };
 
-  const clientEditOnSubmit = async (data: z.infer<typeof clientEditSchema>) => {
+  const saveClientMemberProfile = async (data: z.infer<typeof clientEditSchema>) => {
     if (!employee) return;
     setSaving(true);
     try {
-      if (data.email !== employee.email) {
-        setPendingEmail(data.email);
-        setEmailWarningOpen(true);
-        setSaving(false);
-        return;
-      }
       const { error } = await supabase.from("users").update({
         full_name: data.full_name,
         email: data.email,
+        phone: data.phone || null,
+        join_date: data.join_date,
+        role: data.role,
+        ...(data.role === "client"
+          ? { designation: "Client" }
+          : data.role === "client member"
+          ? { designation: "Client Member" }
+          : {}),
       } as any).eq("id", employee.id);
       if (error) throw error;
 
@@ -543,11 +558,22 @@ export function useEmployeeProfileData(id: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ["employee", id] });
       queryClient.invalidateQueries({ queryKey: ["employees"] });
       queryClient.invalidateQueries({ queryKey: ["client-member-projects", id] });
+      queryClient.invalidateQueries({ queryKey: ["client-members-project-map"] });
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setSaving(false);
     }
+  };
+
+  const clientEditOnSubmit = async (data: z.infer<typeof clientEditSchema>) => {
+    if (!employee) return;
+    if (data.email !== employee.email) {
+      setPendingEmail(data.email);
+      setEmailWarningOpen(true);
+      return;
+    }
+    await saveClientMemberProfile(data);
   };
 
   const confirmEmailChange = async () => {
@@ -563,9 +589,15 @@ export function useEmployeeProfileData(id: string | undefined) {
       const res = result as { ok: boolean; error?: string };
       if (!res.ok) throw new Error(res.error ?? "Failed to update email");
 
-      const formData = form.getValues();
-      formData.email = pendingEmail;
-      await saveProfile(formData);
+      if (isClientMember) {
+        const clientFormData = clientEditForm.getValues();
+        clientFormData.email = pendingEmail;
+        await saveClientMemberProfile(clientFormData);
+      } else {
+        const formData = form.getValues();
+        formData.email = pendingEmail;
+        await saveProfile(formData);
+      }
     } catch (err: any) {
       toast.error(err.message);
       setSaving(false);

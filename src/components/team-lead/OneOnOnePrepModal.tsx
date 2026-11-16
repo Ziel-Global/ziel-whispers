@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MemberPerformancePack } from "@/hooks/useTeamLeadData";
 import { CheckCircle2, Clock, Calendar, CheckSquare, MessageSquare, Copy } from "lucide-react";
 import { toast } from "sonner";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface OneOnOnePrepModalProps {
   pack: MemberPerformancePack | null;
@@ -124,7 +125,7 @@ ${pack.recentDeliverables.map((d) => `• ${d.title} [${d.projectName}]`).join("
                     key={d.id}
                     className="p-2.5 rounded-lg border border-border/50 text-xs flex items-center justify-between gap-2"
                   >
-                    <span className="font-semibold text-foreground truncate">{d.title}</span>
+                    <TruncatedTitle text={d.title} className="font-semibold text-foreground truncate" />
                     <Badge variant="outline" className="text-[10px] shrink-0 font-normal">
                       {d.projectName}
                     </Badge>

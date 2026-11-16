@@ -1,14 +1,14 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useWorkSettings, getPKTDateString, getPKTISOString, LOG_SUBMISSION_GRACE_MINUTES } from "@/hooks/useWorkSettings";
+import { useWorkSettings, getPKTDateString, getPKTISOString, isPastLogGrace } from "@/hooks/useWorkSettings";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import { MISC_PROJECT_ID } from "@/lib/utils";
+import { MISC_PROJECT_ID, formatDecimal, getPlainTextLength } from "@/lib/utils";
 import { getAllowedTransitions, getStatusDisplay } from "@/lib/workflow";
 import { getUnfinishedDependencies, isDependencyWarnTarget } from "@/lib/dependencies";
 import { getMinDateStr, getPreviousWorkingDay, isWithinLogEditWindow } from "@/utils/logDateUtils";
@@ -32,6 +32,22 @@ export function useLogSubmitData() {
   const [declareOutcome, setDeclareOutcome] = useState(false);
   const [selectedOutcomeStatusId, setSelectedOutcomeStatusId] = useState<string>("");
   const [dependencyWarning, setDependencyWarning] = useState("");
+
+  // Prevent leaving or closing the page while logs are actively being submitted
+  useEffect(() => {
+    if (!submitting) return;
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+      return "";
+    };
+
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [submitting]);
 
   const today = getPKTDateString();
 
@@ -63,6 +79,26 @@ export function useLogSubmitData() {
   const effectiveLogEditDays = perEmployeeLogEditDays ?? 1;
   const minDate = getMinDateStr(10);
 
+  // 3b. Approved leave requests overlapping the editable date range
+  const { data: approvedLeaves = [] } = useQuery({
+    queryKey: ["my-approved-leaves-range", user?.id, minDate, today],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("id, start_date, end_date, leave_types(name)")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .gte("end_date", minDate)
+        .lte("start_date", today);
+      return data || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 30000,
+  });
+
+  const getApprovedLeaveForDate = (dateStr: string) =>
+    approvedLeaves.find((l: any) => dateStr >= l.start_date && dateStr <= l.end_date) || null;
+
   // 4. Log totals for recent range
   const { data: logsTotals = {}, isFetched: logsTotalsFetched } = useQuery({
     queryKey: ["my-logs-totals-range", user?.id],
@@ -73,7 +109,7 @@ export function useLogSubmitData() {
         .eq("user_id", user!.id)
         .eq("status", "submitted")
         .gte("log_date", minDate);
-      
+
       const totals: Record<string, number> = {};
       data?.forEach((l: any) => {
         totals[l.log_date] = (totals[l.log_date] || 0) + Number(l.hours);
@@ -92,10 +128,10 @@ export function useLogSubmitData() {
   const createdAtDate = profile?.created_at ? profile.created_at.split("T")[0] : null;
   const missedDate =
     logsTotalsFetched && perEmployeeLogEditDays !== undefined &&
-    profile && profile.role !== "admin" && !missed.isWeekend &&
-    !(createdAtDate && missed.targetDateStr <= createdAtDate) &&
-    !logsTotals[missed.targetDateStr] &&
-    isWithinLogEditWindow(missed.targetDateStr, today, effectiveLogEditDays, profileWorkingDays)
+      profile && profile.role !== "admin" && !missed.isWeekend &&
+      !(createdAtDate && missed.targetDateStr <= createdAtDate) &&
+      !logsTotals[missed.targetDateStr] &&
+      isWithinLogEditWindow(missed.targetDateStr, today, effectiveLogEditDays, profileWorkingDays)
       ? missed.targetDateStr
       : null;
   const defaultDate = missedDate ?? today;
@@ -105,7 +141,7 @@ export function useLogSubmitData() {
     project_id: z.string().min(1, "Please select a project"),
     category: z.string().min(1, "Category is required"),
     hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
-    description: z.string().min(20, "Min 20 characters"),
+    description: z.string().refine((v) => getPlainTextLength(v) >= 20, "Min 20 characters"),
     log_date: z.string().min(1, "Date is required").refine((v) => {
       const day = new Date(v + "T00:00:00").getDay();
       if (overtimeEnabled) return true;
@@ -244,7 +280,7 @@ export function useLogSubmitData() {
     enabled: !!user?.id && !!selectedProjectId && selectedProjectId !== MISC_PROJECT_ID,
   });
 
-  const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
+  const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "project_manager";
 
   // 9. Available tasks query
   const { data: availableTasks = [] } = useQuery({
@@ -343,11 +379,11 @@ export function useLogSubmitData() {
   });
 
   const submittedHours = useMemo(() => dateLogs.reduce((sum, l) => sum + Number(l.hours), 0), [dateLogs]);
-  const pendingHoursForSelectedDate = useMemo(() => 
+  const pendingHoursForSelectedDate = useMemo(() =>
     pendingLogs.filter((p: any) => p.log_date === selectedDate && p.id !== editId).reduce((sum: number, l: any) => sum + Number(l.hours), 0),
     [pendingLogs, selectedDate, editId]
   );
-  
+
   const totalHoursForSelectedDate = submittedHours + pendingHoursForSelectedDate;
   const logsAreAllForToday = useMemo(() =>
     pendingLogs.length > 0 && pendingLogs.every((log: any) => log.log_date === today),
@@ -421,11 +457,18 @@ export function useLogSubmitData() {
       : submittedHours >= 8
   );
 
+  const selectedDateApprovedLeave = getApprovedLeaveForDate(selectedDate);
+  const isOnApprovedLeaveForSelectedDate = !!selectedDateApprovedLeave && profile?.role !== "admin";
+
   const onAddLog = async (data: any) => {
+    if (profile?.role !== "admin" && getApprovedLeaveForDate(data.log_date)) {
+      toast.error("You cannot add work logs on an approved leave day.");
+      return;
+    }
     const currentHours = Number(data.hours);
     const maxDaily = 24;
     if (submittedHours + pendingHoursForSelectedDate + currentHours > maxDaily + 0.01 && profile?.role !== "admin") {
-      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${submittedHours}h and have ${pendingHoursForSelectedDate}h pending.`);
+      toast.error(`You can only log up to ${maxDaily} hours per day. You have already logged ${formatDecimal(submittedHours)}h and have ${formatDecimal(pendingHoursForSelectedDate)}h pending.`);
       return;
     }
     if (declareOutcome && allowedTransitions.length > 1 && !selectedOutcomeStatusId) {
@@ -548,8 +591,7 @@ export function useLogSubmitData() {
           if (shiftStart && resolvedShiftEnd < shiftStart) {
             todayDeadline.setDate(todayDeadline.getDate() + 1);
           }
-          todayDeadline.setMinutes(todayDeadline.getMinutes() + LOG_SUBMISSION_GRACE_MINUTES);
-          return nowPKT.getTime() > todayDeadline.getTime();
+          return isPastLogGrace(nowPKT, todayDeadline);
         }
         return false;
       };
@@ -572,6 +614,30 @@ export function useLogSubmitData() {
         }
       }
 
+      const createdOtherTasks: Record<string, { taskId: string; statusId: string | null }> = {};
+      const otherProjectLogs = pendingLogs.filter((l: any) => l.project_id && !l.task_id);
+      if (otherProjectLogs.length > 0) {
+        await Promise.all(
+          otherProjectLogs.map(async (log: any) => {
+            const { data: rpcData, error: rpcError } = await supabase.rpc(
+              "create_task_for_other_log" as any,
+              {
+                p_project_id: log.project_id,
+                p_description: log.description || "",
+              }
+            );
+            if (rpcError) throw rpcError;
+            const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+            if (row?.task_id) {
+              createdOtherTasks[log.id] = {
+                taskId: row.task_id,
+                statusId: row.status_id || null,
+              };
+            }
+          })
+        );
+      }
+
       const touchedTaskIds = [...new Set(
         pendingLogs.filter((l: any) => l.task_id).map((l: any) => l.task_id)
       )] as string[];
@@ -584,21 +650,28 @@ export function useLogSubmitData() {
         (taskStatuses || []).forEach((t: any) => { taskStatusMap[t.id] = t.status_id; });
       }
 
-      for (const log of pendingLogs) {
-        const activeStatusId = log.task_id ? (taskStatusMap[log.task_id] || null) : null;
-        const transitionTarget = log.declared_transition_to || log.declared_outcome_status_id || null;
+      await Promise.all(
+        pendingLogs.map(async (log: any) => {
+          const createdTask = createdOtherTasks[log.id];
+          const resolvedTaskId = createdTask ? createdTask.taskId : (log.task_id || null);
+          const activeStatusId = createdTask
+            ? createdTask.statusId
+            : (log.task_id ? (taskStatusMap[log.task_id] || null) : null);
+          const transitionTarget = log.declared_transition_to || log.declared_outcome_status_id || null;
 
-        const { error } = await supabase.from("daily_logs").update({
-          status: "submitted",
-          is_late: isLateForDate(log.log_date),
-          is_overtime: overtimeFlags[log.id] || false,
-          submitted_at: nowPKTStr,
-          status_id: activeStatusId,
-          hours_status_id: log.hours_status_id || activeStatusId,
-          declared_transition_to: transitionTarget,
-        }).eq("id", log.id).eq("status", "draft");
-        if (error) throw error;
-      }
+          const { error } = await supabase.from("daily_logs").update({
+            status: "submitted",
+            is_late: isLateForDate(log.log_date),
+            is_overtime: overtimeFlags[log.id] || false,
+            submitted_at: nowPKTStr,
+            task_id: resolvedTaskId,
+            status_id: activeStatusId,
+            hours_status_id: log.hours_status_id || activeStatusId,
+            declared_transition_to: transitionTarget,
+          }).eq("id", log.id).eq("status", "draft");
+          if (error) throw error;
+        })
+      );
 
       const outcomeErrors: string[] = [];
       const declaredByTask: Record<string, string> = {};
@@ -607,14 +680,16 @@ export function useLogSubmitData() {
           declaredByTask[log.task_id] = log.declared_outcome_status_id;
         }
       }
-      for (const [taskId, toStatusId] of Object.entries(declaredByTask)) {
-        const { error } = await supabase.rpc("declare_stage_outcome", {
-          p_task_id: taskId,
-          p_to_status_id: toStatusId,
-          p_changed_by_type: "admin",
-        });
-        if (error) outcomeErrors.push(error.message);
-      }
+      await Promise.all(
+        Object.entries(declaredByTask).map(async ([taskId, toStatusId]) => {
+          const { error } = await supabase.rpc("declare_stage_outcome", {
+            p_task_id: taskId,
+            p_to_status_id: toStatusId,
+            p_changed_by_type: "admin",
+          });
+          if (error) outcomeErrors.push(error.message);
+        })
+      );
       const movedTasks = declaredMoves.filter((m: any) => m.toStatusId);
       const outcomeApplied = movedTasks.length > 0 && outcomeErrors.length === 0;
 
@@ -680,6 +755,8 @@ export function useLogSubmitData() {
       await queryClient.invalidateQueries({ queryKey: ["my-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-logs-totals-range"] });
       await queryClient.invalidateQueries({ queryKey: ["my-project-tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["project-tasks"] });
+      await queryClient.invalidateQueries({ queryKey: ["tasks"] });
       await queryClient.invalidateQueries({ queryKey: ["missing-log-check"] });
       await queryClient.invalidateQueries({ queryKey: ["my-day-logs"] });
       await queryClient.invalidateQueries({ queryKey: ["my-month-logs"] });
@@ -750,6 +827,9 @@ export function useLogSubmitData() {
     selectedTask,
     allowedTransitions,
     isLocked,
+    selectedDateApprovedLeave,
+    isOnApprovedLeaveForSelectedDate,
+    isApprovedLeaveDate: (dateStr: string) => profile?.role !== "admin" && !!getApprovedLeaveForDate(dateStr),
     onAddLog,
     startEdit,
     cancelEdit,

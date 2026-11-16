@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DepartmentMemberRow } from "@/hooks/useDepartmentAnalyticsData";
 import { Users, Clock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface DepartmentRosterTableProps {
   members: DepartmentMemberRow[];
@@ -131,9 +132,10 @@ export function DepartmentRosterTable({ members }: DepartmentRosterTableProps) {
                   {/* Current Task */}
                   <td className="py-3 text-muted-foreground truncate max-w-[180px]">
                     {m.activeTaskTitle ? (
-                      <span className="text-foreground font-medium truncate block" title={m.activeTaskTitle}>
-                        {m.activeTaskTitle}
-                      </span>
+                      <TruncatedTitle
+                        text={m.activeTaskTitle}
+                        className="text-foreground font-medium truncate block"
+                      />
                     ) : (
                       <span className="text-muted-foreground/60 italic">No task in progress</span>
                     )}

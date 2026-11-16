@@ -14,19 +14,20 @@ import { Plus, Search, FolderKanban, Pencil, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 import { getDoneStatusIds, isClientRole, isProjectVisibleToClientPortal } from "@/lib/workflow";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 export default function ProjectsPage() {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const isAdmin = profile?.role === "admin" || profile?.role === "manager" || profile?.role === "project_manager";
+  const isAdmin = profile?.role === "admin" || profile?.role === "project_manager";
   const isClient = isClientRole(profile);
   const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [clientFilter, setClientFilter] = useState("all");
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -76,8 +77,8 @@ export default function ProjectsPage() {
       const userClientId = (profile as any)?.client_id;
       list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
     }
-    if (isClient) {
-      list = list.filter(isProjectVisibleToClientPortal);
+    if (profile?.role !== "admin") {
+      list = list.filter(isProjectVisibleToClientPortal); // archived = admin only
     }
     return list.map((p) => p.id);
   }, [isAdmin, isClient, projects, myMemberships, profile]);
@@ -139,10 +140,10 @@ export default function ProjectsPage() {
       const userClientId = (profile as any)?.client_id;
       list = list.filter((p) => myProjectIds.has(p.id) || (userClientId && p.client_id === userClientId) || p.client_visible === true);
     }
-    if (isClient) {
-      list = list.filter(isProjectVisibleToClientPortal);
+    if (profile?.role !== "admin") {
+      list = list.filter(isProjectVisibleToClientPortal); // archived = admin only
     }
-    if (statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
+    if (isAdmin && statusFilter !== "all") list = list.filter((p) => p.status === statusFilter);
     if (clientFilter !== "all") list = list.filter((p) => p.client_id === clientFilter);
     if (search) list = list.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
     return list;
@@ -228,14 +229,14 @@ export default function ProjectsPage() {
 
       const { error } = await supabase.from("projects").delete().eq("id", deleteId);
       if (error) throw error;
-      
+
       await supabase.from("audit_logs").insert({
         actor_id: profile?.id,
         action: "project.deleted",
         target_entity: "projects",
         target_id: deleteId,
       });
-      
+
       toast.success("Project deleted permanently");
       setDeleteId(null);
       queryClient.invalidateQueries({ queryKey: ["projects"] });
@@ -271,22 +272,27 @@ export default function ProjectsPage() {
                 <FolderKanban className="h-4 w-4 text-white" />
               </div>
               <span
-                className={`absolute right-5 top-5 inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-semibold capitalize ${
-                  p.status === "active"
+                className={`absolute right-5 top-5 inline-flex items-center rounded-full px-2.5 py-0.5 text-[9px] font-semibold capitalize ${p.status === "active"
                     ? "bg-[#DFF6E4] text-[#168744]"
                     : p.status === "on_hold"
-                    ? "bg-[#FFF1B8] text-[#A9720B]"
-                    : p.status === "completed"
-                    ? "bg-[#EAF3FF] text-[#1C6FC9]"
-                    : "bg-[#F5F5F6] text-[#8B8B92]"
-                }`}
+                      ? "bg-[#FFF1B8] text-[#A9720B]"
+                      : p.status === "completed"
+                        ? "bg-[#EAF3FF] text-[#1C6FC9]"
+                        : "bg-[#F5F5F6] text-[#8B8B92]"
+                  }`}
               >
                 {p.status}
               </span>
-              <div className="project-name text-[14px] font-bold tracking-tight text-[#17171A] max-w-[78%] truncate" title={p.name}>
-                {p.name}
-              </div>
-              <p className="text-[10px] text-[#8B8B92] mt-[3px] truncate">{(p.clients as any)?.name || "No Client"}</p>
+              <TruncatedTitle
+                as="div"
+                text={p.name}
+                className="project-name text-[14px] font-bold tracking-tight text-[#17171A] max-w-[78%] truncate"
+              />
+              <TruncatedTitle
+                as="p"
+                text={(p.clients as any)?.name || "No Client"}
+                className="text-[10px] text-[#8B8B92] mt-[3px] truncate"
+              />
               <span className="absolute left-5 bottom-[18px] bg-[#F3F3F5] text-[#5D5D64] text-[8.5px] font-semibold px-2.5 py-0.5 rounded-full">
                 {getMemberRole(p.id)}
               </span>
@@ -377,72 +383,78 @@ export default function ProjectsPage() {
       {!isLoading && filtered.length > 0 && (
         <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden flex flex-col">
           <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="sticky top-0 z-10 bg-white grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 px-[22px] py-[13px] border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
-            <span>PROJECT</span>
-            <span>STATUS</span>
-            <span>MEMBERS</span>
-            <span>DEADLINE</span>
-            <span>CREATED</span>
-            <span className="w-[72px]" aria-hidden />
-          </div>
+            <div className="sticky top-0 z-10 bg-white grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 px-[22px] py-[13px] border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em]">
+              <span>PROJECT</span>
+              <span>STATUS</span>
+              <span>MEMBERS</span>
+              <span>DEADLINE</span>
+              <span>CREATED</span>
+              <span className="w-[72px]" aria-hidden />
+            </div>
 
-          {filtered.map((p) => (
-            <div
-              key={p.id}
-              onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
-              className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 items-center px-[22px] py-3.5 border-b border-black/[0.05] last:border-b-0 cursor-pointer hover:bg-[#F6F5F3] transition-colors"
-            >
-              <div className="min-w-0">
-                <div className="text-[13.5px] font-bold text-[#17171A] truncate whitespace-nowrap">{p.name}</div>
-                <div className="text-[12px] text-[#8B8B92] truncate whitespace-nowrap">
-                  {(p.clients as any)?.name || "—"}
+            {filtered.map((p) => (
+              <div
+                key={p.id}
+                onClick={() => navigate(`/projects/${toSlug(p.name)}`)}
+                className="grid grid-cols-[2fr_0.8fr_0.8fr_0.9fr_1fr_auto] gap-3 items-center px-[22px] py-3.5 border-b border-black/[0.05] last:border-b-0 cursor-pointer hover:bg-[#F6F5F3] transition-colors"
+              >
+                <div className="min-w-0">
+                  <TruncatedTitle
+                    as="div"
+                    text={p.name}
+                    className="text-[13.5px] font-bold text-[#17171A] truncate whitespace-nowrap"
+                  />
+                  <TruncatedTitle
+                    as="div"
+                    text={(p.clients as any)?.name || "—"}
+                    className="text-[12px] text-[#8B8B92] truncate whitespace-nowrap"
+                  />
+                </div>
+
+                <div>
+                  <span
+                    className={
+                      p.status === "active"
+                        ? "inline-block bg-[#DFF6E4] text-[#1B8A46] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
+                        : p.status === "on_hold"
+                          ? "inline-block bg-[#FDF3E3] text-[#A9720B] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
+                          : p.status === "completed"
+                            ? "inline-block bg-[#EAF3FF] text-[#1C6FC9] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
+                            : "inline-block bg-[#F6F5F3] text-[#8B8B92] text-[11.5px] font-semibold px-[11px] py-1 rounded-full capitalize"
+                    }
+                  >
+                    {p.status === "on_hold" ? "on hold" : p.status}
+                  </span>
+                </div>
+
+                <div className="text-[13px] text-[#4B4B52]">{projectStats?.teamSize[p.id] || 0}</div>
+
+                <div className={`text-[13px] ${p.end_date ? "text-[#4B4B52]" : "text-[#B0B0B6]"}`}>
+                  {p.end_date ? format(new Date(p.end_date + "T00:00:00"), "MMM d, yyyy") : "—"}
+                </div>
+
+                <div className="text-[13px] text-[#4B4B52]">{format(new Date(p.created_at), "MMM d, yyyy")}</div>
+
+                <div className="flex items-center justify-end gap-1.5 w-[72px]" onClick={(e) => e.stopPropagation()}>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(p)}
+                    className="w-7 h-7 rounded-[8px] bg-[#FDECE3] hover:bg-[#FCD8C8] text-[#EB5A1E] flex items-center justify-center transition-colors"
+                    title="Edit"
+                  >
+                    <Pencil className="h-3.5 w-3.5 text-[#EB5A1E]" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDeleteId(p.id)}
+                    className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
+                  </button>
                 </div>
               </div>
-
-              <div>
-                <span
-                  className={
-                    p.status === "active"
-                      ? "inline-block bg-[#DFF6E4] text-[#1B8A46] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
-                      : p.status === "on_hold"
-                      ? "inline-block bg-[#FDF3E3] text-[#A9720B] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
-                      : p.status === "completed"
-                      ? "inline-block bg-[#EAF3FF] text-[#1C6FC9] text-[11.5px] font-bold px-[11px] py-1 rounded-full capitalize"
-                      : "inline-block bg-[#F6F5F3] text-[#8B8B92] text-[11.5px] font-semibold px-[11px] py-1 rounded-full capitalize"
-                  }
-                >
-                  {p.status === "on_hold" ? "on hold" : p.status}
-                </span>
-              </div>
-
-              <div className="text-[13px] text-[#4B4B52]">{projectStats?.teamSize[p.id] || 0}</div>
-
-              <div className={`text-[13px] ${p.end_date ? "text-[#4B4B52]" : "text-[#B0B0B6]"}`}>
-                {p.end_date ? format(new Date(p.end_date + "T00:00:00"), "MMM d, yyyy") : "—"}
-              </div>
-
-              <div className="text-[13px] text-[#4B4B52]">{format(new Date(p.created_at), "MMM d, yyyy")}</div>
-
-              <div className="flex items-center justify-end gap-1.5 w-[72px]" onClick={(e) => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => openEdit(p)}
-                  className="w-7 h-7 rounded-[8px] bg-[#FDECE3] hover:bg-[#FCD8C8] text-[#EB5A1E] flex items-center justify-center transition-colors"
-                  title="Edit"
-                >
-                  <Pencil className="h-3.5 w-3.5 text-[#EB5A1E]" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeleteId(p.id)}
-                  className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#E5484D] flex items-center justify-center transition-colors"
-                  title="Delete"
-                >
-                  <Trash2 className="h-3.5 w-3.5 text-[#E5484D]" />
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
           </div>
         </div>
       )}
@@ -477,11 +489,12 @@ export default function ProjectsPage() {
 
             <div className="space-y-1.5">
               <label className="block text-[12.5px] font-semibold text-[#4B4B52]">Description</label>
-              <Textarea
+              <ClassicEditor
                 value={editForm.description}
-                onChange={(e) => setEditForm((f) => ({ ...f, description: e.target.value }))}
+                onChange={(v) => setEditForm((f) => ({ ...f, description: v }))}
                 rows={3}
-                className="bg-white border border-black/10 rounded-[10px] px-3.5 py-2.5 text-[13.5px] text-[#17171A] focus:outline-none"
+                variant="full"
+                placeholder="Project scope and deliverables..."
               />
             </div>
 

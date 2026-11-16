@@ -91,11 +91,28 @@ const formatMetadata = (metadata: any, userMap?: Record<string, string>): string
 const PAGE_SIZE = 25;
 
 export default function AuditLogPage() {
-  const { profile } = useAuth();
+  const { profile, isSSA } = useAuth();
   const [search, setSearch] = useState("");
   const [actionFilter, setActionFilter] = useState("all");
+  const [selectedTenantId, setSelectedTenantId] = useState("all");
   const [page, setPage] = useState(0);
   const [selectedLog, setSelectedLog] = useState<any>(null);
+
+  const { data: tenantsList = [] } = useQuery({
+    queryKey: ["audit-log-tenants-list"],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).from("tenants").select("id, name, slug").order("name");
+      if (error) return [];
+      return data || [];
+    },
+    enabled: isSSA,
+  });
+
+  const tenantMap = useMemo(() => {
+    const map = new Map<string, string>();
+    tenantsList.forEach((t: any) => map.set(t.id, t.name));
+    return map;
+  }, [tenantsList]);
 
   const { data: userNamesMap } = useQuery({
     queryKey: ["user-names-map"],
@@ -108,7 +125,7 @@ export default function AuditLogPage() {
   });
 
   const { data: logs, isLoading } = useQuery({
-    queryKey: ["audit-logs", page, actionFilter],
+    queryKey: ["audit-logs", page, actionFilter, selectedTenantId],
     queryFn: async () => {
       let q = supabase
         .from("audit_logs")
@@ -117,6 +134,10 @@ export default function AuditLogPage() {
 
       if (actionFilter !== "all") {
         q = q.eq("action", actionFilter);
+      }
+
+      if (isSSA && selectedTenantId !== "all") {
+        q = q.eq("tenant_id", selectedTenantId);
       }
 
       const { data, error } = await q.range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
@@ -141,7 +162,7 @@ export default function AuditLogPage() {
 
   const exportCSV = () => {
     const rows = filtered.map((l) => ({
-      Timestamp: format(new Date(l.created_at), "yyyy-MM-dd HH:mm:ss"),
+      Timestamp: format(new Date(l.created_at), "yyyy-MM-dd hh:mm:ss a"),
       Actor: (l as any).users?.full_name || "System",
       Action: ACTION_LABELS[l.action] || l.action,
       Target: l.target_entity || "",
@@ -196,6 +217,28 @@ export default function AuditLogPage() {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
+
+        {isSSA && (
+          <Select
+            value={selectedTenantId}
+            onValueChange={(val) => {
+              setSelectedTenantId(val);
+              setPage(0);
+            }}
+          >
+            <SelectTrigger className="w-[220px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+              <SelectValue placeholder="All Workspaces" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Workspaces ({tenantsList.length})</SelectItem>
+              {tenantsList.map((t: any) => (
+                <SelectItem key={t.id} value={t.id}>
+                  {t.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
 
         <Select value={actionFilter} onValueChange={setActionFilter}>
           <SelectTrigger className="w-[180px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
@@ -257,7 +300,14 @@ export default function AuditLogPage() {
                     <div className="h-6 w-6 rounded-full bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center text-[10.5px] font-bold shrink-0">
                       {initials}
                     </div>
-                    <span className="text-[13px] font-bold text-[#17171A] truncate">{actorName}</span>
+                    <div className="min-w-0">
+                      <span className="text-[13px] font-bold text-[#17171A] truncate block">{actorName}</span>
+                      {isSSA && (l as any).tenant_id && (
+                        <span className="text-[10.5px] font-medium text-primary/80 truncate block">
+                          {tenantMap.get((l as any).tenant_id) || "Tenant"}
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   {/* ACTION */}

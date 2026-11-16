@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkSettings, formatShiftTime } from "@/hooks/useWorkSettings";
+import { useWorkSettings, formatShiftTime, formatShiftTimeLocal } from "@/hooks/useWorkSettings";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -135,8 +135,8 @@ export default function MyProfilePage() {
               <div><Label className="text-muted-foreground text-xs">Employment Type</Label><p className="font-medium">{employee.employment_type}</p></div>
               <div><Label className="text-muted-foreground text-xs">Join Date</Label><p className="font-medium">{employee.join_date}</p></div>
               <div><Label className="text-muted-foreground text-xs">Role</Label><p className="font-medium capitalize">{employee.role}</p></div>
-              <div><Label className="text-muted-foreground text-xs">Shift Start</Label><p className="font-medium">{formatShiftTime(shiftStart)}</p></div>
-              <div><Label className="text-muted-foreground text-xs">Shift End</Label><p className="font-medium">{formatShiftTime(shiftEnd)}</p></div>
+              <div><Label className="text-muted-foreground text-xs">Shift Start</Label><p className="font-medium">{formatShiftTimeLocal(shiftStart)}</p></div>
+              <div><Label className="text-muted-foreground text-xs">Shift End</Label><p className="font-medium">{formatShiftTimeLocal(shiftEnd)}</p></div>
             </div>
             <p className="text-sm text-muted-foreground bg-muted p-3 rounded-md">Contact your admin to change name, email, department, shift timing, or other details.</p>
             <Separator />

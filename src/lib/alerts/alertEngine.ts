@@ -6,7 +6,7 @@ export interface AlertRuleDefinition {
   category: "workforce" | "project" | "compliance" | "security";
   defaultSeverity: "critical" | "warning" | "info";
   description: string;
-  targetRoles: ("admin" | "manager" | "hr_manager" | "project_manager" | "employee")[];
+  targetRoles: ("admin" | "hr_manager" | "project_manager" | "employee")[];
   thresholdDescription: string;
 }
 
@@ -38,7 +38,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "workforce",
     defaultSeverity: "critical",
     description: "Employee workload exceeds 110% net capacity over a sustained 14-day window.",
-    targetRoles: ["employee", "manager", "admin"],
+    targetRoles: ["employee", "hr_manager", "project_manager", "admin"],
     thresholdDescription: "Utilization > 110% over 14 days",
   },
   {
@@ -47,7 +47,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "workforce",
     defaultSeverity: "warning",
     description: "Employee workload falls below 50% net capacity without approved leave.",
-    targetRoles: ["manager", "admin"],
+    targetRoles: ["hr_manager", "project_manager", "admin"],
     thresholdDescription: "Utilization < 50% over 14 days with 0 leave",
   },
   {
@@ -56,7 +56,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "compliance",
     defaultSeverity: "warning",
     description: "No daily work log submitted by 10:00 AM the following business day.",
-    targetRoles: ["employee", "manager"],
+    targetRoles: ["employee", "hr_manager", "project_manager"],
     thresholdDescription: "Unsubmitted log > 1 business day",
   },
   {
@@ -65,7 +65,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "compliance",
     defaultSeverity: "warning",
     description: "Employee has clocked in late 3 or more times within the past 30 days.",
-    targetRoles: ["employee", "manager", "hr_manager"],
+    targetRoles: ["employee", "hr_manager"],
     thresholdDescription: ">= 3 late arrivals in 30 days",
   },
   {
@@ -74,7 +74,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "project",
     defaultSeverity: "critical",
     description: "Logged project hours reach 75% (warning) or 90% (critical) of budget hours.",
-    targetRoles: ["project_manager", "manager", "admin"],
+    targetRoles: ["project_manager", "admin"],
     thresholdDescription: "Logged hours >= 75% or >= 90% of budget",
   },
   {
@@ -83,7 +83,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "project",
     defaultSeverity: "critical",
     description: "Active project has breached its baseline target delivery date.",
-    targetRoles: ["project_manager", "manager", "admin"],
+    targetRoles: ["project_manager", "admin"],
     thresholdDescription: "Baseline end date passed without completion",
   },
   {
@@ -92,7 +92,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "project",
     defaultSeverity: "critical",
     description: "Task blocker or impediment remains unresolved for longer than 3 days.",
-    targetRoles: ["project_manager", "manager"],
+    targetRoles: ["project_manager"],
     thresholdDescription: "Flagged blocker age > 3 days",
   },
   {
@@ -101,7 +101,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "project",
     defaultSeverity: "warning",
     description: "Task marked 'In Progress' has no work logs or activity for 3 or more days.",
-    targetRoles: ["employee", "manager"],
+    targetRoles: ["employee", "project_manager"],
     thresholdDescription: "In-progress task untouched > 3 days",
   },
   {
@@ -110,7 +110,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "compliance",
     defaultSeverity: "warning",
     description: "Leave request or WFH application pending approval for more than 48 hours.",
-    targetRoles: ["manager", "hr_manager", "admin"],
+    targetRoles: ["hr_manager", "admin"],
     thresholdDescription: "Approval pending > 48 hours",
   },
   {
@@ -128,7 +128,7 @@ export const ALERT_RULES_REGISTRY: AlertRuleDefinition[] = [
     category: "workforce",
     defaultSeverity: "critical",
     description: "Department project allocations exceed total team FTE capacity.",
-    targetRoles: ["manager", "admin"],
+    targetRoles: ["hr_manager", "project_manager", "admin"],
     thresholdDescription: "Department total allocation > 100% capacity",
   },
   {
@@ -162,7 +162,7 @@ export function evaluateOverutilizationRule(
         entityType: "employee",
         entityId: u.id,
         entityName: u.full_name,
-        recipientRoles: ["employee", "manager", "admin"],
+        recipientRoles: ["employee", "hr_manager", "project_manager", "admin"],
         suggestedAction: "Rebalance sprint task allocations to prevent burnout",
         actionHref: `/analytics/department`,
         createdAt: new Date().toISOString(),
@@ -195,7 +195,7 @@ export function evaluateUnderutilizationRule(
         entityType: "employee",
         entityId: u.id,
         entityName: u.full_name,
-        recipientRoles: ["manager", "admin"],
+        recipientRoles: ["hr_manager", "project_manager", "admin"],
         suggestedAction: "Assign open sprint tickets or assign to cross-functional stream",
         actionHref: `/analytics/department`,
         createdAt: new Date().toISOString(),
@@ -226,7 +226,7 @@ export function evaluateMissingLogsRule(
         entityType: "employee",
         entityId: u.id,
         entityName: u.full_name,
-        recipientRoles: ["employee", "manager"],
+        recipientRoles: ["employee", "hr_manager", "project_manager"],
         suggestedAction: "Nudge employee to submit yesterday's daily log",
         actionHref: `/logs/all`,
         createdAt: new Date().toISOString(),
@@ -257,7 +257,7 @@ export function evaluateRepeatedLatenessRule(
         entityType: "employee",
         entityId: u.id,
         entityName: u.full_name,
-        recipientRoles: ["employee", "manager", "hr_manager"],
+        recipientRoles: ["employee", "hr_manager"],
         suggestedAction: "Schedule a 1:1 check-in to review shift start alignment",
         actionHref: `/attendance`,
         createdAt: new Date().toISOString(),
@@ -292,7 +292,7 @@ export function evaluateBudgetBurnRule(
           entityType: "project",
           entityId: p.id,
           entityName: p.name,
-          recipientRoles: ["project_manager", "manager", "admin"],
+          recipientRoles: ["project_manager", "admin"],
           suggestedAction: "Conduct scope audit or initiate client budget change order",
           actionHref: `/projects`,
           createdAt: new Date().toISOString(),
@@ -311,7 +311,7 @@ export function evaluateBudgetBurnRule(
           entityType: "project",
           entityId: p.id,
           entityName: p.name,
-          recipientRoles: ["project_manager", "manager"],
+          recipientRoles: ["project_manager"],
           suggestedAction: "Review remaining deliverables and velocity forecast",
           actionHref: `/projects`,
           createdAt: new Date().toISOString(),
@@ -343,7 +343,7 @@ export function evaluateScheduleSlipRule(
           entityType: "project",
           entityId: p.id,
           entityName: p.name,
-          recipientRoles: ["project_manager", "manager", "admin"],
+          recipientRoles: ["project_manager", "admin"],
           suggestedAction: "Re-baseline milestones and notify project sponsors",
           actionHref: `/projects`,
           createdAt: new Date().toISOString(),
@@ -376,7 +376,7 @@ export function evaluateBlockerAgingRule(
           entityType: "task",
           entityId: t.id,
           entityName: t.title,
-          recipientRoles: ["project_manager", "manager"],
+          recipientRoles: ["project_manager"],
           suggestedAction: "Escalate to tech lead or product owner for unblocking",
           actionHref: `/analytics/team`,
           createdAt: new Date().toISOString(),
@@ -409,7 +409,7 @@ export function evaluateApprovalAgingRule(
           entityType: "leave",
           entityId: l.id,
           entityName: `Leave Request: ${(l.users as any)?.full_name || "Employee"}`,
-          recipientRoles: ["manager", "hr_manager", "admin"],
+          recipientRoles: ["hr_manager", "admin"],
           suggestedAction: "Approve or reject pending leave request",
           actionHref: `/leave/requests`,
           createdAt: new Date().toISOString(),
@@ -440,7 +440,7 @@ export function evaluateCapacityCrunchRule(
         entityType: "employee",
         entityId: dept.name,
         entityName: dept.name,
-        recipientRoles: ["manager", "admin"],
+        recipientRoles: ["hr_manager", "project_manager", "admin"],
         suggestedAction: "Adjust roadmap deadlines or hire contingent resources",
         actionHref: `/analytics/department`,
         createdAt: new Date().toISOString(),

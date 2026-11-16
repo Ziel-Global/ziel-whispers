@@ -4,13 +4,16 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DataRow, RowPrimary, RowSecondary, RowDataItem, RowBadgeItem, TableHeader, editButtonClass } from "@/components/ui/data-row";
-import { ChevronDown, ChevronRight, CheckCircle2, Send } from "lucide-react";
-import { getAvatarUrl, truncateWords } from "@/lib/utils";
+import { ChevronDown, ChevronRight, CheckCircle2, Send, AlertTriangle, Link2 } from "lucide-react";
+import { getAvatarUrl, truncateWords, hasRichContent, stripHtml } from "@/lib/utils";
 import { PRIORITY_PILL_CLASS } from "@/lib/clientTaskBuckets";
 import { AdminActionItemsPanel } from "@/components/project/AdminActionItemsPanel";
+import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 
 interface ProjectActionItemsTabProps {
   id: string;
@@ -74,7 +77,7 @@ export function ProjectActionItemsTab({
   };
 
   const sendActionItemMessage = async (actionItemId: string) => {
-    if (!newActionItemMessage.trim() || !profile) return;
+    if (!hasRichContent(newActionItemMessage) || !profile) return;
     const { error } = await supabase.from("client_action_item_messages").insert({
       action_item_id: actionItemId,
       sender_id: profile.id,
@@ -110,6 +113,12 @@ export function ProjectActionItemsTab({
     toast.success("Action item completed");
 
     if (completedItem?.blocker_id) {
+      const { data: blockerRow } = await supabase
+        .from("task_blockers")
+        .select("id, description, raised_by, task_id")
+        .eq("id", completedItem.blocker_id)
+        .maybeSingle();
+
       const { error: rpcErr } = await supabase.rpc("resolve_blocker_cascade", {
         p_blocker_id: completedItem.blocker_id,
         p_resolved_by: profile.id,
@@ -121,6 +130,30 @@ export function ProjectActionItemsTab({
           .update({ status: "resolved", resolved_at: new Date().toISOString(), resolved_by: profile.id })
           .eq("id", completedItem.blocker_id);
       }
+
+      const linkedTask = (tasks || []).find((t: any) => t.id === blockerRow?.task_id);
+      await createProjectRelatedNotifications({
+        createdByUserId: profile.id,
+        projectId: id,
+        type: "blocker_resolved",
+        title: "Blocker Resolved",
+        message: `${profile.full_name || "A user"} resolved blocker "${stripHtml(blockerRow?.description) || completedItem.title}"${linkedTask?.title ? ` on task "${linkedTask.title}"` : ""}`,
+        recipientUserIds: [
+          blockerRow?.raised_by,
+          linkedTask?.assigned_to,
+          completedItem?.assigned_to,
+          completedItem?.requested_by,
+        ],
+      });
+    } else {
+      await createProjectRelatedNotifications({
+        createdByUserId: profile.id,
+        projectId: id,
+        type: "action_item_completed",
+        title: "Action Item Completed",
+        message: `${profile.full_name || "A user"} completed action item "${completedItem?.title || "Action Item"}"`,
+        recipientUserIds: [completedItem?.assigned_to, completedItem?.requested_by],
+      });
     }
 
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
@@ -157,10 +190,10 @@ export function ProjectActionItemsTab({
     actionItemSubTab === "blockers"
       ? "No client-visible blocker action items."
       : actionItemSubTab === "dependencies"
-      ? "No client-visible dependency action items."
-      : "No action items for this project.";
+        ? "No client-visible dependency action items."
+        : "No action items for this project.";
 
-  if (isAdmin && !isClient && setAddTaskOpen && setTaskTitle) {
+  if (!isClient) {
     return (
       <AdminActionItemsPanel
         id={id}
@@ -171,13 +204,14 @@ export function ProjectActionItemsTab({
         expandedActionItemId={expandedActionItemId}
         setExpandedActionItemId={setExpandedActionItemId}
         actionItemMessages={actionItemMessages}
-        setAddTaskOpen={setAddTaskOpen}
-        setTaskTitle={setTaskTitle}
+        setAddTaskOpen={setAddTaskOpen ?? (() => {})}
+        setTaskTitle={setTaskTitle ?? (() => {})}
         completeActionItem={completeActionItem}
         sendActionItemMessage={sendActionItemMessage}
         newActionItemMessage={newActionItemMessage}
         setNewActionItemMessage={setNewActionItemMessage}
         renderMessageContent={renderMessageContent}
+        isAdmin={isAdmin}
       />
     );
   }
@@ -267,14 +301,14 @@ export function ProjectActionItemsTab({
                       a.status === "completed"
                         ? "bg-[#E5F7EA] text-[#188344]"
                         : a.status === "waived"
-                        ? "bg-[#F2F2F4] text-[#5D5D64]"
-                        : "bg-[#FFF4D8] text-[#8F6811]";
+                          ? "bg-[#F2F2F4] text-[#5D5D64]"
+                          : "bg-[#FFF4D8] text-[#8F6811]";
                     const blockerTone =
                       !a.blockers
                         ? null
                         : a.blockers.status === "resolved"
-                        ? "bg-[#E5F7EA] text-[#188344]"
-                        : "bg-[#FFF4D8] text-[#8F6811]";
+                          ? "bg-[#E5F7EA] text-[#188344]"
+                          : "bg-[#FFF4D8] text-[#8F6811]";
 
                     return (
                       <React.Fragment key={a.id}>
@@ -288,18 +322,19 @@ export function ProjectActionItemsTab({
                                 {isExpanded ? "▾" : "▸"}
                               </span>
                               <div className="min-w-0 overflow-hidden">
-                                <div className="text-[10.5px] font-semibold text-[#202024] leading-[1.45] truncate" title={a.title}>
-                                  {a.title}
-                                </div>
+                                <TruncatedTitle
+                                  as="div"
+                                  text={a.title}
+                                  className="text-[10.5px] font-semibold text-[#202024] leading-[1.45] truncate"
+                                />
                                 <div className="text-[8.3px] text-[#96969D] mt-0.5 truncate">Client action item</div>
                               </div>
                             </div>
                           </td>
                           <td className="px-2.5 py-3 align-middle">
                             <span
-                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-semibold capitalize max-w-full truncate ${
-                                PRIORITY_PILL_CLASS[a.priority] || "bg-[#F0F0F2] text-[#55555B]"
-                              }`}
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[8px] font-semibold capitalize max-w-full truncate ${PRIORITY_PILL_CLASS[a.priority] || "bg-[#F0F0F2] text-[#55555B]"
+                                }`}
                             >
                               {a.priority || "medium"}
                             </span>
@@ -366,7 +401,7 @@ export function ProjectActionItemsTab({
                           <tr>
                             <td colSpan={9} className="px-3.5 py-4 bg-[#FAFAFB]">
                               {a.description ? (
-                                <p className="text-[11px] text-[#5D5D64] whitespace-pre-wrap mb-2">{a.description}</p>
+                                <RichTextDisplay content={a.description} className="text-[11px] text-[#5D5D64] mb-2" />
                               ) : (
                                 <p className="text-[9.5px] text-[#96969D]">No additional details.</p>
                               )}
@@ -418,18 +453,17 @@ export function ProjectActionItemsTab({
                   key={tab.key}
                   type="button"
                   onClick={() => setActionItemSubTab(tab.key)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${
-                    active
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all flex items-center gap-2 ${active
                       ? tab.key === "blockers"
                         ? "bg-rose-50 text-rose-700 border border-rose-200 shadow-sm"
                         : tab.key === "dependencies"
-                        ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
-                        : "bg-gray-800 text-white shadow-sm"
+                          ? "bg-blue-50 text-blue-700 border border-blue-200 shadow-sm"
+                          : "bg-gray-800 text-white shadow-sm"
                       : "text-gray-600 hover:bg-gray-100"
-                  }`}
+                    }`}
                 >
-                  {tab.key === "blockers" ? "⚠️ " : ""}
-                  {tab.key === "dependencies" ? "🔗 " : ""}
+                  {tab.key === "blockers" && <AlertTriangle className="w-3.5 h-3.5 inline mr-1 text-rose-500" />}
+                  {tab.key === "dependencies" && <Link2 className="w-3.5 h-3.5 inline mr-1 text-blue-500" />}
                   {tab.label}
                   <Badge
                     className={
@@ -437,8 +471,8 @@ export function ProjectActionItemsTab({
                         ? tab.key === "blockers"
                           ? "bg-rose-600 text-white hover:bg-rose-600"
                           : tab.key === "dependencies"
-                          ? "bg-blue-600 text-white hover:bg-blue-600"
-                          : "bg-gray-700 text-white hover:bg-gray-700"
+                            ? "bg-blue-600 text-white hover:bg-blue-600"
+                            : "bg-gray-700 text-white hover:bg-gray-700"
                         : "bg-gray-200 text-gray-700"
                     }
                   >
@@ -454,8 +488,8 @@ export function ProjectActionItemsTab({
               {actionItemSubTab === "blockers"
                 ? "No active task blockers."
                 : actionItemSubTab === "dependencies"
-                ? "No task dependencies."
-                : "No action items for this project."}
+                  ? "No task dependencies."
+                  : "No action items for this project."}
             </p>
           ) : (
             <div>
@@ -498,8 +532,8 @@ export function ProjectActionItemsTab({
                             a.status === "completed"
                               ? "bg-green-100 text-green-800"
                               : a.status === "waived"
-                              ? "bg-gray-100 text-gray-800"
-                              : "bg-yellow-100 text-yellow-800"
+                                ? "bg-gray-100 text-gray-800"
+                                : "bg-yellow-100 text-yellow-800"
                           }
                         >
                           {a.status}
@@ -531,7 +565,7 @@ export function ProjectActionItemsTab({
                     </DataRow>
                     {isExpanded && (
                       <div className="bg-[#f9fafb] border-t border-[#e5e7eb] px-4 py-4 space-y-4 ml-6">
-                        {a.description && <div className="text-sm text-muted-foreground">{a.description}</div>}
+                        {a.description && <RichTextDisplay content={a.description} className="text-sm text-muted-foreground" />}
                         <div className="flex flex-wrap gap-3 text-sm">
                           {due && (
                             <span className="text-muted-foreground">
@@ -565,28 +599,31 @@ export function ProjectActionItemsTab({
                                     <Badge className="text-[9px] bg-blue-100 text-blue-800">{m.sender?.role || "member"}</Badge>
                                     <span className="text-[10px] text-muted-foreground">{format(new Date(m.created_at), "MMM d, h:mm a")}</span>
                                   </div>
-                                  <p className="text-sm mt-0.5 whitespace-pre-wrap break-words">{renderMessageContent(m.content)}</p>
+                                  <RichTextDisplay content={m.content} className="text-sm mt-0.5" />
                                 </div>
                               </div>
                             ))
                           )}
                         </div>
                         {a.status === "pending" && (
-                          <div className="flex gap-2">
-                            <Textarea
+                          <div className="space-y-2">
+                            <ClassicEditor
                               value={newActionItemMessage}
-                              onChange={(e) => setNewActionItemMessage(e.target.value)}
+                              onChange={setNewActionItemMessage}
                               placeholder="Type a reply..."
-                              className="min-h-[60px] text-sm"
+                              variant="compact"
+                              rows={2}
                             />
-                            <Button
-                              size="sm"
-                              className="rounded-button shrink-0"
-                              disabled={!newActionItemMessage.trim()}
-                              onClick={() => sendActionItemMessage(a.id)}
-                            >
-                              <Send className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end">
+                              <Button
+                                size="sm"
+                                className="rounded-button shrink-0"
+                                disabled={!hasRichContent(newActionItemMessage)}
+                                onClick={() => sendActionItemMessage(a.id)}
+                              >
+                                <Send className="h-4 w-4 mr-1.5" /> Send Reply
+                              </Button>
+                            </div>
                           </div>
                         )}
                       </div>

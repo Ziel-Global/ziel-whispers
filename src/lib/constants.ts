@@ -20,7 +20,6 @@ export type EmploymentType = typeof EMP_TYPES[number];
 
 export const ROLES = [
   "admin",
-  "manager",
   "hr_manager",
   "project_manager",
   "employee",

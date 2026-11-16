@@ -12,7 +12,7 @@ export interface ReportDefinition {
   description: string;
   cadence: "weekly" | "monthly" | "on_demand" | "sprint_end" | "quarterly";
   defaultFormat: "pdf" | "csv" | "xlsx";
-  audienceRoles: ("admin" | "manager" | "hr_manager" | "project_manager" | "employee")[];
+  audienceRoles: ("admin" | "hr_manager" | "project_manager" | "employee")[];
   columns: ReportColumn[];
   supportedFilters: ("date_range" | "department" | "project" | "employee" | "client")[];
 }
@@ -26,7 +26,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Weekly high-level summary of headcount, company utilization, delivery SLAs, and critical alerts.",
     cadence: "weekly",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager"],
+    audienceRoles: ["admin", "hr_manager", "project_manager"],
     columns: [
       { header: "Metric", key: "metric", format: "text" },
       { header: "Current Period", key: "currentValue", format: "text" },
@@ -44,7 +44,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Comprehensive monthly review of company gross vs net capacity, billable hours, and client distribution.",
     cadence: "monthly",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager"],
+    audienceRoles: ["admin", "hr_manager", "project_manager"],
     columns: [
       { header: "Department / Stream", key: "department", format: "text" },
       { header: "Headcount", key: "headcount", format: "number" },
@@ -63,7 +63,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Detailed employee-level breakdown of shift hours, leaves taken, net capacity, and utilization classification.",
     cadence: "on_demand",
     defaultFormat: "xlsx",
-    audienceRoles: ["admin", "manager", "hr_manager"],
+    audienceRoles: ["admin", "hr_manager"],
     columns: [
       { header: "Employee", key: "employeeName", format: "text" },
       { header: "Department", key: "department", format: "text" },
@@ -85,7 +85,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Identifies under-allocated staff, available FTE bandwidth, and bench risks for upcoming sprint cycles.",
     cadence: "weekly",
     defaultFormat: "xlsx",
-    audienceRoles: ["admin", "manager", "project_manager"],
+    audienceRoles: ["admin", "project_manager"],
     columns: [
       { header: "Employee", key: "employeeName", format: "text" },
       { header: "Department", key: "department", format: "text" },
@@ -104,7 +104,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Budget burn percentage, baseline target adherence, open deliverables, and schedule variance across projects.",
     cadence: "weekly",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager", "project_manager"],
+    audienceRoles: ["admin", "project_manager"],
     columns: [
       { header: "Project Name", key: "projectName", format: "text" },
       { header: "Client", key: "clientName", format: "text" },
@@ -125,7 +125,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Final delivered hours, budget variance, estimate accuracy, and milestone history for completed projects.",
     cadence: "on_demand",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager", "project_manager"],
+    audienceRoles: ["admin", "project_manager"],
     columns: [
       { header: "Deliverable / Phase", key: "deliverable", format: "text" },
       { header: "Estimated (h)", key: "estimatedHours", format: "hours" },
@@ -144,7 +144,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Comprehensive line-by-line audit of daily work logs, billable flags, task descriptions, and late submission tags.",
     cadence: "on_demand",
     defaultFormat: "csv",
-    audienceRoles: ["admin", "manager", "hr_manager", "project_manager"],
+    audienceRoles: ["admin", "hr_manager", "project_manager"],
     columns: [
       { header: "Log Date", key: "logDate", format: "date" },
       { header: "Employee", key: "employeeName", format: "text" },
@@ -166,7 +166,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Daily clock-in/out records, work modes (onsite vs remote), minutes late, and auto-clockout incidents.",
     cadence: "monthly",
     defaultFormat: "xlsx",
-    audienceRoles: ["admin", "manager", "hr_manager"],
+    audienceRoles: ["admin", "hr_manager"],
     columns: [
       { header: "Date", key: "date", format: "date" },
       { header: "Employee", key: "employeeName", format: "text" },
@@ -187,7 +187,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Summary of approved, pending, and rejected leave requests with breakdown by leave category and total hours.",
     cadence: "monthly",
     defaultFormat: "xlsx",
-    audienceRoles: ["admin", "manager", "hr_manager"],
+    audienceRoles: ["admin", "hr_manager"],
     columns: [
       { header: "Employee", key: "employeeName", format: "text" },
       { header: "Department", key: "department", format: "text" },
@@ -206,7 +206,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Exceptions register highlighting unsubmitted daily logs, chronic late attendance arrivals, and pending approvals.",
     cadence: "weekly",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager", "hr_manager"],
+    audienceRoles: ["admin", "hr_manager"],
     columns: [
       { header: "Incident Type", key: "incidentType", format: "text" },
       { header: "Employee", key: "employeeName", format: "text" },
@@ -225,7 +225,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Completed story points/hours, estimate accuracy, spillover items, and cycle time for agile sprints.",
     cadence: "sprint_end",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager", "project_manager"],
+    audienceRoles: ["admin", "project_manager"],
     columns: [
       { header: "Task / Item", key: "title", format: "text" },
       { header: "Assignee", key: "assignee", format: "text" },
@@ -245,7 +245,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "30-day individual performance review dossier covering utilization, punctuality, completed tasks, and coaching points.",
     cadence: "monthly",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager"],
+    audienceRoles: ["admin", "hr_manager", "project_manager"],
     columns: [
       { header: "Dimension", key: "dimension", format: "text" },
       { header: "Score / Metric", key: "metricValue", format: "text" },
@@ -262,7 +262,7 @@ export const BLUEPRINT_REPORTS_REGISTRY: ReportDefinition[] = [
     description: "Billable work summary by client account, project hours, deliverable milestones, and invoice-ready logs.",
     cadence: "monthly",
     defaultFormat: "pdf",
-    audienceRoles: ["admin", "manager", "project_manager"],
+    audienceRoles: ["admin", "project_manager"],
     columns: [
       { header: "Client Account", key: "clientName", format: "text" },
       { header: "Active Projects", key: "activeProjectsCount", format: "number" },

@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Card } from "@/components/ui/card";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, Mail } from "lucide-react";
 import { PasswordInput } from "@/components/ui/password-input";
 import { formatTime12h } from "@/hooks/useWorkSettings";
 
@@ -450,7 +450,7 @@ function ClientForm({ onBack }: { onBack: () => void }) {
       }
 
       toast.success("Client created successfully. A welcome email with password setup link has been sent.");
-      navigate("/employees");
+      navigate("/employees?tab=client-members");
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }
   };
@@ -467,7 +467,9 @@ function ClientForm({ onBack }: { onBack: () => void }) {
 
       <Card className="p-6">
         <div className="mb-6 p-4 rounded-lg bg-muted border border-border text-sm text-foreground">
-          <p className="font-semibold mb-1">📧 Welcome Email</p>
+          <p className="font-semibold mb-1 flex items-center gap-1.5">
+            <Mail className="w-4 h-4 text-primary" /> Welcome Email
+          </p>
           <p className="text-muted-foreground">The client will automatically receive a branded welcome email with a link to set their password and access the portal.</p>
         </div>
 
@@ -606,7 +608,7 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
       }
 
       toast.success("Client Member created successfully. A welcome email with password setup link has been sent.");
-      navigate("/employees");
+      navigate("/employees?tab=client-members");
     } catch (err: any) { toast.error(err.message || "Unexpected error"); }
     finally { setSubmitting(false); }
   };
@@ -623,7 +625,9 @@ function ClientMemberForm({ onBack }: { onBack: () => void }) {
 
       <Card className="p-6">
         <div className="mb-6 p-4 rounded-lg bg-muted border border-border text-sm text-foreground">
-          <p className="font-semibold mb-1">📧 Welcome Email</p>
+          <p className="font-semibold mb-1 flex items-center gap-1.5">
+            <Mail className="w-4 h-4 text-primary" /> Welcome Email
+          </p>
           <p className="text-muted-foreground">The client member will automatically receive a branded welcome email with a link to set their password and access the portal.</p>
         </div>
 

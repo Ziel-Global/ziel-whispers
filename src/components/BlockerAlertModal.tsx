@@ -2,6 +2,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, A
 import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, Lock, User, Clock, FileText, ShieldAlert } from "lucide-react";
 import { format } from "date-fns";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
 
 export interface BlockerDetail {
   id: string;
@@ -82,7 +83,9 @@ export function BlockerAlertModal({
                 <div key={b.id} className="bg-white border border-rose-200 rounded-lg p-3.5 shadow-sm space-y-2.5">
                   <div className="flex items-start gap-2 text-rose-900">
                     <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-                    <p className="text-sm font-medium leading-tight text-gray-900">{b.description}</p>
+                    <div className="flex-1 min-w-0">
+                      <RichTextDisplay content={b.description} className="text-sm font-medium leading-tight text-gray-900" />
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs pt-2 border-t border-gray-100 text-gray-600">

@@ -88,6 +88,9 @@ export default function LeaveAdminPage() {
             summaryStats={data.summaryStats}
             setShowBalanceDialog={data.setShowBalanceDialog}
             filtered={data.filtered}
+            requests={data.requests}
+            employeeUsage={data.employeeUsage}
+            annualEntitlement={data.annualEntitlement}
             selectedLeaveIds={data.selectedLeaveIds}
             setSelectedLeaveIds={data.setSelectedLeaveIds}
             setBulkDeleteLeaveOpen={data.setBulkDeleteLeaveOpen}

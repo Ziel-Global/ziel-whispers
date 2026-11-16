@@ -10,7 +10,7 @@ import { toSlug } from "@/lib/utils";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { ClassicEditor } from "@/components/ui/classic-editor";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -216,7 +216,13 @@ export default function ProjectNewPage() {
                     <FormItem className="md:col-span-2">
                       <FormLabel className="text-xs font-semibold">Description</FormLabel>
                       <FormControl>
-                        <Textarea placeholder="Key deliverables, scope summary..." rows={3} {...field} />
+                        <ClassicEditor
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                          placeholder="Key deliverables, scope summary..."
+                          variant="full"
+                          rows={3}
+                        />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

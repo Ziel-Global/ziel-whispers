@@ -8,8 +8,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { getAvatarUrl, truncateWords } from "@/lib/utils";
+import { ClassicEditor } from "@/components/ui/classic-editor";
+import { RichTextDisplay } from "@/components/ui/rich-text-display";
+import { getAvatarUrl, truncateWords, hasRichContent } from "@/lib/utils";
+import { createProjectRelatedNotifications } from "@/lib/notification-helpers";
+import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   avatarStyleFor,
   initialsFromName,
@@ -31,6 +34,7 @@ type Props = {
   newActionItemMessage: string;
   setNewActionItemMessage: (s: string) => void;
   renderMessageContent: (content: string) => ReactNode;
+  isAdmin?: boolean;
 };
 
 function statusPill(a: any) {
@@ -64,6 +68,7 @@ export function AdminActionItemsPanel({
   newActionItemMessage,
   setNewActionItemMessage,
   renderMessageContent,
+  isAdmin = true,
 }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
@@ -73,10 +78,11 @@ export function AdminActionItemsPanel({
 
   const createItem = async () => {
     if (!createTitle.trim() || !profile || !id) return;
+    const itemTitle = createTitle.trim();
     setCreating(true);
     const { error } = await supabase.from("client_action_items").insert({
       project_id: id,
-      title: createTitle.trim(),
+      title: itemTitle,
       status: "pending",
       priority: "medium",
       requested_by: profile.id,
@@ -91,6 +97,15 @@ export function AdminActionItemsPanel({
     setCreateTitle("");
     setShowCreate(false);
     queryClient.invalidateQueries({ queryKey: ["project-action-items", id] });
+
+    await createProjectRelatedNotifications({
+      createdByUserId: profile.id,
+      projectId: id,
+      type: "action_item_created",
+      title: "Action Item Created",
+      message: `${profile.full_name || "A user"} created action item "${itemTitle}"`,
+      recipientUserIds: [],
+    });
   };
 
   return (
@@ -102,17 +117,19 @@ export function AdminActionItemsPanel({
             Commitments and follow-ups from meetings, reviews, and client requests
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate((v) => !v)}
-          className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
-        >
-          <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
-          Add Action Item
-        </button>
+        {isAdmin && (
+          <button
+            type="button"
+            onClick={() => setShowCreate((v) => !v)}
+            className="inline-flex items-center gap-[7px] bg-[#EB5A1E] text-white font-semibold text-[13px] px-4 py-[9px] rounded-[10px] hover:bg-[#d64f18] transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
+            Add Action Item
+          </button>
+        )}
       </div>
 
-      {showCreate && (
+      {isAdmin && showCreate && (
         <div className="bg-white border border-black/[0.08] rounded-[14px] p-4 mb-4 flex gap-2 items-start flex-wrap">
           <Input
             value={createTitle}
@@ -174,9 +191,11 @@ export function AdminActionItemsPanel({
                       <ChevronRight className="h-4 w-4 text-[#8B8B92] shrink-0" />
                     )}
                     <div className="min-w-0">
-                      <div className="text-[13.5px] font-semibold text-[#17171A] truncate">
-                        {a.title}
-                      </div>
+                      <TruncatedTitle
+                        as="div"
+                        text={a.title}
+                        className="text-[13.5px] font-semibold text-[#17171A] truncate"
+                      />
                       {a.description && (
                         <div className="text-[12px] text-[#8B8B92] truncate">
                           {truncateWords(a.description, 8)}
@@ -222,7 +241,7 @@ export function AdminActionItemsPanel({
                         Resolve
                       </button>
                     )}
-                    {a.status !== "completed" && (
+                    {isAdmin && a.status !== "completed" && (
                       <button
                         type="button"
                         onClick={() => {
@@ -239,7 +258,7 @@ export function AdminActionItemsPanel({
                 {isExpanded && (
                   <div className="bg-[#F9F9F8] border-b border-black/[0.05] px-[22px] py-4 space-y-3 ml-0">
                     {a.description && (
-                      <p className="text-sm text-[#4B4B52] m-0">{a.description}</p>
+                      <RichTextDisplay content={a.description} className="text-sm text-[#4B4B52]" />
                     )}
                     <div className="space-y-2 max-h-64 overflow-y-auto">
                       {actionItemMessages.length === 0 ? (
@@ -268,30 +287,34 @@ export function AdminActionItemsPanel({
                                   {format(new Date(m.created_at), "MMM d, h:mm a")}
                                 </span>
                               </div>
-                              <p className="text-sm mt-0.5 whitespace-pre-wrap break-words m-0">
-                                {renderMessageContent(m.content)}
-                              </p>
+                              <RichTextDisplay
+                                content={m.content}
+                                className="text-sm mt-0.5"
+                              />
                             </div>
                           </div>
                         ))
                       )}
                     </div>
                     {a.status === "pending" && (
-                      <div className="flex gap-2">
-                        <Textarea
+                      <div className="space-y-2">
+                        <ClassicEditor
                           value={newActionItemMessage}
-                          onChange={(e) => setNewActionItemMessage(e.target.value)}
+                          onChange={setNewActionItemMessage}
                           placeholder="Type a reply..."
-                          className="min-h-[60px] text-sm rounded-[10px]"
+                          variant="compact"
+                          rows={2}
                         />
-                        <Button
-                          size="sm"
-                          className="bg-[#EB5A1E] hover:bg-[#d64f18] text-white rounded-[10px] shrink-0"
-                          disabled={!newActionItemMessage.trim()}
-                          onClick={() => sendActionItemMessage(a.id)}
-                        >
-                          <Send className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end">
+                          <Button
+                            size="sm"
+                            className="bg-[#EB5A1E] hover:bg-[#d64f18] text-white rounded-[10px] shrink-0"
+                            disabled={!hasRichContent(newActionItemMessage)}
+                            onClick={() => sendActionItemMessage(a.id)}
+                          >
+                            <Send className="h-4 w-4 mr-1.5" /> Send Reply
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>

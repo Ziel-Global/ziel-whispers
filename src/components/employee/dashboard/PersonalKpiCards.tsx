@@ -205,7 +205,8 @@ export function PersonalKpiCards({
         <div className="pt-2 border-t border-black/[0.06] dark:border-white/[0.06] text-[11px] text-muted-foreground flex items-center justify-between">
           <span>Daily log discipline</span>
           <span className="text-orange-600 font-semibold flex items-center gap-1">
-            🔥 {logStreak > 5 ? "On Fire" : "Keep going"}
+            <Flame className="w-3.5 h-3.5 text-orange-600" />
+            {logStreak > 5 ? "On Fire" : "Keep going"}
           </span>
         </div>
       </Card>

@@ -1,7 +1,7 @@
 "use client";
 import { supabase } from "@/integrations/supabase/client";
 
-type NotificationType = 
+export type NotificationType = 
   | 'project_update' 
   | 'action_item_created' 
   | 'action_item_completed' 
@@ -10,7 +10,12 @@ type NotificationType =
   | 'blocker_created' 
   | 'blocker_resolved' 
   | 'leave_request' 
+  | 'leave.approved'
+  | 'leave.rejected'
+  | 'leave.balance_exhausted'
   | 'remote_work_request'
+  | 'remote_work.approved'
+  | 'remote_work.rejected'
   | 'task_created'
   | 'task_edited'
   | 'task_deleted'
@@ -54,11 +59,107 @@ export async function getProjectMemberIds(projectId: string) {
   return data?.map(member => member.user_id) || [];
 }
 
-export async function getAdminManagerIds(excludeUserId?: string) {
+export async function getAdminManagerIds(excludeUserId?: string): Promise<string[]> {
   const { data, error } = await supabase.rpc("get_admin_manager_ids");
   
   if (error) throw error;
-  return (data || []).map((r: any) => r.id).filter((id: string) => id !== excludeUserId);
+  const rawIds: string[] = (data || []).map((r: any) => r.id).filter((id: string) => id && id !== excludeUserId);
+  if (rawIds.length === 0) return [];
+
+  // Filter out non-admin roles if users table roles are readable (defensive fallback before DB migration)
+  const { data: usersData } = await supabase
+    .from("users")
+    .select("id, role")
+    .in("id", rawIds);
+
+  if (usersData && usersData.length > 0) {
+    const nonAdminIds = new Set(
+      usersData.filter(u => u.role && u.role !== "admin").map(u => u.id)
+    );
+    return rawIds.filter(id => !nonAdminIds.has(id));
+  }
+
+  return rawIds;
+}
+
+/**
+ * Returns active Admin user IDs + Project Manager user IDs who are assigned to `projectId`.
+ */
+export async function getProjectAdminManagerIds(projectId: string, excludeUserId?: string): Promise<string[]> {
+  const { data, error } = await (supabase as any).rpc("get_project_notification_admin_ids", {
+    p_project_id: projectId,
+  });
+
+  if (!error && Array.isArray(data)) {
+    return data.map((r: any) => r.id).filter((id: string) => id && id !== excludeUserId);
+  }
+
+  // Fallback if RPC has not yet been deployed to the database
+  const [{ data: rawRpcData, error: rpcErr }, projectMemberIds] = await Promise.all([
+    supabase.rpc("get_admin_manager_ids"),
+    getProjectMemberIds(projectId).catch(() => [] as string[]),
+  ]);
+  if (rpcErr) throw rpcErr;
+
+  const rawIds: string[] = (rawRpcData || [])
+    .map((r: any) => r.id)
+    .filter((id: string) => id && id !== excludeUserId);
+  if (rawIds.length === 0) return [];
+
+  const memberSet = new Set(projectMemberIds);
+  const { data: usersData } = await supabase
+    .from("users")
+    .select("id, role")
+    .in("id", rawIds);
+
+  if (usersData && usersData.length > 0) {
+    const roleMap = new Map(usersData.map(u => [u.id, u.role]));
+    return rawIds.filter(id => {
+      const role = roleMap.get(id);
+      if (!role) return true; // If RLS hid the row on an unmigrated DB, keep admin/PM candidate
+      if (role === "admin") return true;
+      if (role === "project_manager") return memberSet.has(id);
+      return false;
+    });
+  }
+
+  return rawIds;
+}
+
+/**
+ * Returns active Admin user IDs + HR Manager user IDs for Leave / WFH requests.
+ */
+export async function getLeaveAdminIds(excludeUserId?: string): Promise<string[]> {
+  const { data, error } = await (supabase as any).rpc("get_hr_admin_ids");
+
+  if (!error && Array.isArray(data)) {
+    return data.map((r: any) => r.id).filter((id: string) => id && id !== excludeUserId);
+  }
+
+  // Fallback if RPC has not yet been deployed to the database
+  const { data: rawRpcData, error: rpcErr } = await supabase.rpc("get_admin_manager_ids");
+  if (rpcErr) throw rpcErr;
+
+  const rawIds: string[] = (rawRpcData || [])
+    .map((r: any) => r.id)
+    .filter((id: string) => id && id !== excludeUserId);
+  if (rawIds.length === 0) return [];
+
+  const { data: usersData } = await supabase
+    .from("users")
+    .select("id, role")
+    .in("id", rawIds);
+
+  if (usersData && usersData.length > 0) {
+    const roleMap = new Map(usersData.map(u => [u.id, u.role]));
+    return rawIds.filter(id => {
+      const role = roleMap.get(id);
+      if (!role) return true;
+      return role === "admin" || role === "hr_manager";
+    });
+  }
+
+  return rawIds;
 }
 
 export async function createProjectRelatedNotifications({
@@ -67,6 +168,8 @@ export async function createProjectRelatedNotifications({
   type,
   title,
   message,
+  recipientUserIds = [],
+  includeAllProjectMembers = false,
   requiresClientAction = false,
 }: {
   createdByUserId: string;
@@ -74,19 +177,34 @@ export async function createProjectRelatedNotifications({
   type: NotificationType;
   title: string;
   message: string;
+  recipientUserIds?: (string | null | undefined)[];
+  includeAllProjectMembers?: boolean;
   requiresClientAction?: boolean;
 }) {
-  const projectMemberIds = await getProjectMemberIds(projectId);
-  const adminManagerIds = await getAdminManagerIds(createdByUserId);
-  
-  const targetUserIds = new Set(projectMemberIds);
-  adminManagerIds.forEach(id => targetUserIds.add(id));
-  targetUserIds.delete(createdByUserId);
-  
-  if (requiresClientAction) {
-    const clientMemberIds = await getClientMemberIds(projectId);
-    clientMemberIds.forEach(id => targetUserIds.add(id));
+  const adminAndProjectPmIds = await getProjectAdminManagerIds(projectId, createdByUserId);
+  const targetUserIds = new Set<string>(adminAndProjectPmIds);
+
+  for (const id of recipientUserIds) {
+    if (id) targetUserIds.add(id);
   }
+
+  if (includeAllProjectMembers) {
+    const [projectMemberIds, clientMemberIds] = await Promise.all([
+      getProjectMemberIds(projectId),
+      getClientMemberIds(projectId).catch(() => [] as string[]),
+    ]);
+    const clientSet = new Set(clientMemberIds);
+    projectMemberIds.forEach(id => {
+      if (!clientSet.has(id) || requiresClientAction) {
+        targetUserIds.add(id);
+      }
+    });
+    if (requiresClientAction) {
+      clientMemberIds.forEach(id => targetUserIds.add(id));
+    }
+  }
+  
+  targetUserIds.delete(createdByUserId);
   
   const notificationsToInsert = Array.from(targetUserIds).map(userId => ({
     user_id: userId,
@@ -131,6 +249,7 @@ function isClientMemberUser(user: { role?: string | null; designation?: string |
 /** In-app notify assignee (on assign); if client member, also email their login address. */
 export async function notifyTaskAssigned({
   assigneeUserId,
+  assignedByUserId,
   taskTitle,
   projectId,
   projectName,
@@ -141,6 +260,7 @@ export async function notifyTaskAssigned({
   appUrl = typeof window !== "undefined" ? window.location.origin : undefined,
 }: {
   assigneeUserId: string;
+  assignedByUserId?: string;
   taskTitle: string;
   projectId: string;
   projectName: string;
@@ -152,7 +272,7 @@ export async function notifyTaskAssigned({
   appUrl?: string;
 }) {
   // In-app "Task Assigned" only on new assignment; edit already fans out "Task Updated".
-  if (event === "assigned") {
+  if (event === "assigned" && assigneeUserId !== assignedByUserId) {
     await createNotification({
       userId: assigneeUserId,
       type: "task_assigned",

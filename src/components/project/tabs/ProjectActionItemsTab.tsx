@@ -193,7 +193,7 @@ export function ProjectActionItemsTab({
         ? "No client-visible dependency action items."
         : "No action items for this project.";
 
-  if (isAdmin && !isClient && setAddTaskOpen && setTaskTitle) {
+  if (!isClient) {
     return (
       <AdminActionItemsPanel
         id={id}
@@ -204,13 +204,14 @@ export function ProjectActionItemsTab({
         expandedActionItemId={expandedActionItemId}
         setExpandedActionItemId={setExpandedActionItemId}
         actionItemMessages={actionItemMessages}
-        setAddTaskOpen={setAddTaskOpen}
-        setTaskTitle={setTaskTitle}
+        setAddTaskOpen={setAddTaskOpen ?? (() => {})}
+        setTaskTitle={setTaskTitle ?? (() => {})}
         completeActionItem={completeActionItem}
         sendActionItemMessage={sendActionItemMessage}
         newActionItemMessage={newActionItemMessage}
         setNewActionItemMessage={setNewActionItemMessage}
         renderMessageContent={renderMessageContent}
+        isAdmin={isAdmin}
       />
     );
   }

@@ -145,16 +145,16 @@ export function ProjectSprintsTab({
   deleteSprint,
   openSprintTasks,
 }: ProjectSprintsTabProps) {
-  if (isAdmin) {
-    const phaseGroups = (phases || []).filter((p: any) =>
-      sprints.some((s: any) => s.phase_id === p.id)
-    );
-    const unassigned = sprints.filter((s: any) => !s.phase_id);
+  const phaseGroups = (phases || []).filter((p: any) =>
+    sprints.some((s: any) => s.phase_id === p.id)
+  );
+  const unassigned = sprints.filter((s: any) => !s.phase_id);
 
-    return (
-      <div>
-        <div className="flex items-center justify-between mb-[18px] flex-wrap gap-2.5">
-          <div className="text-[18px] font-bold text-[#17171A]">Sprints</div>
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-[18px] flex-wrap gap-2.5">
+        <div className="text-[18px] font-bold text-[#17171A]">Sprints</div>
+        {isAdmin && (
           <button
             type="button"
             onClick={() => setAddSprintOpen(true)}
@@ -163,50 +163,25 @@ export function ProjectSprintsTab({
             <Plus className="h-3.5 w-3.5" strokeWidth={2.2} />
             Add Sprint
           </button>
-        </div>
+        )}
+      </div>
 
-        {sprints.length === 0 ? (
-          <p className="text-[13px] text-[#8B8B92] py-8 text-center">No sprints yet.</p>
-        ) : (
-          <div className="space-y-[26px]">
-            {phaseGroups.map((phase: any) => {
-              const phaseSprints = sprints.filter((s: any) => s.phase_id === phase.id);
-              return (
-                <div key={phase.id}>
-                  <div className="flex items-center gap-2.5 mb-3.5">
-                    <div className="text-[14.5px] font-bold text-[#17171A]">{phase.title}</div>
-                    <span className="bg-[#F6F5F3] text-[#4B4B52] text-[11px] font-bold px-[9px] py-[3px] rounded-full">
-                      {phaseSprints.length} sprint{phaseSprints.length === 1 ? "" : "s"}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                    {phaseSprints.map((s: any) => (
-                      <SprintCard
-                        key={s.id}
-                        sprint={s}
-                        taskCount={sprintTaskCount[s.id] || 0}
-                        progress={sprintProgress[s.id] || 0}
-                        onOpen={() => openSprintTasks(s)}
-                        onEdit={() => openEditSprint(s)}
-                        onDelete={() => deleteSprint(s.id)}
-                        showActions
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-
-            {unassigned.length > 0 && (
-              <div>
+      {sprints.length === 0 ? (
+        <p className="text-[13px] text-[#8B8B92] py-8 text-center">No sprints yet.</p>
+      ) : (
+        <div className="space-y-[26px]">
+          {phaseGroups.map((phase: any) => {
+            const phaseSprints = sprints.filter((s: any) => s.phase_id === phase.id);
+            return (
+              <div key={phase.id}>
                 <div className="flex items-center gap-2.5 mb-3.5">
-                  <div className="text-[14.5px] font-bold text-[#17171A]">Unassigned</div>
+                  <div className="text-[14.5px] font-bold text-[#17171A]">{phase.title}</div>
                   <span className="bg-[#F6F5F3] text-[#4B4B52] text-[11px] font-bold px-[9px] py-[3px] rounded-full">
-                    {unassigned.length} sprint{unassigned.length === 1 ? "" : "s"}
+                    {phaseSprints.length} sprint{phaseSprints.length === 1 ? "" : "s"}
                   </span>
                 </div>
                 <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
-                  {unassigned.map((s: any) => (
+                  {phaseSprints.map((s: any) => (
                     <SprintCard
                       key={s.id}
                       sprint={s}
@@ -215,73 +190,40 @@ export function ProjectSprintsTab({
                       onOpen={() => openSprintTasks(s)}
                       onEdit={() => openEditSprint(s)}
                       onDelete={() => deleteSprint(s.id)}
-                      showActions
+                      showActions={isAdmin}
                     />
                   ))}
                 </div>
               </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
-  }
+            );
+          })}
 
-  return (
-    <>
-      <div className="flex items-center justify-between">
-        <h3 className="text-lg font-semibold">Sprints</h3>
-      </div>
-      {sprints.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No sprints yet.</p>
-      ) : (
-        <div>
-          <TableHeader gridCols="1fr 112px 96px 96px 80px 80px">
-            <span>SPRINT</span>
-            <span>DATES</span>
-            <span>STATUS</span>
-            <span>TASKS</span>
-            <span>PROGRESS</span>
-          </TableHeader>
-          {sprints.map((s: any) => (
-            <DataRow key={s.id} onClick={() => openSprintTasks(s)} gridCols="1fr 112px 96px 96px 80px 80px">
-              <div>
-                <RowPrimary className="whitespace-normal break-words">{s.name}</RowPrimary>
-                <RowSecondary>{sprintTaskCount[s.id] || 0} tasks</RowSecondary>
+          {unassigned.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2.5 mb-3.5">
+                <div className="text-[14.5px] font-bold text-[#17171A]">Unassigned</div>
+                <span className="bg-[#F6F5F3] text-[#4B4B52] text-[11px] font-bold px-[9px] py-[3px] rounded-full">
+                  {unassigned.length} sprint{unassigned.length === 1 ? "" : "s"}
+                </span>
               </div>
-              <RowDataItem label="DATES">
-                {format(new Date(s.start_date + "T00:00:00"), "MMM d")} –{" "}
-                {format(new Date(s.end_date + "T00:00:00"), "MMM d")}
-              </RowDataItem>
-              <RowBadgeItem label="STATUS">
-                <Badge
-                  className={
-                    s.status === "active"
-                      ? "bg-green-100 text-green-800"
-                      : s.status === "completed"
-                        ? "bg-blue-100 text-blue-800"
-                        : "bg-gray-100 text-gray-800"
-                  }
-                >
-                  {s.status}
-                </Badge>
-              </RowBadgeItem>
-              <RowDataItem label="TASKS">{sprintTaskCount[s.id] || 0}</RowDataItem>
-              <RowDataItem label="PROGRESS">
-                <div className="flex items-center gap-2">
-                  <div className="w-16 bg-muted rounded-full h-2">
-                    <div
-                      className="bg-primary h-2 rounded-full transition-all"
-                      style={{ width: `${sprintProgress[s.id]}%` }}
-                    />
-                  </div>
-                  <span className="text-[11px] text-[#6b7280]">{sprintProgress[s.id]}%</span>
-                </div>
-              </RowDataItem>
-            </DataRow>
-          ))}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(280px,1fr))] gap-4">
+                {unassigned.map((s: any) => (
+                  <SprintCard
+                    key={s.id}
+                    sprint={s}
+                    taskCount={sprintTaskCount[s.id] || 0}
+                    progress={sprintProgress[s.id] || 0}
+                    onOpen={() => openSprintTasks(s)}
+                    onEdit={() => openEditSprint(s)}
+                    onDelete={() => deleteSprint(s.id)}
+                    showActions={isAdmin}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-    </>
+    </div>
   );
 }

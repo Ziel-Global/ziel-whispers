@@ -15,11 +15,20 @@ import {
   ShieldAlert,
   Loader2,
   UserCheck,
+  Users,
+  Building2,
+  Monitor,
+  Calendar,
 } from "lucide-react";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { getAvatarUrl, getInitials } from "@/lib/utils";
 import { format } from "date-fns";
 
 export interface EmployeeDailyStripProps {
   todayAttendance: any;
+  todayApprovedLeave?: any;
   loadingAttendance: boolean;
   todayStandup: any;
   todaySubmittedHours: number;
@@ -29,6 +38,7 @@ export interface EmployeeDailyStripProps {
   shiftEnd: string;
   unacknowledgedAutoClockout: any;
   hasTeammates?: boolean;
+  teamStatus?: any[];
   onStandupComplete: () => void;
   isStandupPending: boolean;
   onAcknowledgeAutoClockout: (id: string) => void;
@@ -36,6 +46,7 @@ export interface EmployeeDailyStripProps {
 
 export function EmployeeDailyStrip({
   todayAttendance,
+  todayApprovedLeave = null,
   loadingAttendance,
   todayStandup,
   todaySubmittedHours,
@@ -45,6 +56,7 @@ export function EmployeeDailyStrip({
   shiftEnd,
   unacknowledgedAutoClockout,
   hasTeammates = true,
+  teamStatus = [],
   onStandupComplete,
   isStandupPending,
   onAcknowledgeAutoClockout,
@@ -53,7 +65,16 @@ export function EmployeeDailyStrip({
 
   const isClockedIn = !!todayAttendance?.clock_in && !todayAttendance?.clock_out;
   const isClockedOut = !!todayAttendance?.clock_out;
+  const isOnApprovedLeave = !isClockedIn && !isClockedOut && !!todayApprovedLeave;
   const progressPct = Math.min(100, Math.round((todaySubmittedHours / shiftHours) * 100));
+
+  const activeTeamMembers = teamStatus.filter((m: any) => !!m.attendance?.clock_in && !m.attendance?.clock_out);
+  const onsiteCount = activeTeamMembers.filter(
+    (m: any) => m.attendance?.work_mode === "onsite" || m.attendance?.work_mode === "office"
+  ).length;
+  const remoteCount = activeTeamMembers.filter(
+    (m: any) => m.attendance?.work_mode === "remote" || m.attendance?.work_mode === "wfh"
+  ).length;
 
   return (
     <div className="space-y-3">
@@ -81,7 +102,7 @@ export function EmployeeDailyStrip({
       )}
 
       {/* Main Daily Strip Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {/* Strip Item 1: Attendance Punch & Status */}
         <Card className="p-4 border border-black/[0.08] dark:border-white/[0.08] shadow-sm flex flex-col justify-between gap-3">
           <div className="flex items-center justify-between">
@@ -115,6 +136,11 @@ export function EmployeeDailyStrip({
                 Completed
               </Badge>
             )}
+            {isOnApprovedLeave && (
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 text-[11px]">
+                On Leave
+              </Badge>
+            )}
           </div>
 
           <div className="flex items-center justify-between pt-1">
@@ -127,6 +153,10 @@ export function EmployeeDailyStrip({
                 </span>
               ) : isClockedOut ? (
                 <span>Shift ended at <strong>{format(new Date(todayAttendance.clock_out), "h:mm a")}</strong></span>
+              ) : isOnApprovedLeave ? (
+                <span className="text-purple-700 font-medium">
+                  {(todayApprovedLeave as any)?.leave_types?.name || "Approved Leave"} today
+                </span>
               ) : (
                 <span className="text-muted-foreground">Not clocked in yet</span>
               )}
@@ -136,9 +166,10 @@ export function EmployeeDailyStrip({
               size="sm"
               variant={isClockedIn ? "outline" : "default"}
               className="h-8 text-xs font-semibold px-4"
+              disabled={isOnApprovedLeave}
               onClick={() => navigate("/attendance/my")}
             >
-              {isClockedIn ? "End Shift" : isClockedOut ? "View Summary" : "Clock In"}
+              {isClockedIn ? "End Shift" : isClockedOut ? "View Summary" : isOnApprovedLeave ? "On Leave" : "Clock In"}
             </Button>
           </div>
         </Card>
@@ -294,6 +325,111 @@ export function EmployeeDailyStrip({
             )}
           </div>
         </Card>
+
+        {/* Strip Item 4: Team Today (Onsite / Remote Presence) */}
+        <Dialog>
+          <DialogTrigger asChild>
+            <Card className="p-4 border border-black/[0.08] dark:border-white/[0.08] shadow-sm flex flex-col justify-between gap-3 cursor-pointer hover:border-black/20 dark:hover:border-white/20 transition-colors">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 rounded-lg bg-sky-500/10 text-sky-600">
+                    <Users className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-medium text-muted-foreground">Team Today</p>
+                    <p className="text-sm font-semibold tracking-tight text-foreground">
+                      {activeTeamMembers.length} active now
+                    </p>
+                  </div>
+                </div>
+
+                <Badge variant="outline" className="bg-sky-50 text-sky-700 border-sky-200 text-[11px]">
+                  {teamStatus.length} total
+                </Badge>
+              </div>
+
+              <div className="flex items-center justify-between pt-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Building2 className="h-3 w-3 text-emerald-600" />
+                    <strong className="text-foreground">{onsiteCount}</strong> On-site
+                  </span>
+                  <span>·</span>
+                  <span className="inline-flex items-center gap-1">
+                    <Monitor className="h-3 w-3 text-blue-600" />
+                    <strong className="text-foreground">{remoteCount}</strong> Remote
+                  </span>
+                </div>
+
+                <span className="text-xs font-semibold text-sky-600 flex items-center gap-1 shrink-0">
+                  View <ArrowRight className="h-3 w-3" />
+                </span>
+              </div>
+            </Card>
+          </DialogTrigger>
+
+          <DialogContent className="p-0">
+            <DialogHeader className="p-4 pb-2 border-b">
+              <DialogTitle className="flex items-center gap-2 text-lg">
+                <Users className="h-5 w-5 text-sky-600" />
+                Team Status Today
+              </DialogTitle>
+            </DialogHeader>
+            <ScrollArea className="max-h-[60vh]">
+              <div className="divide-y">
+                {!teamStatus || teamStatus.length === 0 ? (
+                  <div className="p-8 text-center text-muted-foreground text-sm">No team members found.</div>
+                ) : (
+                  teamStatus.map((member: any) => {
+                    const clockedIn = !!member.attendance?.clock_in;
+                    const mode = member.attendance?.work_mode;
+
+                    return (
+                      <div key={member.id} className="p-4 flex items-center justify-between hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-10 w-10 border">
+                            <AvatarImage src={getAvatarUrl(member.avatar_url)} />
+                            <AvatarFallback>{getInitials(member.full_name)}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="text-sm font-semibold">{member.full_name}</p>
+                            <p className="text-[11px] text-muted-foreground leading-tight">
+                              {member.designation || "Team Member"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center">
+                          {member.onLeave ? (
+                            <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 border-none flex items-center gap-1 text-[10px] font-medium">
+                              <Calendar className="h-3 w-3" /> On Leave ({member.onLeave})
+                            </Badge>
+                          ) : !clockedIn ? (
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
+                              Not Clocked In
+                            </Badge>
+                          ) : member.attendance.clock_out ? (
+                            <Badge variant="secondary" className="bg-muted text-muted-foreground text-[10px] font-normal border-none">
+                              Clocked Out
+                            </Badge>
+                          ) : mode === "onsite" || mode === "office" ? (
+                            <Badge className="bg-green-100 text-green-700 hover:bg-green-100 border-none flex items-center gap-1 text-[10px] font-medium">
+                              <Building2 className="h-3 w-3" /> On-site
+                            </Badge>
+                          ) : (
+                            <Badge className="bg-blue-100 text-blue-700 hover:bg-blue-100 border-none flex items-center gap-1 text-[10px] font-medium">
+                              <Monitor className="h-3 w-3" /> Remote
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </ScrollArea>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -28,6 +28,9 @@ export default function LogSubmitPage() {
         projects={data.projects}
         editId={data.editId}
         isLocked={data.isLocked}
+        selectedDateApprovedLeave={data.selectedDateApprovedLeave}
+        isOnApprovedLeaveForSelectedDate={data.isOnApprovedLeaveForSelectedDate}
+        isApprovedLeaveDate={data.isApprovedLeaveDate}
         isCalendarOpen={data.isCalendarOpen}
         setIsCalendarOpen={data.setIsCalendarOpen}
         overtimeEnabled={data.overtimeEnabled}

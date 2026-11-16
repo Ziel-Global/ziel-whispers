@@ -79,6 +79,26 @@ export function useLogSubmitData() {
   const effectiveLogEditDays = perEmployeeLogEditDays ?? 1;
   const minDate = getMinDateStr(10);
 
+  // 3b. Approved leave requests overlapping the editable date range
+  const { data: approvedLeaves = [] } = useQuery({
+    queryKey: ["my-approved-leaves-range", user?.id, minDate, today],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("leave_requests")
+        .select("id, start_date, end_date, leave_types(name)")
+        .eq("user_id", user!.id)
+        .eq("status", "approved")
+        .gte("end_date", minDate)
+        .lte("start_date", today);
+      return data || [];
+    },
+    enabled: !!user?.id,
+    staleTime: 30000,
+  });
+
+  const getApprovedLeaveForDate = (dateStr: string) =>
+    approvedLeaves.find((l: any) => dateStr >= l.start_date && dateStr <= l.end_date) || null;
+
   // 4. Log totals for recent range
   const { data: logsTotals = {}, isFetched: logsTotalsFetched } = useQuery({
     queryKey: ["my-logs-totals-range", user?.id],
@@ -437,7 +457,14 @@ export function useLogSubmitData() {
       : submittedHours >= 8
   );
 
+  const selectedDateApprovedLeave = getApprovedLeaveForDate(selectedDate);
+  const isOnApprovedLeaveForSelectedDate = !!selectedDateApprovedLeave && profile?.role !== "admin";
+
   const onAddLog = async (data: any) => {
+    if (profile?.role !== "admin" && getApprovedLeaveForDate(data.log_date)) {
+      toast.error("You cannot add work logs on an approved leave day.");
+      return;
+    }
     const currentHours = Number(data.hours);
     const maxDaily = 24;
     if (submittedHours + pendingHoursForSelectedDate + currentHours > maxDaily + 0.01 && profile?.role !== "admin") {
@@ -800,6 +827,9 @@ export function useLogSubmitData() {
     selectedTask,
     allowedTransitions,
     isLocked,
+    selectedDateApprovedLeave,
+    isOnApprovedLeaveForSelectedDate,
+    isApprovedLeaveDate: (dateStr: string) => profile?.role !== "admin" && !!getApprovedLeaveForDate(dateStr),
     onAddLog,
     startEdit,
     cancelEdit,

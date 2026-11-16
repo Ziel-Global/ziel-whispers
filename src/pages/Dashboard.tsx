@@ -617,7 +617,7 @@ export default function DashboardPage() {
       )}
 
       {/* Modern Blueprint Employee Dashboard */}
-      <EmployeeDashboard />
+      <EmployeeDashboard teamStatus={teamStatus || []} />
     </div>
   );
 }

@@ -12,7 +12,11 @@ import { Sparkles, Calendar, FileText, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toSlug } from "@/lib/utils";
 
-export function EmployeeDashboard() {
+export interface EmployeeDashboardProps {
+  teamStatus?: any[];
+}
+
+export function EmployeeDashboard({ teamStatus = [] }: EmployeeDashboardProps) {
   const { profile } = useAuth();
   const navigate = useNavigate();
   const data = useEmployeeDashboardData();
@@ -57,6 +61,7 @@ export function EmployeeDashboard() {
       {/* 1. Daily Action Strip */}
       <EmployeeDailyStrip
         todayAttendance={data.todayAttendance}
+        todayApprovedLeave={data.todayApprovedLeave}
         loadingAttendance={data.loadingAttendance}
         todayStandup={data.todayStandup}
         todaySubmittedHours={data.todaySubmittedHours}
@@ -66,6 +71,7 @@ export function EmployeeDashboard() {
         shiftEnd={data.shiftEnd}
         unacknowledgedAutoClockout={data.unacknowledgedAutoClockout}
         hasTeammates={data.hasTeammates}
+        teamStatus={teamStatus}
         onStandupComplete={() => data.standupMutation.mutate()}
         isStandupPending={data.standupMutation.isPending}
         onAcknowledgeAutoClockout={(id) => data.acknowledgeAutoClockoutMutation.mutate(id)}

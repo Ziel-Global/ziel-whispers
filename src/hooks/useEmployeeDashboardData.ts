@@ -105,6 +105,26 @@ export function useEmployeeDashboardData() {
     enabled: !!userId,
   });
 
+  // 2b. Fetch Today's Approved Leave
+  const { data: todayApprovedLeave } = useQuery({
+    queryKey: ["employee-approved-leave-today", userId, today],
+    queryFn: async () => {
+      if (!userId) return null;
+      const { data, error } = await supabase
+        .from("leave_requests")
+        .select("id, start_date, end_date, leave_types(name)")
+        .eq("user_id", userId)
+        .eq("status", "approved")
+        .lte("start_date", today)
+        .gte("end_date", today)
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!userId,
+  });
+
   // 3. Fetch Month's Attendance Records
   const { data: monthAttendance = [] } = useQuery({
     queryKey: ["employee-attendance-month", userId, monthStartStr],
@@ -520,6 +540,7 @@ export function useEmployeeDashboardData() {
     shiftEnd,
     shiftHours,
     todayAttendance,
+    todayApprovedLeave,
     loadingAttendance,
     todayStandup,
     todayLogs,

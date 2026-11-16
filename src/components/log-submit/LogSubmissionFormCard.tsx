@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { ClassicEditor } from "@/components/ui/classic-editor";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { ListPlus, Calendar as CalendarIcon, Lock, AlertTriangle } from "lucide-react";
+import { ListPlus, Calendar as CalendarIcon, Lock, AlertTriangle, CalendarOff } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Calendar } from "@/components/ui/calendar";
@@ -19,6 +19,9 @@ export interface LogSubmissionFormCardProps {
   projects: any[];
   editId: string | null;
   isLocked: boolean;
+  selectedDateApprovedLeave?: any;
+  isOnApprovedLeaveForSelectedDate?: boolean;
+  isApprovedLeaveDate?: (dateStr: string) => boolean;
   isCalendarOpen: boolean;
   setIsCalendarOpen: (open: boolean) => void;
   overtimeEnabled: boolean;
@@ -49,6 +52,9 @@ export function LogSubmissionFormCard({
   projects,
   editId,
   isLocked,
+  selectedDateApprovedLeave = null,
+  isOnApprovedLeaveForSelectedDate = false,
+  isApprovedLeaveDate,
   isCalendarOpen,
   setIsCalendarOpen,
   overtimeEnabled,
@@ -73,6 +79,8 @@ export function LogSubmissionFormCard({
   cancelEdit,
   navigate,
 }: LogSubmissionFormCardProps) {
+  const isFormDisabled = isLocked || isOnApprovedLeaveForSelectedDate;
+
   return (
     <Card className="p-6 border-2 border-primary/5 shadow-lg bg-card/50 backdrop-blur-sm">
       <div className="flex items-center gap-2 mb-6">
@@ -95,7 +103,7 @@ export function LogSubmissionFormCard({
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Project
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLocked}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
                     <FormControl>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Select project" />
@@ -123,7 +131,7 @@ export function LogSubmissionFormCard({
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                     Category
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isLocked}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
                     <FormControl>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Select category" />
@@ -159,7 +167,7 @@ export function LogSubmissionFormCard({
                       className="bg-background"
                       {...field}
                       onChange={(e) => field.onChange(Number(e.target.value))}
-                      disabled={isLocked}
+                      disabled={isFormDisabled}
                     />
                   </FormControl>
                   <FormMessage />
@@ -211,6 +219,7 @@ export function LogSubmissionFormCard({
                           }
 
                           if (!isWithinLogEditWindow(dateStr, today, effectiveLogEditDays, workingDays)) return true;
+                          if (isApprovedLeaveDate?.(dateStr)) return true;
                           if ((logsTotals[dateStr] || 0) >= 24) return true;
                           if (date > new Date()) return true;
 
@@ -380,7 +389,7 @@ export function LogSubmissionFormCard({
                         rows={3}
                         variant="full"
                         placeholder="Explain your progress..."
-                        disabled={isLocked}
+                        disabled={isFormDisabled}
                       />
                     </FormControl>
                     <div className="flex justify-between items-center px-1">
@@ -416,6 +425,20 @@ export function LogSubmissionFormCard({
                   >
                     Go to My Logs
                   </Button>
+                </div>
+              ) : isOnApprovedLeaveForSelectedDate ? (
+                <div className="bg-purple-50/70 dark:bg-purple-950/20 p-6 rounded-xl border-2 border-dashed border-purple-200 dark:border-purple-800 flex flex-col items-center text-center space-y-3">
+                  <div className="p-3 bg-purple-100 dark:bg-purple-900/40 rounded-full">
+                    <CalendarOff className="h-6 w-6 text-purple-700 dark:text-purple-300" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-foreground">Approved Leave — Log Entry Disabled</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      You have an approved{" "}
+                      <strong>{selectedDateApprovedLeave?.leave_types?.name || "leave"}</strong> covering{" "}
+                      <strong>{format(parseISO(selectedDate), "MMM do, yyyy")}</strong>. You cannot add work logs on approved leave days.
+                    </p>
+                  </div>
                 </div>
               ) : (
                 <div className="flex justify-end gap-3 pt-2">

@@ -284,6 +284,41 @@ export default function DashboardPage() {
   const { data: teamStatus } = useQuery({
     queryKey: ["dashboard-team-today"],
     queryFn: async () => {
+      // 1. First try secure, tenant-isolated RPC
+      const { data: rpcData, error: rpcError } = await (supabase.rpc as any)("get_dashboard_team_today", { p_date: today });
+      if (!rpcError && rpcData) {
+        const team = rpcData.map((row: any) => ({
+          id: row.id,
+          full_name: row.full_name,
+          designation: row.designation,
+          avatar_url: row.avatar_url,
+          role: row.role,
+          is_on_leave: row.is_on_leave,
+          is_on_leave_from: row.is_on_leave_from,
+          is_on_leave_to: row.is_on_leave_to,
+          attendance: (row.clock_in || row.work_mode) ? {
+            user_id: row.id,
+            work_mode: row.work_mode,
+            clock_in: row.clock_in,
+            clock_out: row.clock_out,
+          } : null,
+          onLeave: row.on_leave || null,
+        }));
+
+        return team.sort((a: any, b: any) => {
+          const aClocked = !!a.attendance?.clock_in;
+          const bClocked = !!b.attendance?.clock_in;
+          const aLeave = !!a.onLeave;
+          const bLeave = !!b.onLeave;
+          if (aClocked && !bClocked) return -1;
+          if (!aClocked && bClocked) return 1;
+          if (aLeave && !bLeave) return -1;
+          if (!aLeave && bLeave) return 1;
+          return a.full_name.localeCompare(b.full_name);
+        });
+      }
+
+      // 2. Fallback to direct queries
       const [{ data: users }, { data: attendance }, { data: todayLeaves }] = await Promise.all([
         supabase.from("users").select("id, full_name, designation, avatar_url, role, is_on_leave, is_on_leave_from, is_on_leave_to").eq("role", "employee").eq("status", "active"),
         supabase.from("attendance").select("user_id, work_mode, clock_in, clock_out").eq("date", today),

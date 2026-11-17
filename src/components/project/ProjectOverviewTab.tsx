@@ -17,6 +17,7 @@ import {
   LineChart,
   Line,
   Area,
+  Brush,
   ComposedChart,
   XAxis,
   YAxis,
@@ -69,33 +70,30 @@ export interface ProjectOverviewTabProps {
   onNavigateTab?: (tab: string) => void;
 }
 
-// Client copy of the admin "Burndown" card (AdminProjectOverview). Clients can't read daily_logs,
-// so logged hours come from get_project_task_logged_hours (per-task totals, same filter as admin).
+// Client copy of the admin "Burndown" card (AdminProjectOverview).
 function ClientDeliveryBurndown({
   tasks,
   sprints,
   project,
   phases,
+  workflowStatuses = [],
 }: {
   tasks: any[];
   sprints: any[];
   project: any;
   phases: any[];
+  workflowStatuses?: any[];
 }) {
   const [burndownScope, setBurndownScope] = React.useState("project");
-  const { data: logs = [] } = useQuery({
-    queryKey: ["client-project-task-logged-hours", project?.id],
-    queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)("get_project_task_logged_hours", {
-        p_project_id: project.id,
-      });
-      if (error) throw error;
-      return (data || []) as { task_id: string; hours: number }[];
-    },
-    enabled: !!project?.id,
-  });
 
-  const burndown = computeBurndownData({ burndownScope, phases, tasks, sprints, logs, project });
+  const burndown = computeBurndownData({
+    burndownScope,
+    phases,
+    tasks,
+    sprints,
+    project,
+    workflowStatuses,
+  });
 
   return (
     <div className="bg-white border border-black/[0.08] rounded-[14px] p-6 min-w-0">
@@ -124,22 +122,16 @@ function ClientDeliveryBurndown({
         <>
           <div className="flex items-center gap-[26px] text-[12.5px] text-[#4B4B52] mb-[18px] flex-wrap">
             <span>
-              Total estimated: <b>{Number(burndown.totalEst).toFixed(1)}h</b>
+              Total tasks: <b>{burndown.totalTasks}</b>
             </span>
             <span>
-              Logged: <b>{Number(burndown.logged).toFixed(1)}h</b>
+              Completed: <b>{burndown.completedTasks}</b>
             </span>
             <span>
-              Remaining: <b>{Number(burndown.remaining).toFixed(1)}h</b>
+              Remaining: <b>{burndown.remainingTasks}</b>
             </span>
-            {burndown.unestimated.length > 0 && (
-              <span className="text-[#C7860F] font-bold">
-                Unestimated: {burndown.unestimated.length} task
-                {burndown.unestimated.length === 1 ? "" : "s"}
-              </span>
-            )}
           </div>
-          <div className="h-[220px] w-full">
+          <div className="h-[250px] w-full">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={burndown.burndownData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                 <defs>
@@ -150,15 +142,17 @@ function ClientDeliveryBurndown({
                 </defs>
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 12, fill: "#8B8B92" }}
+                  tick={{ fontSize: 11, fill: "#8B8B92" }}
                   axisLine={false}
                   tickLine={false}
+                  minTickGap={20}
                 />
                 <YAxis
                   tick={{ fontSize: 11, fill: "#8B8B92" }}
                   axisLine={false}
                   tickLine={false}
                   width={36}
+                  allowDecimals={false}
                 />
                 <RechartsTooltip
                   contentStyle={{ fontSize: 12, borderRadius: 9, border: "1px solid rgba(0,0,0,.08)" }}
@@ -177,7 +171,7 @@ function ClientDeliveryBurndown({
                   strokeWidth={2}
                   strokeDasharray="5 5"
                   dot={false}
-                  name="Total estimated"
+                  name="Ideal pace"
                 />
                 <Line
                   type="monotone"
@@ -186,20 +180,29 @@ function ClientDeliveryBurndown({
                   strokeWidth={3}
                   strokeLinecap="round"
                   connectNulls={false}
-                  dot={{ r: 5, fill: "#EB5A1E", stroke: "#fff", strokeWidth: 2 }}
-                  name="Remaining"
+                  dot={{ r: 4, fill: "#EB5A1E", stroke: "#fff", strokeWidth: 2 }}
+                  name="Remaining tasks"
                 />
+                {burndown.burndownData.length > 5 && (
+                  <Brush
+                    dataKey="name"
+                    height={24}
+                    stroke="#EB5A1E"
+                    fill="#FCFCFD"
+                    travellerWidth={8}
+                  />
+                )}
               </ComposedChart>
             </ResponsiveContainer>
           </div>
           <div className="flex items-center gap-[18px] mt-2.5 text-xs text-[#8B8B92]">
             <span className="inline-flex items-center gap-1.5">
               <span className="w-3.5 h-[2.5px] rounded-sm bg-[#EB5A1E] inline-block" />
-              Remaining
+              Remaining tasks
             </span>
             <span className="inline-flex items-center gap-1.5">
               <span className="w-3.5 h-[2.5px] rounded-sm bg-[#C6C6CC] inline-block" />
-              Total estimated
+              Ideal pace
             </span>
           </div>
         </>
@@ -518,16 +521,18 @@ function BurndownSection({
   sprints,
   logs,
   project,
+  workflowStatuses,
 }: {
   burndownScope: string;
   setBurndownScope: (s: string) => void;
   phases: any[];
   tasks: any[];
   sprints: any[];
-  logs: any[];
+  logs?: any[];
   project: any;
+  workflowStatuses?: any[];
 }) {
-  const result = computeBurndownData({ burndownScope, phases, tasks, sprints, logs, project });
+  const result = computeBurndownData({ burndownScope, phases, tasks, sprints, project, workflowStatuses });
 
   return (
     <div className="space-y-4">
@@ -556,38 +561,39 @@ function BurndownSection({
         <div className="space-y-2">
           <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2 flex-wrap">
             <span>
-              Total estimated: <strong>{result.totalEst}h</strong>
+              Total tasks: <strong>{result.totalTasks}</strong>
             </span>
             <span>
-              Logged: <strong>{result.logged.toFixed(1)}h</strong>
+              Completed: <strong>{result.completedTasks}</strong>
             </span>
             <span>
-              Remaining: <strong>{result.remaining.toFixed(1)}h</strong>
+              Remaining: <strong>{result.remainingTasks}</strong>
             </span>
-            {result.unestimated.length > 0 && (
-              <span className="text-yellow-600">
-                Unestimated:{" "}
-                <strong>
-                  {result.unestimated.length} task{result.unestimated.length > 1 ? "s" : ""}
-                </strong>
-              </span>
-            )}
           </div>
-          <ResponsiveContainer width="100%" height={200}>
+          <ResponsiveContainer width="100%" height={240}>
             <LineChart data={result.burndownData}>
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} />
+              <XAxis dataKey="name" tick={{ fontSize: 11 }} minTickGap={20} />
+              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
               <RechartsTooltip contentStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 4 }} name="Ideal" />
+              <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="Ideal pace" />
               <Line
                 type="monotone"
                 dataKey="actual"
                 stroke="#ef4444"
                 strokeWidth={2}
                 dot={{ r: 4 }}
-                connectNulls
-                name="Actual"
+                connectNulls={false}
+                name="Remaining tasks"
               />
+              {result.burndownData.length > 5 && (
+                <Brush
+                  dataKey="name"
+                  height={24}
+                  stroke="#60a5fa"
+                  fill="#FCFCFD"
+                  travellerWidth={8}
+                />
+              )}
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -783,6 +789,7 @@ export function ProjectOverviewTab({
             sprints={sprints}
             project={project}
             phases={phases}
+            workflowStatuses={workflowStatuses}
           />
           <ClientTaskStateDistribution tasks={tasks} workflowStatuses={workflowStatuses} />
         </div>
@@ -895,6 +902,7 @@ export function ProjectOverviewTab({
             sprints={sprints}
             logs={logs}
             project={project}
+            workflowStatuses={workflowStatuses}
           />
         </>
 

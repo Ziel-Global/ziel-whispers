@@ -70,7 +70,7 @@ export function WFHRequestsTab({
       {/* Filter Toolbar */}
       <div className="flex gap-2.5 items-center shrink-0">
         <Select value={wfhStatusFilter} onValueChange={setWfhStatusFilter}>
-          <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+          <SelectTrigger className="w-full sm:w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
@@ -87,8 +87,24 @@ export function WFHRequestsTab({
         <EmptyState message="No Remote Requests found" />
       ) : (
         <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
-          <div className="flex-1 min-h-0 overflow-y-auto">
-          <div className="sticky top-0 z-10 bg-white grid grid-cols-[40px_1.8fr_1.1fr_0.5fr_0.9fr_0.8fr_1.1fr_0.8fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
+          <div className="flex-1 min-h-0 overflow-y-auto overflow-x-auto">
+          {/* Mobile select-all bar */}
+          <div className="md:hidden sticky top-0 z-10 bg-white flex items-center justify-between px-4 py-2.5 border-b border-black/[0.06]">
+            <label className="flex items-center gap-2 text-xs font-semibold text-[#4B4B52]">
+              <input
+                type="checkbox"
+                className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
+                checked={selectedWfhIds.size === wfhFiltered.length && wfhFiltered.length > 0}
+                onChange={(e) => {
+                  if (e.target.checked) setSelectedWfhIds(new Set(wfhFiltered.map((r: any) => r.id)));
+                  else setSelectedWfhIds(new Set());
+                }}
+              />
+              Select all ({wfhFiltered.length})
+            </label>
+          </div>
+
+          <div className="hidden md:grid md:min-w-[820px] sticky top-0 z-10 bg-white grid-cols-[40px_1.8fr_1.1fr_0.5fr_0.9fr_0.8fr_1.1fr_0.8fr] gap-2 px-5 py-3 border-b border-black/[0.06] text-[11px] font-bold text-[#B0B0B6] tracking-[0.05em] uppercase">
             <div className="flex items-center justify-center">
               <input
                 type="checkbox"
@@ -133,8 +149,107 @@ export function WFHRequestsTab({
 
           {wfhFiltered.map((r: any) => (
             <React.Fragment key={r.id}>
+              {/* Mobile Card */}
               <div
-                className={`grid grid-cols-[40px_1.8fr_1.1fr_0.5fr_0.9fr_0.8fr_1.1fr_0.8fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors ${
+                className={`md:hidden p-4 border-b border-black/[0.05] cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors ${
+                  r.users?.is_oversight ? "bg-[#FFFBEB]/70" : r.status === "pending" ? "bg-[#FFFBEB]/40" : ""
+                }`}
+                onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
+              >
+                <div className="flex items-start justify-between gap-2.5">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div onClick={(e) => e.stopPropagation()} className="shrink-0">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
+                        checked={selectedWfhIds.has(r.id)}
+                        onChange={(e) => {
+                          const next = new Set(selectedWfhIds);
+                          if (e.target.checked) next.add(r.id);
+                          else next.delete(r.id);
+                          setSelectedWfhIds(next);
+                        }}
+                      />
+                    </div>
+                    <div className="h-8 w-8 rounded-full bg-[#FDECE3] text-[#EB5A1E] flex items-center justify-center text-[11.5px] font-bold shrink-0">
+                      {getInitials(r.users?.full_name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-[13.5px] font-bold text-[#17171A] truncate">{r.users?.full_name || "Unknown"}</p>
+                      <p className="text-[12px] text-[#8B8B92] truncate">{r.users?.designation || "—"}</p>
+                    </div>
+                  </div>
+                  <div className="shrink-0">
+                    <StatusBadge status={r.status} />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mt-3 pt-2.5 border-t border-black/[0.05] text-xs">
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#B0B0B6]">Date Range</div>
+                    <div className="text-[#4B4B52] font-medium mt-0.5">
+                      {r.start_date === r.end_date
+                        ? format(new Date(r.start_date + "T00:00:00"), "MMM d, yyyy")
+                        : `${format(new Date(r.start_date + "T00:00:00"), "MMM d")} — ${format(
+                            new Date(r.end_date + "T00:00:00"),
+                            "MMM d, yyyy"
+                          )}`}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#B0B0B6]">Days</div>
+                    <div className="text-[#17171A] font-bold mt-0.5">{r.days_count}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#B0B0B6]">Submitted</div>
+                    <div className="text-[#4B4B52] mt-0.5">{format(new Date(r.created_at), "MMM d, yyyy")}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-[#B0B0B6]">Reviewed</div>
+                    <div className="text-[#8B8B92] mt-0.5 truncate">
+                      {r.reviewed_at
+                        ? `${format(new Date(r.reviewed_at), "MMM d")} by ${r.reviewer?.full_name || "Admin"}`
+                        : "—"}
+                    </div>
+                  </div>
+                </div>
+
+                <div
+                  className="flex items-center justify-end gap-2 mt-3 pt-2.5 border-t border-black/[0.05]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {r.status === "pending" && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleWfhAction(r.id, "approve", r.user_id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[8px] bg-[#DFF6E4] hover:bg-[#C9F0D2] text-[#1B8A46] text-xs font-semibold transition-colors"
+                      >
+                        <Check className="h-3.5 w-3.5" /> Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleWfhAction(r.id, "reject", r.user_id)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#C23A3A] text-xs font-semibold transition-colors"
+                      >
+                        <X className="h-3.5 w-3.5" /> Reject
+                      </button>
+                    </>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setWfhDeleteId(r.id)}
+                    className="w-7 h-7 rounded-[8px] bg-[#FDECEC] hover:bg-[#FCD8D8] text-[#EB5A1E] flex items-center justify-center transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-[#EB5A1E]" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Desktop Row */}
+              <div
+                className={`hidden md:grid md:min-w-[820px] grid-cols-[40px_1.8fr_1.1fr_0.5fr_0.9fr_0.8fr_1.1fr_0.8fr] gap-2 items-center px-5 py-3.5 border-b border-black/[0.05] cursor-pointer hover:bg-[#F6F5F3]/50 transition-colors ${
                   r.users?.is_oversight ? "bg-[#FFFBEB]/70" : r.status === "pending" ? "bg-[#FFFBEB]/40" : ""
                 }`}
                 onClick={() => setExpandedId(expandedId === r.id ? null : r.id)}
@@ -229,7 +344,7 @@ export function WFHRequestsTab({
               </div>
 
               {expandedId === r.id && (
-                <div className="bg-[#F6F5F3]/30 border-b border-black/[0.06] px-6 py-4 space-y-3 font-sans">
+                <div className="bg-[#F6F5F3]/30 border-b border-black/[0.06] px-4 py-3 md:px-6 md:py-4 space-y-3 font-sans">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <p className="text-[10.5px] uppercase tracking-wider text-[#8B8B92] font-bold">Employee</p>

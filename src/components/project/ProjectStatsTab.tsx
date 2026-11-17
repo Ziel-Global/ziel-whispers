@@ -4,7 +4,8 @@ import { ResponsiveContainer, BarChart, XAxis, YAxis, Tooltip, Bar, Cell, PieCha
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { LineChart, Line } from "recharts";
+import { LineChart, Line, Brush } from "recharts";
+import { computeBurndownData } from "@/lib/projectBurndown";
 
 export interface ProjectStatsTabProps {
   project: any;
@@ -92,49 +93,42 @@ export function ProjectStatsTab({
               </div>
             </div>
             {(() => {
-              const scopeTasks = burndownScope === "project"
-                ? (tasks || [])
-                : (tasks || []).filter((t: any) => {
-                    const taskSprint = (sprints || []).find((s: any) => s.id === t.sprint_id);
-                    return taskSprint?.phase_id === burndownScope;
-                  })
-              const estimated = scopeTasks.filter((t: any) => t.estimated_hours != null);
-              const unestimated = scopeTasks.filter((t: any) => t.estimated_hours == null);
-              const totalEst = estimated.reduce((s: number, t: any) => s + Number(t.estimated_hours), 0);
-              const logged = scopeTasks.reduce((s: number, t: any) => {
-                const taskLogs = (logs || []).filter((l: any) => l.task_id === t.id);
-                return s + taskLogs.reduce((sum: number, l: any) => sum + Number(l.hours), 0);
-              }, 0);
-              const scopePhase = burndownScope !== "project" ? phases.find((p: any) => p.id === burndownScope) : null;
-              const endDate = scopePhase?.due_date || project?.end_date;
-              const startDate = project?.start_date;
-              if (estimated.length === 0 || !endDate || !startDate) {
-                return <p className="text-xs text-muted-foreground">Burndown requires estimated tasks and project dates.</p>;
+              const burndown = computeBurndownData({
+                burndownScope,
+                phases,
+                tasks,
+                sprints,
+                project,
+                workflowStatuses,
+              });
+
+              if ("error" in burndown) {
+                return <p className="text-xs text-muted-foreground py-2">{burndown.error}</p>;
               }
-              const daysTotal = Math.max(1, Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000));
-              const daysElapsed = Math.max(0, Math.round((Date.now() - new Date(startDate).getTime()) / 86400000));
-              const idealPerDay = totalEst / daysTotal;
-              const remaining = Math.max(0, totalEst - logged);
-              const idealRemaining = Math.max(0, totalEst - idealPerDay * Math.min(daysElapsed, daysTotal));
-              const bd = [
-                { name: "Start", ideal: totalEst, actual: totalEst },
-                { name: "Now", ideal: idealRemaining, actual: remaining },
-                { name: "Due", ideal: 0, actual: null },
-              ];
+
               return (
                 <div className="space-y-2">
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    <span>Total: <strong>{totalEst}h</strong></span>
-                    <span>Remaining: <strong>{remaining.toFixed(1)}h</strong></span>
-                    {unestimated.length > 0 && <span className="text-yellow-600">{unestimated.length} unestimated</span>}
+                  <div className="flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+                    <span>Total tasks: <strong>{burndown.totalTasks}</strong></span>
+                    <span>Completed: <strong>{burndown.completedTasks}</strong></span>
+                    <span>Remaining: <strong>{burndown.remainingTasks}</strong></span>
                   </div>
-                  <ResponsiveContainer width="100%" height={200}>
-                    <LineChart data={bd}>
-                      <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                      <YAxis tick={{ fontSize: 11 }} />
+                  <ResponsiveContainer width="100%" height={240}>
+                    <LineChart data={burndown.burndownData}>
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} minTickGap={20} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
                       <Tooltip contentStyle={{ fontSize: 12 }} />
-                      <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 4 }} name="Ideal" />
-                      <Line type="monotone" dataKey="actual" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} connectNulls name="Actual" />
+                      <Line type="monotone" dataKey="ideal" stroke="#60a5fa" strokeWidth={2} dot={{ r: 3 }} name="Ideal pace" />
+                      <Line type="monotone" dataKey="actual" stroke="#ef4444" strokeWidth={2} dot={{ r: 4 }} connectNulls={false} name="Remaining tasks" />
+                      {burndown.burndownData.length > 5 && (
+                        <Brush
+                          dataKey="name"
+                          height={24}
+                          stroke="#60a5fa"
+                          fill="#FCFCFD"
+                          travellerWidth={8}
+                        />
+                      )}
                     </LineChart>
                   </ResponsiveContainer>
                 </div>

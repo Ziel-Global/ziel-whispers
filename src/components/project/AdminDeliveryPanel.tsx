@@ -3,6 +3,7 @@ import {
   Area,
   Bar,
   BarChart,
+  Brush,
   ComposedChart,
   Line,
   ResponsiveContainer,
@@ -53,8 +54,8 @@ export function AdminDeliveryPanel({
     phases,
     tasks,
     sprints,
-    logs,
     project,
+    workflowStatuses,
   });
 
   const overdueTasks = (tasks || []).filter((t: any) => {
@@ -119,18 +120,16 @@ export function AdminDeliveryPanel({
           <>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-[12.5px] text-[#8B8B92] mb-3">
               <span>
-                Total: <b className="text-[#4B4B52]">{burndown.totalEst}h</b>
+                Total: <b className="text-[#4B4B52]">{burndown.totalTasks} tasks</b>
               </span>
               <span>
-                Remaining: <b className="text-[#4B4B52]">{Number(burndown.remaining).toFixed(1)}h</b>
+                Completed: <b className="text-[#4B4B52]">{burndown.completedTasks}</b>
               </span>
-              {burndown.unestimated.length > 0 && (
-                <span className="text-[#C7860F] font-bold">
-                  Unestimated: {burndown.unestimated.length}
-                </span>
-              )}
+              <span>
+                Remaining: <b className="text-[#4B4B52]">{burndown.remainingTasks}</b>
+              </span>
             </div>
-            <div className="h-[220px] w-full">
+            <div className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={burndown.burndownData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
@@ -139,8 +138,8 @@ export function AdminDeliveryPanel({
                       <stop offset="100%" stopColor="#EB5A1E" stopOpacity={0} />
                     </linearGradient>
                   </defs>
-                  <XAxis dataKey="name" tick={{ fontSize: 12, fill: "#8B8B92" }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: "#8B8B92" }} axisLine={false} tickLine={false} width={36} />
+                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#8B8B92" }} axisLine={false} tickLine={false} minTickGap={20} />
+                  <YAxis tick={{ fontSize: 11, fill: "#8B8B92" }} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
                   <RechartsTooltip
                     contentStyle={{ fontSize: 12, borderRadius: 9, border: "1px solid rgba(0,0,0,.08)" }}
                   />
@@ -158,7 +157,7 @@ export function AdminDeliveryPanel({
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={false}
-                    name="Total estimated"
+                    name="Ideal pace"
                   />
                   <Line
                     type="monotone"
@@ -167,9 +166,18 @@ export function AdminDeliveryPanel({
                     strokeWidth={3}
                     strokeLinecap="round"
                     connectNulls={false}
-                    dot={{ r: 5, fill: "#EB5A1E", stroke: "#fff", strokeWidth: 2 }}
-                    name="Remaining"
+                    dot={{ r: 4, fill: "#EB5A1E", stroke: "#fff", strokeWidth: 2 }}
+                    name="Remaining tasks"
                   />
+                  {burndown.burndownData.length > 5 && (
+                    <Brush
+                      dataKey="name"
+                      height={24}
+                      stroke="#EB5A1E"
+                      fill="#FCFCFD"
+                      travellerWidth={8}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>

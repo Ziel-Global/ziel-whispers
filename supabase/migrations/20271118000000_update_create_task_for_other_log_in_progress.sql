@@ -139,3 +139,4 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.create_task_for_other_log(UUID, TEXT, UUID) TO authenticated;
+NOTIFY pgrst, 'reload schema';

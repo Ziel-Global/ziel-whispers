@@ -642,7 +642,11 @@ export function useLogSubmitData() {
         await Promise.all(
           otherProjectLogs.map(async (log: any) => {
             const targetStatusId = log.declared_outcome_status_id || log.declared_transition_to || log.hours_status_id || null;
-            const { data: rpcData, error: rpcError } = await supabase.rpc(
+            let rpcData: any;
+            let rpcError: any;
+
+            // 1. Try 3-parameter RPC (includes selected workflow status_id)
+            const res3 = await supabase.rpc(
               "create_task_for_other_log" as any,
               {
                 p_project_id: log.project_id,
@@ -650,6 +654,23 @@ export function useLogSubmitData() {
                 p_status_id: targetStatusId,
               }
             );
+
+            if (res3.error && (res3.error.code === "PGRST202" || res3.error.message?.includes("schema cache"))) {
+              // 2. Graceful fallback if database schema cache has not yet reloaded the 3-parameter function
+              const res2 = await supabase.rpc(
+                "create_task_for_other_log" as any,
+                {
+                  p_project_id: log.project_id,
+                  p_description: log.description || "",
+                }
+              );
+              rpcData = res2.data;
+              rpcError = res2.error;
+            } else {
+              rpcData = res3.data;
+              rpcError = res3.error;
+            }
+
             if (rpcError) throw rpcError;
             const row = Array.isArray(rpcData) ? rpcData[0] : rpcData;
             if (row?.task_id) {

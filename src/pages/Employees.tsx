@@ -279,23 +279,23 @@ export default function EmployeesPage() {
       />
 
       <Tabs defaultValue={initialTab} className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0">
           <TabsTrigger
             value="list"
-            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none shrink-0 whitespace-nowrap"
           >
             All Users
           </TabsTrigger>
           <TabsTrigger
             value="client-members"
-            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none shrink-0 whitespace-nowrap"
           >
             Client Members
           </TabsTrigger>
           {isAdmin && (
             <TabsTrigger
               value="shift"
-              className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+              className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none shrink-0 whitespace-nowrap"
             >
               Global Shift Settings
             </TabsTrigger>
@@ -303,55 +303,58 @@ export default function EmployeesPage() {
         </TabsList>
 
         <TabsContent value="list" className="mt-4 flex-1 min-h-0 flex flex-col gap-4 overflow-hidden data-[state=inactive]:hidden">
-          <div className="flex flex-wrap gap-2.5 items-center shrink-0">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2.5 sm:items-center shrink-0">
             <SearchInput
               placeholder="Search by name, email, designation…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
+              className="w-full sm:w-auto sm:flex-1 sm:min-w-[220px]"
             />
 
-            <Select value={deptFilter} onValueChange={setDeptFilter}>
-              <SelectTrigger className="w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
-                <SelectValue placeholder="Department" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Departments</SelectItem>
-                {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
-              </SelectContent>
-            </Select>
+            <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2.5 w-full sm:w-auto">
+              <Select value={deptFilter} onValueChange={setDeptFilter}>
+                <SelectTrigger className="w-full sm:w-[160px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {DEPARTMENTS.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
 
-            <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
-                <SelectValue placeholder="Status" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Status</SelectItem>
-                {STATUSES.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
-              </SelectContent>
-            </Select>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-full sm:w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  {STATUSES.map((s) => <SelectItem key={s} value={s} className="capitalize">{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
 
-            <Select value={typeFilter} onValueChange={setTypeFilter}>
-              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
-                <SelectValue placeholder="Type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
-              </SelectContent>
-            </Select>
+              <Select value={typeFilter} onValueChange={setTypeFilter}>
+                <SelectTrigger className="w-full sm:w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Types</SelectItem>
+                  {EMP_TYPES.map((t) => <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>)}
+                </SelectContent>
+              </Select>
 
-            <Select value={roleFilter} onValueChange={setRoleFilter}>
-              <SelectTrigger className="w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
-                <SelectValue placeholder="Role" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="hr_manager">HR / Operational Manager</SelectItem>
-                <SelectItem value="project_manager">Project Manager</SelectItem>
-                <SelectItem value="employee">Employee</SelectItem>
-              </SelectContent>
-            </Select>
+              <Select value={roleFilter} onValueChange={setRoleFilter}>
+                <SelectTrigger className="w-full sm:w-[140px] bg-white border border-black/[0.08] rounded-[10px] px-3 py-2 text-[13px] font-semibold text-[#4B4B52] hover:bg-[#F6F5F3] h-[38px] shadow-sm">
+                  <SelectValue placeholder="Role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Roles</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="hr_manager">HR / Operational Manager</SelectItem>
+                  <SelectItem value="project_manager">Project Manager</SelectItem>
+                  <SelectItem value="employee">Employee</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="flex-1 min-h-0 bg-white border border-black/[0.08] rounded-[14px] overflow-hidden shadow-sm flex flex-col">
@@ -401,39 +404,50 @@ export default function EmployeesPage() {
                   <DataRow
                     key={emp.id}
                     onClick={() => navigate(`/employees/${emp.id}`)}
-                    className={`px-5 py-3 border-b border-black/[0.05] transition-colors ${isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : "hover:bg-[#F6F5F3]/50"}`}
+                    className={`p-4 md:px-5 md:py-3 border-b border-black/[0.05] transition-colors ${isOversight ? "bg-[#fef3c7] hover:bg-[#fef3c7]" : "hover:bg-[#F6F5F3]/50"}`}
                     gridCols="40px 1.8fr 1.3fr 1.5fr 1fr 0.8fr 1fr 0.7fr"
                   >
-                    <div className="flex items-center justify-center">
-                      <input
-                        type="checkbox"
-                        className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
-                        checked={selectedEmployeeIds.has(emp.id)}
-                        onChange={(e) => {
-                          const next = new Set(selectedEmployeeIds);
-                          if (e.target.checked) next.add(emp.id);
-                          else next.delete(emp.id);
-                          setSelectedEmployeeIds(next);
-                        }}
-                        onClick={(e) => e.stopPropagation()}
-                      />
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Avatar className="h-8 w-8 shrink-0 font-bold text-[11.5px]" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
-                        <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
-                        <AvatarFallback className="font-bold text-[11.5px] border-0" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>{initials}</AvatarFallback>
-                      </Avatar>
-                      <div className="min-w-0">
-                        <RowPrimary className="font-bold text-[13.5px] text-[#17171A] truncate">{emp.full_name}</RowPrimary>
-                        <RowSecondary className="text-[12px] text-[#8B8B92] truncate">{emp.role || "Employee"}{emp.department ? ` · ${emp.department}` : ""}</RowSecondary>
+                    <div className="flex items-center justify-between gap-2.5 md:contents">
+                      <div className="flex items-center gap-2.5 min-w-0 md:contents">
+                        <div className="flex items-center justify-center shrink-0">
+                          <input
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
+                            checked={selectedEmployeeIds.has(emp.id)}
+                            onChange={(e) => {
+                              const next = new Set(selectedEmployeeIds);
+                              if (e.target.checked) next.add(emp.id);
+                              else next.delete(emp.id);
+                              setSelectedEmployeeIds(next);
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                        </div>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="h-8 w-8 shrink-0 font-bold text-[11.5px]" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
+                            <AvatarImage src={getAvatarUrl(emp.avatar_url)} />
+                            <AvatarFallback className="font-bold text-[11.5px] border-0" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>{initials}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <RowPrimary className="font-bold text-[13.5px] text-[#17171A] truncate">{emp.full_name}</RowPrimary>
+                            <RowSecondary className="text-[12px] text-[#8B8B92] truncate">{emp.role || "Employee"}{emp.department ? ` · ${emp.department}` : ""}</RowSecondary>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="md:hidden shrink-0">
+                        <StatusBadge status={emp.status} />
                       </div>
                     </div>
-                    <RowDataItem label="DESIGNATION" className="text-[13px] font-medium text-[#17171A] truncate">{emp.designation || "—"}</RowDataItem>
-                    <RowDataItem label="EMAIL" className="text-[13px] text-[#4B4B52] truncate">{emp.email}</RowDataItem>
-                    <RowDataItem label="PHONE" className="text-[13px] text-[#4B4B52]">{emp.phone || "—"}</RowDataItem>
-                    <RowBadgeItem label="STATUS"><StatusBadge status={emp.status} /></RowBadgeItem>
-                    <RowDataItem label="JOIN DATE" className="text-[13px] text-[#4B4B52]">{emp.join_date ? format(new Date(emp.join_date), "MMM d, yyyy") : "—"}</RowDataItem>
-                    <RowActions className="justify-self-end flex items-center gap-2">
+
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mt-3 pt-2.5 border-t border-black/[0.05] md:contents">
+                      <RowDataItem label="DESIGNATION" className="text-[13px] font-medium text-[#17171A] truncate">{emp.designation || "—"}</RowDataItem>
+                      <RowDataItem label="EMAIL" className="col-span-2 md:col-span-1 text-[13px] text-[#4B4B52] truncate">{emp.email}</RowDataItem>
+                      <RowDataItem label="PHONE" className="text-[13px] text-[#4B4B52]">{emp.phone || "—"}</RowDataItem>
+                      <RowBadgeItem label="STATUS" className="hidden md:block"><StatusBadge status={emp.status} /></RowBadgeItem>
+                      <RowDataItem label="JOIN DATE" className="text-[13px] text-[#4B4B52]">{emp.join_date ? format(new Date(emp.join_date), "MMM d, yyyy") : "—"}</RowDataItem>
+                    </div>
+
+                    <RowActions className="mt-3 pt-2.5 border-t border-black/[0.05] justify-end md:mt-0 md:pt-0 md:border-0 md:justify-self-end flex items-center gap-2">
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); navigate(`/employees/${emp.id}`); }}
@@ -541,60 +555,71 @@ export default function EmployeesPage() {
                     <DataRow
                       key={cm.id}
                       onClick={() => navigate(`/employees/${cm.id}`)}
-                      className="px-5 py-3 border-b border-black/[0.05] transition-colors hover:bg-[#F6F5F3]/50"
+                      className="p-4 md:px-5 md:py-3 border-b border-black/[0.05] transition-colors hover:bg-[#F6F5F3]/50"
                       gridCols="40px 1.8fr 1.6fr 1.6fr 0.8fr 1fr 0.7fr"
                     >
-                      <div className="flex items-center justify-center">
-                        <input
-                          type="checkbox"
-                          className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
-                          checked={selectedClientMemberIds.has(cm.id)}
-                          onChange={(e) => {
-                            const next = new Set(selectedClientMemberIds);
-                            if (e.target.checked) next.add(cm.id);
-                            else next.delete(cm.id);
-                            setSelectedClientMemberIds(next);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        />
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <Avatar className="h-8 w-8 shrink-0 font-bold text-[11.5px]" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
-                          <AvatarImage src={getAvatarUrl(cm.avatar_url)} />
-                          <AvatarFallback className="font-bold text-[11.5px] border-0" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
-                            {initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="min-w-0">
-                          <RowPrimary className="font-bold text-[13.5px] text-[#17171A] truncate">{cm.full_name}</RowPrimary>
-                          <RowSecondary className="text-[12px] text-[#8B8B92] truncate capitalize">
-                            {cm.role || "Client Member"}
-                          </RowSecondary>
+                      <div className="flex items-center justify-between gap-2.5 md:contents">
+                        <div className="flex items-center gap-2.5 min-w-0 md:contents">
+                          <div className="flex items-center justify-center shrink-0">
+                            <input
+                              type="checkbox"
+                              className="h-4 w-4 rounded border-gray-300 accent-[#EB5A1E]"
+                              checked={selectedClientMemberIds.has(cm.id)}
+                              onChange={(e) => {
+                                const next = new Set(selectedClientMemberIds);
+                                if (e.target.checked) next.add(cm.id);
+                                else next.delete(cm.id);
+                                setSelectedClientMemberIds(next);
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3 min-w-0">
+                            <Avatar className="h-8 w-8 shrink-0 font-bold text-[11.5px]" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
+                              <AvatarImage src={getAvatarUrl(cm.avatar_url)} />
+                              <AvatarFallback className="font-bold text-[11.5px] border-0" style={{ backgroundColor: avatarStyle.bg, color: avatarStyle.color }}>
+                                {initials}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <RowPrimary className="font-bold text-[13.5px] text-[#17171A] truncate">{cm.full_name}</RowPrimary>
+                              <RowSecondary className="text-[12px] text-[#8B8B92] truncate capitalize">
+                                {cm.role || "Client Member"}
+                              </RowSecondary>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="md:hidden shrink-0">
+                          <StatusBadge status={cm.status} />
                         </div>
                       </div>
-                      <RowDataItem label="EMAIL" className="text-[13px] text-[#4B4B52] truncate">
-                        {cm.email}
-                      </RowDataItem>
-                      <RowDataItem
-                        label="ASSIGNED PROJECTS"
-                        className="text-[13px] text-[#4B4B52] truncate"
-                      >
-                        {assignedProjects.length === 0 ? (
-                          <span className="text-[#8B8B92]">No projects</span>
-                        ) : (
-                          <span title={assignedProjects.join(", ")} className="font-medium text-[#17171A]">
-                            {assignedProjects.slice(0, 2).join(", ")}
-                            {assignedProjects.length > 2 ? ` +${assignedProjects.length - 2}` : ""}
-                          </span>
-                        )}
-                      </RowDataItem>
-                      <RowBadgeItem label="STATUS">
-                        <StatusBadge status={cm.status} />
-                      </RowBadgeItem>
-                      <RowDataItem label="JOIN DATE" className="text-[13px] text-[#4B4B52]">
-                        {cm.join_date ? format(new Date(cm.join_date), "MMM d, yyyy") : "—"}
-                      </RowDataItem>
-                      <RowActions className="justify-self-end flex items-center gap-2">
+
+                      <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 mt-3 pt-2.5 border-t border-black/[0.05] md:contents">
+                        <RowDataItem label="EMAIL" className="col-span-2 md:col-span-1 text-[13px] text-[#4B4B52] truncate">
+                          {cm.email}
+                        </RowDataItem>
+                        <RowDataItem
+                          label="ASSIGNED PROJECTS"
+                          className="text-[13px] text-[#4B4B52] truncate"
+                        >
+                          {assignedProjects.length === 0 ? (
+                            <span className="text-[#8B8B92]">No projects</span>
+                          ) : (
+                            <span title={assignedProjects.join(", ")} className="font-medium text-[#17171A]">
+                              {assignedProjects.slice(0, 2).join(", ")}
+                              {assignedProjects.length > 2 ? ` +${assignedProjects.length - 2}` : ""}
+                            </span>
+                          )}
+                        </RowDataItem>
+                        <RowBadgeItem label="STATUS" className="hidden md:block">
+                          <StatusBadge status={cm.status} />
+                        </RowBadgeItem>
+                        <RowDataItem label="JOIN DATE" className="text-[13px] text-[#4B4B52]">
+                          {cm.join_date ? format(new Date(cm.join_date), "MMM d, yyyy") : "—"}
+                        </RowDataItem>
+                      </div>
+
+                      <RowActions className="mt-3 pt-2.5 border-t border-black/[0.05] justify-end md:mt-0 md:pt-0 md:border-0 md:justify-self-end flex items-center gap-2">
                         <button
                           type="button"
                           onClick={(e) => { e.stopPropagation(); navigate(`/employees/${cm.id}`); }}

@@ -35,10 +35,10 @@ export default function LeaveAdminPage() {
       />
 
       <Tabs defaultValue="requests" className="flex flex-col flex-1 min-h-0 overflow-hidden gap-4">
-        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit shrink-0">
+        <TabsList className="bg-white border border-black/[0.08] rounded-[11px] p-[5px] h-auto flex items-center gap-1 w-fit max-w-full overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden shrink-0">
           <TabsTrigger
             value="requests"
-            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none flex items-center gap-2"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-semibold text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none flex items-center gap-2 shrink-0 whitespace-nowrap"
           >
             Leave Requests
             {pendingLeaveCount > 0 && (
@@ -50,7 +50,7 @@ export default function LeaveAdminPage() {
 
           <TabsTrigger
             value="wfh"
-            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none flex items-center gap-2"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none flex items-center gap-2 shrink-0 whitespace-nowrap"
           >
             Remote Requests
             {pendingWfhCount > 0 && (
@@ -62,13 +62,13 @@ export default function LeaveAdminPage() {
 
           <TabsTrigger
             value="calendar"
-            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none shrink-0 whitespace-nowrap"
           >
             Calendar
           </TabsTrigger>
           <TabsTrigger
             value="settings"
-            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none"
+            className="rounded-[8px] px-4 py-2 text-[13px] font-medium text-[#8B8B92] data-[state=active]:bg-[#17171A] data-[state=active]:text-white transition-all shadow-none shrink-0 whitespace-nowrap"
           >
             Leave Settings
           </TabsTrigger>

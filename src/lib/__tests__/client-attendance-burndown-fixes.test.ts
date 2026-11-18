@@ -39,34 +39,44 @@ describe("2. Task comments are saved", () => {
   });
 });
 
-describe("3. Client burndown = admin formula, fed per-task logged totals", () => {
-  const project = { start_date: "2026-01-01", end_date: "2026-12-31" };
+describe("3. Task-based daily burndown progression", () => {
+  const project = { start_date: "2026-11-01", end_date: "2026-11-05" };
   const tasks = [
-    { id: "a", estimated_hours: 20 },
-    { id: "b", estimated_hours: 40 },
+    { id: "a", completed_at: "2026-11-02T10:00:00Z" },
+    { id: "b", completed_at: "2026-11-04T12:00:00Z" },
+    { id: "c", completed_at: null },
+    { id: "d", completed_at: null },
   ];
-  const base = { burndownScope: "project", phases: [], sprints: [], project, tasks };
 
-  it("per-task totals (client RPC) give the same numbers as raw logs (admin)", () => {
-    const admin: any = computeBurndownData({
-      ...base,
-      logs: [
-        { task_id: "a", hours: 5 },
-        { task_id: "a", hours: 7.5 },
-        { task_id: "b", hours: 10 },
-      ],
+  it("calculates total, completed, and remaining tasks accurately", () => {
+    const result: any = computeBurndownData({
+      burndownScope: "project",
+      phases: [],
+      sprints: [],
+      project,
+      tasks,
     });
-    const client: any = computeBurndownData({
-      ...base,
-      logs: [
-        { task_id: "a", hours: "12.5" }, // numeric may arrive as a string
-        { task_id: "b", hours: 10 },
-      ],
+
+    expect(result.totalTasks).toBe(4);
+    expect(result.completedTasks).toBe(2);
+    expect(result.remainingTasks).toBe(2);
+  });
+
+  it("generates daily points from start_date to end_date with linear ideal pace", () => {
+    const result: any = computeBurndownData({
+      burndownScope: "project",
+      phases: [],
+      sprints: [],
+      project,
+      tasks,
     });
-    expect(admin.logged).toBe(22.5);
-    expect(admin.remaining).toBe(37.5);
-    expect(client.logged).toBe(admin.logged);
-    expect(client.remaining).toBe(admin.remaining);
+
+    expect(result.burndownData).toHaveLength(5);
+    expect(result.burndownData[0].date).toBe("2026-11-01");
+    expect(result.burndownData[0].ideal).toBe(4);
+
+    expect(result.burndownData[4].date).toBe("2026-11-05");
+    expect(result.burndownData[4].ideal).toBe(0);
   });
 });
 

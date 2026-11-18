@@ -8,6 +8,7 @@ import { buildProjectActivityFeed } from "@/lib/projectActivityFeed";
 import { TruncatedTitle } from "@/components/ui/truncated-title";
 import {
   Area,
+  Brush,
   ComposedChart,
   Line,
   ResponsiveContainer,
@@ -194,8 +195,8 @@ export function AdminProjectOverview({
     phases,
     tasks,
     sprints,
-    logs,
     project,
+    workflowStatuses,
   });
 
   // 8-day window: today - 3 … today + 4
@@ -495,22 +496,16 @@ export function AdminProjectOverview({
           <>
             <div className="flex items-center gap-[26px] text-[12.5px] text-[#4B4B52] mb-[18px] flex-wrap">
               <span>
-                Total estimated: <b>{Number(burndown.totalEst).toFixed(1)}h</b>
+                Total tasks: <b>{burndown.totalTasks}</b>
               </span>
               <span>
-                Logged: <b>{Number(burndown.logged).toFixed(1)}h</b>
+                Completed: <b>{burndown.completedTasks}</b>
               </span>
               <span>
-                Remaining: <b>{Number(burndown.remaining).toFixed(1)}h</b>
+                Remaining: <b>{burndown.remainingTasks}</b>
               </span>
-              {burndown.unestimated.length > 0 && (
-                <span className="text-[#C7860F] font-bold">
-                  Unestimated: {burndown.unestimated.length} task
-                  {burndown.unestimated.length === 1 ? "" : "s"}
-                </span>
-              )}
             </div>
-            <div className="h-[220px] w-full">
+            <div className="h-[250px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={burndown.burndownData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
                   <defs>
@@ -521,15 +516,17 @@ export function AdminProjectOverview({
                   </defs>
                   <XAxis
                     dataKey="name"
-                    tick={{ fontSize: 12, fill: "#8B8B92" }}
+                    tick={{ fontSize: 11, fill: "#8B8B92" }}
                     axisLine={false}
                     tickLine={false}
+                    minTickGap={20}
                   />
                   <YAxis
                     tick={{ fontSize: 11, fill: "#8B8B92" }}
                     axisLine={false}
                     tickLine={false}
                     width={36}
+                    allowDecimals={false}
                   />
                   <RechartsTooltip
                     contentStyle={{ fontSize: 12, borderRadius: 9, border: "1px solid rgba(0,0,0,.08)" }}
@@ -548,7 +545,7 @@ export function AdminProjectOverview({
                     strokeWidth={2}
                     strokeDasharray="5 5"
                     dot={false}
-                    name="Total estimated"
+                    name="Ideal pace"
                   />
                   <Line
                     type="monotone"
@@ -557,20 +554,29 @@ export function AdminProjectOverview({
                     strokeWidth={3}
                     strokeLinecap="round"
                     connectNulls={false}
-                    dot={{ r: 5, fill: "#EB5A1E", stroke: "#fff", strokeWidth: 2 }}
-                    name="Remaining"
+                    dot={{ r: 4, fill: "#EB5A1E", stroke: "#fff", strokeWidth: 2 }}
+                    name="Remaining tasks"
                   />
+                  {burndown.burndownData.length > 5 && (
+                    <Brush
+                      dataKey="name"
+                      height={24}
+                      stroke="#EB5A1E"
+                      fill="#FCFCFD"
+                      travellerWidth={8}
+                    />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             </div>
             <div className="flex items-center gap-[18px] mt-2.5 text-xs text-[#8B8B92]">
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3.5 h-[2.5px] rounded-sm bg-[#EB5A1E] inline-block" />
-                Remaining
+                Remaining tasks
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-3.5 h-[2.5px] rounded-sm bg-[#C6C6CC] inline-block" />
-                Total estimated
+                Ideal pace
               </span>
             </div>
           </>

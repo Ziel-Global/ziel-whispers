@@ -109,8 +109,8 @@ export function PendingDraftLogsList({
             <div className="min-w-0">
               <RowPrimary>{log.projects?.name || "Project"}</RowPrimary>
               <RowSecondary>
-                {log.category.replace(/_/g, " ")} · {log.tasks?.title || "No task"}
-                {log.declared_outcome_status_id && (
+                {log.category.replace(/_/g, " ")} · {log.tasks?.title || "Other"}
+                {log.declared_outcome_status_id && log.task_id && (
                   <span className="text-blue-600 font-medium"> · will move to next stage</span>
                 )}
               </RowSecondary>

@@ -1,10 +1,14 @@
--- Migration: Update create_task_for_other_log to save auto-created tasks in "in_progress" state
--- When an employee logs work under "Other", the created task should land in the project's
--- active "in_progress" workflow status rather than the initial "backlog" / "todo" status.
+-- Migration: Update create_task_for_other_log to accept an optional user-selected status_id
+-- When an employee logs work under "Other", they can choose any workflow status from the project
+-- via radio buttons, and the task will be saved with that exact status_id.
+
+DROP FUNCTION IF EXISTS public.create_task_for_other_log(UUID, TEXT);
+DROP FUNCTION IF EXISTS public.create_task_for_other_log(UUID, TEXT, UUID);
 
 CREATE OR REPLACE FUNCTION public.create_task_for_other_log(
   p_project_id UUID,
-  p_description TEXT
+  p_description TEXT,
+  p_status_id UUID DEFAULT NULL
 )
 RETURNS TABLE(task_id UUID, status_id UUID)
 LANGUAGE plpgsql
@@ -17,10 +21,11 @@ DECLARE
   v_project_tenant UUID;
   v_workflow_template_id UUID;
   v_sprint_id UUID;
-  v_status_id UUID;
+  v_status_id UUID := p_status_id;
   v_clean_desc TEXT;
   v_title VARCHAR(255);
   v_task_id UUID;
+  v_status_name TEXT;
 BEGIN
   IF v_user_id IS NULL THEN
     RAISE EXCEPTION 'Authentication required';
@@ -48,43 +53,50 @@ BEGIN
   ORDER BY s.start_date DESC, s.created_at DESC
   LIMIT 1;
 
-  -- In-progress workflow status for the project's workflow template
-  IF v_workflow_template_id IS NOT NULL THEN
-    -- 1. Prefer active, non-retired status in the 'in_progress' category
-    SELECT ws.id
-      INTO v_status_id
+  -- If a status_id was explicitly provided, verify it belongs to this workflow template
+  IF v_status_id IS NOT NULL AND v_workflow_template_id IS NOT NULL THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM public.workflow_statuses ws
+      WHERE ws.id = v_status_id
+        AND ws.workflow_template_id = v_workflow_template_id
+        AND (ws.retired IS FALSE OR ws.retired IS NULL)
+    ) THEN
+      -- If invalid status passed, reset so fallback applies
+      v_status_id := NULL;
+    END IF;
+  END IF;
+
+  -- Fallback if no valid status_id was selected/provided
+  IF v_status_id IS NULL AND v_workflow_template_id IS NOT NULL THEN
+    -- 1. Try finding an in_progress category status
+    SELECT ws.id INTO v_status_id
     FROM public.workflow_statuses ws
     WHERE ws.workflow_template_id = v_workflow_template_id
       AND ws.category = 'in_progress'
       AND (ws.retired IS FALSE OR ws.retired IS NULL)
-    ORDER BY 
-      CASE 
-        WHEN lower(ws.name) IN ('in progress', 'in_progress', 'doing') THEN 0
-        ELSE 1
-      END,
-      ws.sort_order ASC
+    ORDER BY ws.sort_order ASC
     LIMIT 1;
 
-    -- 2. Fallback to initial status if no in_progress status is configured
+    -- 2. Fallback to first active status by sort order
     IF v_status_id IS NULL THEN
-      SELECT ws.id
-        INTO v_status_id
+      SELECT ws.id INTO v_status_id
       FROM public.workflow_statuses ws
       WHERE ws.workflow_template_id = v_workflow_template_id
         AND (ws.retired IS FALSE OR ws.retired IS NULL)
-      ORDER BY ws.is_initial DESC, ws.sort_order ASC
-      LIMIT 1;
-    END IF;
-
-    -- 3. Absolute fallback to any status by sort order if all were retired
-    IF v_status_id IS NULL THEN
-      SELECT ws.id
-        INTO v_status_id
-      FROM public.workflow_statuses ws
-      WHERE ws.workflow_template_id = v_workflow_template_id
       ORDER BY ws.sort_order ASC
       LIMIT 1;
     END IF;
+  END IF;
+
+  -- Lookup status name for dual-write to tasks.status
+  IF v_status_id IS NOT NULL THEN
+    SELECT ws.name INTO v_status_name
+    FROM public.workflow_statuses ws
+    WHERE ws.id = v_status_id;
+  END IF;
+
+  IF v_status_name IS NULL OR v_status_name = '' THEN
+    v_status_name := 'in_progress';
   END IF;
 
   v_clean_desc := regexp_replace(btrim(COALESCE(p_description, '')), '\s+', ' ', 'g');
@@ -115,7 +127,7 @@ BEGIN
     p_description,
     v_user_id,
     'medium',
-    'in_progress',
+    v_status_name,
     v_status_id,
     v_user_id,
     v_project_tenant
@@ -126,4 +138,4 @@ BEGIN
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION public.create_task_for_other_log(UUID, TEXT) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.create_task_for_other_log(UUID, TEXT, UUID) TO authenticated;

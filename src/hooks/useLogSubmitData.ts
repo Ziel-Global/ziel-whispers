@@ -425,6 +425,20 @@ export function useLogSubmitData() {
     }
   }, [declareOutcome, allowedTransitions]);
 
+  // When 'other' is selected, automatically ensure a default status is selected
+  useEffect(() => {
+    if (selectedTaskId === "other" && workflowStatuses && workflowStatuses.length > 0) {
+      const activeStatuses = workflowStatuses.filter((s: any) => !s.retired);
+      const exists = activeStatuses.some((s: any) => s.id === selectedOutcomeStatusId);
+      if (!exists) {
+        const defaultStatus = activeStatuses.find((s: any) => s.category === "in_progress") || activeStatuses[0];
+        if (defaultStatus) {
+          setSelectedOutcomeStatusId(defaultStatus.id);
+        }
+      }
+    }
+  }, [selectedTaskId, workflowStatuses, selectedOutcomeStatusId]);
+
   const pendingOutcomeStatusId = declareOutcome
     ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
     : "";
@@ -479,15 +493,22 @@ export function useLogSubmitData() {
       toast.error(`Cannot declare stage outcome for "${selectedTask.title}" — it is blocked by an active blocker.`);
       return;
     }
-    const declaredTarget = declareOutcome
-      ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
-      : "";
+    const isOther = data.task_id === "other";
+    if (isOther && !selectedOutcomeStatusId && workflowStatuses && workflowStatuses.length > 0) {
+      toast.error("Please select a status for the task before adding the log.");
+      return;
+    }
+    const declaredTarget = isOther
+      ? (selectedOutcomeStatusId || null)
+      : (declareOutcome
+        ? (selectedOutcomeStatusId || (allowedTransitions.length === 1 ? allowedTransitions[0].id : ""))
+        : "");
 
     try {
-      const finalTaskId = data.task_id === "other" ? null : (data.task_id || null);
+      const finalTaskId = isOther ? null : (data.task_id || null);
 
       if (editId) {
-        const hoursStatusId = selectedTask?.status_id || null;
+        const hoursStatusId = isOther ? (declaredTarget || null) : (selectedTask?.status_id || null);
         const { error } = await supabase.from("daily_logs").update({
           project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
           category: data.category,
@@ -503,7 +524,7 @@ export function useLogSubmitData() {
         setEditId(null);
         toast.success("Log updated");
       } else {
-        const hoursStatusId = selectedTask?.status_id || null;
+        const hoursStatusId = isOther ? (declaredTarget || null) : (selectedTask?.status_id || null);
         const { error } = await supabase.from("daily_logs").insert({
           user_id: user!.id,
           project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
@@ -533,15 +554,16 @@ export function useLogSubmitData() {
 
   const startEdit = (log: any) => {
     setEditId(log.id);
-    setDeclareOutcome(!!log.declared_outcome_status_id);
-    setSelectedOutcomeStatusId(log.declared_outcome_status_id || "");
+    const isOtherLog = !log.task_id && log.project_id && log.project_id !== MISC_PROJECT_ID;
+    setDeclareOutcome(isOtherLog ? false : !!log.declared_outcome_status_id);
+    setSelectedOutcomeStatusId(log.declared_outcome_status_id || log.hours_status_id || "");
     form.reset({
       project_id: log.project_id || "",
       category: log.category,
       hours: log.hours,
       description: log.description,
       log_date: log.log_date,
-      task_id: log.task_id || (log.project_id && log.project_id !== MISC_PROJECT_ID ? "other" : null),
+      task_id: log.task_id || (isOtherLog ? "other" : null),
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -619,11 +641,13 @@ export function useLogSubmitData() {
       if (otherProjectLogs.length > 0) {
         await Promise.all(
           otherProjectLogs.map(async (log: any) => {
+            const targetStatusId = log.declared_outcome_status_id || log.declared_transition_to || log.hours_status_id || null;
             const { data: rpcData, error: rpcError } = await supabase.rpc(
               "create_task_for_other_log" as any,
               {
                 p_project_id: log.project_id,
                 p_description: log.description || "",
+                p_status_id: targetStatusId,
               }
             );
             if (rpcError) throw rpcError;

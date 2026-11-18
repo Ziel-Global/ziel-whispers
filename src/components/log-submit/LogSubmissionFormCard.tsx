@@ -304,6 +304,66 @@ export function LogSubmissionFormCard({
             </div>
           )}
 
+          {/* Workflow Status Selection for Other Task */}
+          {form.watch("task_id") === "other" && workflowStatuses && workflowStatuses.length > 0 && (
+            <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+              <div>
+                <p className="text-sm font-semibold text-foreground">Select Task State</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Choose the workflow status for this new task.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                {workflowStatuses
+                  .filter((s: any) => !s.retired)
+                  .sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+                  .map((status: any) => {
+                    const isSelected = selectedOutcomeStatusId === status.id;
+                    return (
+                      <div
+                        key={status.id}
+                        onClick={() => setSelectedOutcomeStatusId(status.id)}
+                        className={`flex items-center justify-between p-3 border rounded-lg cursor-pointer transition-all ${
+                          isSelected
+                            ? "border-primary bg-primary/5 ring-1 ring-primary/20 shadow-xs"
+                            : "bg-white hover:bg-muted/50 border-border"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div
+                            className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${
+                              isSelected ? "border-primary" : "border-muted-foreground"
+                            }`}
+                          >
+                            {isSelected && <div className="w-2 h-2 rounded-full bg-primary" />}
+                          </div>
+                          <span className="text-sm font-medium truncate">{status.name.replace(/_/g, " ")}</span>
+                        </div>
+
+                        <Badge
+                          variant="outline"
+                          className={`text-[10.5px] font-semibold shrink-0 ${
+                            status.category === "done"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : status.category === "in_progress"
+                              ? "bg-blue-50 text-blue-700 border-blue-200"
+                              : "bg-gray-100 text-gray-700 border-gray-200"
+                          }`}
+                        >
+                          {status.category === "todo"
+                            ? "To do"
+                            : status.category === "in_progress"
+                            ? "In progress"
+                            : "Done"}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+
           {selectedTask && selectedTask.id !== "other" && selectedTask.status_id && workflowStatuses && allowedTransitions.length > 0 && (
             <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
               <div className="flex items-start gap-3">

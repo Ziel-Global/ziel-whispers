@@ -32,6 +32,8 @@ type Props = {
   setViewTaskData: (data: any) => void;
   doneStatusIds: Set<string>;
   isAdmin?: boolean;
+  filters?: AdminWorkFilterState;
+  setFilters?: React.Dispatch<React.SetStateAction<AdminWorkFilterState>>;
 };
 
 const ADMIN_GRID_COLS = "28px 1.8fr .8fr .7fr .8fr 1.1fr .6fr .6fr .5fr .9fr";
@@ -66,9 +68,13 @@ export function AdminTasksPanel({
   setViewTaskData,
   doneStatusIds,
   isAdmin = true,
+  filters: propFilters,
+  setFilters: propSetFilters,
 }: Props) {
   const gridCols = isAdmin ? ADMIN_GRID_COLS : EMP_GRID_COLS;
-  const [filters, setFilters] = useState<AdminWorkFilterState>(DEFAULT_ADMIN_WORK_FILTERS);
+  const [internalFilters, setInternalFilters] = useState<AdminWorkFilterState>(DEFAULT_ADMIN_WORK_FILTERS);
+  const filters = propFilters ?? internalFilters;
+  const setFilters = propSetFilters ?? setInternalFilters;
   const [expandedParentIds, setExpandedParentIds] = useState<Set<string>>(new Set());
 
   const assigneeOptions = useMemo(() => {

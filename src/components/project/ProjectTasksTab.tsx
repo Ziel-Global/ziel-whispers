@@ -53,6 +53,8 @@ export interface ProjectTasksTabProps {
   isClient: boolean;
   doneStatusIds: Set<string>;
   statusColor: (id: string | null) => string;
+  taskFilters?: AdminWorkFilterState;
+  setTaskFilters?: React.Dispatch<React.SetStateAction<AdminWorkFilterState>>;
 }
 
 
@@ -635,8 +637,9 @@ export function ProjectTasksTab({
   isClient,
   doneStatusIds,
   statusColor,
+  taskFilters,
+  setTaskFilters,
 }: ProjectTasksTabProps) {
-  const [empFilters, setEmpFilters] = useState<AdminWorkFilterState>(DEFAULT_ADMIN_WORK_FILTERS);
   return (
     <>
       {isAdmin ? (
@@ -657,6 +660,8 @@ export function ProjectTasksTab({
           setDeleteTaskConfirmId={setDeleteTaskConfirmId}
           setViewTaskData={setViewTaskData}
           doneStatusIds={doneStatusIds}
+          filters={taskFilters}
+          setFilters={setTaskFilters}
         />
       ) : isClient ? (
         <ClientTasksPanel
@@ -687,6 +692,8 @@ export function ProjectTasksTab({
           setViewTaskData={setViewTaskData}
           doneStatusIds={doneStatusIds}
           isAdmin={false}
+          filters={taskFilters}
+          setFilters={setTaskFilters}
         />
       )}
     </>

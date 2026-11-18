@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -17,6 +17,11 @@ import { PROJECT_STATUS_OPTIONS as STATUS_OPTIONS, PROJECT_STATUS_COLORS as STAT
 import { BlockerAlertModal, BlockerDetail } from "@/components/BlockerAlertModal";
 import { useProjectDetailData } from "@/hooks/useProjectDetailData";
 import { AdminProjectDetailChrome } from "@/components/project/AdminProjectDetailChrome";
+import {
+  DEFAULT_ADMIN_WORK_FILTERS,
+  filterAdminWorkTasks,
+  type AdminWorkFilterState,
+} from "@/components/project/AdminWorkFilters";
 import { ProjectOverviewTab } from "@/components/project/ProjectOverviewTab";
 import { ProjectTasksTab } from "@/components/project/ProjectTasksTab";
 import { ProjectSprintsTab } from "@/components/project/ProjectSprintsTab";
@@ -203,6 +208,18 @@ export default function ProjectDetailPage() {
   const [taskStatusFilter, setTaskStatusFilter] = useState<string>("all");
   const [kanbanSprintFilter, setKanbanSprintFilter] = useState<string>("all");
   const [kanbanPriorityFilter, setKanbanPriorityFilter] = useState<string>("all");
+  const [taskFilters, setTaskFilters] = useState<AdminWorkFilterState>(DEFAULT_ADMIN_WORK_FILTERS);
+
+  const baseTasks = useMemo(() => {
+    if (isAdmin) return tasks || [];
+    return (tasks || []).filter(
+      (t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id
+    );
+  }, [isAdmin, tasks, profile?.id]);
+
+  const filteredTasksCount = useMemo(() => {
+    return filterAdminWorkTasks(baseTasks, sprints || [], taskFilters).length;
+  }, [baseTasks, sprints, taskFilters]);
 
   // Actions & Handlers
   const changeStatus = async (newStatus: string) => {
@@ -1048,9 +1065,7 @@ export default function ProjectDetailPage() {
           onAddActionItem={() => setTab("action-items")}
           onArchive={() => changeStatus("archived")}
           counts={{
-            tasks: isAdmin
-              ? tasks?.length ?? 0
-              : (tasks || []).filter((t: any) => t.assigned_to === profile?.id || t.created_by === profile?.id).length,
+            tasks: filteredTasksCount,
             actionItems: isAdmin
               ? actionItems?.length ?? 0
               : actionItems.filter((a: any) => a.assigned_to === profile?.id || a.requested_by === profile?.id).length,
@@ -1391,6 +1406,8 @@ export default function ProjectDetailPage() {
             isClient={isClient}
             doneStatusIds={doneStatusIds}
             statusColor={statusColor}
+            taskFilters={taskFilters}
+            setTaskFilters={setTaskFilters}
           />
         </TabsContent>
 

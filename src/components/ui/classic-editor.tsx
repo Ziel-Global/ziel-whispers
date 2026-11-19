@@ -59,10 +59,11 @@ function isEditorHtmlEmpty(html: string): boolean {
 
 async function compressAndResolveImageUrl(file: File): Promise<string> {
   if (!file.type.startsWith("image/")) {
-    throw new Error("Please select an image file (PNG, JPG, GIF, WebP)");
+    throw new Error("Please select a valid image file (PNG, JPG, GIF, or WebP).");
   }
-  if (file.size > 10 * 1024 * 1024) {
-    throw new Error("Image must be smaller than 10MB");
+  const MAX_FILE_SIZE = 3 * 1024 * 1024; // 3MB limit
+  if (file.size > MAX_FILE_SIZE) {
+    throw new Error("Image is too large. Maximum allowed size is 3MB.");
   }
 
   const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -93,31 +94,61 @@ async function compressAndResolveImageUrl(file: File): Promise<string> {
         const compressed = canvas.toDataURL("image/webp", 0.82);
         resolve(compressed.startsWith("data:image/webp") ? compressed : canvas.toDataURL("image/jpeg", 0.82));
       };
-      img.onerror = () => resolve(reader.result as string);
+      img.onerror = () => reject(new Error("Unable to process this image file. It may be corrupted."));
       img.src = reader.result as string;
     };
-    reader.onerror = () => reject(new Error("Failed to read image file"));
+    reader.onerror = () => reject(new Error("Unable to process this image file. It may be corrupted."));
     reader.readAsDataURL(file);
   });
 
-  // Attempt upload to Supabase storage if available; fall back to compressed dataUrl
+  // Strictly upload to Supabase storage (avatars bucket) — never fallback to Base64
+  let blob: Blob;
   try {
     const res = await fetch(dataUrl);
-    const blob = await res.blob();
-    const ext = blob.type === "image/webp" ? "webp" : "jpg";
-    const path = `editor-media/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-    const { error: uploadErr } = await supabase.storage
-      .from("avatars")
-      .upload(path, blob, { contentType: blob.type, upsert: false });
-    if (!uploadErr) {
-      const { data } = supabase.storage.from("avatars").getPublicUrl(path);
-      if (data?.publicUrl) return data.publicUrl;
-    }
+    blob = await res.blob();
   } catch {
-    // Fallback to inline compressed Data URL seamlessly
+    throw new Error("Unable to process image data before uploading.");
   }
 
-  return dataUrl;
+  const ext = blob.type === "image/webp" ? "webp" : "jpg";
+  const path = `editor-media/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+
+  let uploadErr: any = null;
+  try {
+    const { error } = await supabase.storage
+      .from("avatars")
+      .upload(path, blob, { contentType: blob.type, upsert: false });
+    uploadErr = error;
+  } catch {
+    throw new Error("Network error: Unable to upload image. Please check your internet connection and try again.");
+  }
+
+  if (uploadErr) {
+    const msg = (uploadErr.message || "").toLowerCase();
+    if (
+      msg.includes("jwt") ||
+      msg.includes("token") ||
+      msg.includes("auth") ||
+      msg.includes("session") ||
+      msg.includes("policy") ||
+      msg.includes("row-level security") ||
+      msg.includes("unauthorized") ||
+      msg.includes("forbidden")
+    ) {
+      throw new Error("Upload failed: Your session may have expired. Please refresh the page or log in again.");
+    }
+    if (msg.includes("fetch") || msg.includes("network") || msg.includes("failed to fetch")) {
+      throw new Error("Network error: Unable to upload image. Please check your internet connection and try again.");
+    }
+    throw new Error(`Image upload failed: Storage server error (${uploadErr.message || "Failed to upload"}). The image was not inserted.`);
+  }
+
+  const { data } = supabase.storage.from("avatars").getPublicUrl(path);
+  if (!data?.publicUrl) {
+    throw new Error("Image upload failed: Could not retrieve a viewable image link. The image was not inserted.");
+  }
+
+  return data.publicUrl;
 }
 
 export const ClassicEditor = React.forwardRef<HTMLDivElement, ClassicEditorProps>(
@@ -299,8 +330,14 @@ export const ClassicEditor = React.forwardRef<HTMLDivElement, ClassicEditorProps
 
     const handleInsertImages = async (files: FileList | File[]) => {
       if (disabled) return;
-      const imageFiles = Array.from(files).filter((f) => f.type.startsWith("image/"));
-      if (imageFiles.length === 0) return;
+      const fileList = Array.from(files);
+      const imageFiles = fileList.filter((f) => f.type.startsWith("image/"));
+      if (imageFiles.length === 0) {
+        if (fileList.length > 0) {
+          toast.error("Please select a valid image file (PNG, JPG, GIF, or WebP).");
+        }
+        return;
+      }
 
       setUploadingImage(true);
       try {

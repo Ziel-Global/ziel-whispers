@@ -243,8 +243,8 @@ export default function PlatformAdminsPage() {
                               : "bg-blue-500/10 text-blue-600 border-blue-500/30 text-xs"
                           }
                         >
-                          <ShieldCheck className="w-3 h-3 mr-1 inline" />
-                          {admin.role.replace("_", " ")}
+                          <ShieldCheck className="w-3.5 h-3.5 mr-1 inline" />
+                          {admin.role === "Master_SSA" ? "Platform Super Admin" : admin.role.replace("_", " ")}
                         </Badge>
                       </TableCell>
 

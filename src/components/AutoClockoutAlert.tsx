@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 
 export function AutoClockoutAlert() {
-  const { user, profile } = useAuth();
+  const { user, profile, isSSA } = useAuth();
   const queryClient = useQueryClient();
 
   // Fetch admin-configured display label for auto clock-out time
@@ -22,6 +22,7 @@ export function AutoClockoutAlert() {
         .maybeSingle();
       return (data?.value as string) || "12:00 AM";
     },
+    enabled: !isSSA,
   });
 
   const { data: unackedAutoClockouts = [] } = useQuery({
@@ -44,9 +45,11 @@ export function AutoClockoutAlert() {
       const ackedIds = new Set((acks || []).map(a => a.attendance_id));
       return autoRecords.filter(r => !ackedIds.has(r.id));
     },
-    enabled: !!user?.id,
+    enabled: !!user?.id && !isSSA,
     refetchInterval: 60000,
   });
+
+  if (isSSA) return null;
 
   const unackedKey = ["auto-clockout-unacked", user?.id];
 

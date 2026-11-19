@@ -43,6 +43,9 @@ import PlatformAdminPage from "@/pages/PlatformAdmin";
 import TenantsPage from "@/pages/TenantsPage";
 import PlatformAdminsPage from "@/pages/PlatformAdminsPage";
 import PlatformAnalyticsPage from "@/pages/PlatformAnalyticsPage";
+import SuperAdminLoginPage from "@/pages/SuperAdminLogin";
+import { SuperAdminProtectedRoute } from "@/components/SuperAdminProtectedRoute";
+import { SSADashboard } from "@/components/platform-admin/SSADashboard";
 import NotFound from "@/pages/NotFound";
 
 const queryClient = new QueryClient({
@@ -54,11 +57,17 @@ const queryClient = new QueryClient({
 });
 
 function HomeRouter() {
-  const { profile, isSSA } = useAuth();
-  if (isSSA) {
-    return <Navigate to="/dashboard" replace />;
+  const { profile, isSSA, loading } = useAuth();
+  if (loading) {
+    return <div className="flex flex-1 items-center justify-center animate-pulse text-muted-foreground">Loading…</div>;
   }
-  // Right after login the profile is still loading; wait so clients aren't sent to /dashboard.
+  if (isSSA) {
+    const isOtpVerified = typeof window !== "undefined" && sessionStorage.getItem("ziel_ssa_otp_verified") === "true";
+    if (!isOtpVerified) {
+      return <Navigate to="/super-admin/login" replace />;
+    }
+    return <Navigate to="/super-admin/dashboard" replace />;
+  }
   if (!profile) {
     return <div className="flex flex-1 items-center justify-center animate-pulse text-muted-foreground">Loading…</div>;
   }
@@ -76,11 +85,27 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/super-admin/login" element={<SuperAdminLoginPage />} />
             <Route path="/set-password" element={<ProtectedRoute><SetPasswordPage /></ProtectedRoute>} />
+
+            {/* Backwards-compatibility redirects for existing platform bookmarks */}
+            <Route path="/tenants" element={<Navigate to="/super-admin/tenants" replace />} />
+            <Route path="/platform-admins" element={<Navigate to="/super-admin/admins" replace />} />
+            <Route path="/platform-analytics" element={<Navigate to="/super-admin/analytics" replace />} />
+            <Route path="/platform-admin" element={<Navigate to="/super-admin/tenants" replace />} />
 
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/" element={<HomeRouter />} />
               <Route path="/dashboard" element={<DashboardPage />} />
+
+              {/* Super Super Admin Console — Same AppLayout, Dedicated /super-admin URLs */}
+              <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
+              <Route path="/super-admin/dashboard" element={<SuperAdminProtectedRoute><SSADashboard /></SuperAdminProtectedRoute>} />
+              <Route path="/super-admin/tenants" element={<SuperAdminProtectedRoute><TenantsPage /></SuperAdminProtectedRoute>} />
+              <Route path="/super-admin/admins" element={<SuperAdminProtectedRoute><PlatformAdminsPage /></SuperAdminProtectedRoute>} />
+              <Route path="/super-admin/analytics" element={<SuperAdminProtectedRoute><PlatformAnalyticsPage /></SuperAdminProtectedRoute>} />
+              <Route path="/super-admin/audit" element={<SuperAdminProtectedRoute><AuditLogPage /></SuperAdminProtectedRoute>} />
+              <Route path="/super-admin/settings" element={<SuperAdminProtectedRoute><SettingsPage /></SuperAdminProtectedRoute>} />
 
               {/* Employee Management — admin only */}
               <Route path="/employees" element={<ProtectedRoute allowedRoles={["admin"]}><EmployeesPage /></ProtectedRoute>} />
@@ -116,12 +141,6 @@ const App = () => (
               <Route path="/analytics/financials" element={<ProtectedRoute allowedRoles={["admin"]}><FinancialsDashboardPage /></ProtectedRoute>} />
               <Route path="/analytics/skills-staffing" element={<ProtectedRoute allowedRoles={["admin", "project_manager"]}><SkillsStaffingDashboardPage /></ProtectedRoute>} />
               <Route path="/analytics/kpi-settings" element={<ProtectedRoute allowedRoles={["admin"]}><KpiSettingsPage /></ProtectedRoute>} />
-
-              {/* Platform Super Admin Console — Separated & Modular */}
-              <Route path="/tenants" element={<ProtectedRoute><TenantsPage /></ProtectedRoute>} />
-              <Route path="/platform-admins" element={<ProtectedRoute><PlatformAdminsPage /></ProtectedRoute>} />
-              <Route path="/platform-analytics" element={<ProtectedRoute><PlatformAnalyticsPage /></ProtectedRoute>} />
-              <Route path="/platform-admin" element={<Navigate to="/tenants" replace />} />
 
               {/* Other */}
               <Route path="/announcements" element={<AnnouncementsPage />} />

@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Save, Settings2, Network, Shield, Bell, Check, Palette } from "lucide-react";
+import { Save, Settings2, MapPin, Network, Shield, Bell, Check, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TenantBrandingSettingsTab } from "@/components/settings/TenantBrandingSettingsTab";
@@ -31,6 +31,10 @@ type SettingsMap = Record<string, string>;
 /** Keys that are upserted on Save All. Notification stubs are intentionally excluded. */
 const PERSISTED_KEYS = [
   "app_name",
+  "onsite_latitude",
+  "onsite_longitude",
+  "onsite_radius_meters",
+  "geofence_enabled",
   "onsite_ip",
   "onsite_ip_enabled",
   "session_timeout_hours",
@@ -134,12 +138,18 @@ export default function SettingsPage() {
   const val = (key: string, fallback = "") => form[key] ?? fallback;
   const set = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
+  const geofenceEnabled = val("geofence_enabled", "true") === "true";
   const onsiteIpEnabled = val("onsite_ip_enabled", "true") === "true";
 
   const securityBaselineMet =
     Number(val("session_timeout_hours", "0")) > 0 &&
     Number(val("lockout_window_minutes", "0")) > 0 &&
     Number(val("max_failed_login_attempts", "0")) > 0;
+
+  const geofenceReady =
+    !!val("onsite_latitude", "33.712417").trim() &&
+    !!val("onsite_longitude", "73.039444").trim() &&
+    Number(val("onsite_radius_meters", "300")) > 0;
 
   const onsiteIpReady = !!val("onsite_ip", "110.93.223.225").trim();
 
@@ -237,6 +247,69 @@ export default function SettingsPage() {
               </div>
             </div>
           </section>
+
+          {!isSSA && (
+            <section className="bg-white border border-black/[0.075] rounded-[13px] p-[17px]">
+              <SectionHead
+                icon={MapPin}
+                title="Attendance Location & Geofencing"
+                sub="Control where onsite clock-ins are accepted."
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>Onsite Latitude</FieldLabel>
+                  <Input
+                    type="text"
+                    placeholder="e.g. 33.712417"
+                    value={val("onsite_latitude", "33.712417")}
+                    onChange={(e) => set("onsite_latitude", e.target.value)}
+                    className="h-9 text-[12px]"
+                  />
+                  <FieldHelp>Office latitude coordinate.</FieldHelp>
+                </div>
+                <div>
+                  <FieldLabel>Onsite Longitude</FieldLabel>
+                  <Input
+                    type="text"
+                    placeholder="e.g. 73.039444"
+                    value={val("onsite_longitude", "73.039444")}
+                    onChange={(e) => set("onsite_longitude", e.target.value)}
+                    className="h-9 text-[12px]"
+                  />
+                  <FieldHelp>Office longitude coordinate.</FieldHelp>
+                </div>
+                <div>
+                  <FieldLabel>Geofence Radius (meters)</FieldLabel>
+                  <Input
+                    type="number"
+                    min={10}
+                    max={5000}
+                    placeholder="e.g. 300"
+                    value={val("onsite_radius_meters", "300")}
+                    onChange={(e) => set("onsite_radius_meters", e.target.value)}
+                    className="h-9 text-[12px]"
+                  />
+                  <FieldHelp>Allowed distance from office for onsite clock-in.</FieldHelp>
+                </div>
+                <div>
+                  <FieldLabel>Validation</FieldLabel>
+                  <div className="flex items-center justify-between gap-3.5 py-[7px]">
+                    <div>
+                      <div className="text-[10px] font-semibold text-[#17171A]">Enforce Geofence</div>
+                      <div className="text-[8.3px] text-[#96969D] mt-0.5 leading-snug">
+                        {geofenceEnabled ? "Location check is enforced" : "Location check is bypassed"}
+                      </div>
+                    </div>
+                    <SettingsToggle
+                      on={geofenceEnabled}
+                      aria-label="Enforce geofence"
+                      onClick={() => set("geofence_enabled", geofenceEnabled ? "false" : "true")}
+                    />
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
 
           {!isSSA && (
             <section className="bg-white border border-black/[0.075] rounded-[13px] p-[17px]">
@@ -395,11 +468,18 @@ export default function SettingsPage() {
             />
             <div>
               {!isSSA && (
-                <HealthRow
-                  title="Office Network"
-                  copy="Onsite IP verification is configured."
-                  ready={onsiteIpReady}
-                />
+                <>
+                  <HealthRow
+                    title="Geofence"
+                    copy="Location validation is configured."
+                    ready={geofenceReady}
+                  />
+                  <HealthRow
+                    title="Office Network"
+                    copy="Onsite IP verification is configured."
+                    ready={onsiteIpReady}
+                  />
+                </>
               )}
               <HealthRow
                 title="Security"
@@ -432,6 +512,14 @@ function defaultsFor(key: string): string {
   switch (key) {
     case "app_name":
       return "Ziel Logs";
+    case "onsite_latitude":
+      return "33.712417";
+    case "onsite_longitude":
+      return "73.039444";
+    case "onsite_radius_meters":
+      return "300";
+    case "geofence_enabled":
+      return "true";
     case "onsite_ip":
       return "110.93.223.225";
     case "onsite_ip_enabled":

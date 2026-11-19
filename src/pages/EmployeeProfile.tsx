@@ -268,6 +268,8 @@ export default function EmployeeProfilePage() {
               <EmployeeAccessControlsTab
                 employeeRemoteAccess={data.employeeRemoteAccess}
                 setEmployeeRemoteAccess={data.setEmployeeRemoteAccess}
+                employeeRestrictLogs={data.employeeRestrictLogs}
+                setEmployeeRestrictLogs={data.setEmployeeRestrictLogs}
                 employeeRemoteAccessFrom={data.employeeRemoteAccessFrom}
                 setEmployeeRemoteAccessFrom={data.setEmployeeRemoteAccessFrom}
                 employeeRemoteAccessTo={data.employeeRemoteAccessTo}

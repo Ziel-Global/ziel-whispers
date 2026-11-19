@@ -83,7 +83,7 @@ export function LogsAdminTable({
           const hasFlagged = row.hasFlaggedLog;
           const firstLog = row.logs[0];
           const projectMeta = firstLog
-            ? `${firstLog.projects?.name || "Miscellaneous"} · ${firstLog.category?.replace(/_/g, " ")}${row.logs.length > 1 ? ` (+${row.logs.length - 1} more)` : ""}`
+            ? `${firstLog.projects?.name || "—"} · ${firstLog.category?.replace(/_/g, " ")}${row.logs.length > 1 ? ` (+${row.logs.length - 1} more)` : ""}`
             : (row.leaveName || "No logs submitted");
 
           const empForLog = employees.find((e: any) => e.id === row.userId);
@@ -172,7 +172,7 @@ export function LogsAdminTable({
                               <div className="min-w-0 flex-1 space-y-1.5">
                                 <div className="flex items-center gap-2 flex-wrap">
                                   <Badge variant="outline" className="text-xs font-semibold capitalize border-black/10 text-[#4B4B52]">
-                                    {(log.projects?.name || "Miscellaneous")}
+                                    {(log.projects?.name || "—")}
                                   </Badge>
                                   <Badge variant="secondary" className="text-xs font-semibold capitalize bg-[#F6F5F3] text-[#4B4B52]">
                                     {log.category?.replace(/_/g, " ")}

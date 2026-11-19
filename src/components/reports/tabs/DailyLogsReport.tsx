@@ -293,7 +293,7 @@ export function DailyLogsReport() {
               filtered.map((l) => ({
                 Date: l.log_date,
                 Employee: (l.users as any)?.full_name,
-                Project: (l.projects as any)?.name || "",
+                Project: (l.projects as any)?.name || "—",
                 Category: l.category,
                 Hours: l.hours,
                 Late: l.is_late ? "Yes" : "No",

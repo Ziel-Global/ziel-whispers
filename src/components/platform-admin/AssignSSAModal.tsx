@@ -130,7 +130,7 @@ export function AssignSSAModal({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="Master_SSA">
-                  Master SSA (Full Platform Control)
+                  Platform Super Admin (Full Platform Control)
                 </SelectItem>
                 <SelectItem value="Provisioning_SSA">
                   Provisioning SSA (Workspace Onboarding)

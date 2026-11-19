@@ -287,7 +287,7 @@ export default function PlatformAdminPage() {
               }`}
             >
               <ShieldCheck className="w-3 h-3 mr-1 inline" />
-              {platformRole?.replace("_", " ")}
+              {platformRole === "Master_SSA" ? "Platform Super Admin" : platformRole?.replace("_", " ")}
             </Badge>
           </div>
           <p className="text-sm text-muted-foreground mt-1">

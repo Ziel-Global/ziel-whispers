@@ -15,14 +15,15 @@ import { getAvatarUrl, getInitials } from "@/lib/utils";
 import { NotificationBell } from "@/components/NotificationBell";
 
 export function TopBar() {
-  const { profile, signOut } = useAuth();
+  const { profile, isSSA, signOut } = useAuth();
   const navigate = useNavigate();
 
-  const initials = getInitials(profile?.full_name);
+  const displayName = profile?.full_name === "Platform Master SSA" ? "Platform Super Admin" : profile?.full_name;
+  const initials = getInitials(displayName);
 
   const handleLogout = async () => {
     await signOut();
-    navigate("/login", { replace: true });
+    navigate(isSSA ? "/super-admin/login" : "/login", { replace: true });
   };
 
   const avatarUrl = getAvatarUrl((profile as any)?.avatar_url);
@@ -32,9 +33,9 @@ export function TopBar() {
       <SidebarTrigger className="text-foreground" />
       <div className="flex items-center gap-3">
         <span className="text-sm text-muted-foreground hidden sm:inline">
-          {profile?.full_name}
+          {displayName}
         </span>
-        <NotificationBell />
+        {!isSSA && <NotificationBell />}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="focus:outline-none">

@@ -65,12 +65,12 @@ export function SSADashboard() {
               className="bg-rose-500/10 text-rose-600 border-rose-500/30 text-xs font-semibold px-2.5 py-0.5"
             >
               <ShieldCheck className="w-3.5 h-3.5 mr-1 inline" />
-              {platformRole?.replace("_", " ") || "Master SSA"}
+              {platformRole === "Master_SSA" ? "Platform Super Admin" : (platformRole?.replace("_", " ") || "Platform Super Admin")}
             </Badge>
             <span className="text-xs text-muted-foreground font-mono">Platform Operator Console</span>
           </div>
           <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight text-foreground">
-            Welcome back, {profile?.full_name || "Platform Admin"}
+            Welcome back, {profile?.full_name === "Platform Master SSA" ? "Platform Super Admin" : (profile?.full_name || "Platform Super Admin")}
           </h1>
           <p className="text-sm text-muted-foreground max-w-2xl">
             You are managing the Ziel multi-tenant cloud environment. Select a workspace tab below or launch a new tenant.
@@ -91,7 +91,7 @@ export function SSADashboard() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Tenants */}
         <Card
-          onClick={() => navigate("/tenants")}
+          onClick={() => navigate("/super-admin/tenants")}
           className="cursor-pointer hover:border-primary/40 hover:shadow-md transition-all group border-border"
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -115,7 +115,7 @@ export function SSADashboard() {
 
         {/* Total Users */}
         <Card
-          onClick={() => navigate("/platform-analytics")}
+          onClick={() => navigate("/super-admin/analytics")}
           className="cursor-pointer hover:border-primary/40 hover:shadow-md transition-all group border-border"
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -139,7 +139,7 @@ export function SSADashboard() {
 
         {/* Sub-Admins */}
         <Card
-          onClick={() => navigate("/platform-admins")}
+          onClick={() => navigate("/super-admin/admins")}
           className="cursor-pointer hover:border-primary/40 hover:shadow-md transition-all group border-border"
         >
           <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -193,7 +193,7 @@ export function SSADashboard() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* Tenants Hub */}
           <Card
-            onClick={() => navigate("/tenants")}
+            onClick={() => navigate("/super-admin/tenants")}
             className="p-5 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group flex items-start justify-between"
           >
             <div className="flex items-start gap-4">
@@ -219,7 +219,7 @@ export function SSADashboard() {
 
           {/* Sub-Admins */}
           <Card
-            onClick={() => navigate("/platform-admins")}
+            onClick={() => navigate("/super-admin/admins")}
             className="p-5 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group flex items-start justify-between"
           >
             <div className="flex items-start gap-4">
@@ -245,7 +245,7 @@ export function SSADashboard() {
 
           {/* Analytics & Reports */}
           <Card
-            onClick={() => navigate("/platform-analytics")}
+            onClick={() => navigate("/super-admin/analytics")}
             className="p-5 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group flex items-start justify-between"
           >
             <div className="flex items-start gap-4">
@@ -271,7 +271,7 @@ export function SSADashboard() {
 
           {/* Audit Logs */}
           <Card
-            onClick={() => navigate("/audit")}
+            onClick={() => navigate("/super-admin/audit")}
             className="p-5 hover:border-primary/50 hover:shadow-md transition-all cursor-pointer group flex items-start justify-between"
           >
             <div className="flex items-start gap-4">

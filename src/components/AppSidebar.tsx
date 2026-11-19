@@ -118,17 +118,17 @@ export function AppSidebar() {
         {
           label: "PLATFORM MANAGEMENT",
           items: [
-            { title: "Dashboard", url: "/dashboard", icon: LayoutDashboard },
-            { title: "Tenants", url: "/tenants", icon: Building2 },
-            { title: "SSA Sub-Admins", url: "/platform-admins", icon: ShieldCheck },
-            { title: "Analytics & Reports", url: "/platform-analytics", icon: BarChart3 },
-            { title: "Audit Logs", url: "/audit", icon: Shield },
+            { title: "Dashboard", url: "/super-admin/dashboard", icon: LayoutDashboard },
+            { title: "Tenants", url: "/super-admin/tenants", icon: Building2 },
+            { title: "SSA Sub-Admins", url: "/super-admin/admins", icon: ShieldCheck },
+            { title: "Analytics & Reports", url: "/super-admin/analytics", icon: BarChart3 },
+            { title: "Audit Logs", url: "/super-admin/audit", icon: Shield },
           ],
         },
         {
           label: "SYSTEM",
           items: [
-            { title: "Settings", url: "/settings", icon: Settings },
+            { title: "Settings", url: "/super-admin/settings", icon: Settings },
           ],
         },
       ];
@@ -459,7 +459,7 @@ export function AppSidebar() {
       const readIds = new Set(reads?.map((r) => r.announcement_id) || []);
       return announcements.filter((a) => !readIds.has(a.id)).length;
     },
-    enabled: !!user?.id && !!profile?.id,
+    enabled: !!user?.id && !!profile?.id && !isSSA,
     refetchInterval: 60000,
   });
 
@@ -480,7 +480,7 @@ export function AppSidebar() {
 
       return (leaveCount || 0) + (wfhCount || 0);
     },
-    enabled: isAdminOrManager,
+    enabled: isAdminOrManager && !isSSA,
     refetchInterval: 30000,
   });
 
@@ -505,7 +505,7 @@ export function AppSidebar() {
 
       return (leaves?.length || 0) + (wfh?.length || 0);
     },
-    enabled: !isAdminOrManager && !isClient && !!user?.id,
+    enabled: !isAdminOrManager && !isClient && !isSSA && !!user?.id,
     refetchInterval: 30000,
   });
 
@@ -516,7 +516,8 @@ export function AppSidebar() {
     return 0;
   };
 
-  const userInitials = getInitials(profile?.full_name || user?.email || "User");
+  const userDisplayName = profile?.full_name === "Platform Master SSA" ? "Platform Super Admin" : (profile?.full_name || user?.email || "User");
+  const userInitials = getInitials(userDisplayName);
 
   const getNavCount = (countKey?: string): number | null => {
     if (!countKey || !navCounts) return null;
@@ -528,7 +529,7 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r border-black/10 bg-white">
       <div className="flex items-center justify-between p-4 pb-3 border-b border-black/5">
         <Link
-          to={isSSA ? "/dashboard" : isClient ? "/projects" : "/"}
+          to={isSSA ? "/super-admin/dashboard" : isClient ? "/projects" : "/"}
           className="flex items-center gap-2.5 min-w-0 rounded-[9px] outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
           {branding?.logoUrl ? (
@@ -743,10 +744,10 @@ export function AppSidebar() {
               <SidebarGroupContent>
                 <SidebarMenu className="space-y-1">
                   {sec.items.map((item) => {
-                    const isDashboard = item.url === "/" || item.url === "/dashboard";
+                    const isDashboard = item.url === "/" || item.url === "/dashboard" || item.url === "/super-admin/dashboard";
                     const isAnalyticsRoot = item.url === "/analytics";
                     const isActive = isDashboard
-                      ? location.pathname === "/" || location.pathname === "/dashboard"
+                      ? location.pathname === "/" || location.pathname === "/dashboard" || location.pathname === "/super-admin" || location.pathname === "/super-admin/dashboard"
                       : isAnalyticsRoot
                       ? location.pathname === "/analytics" || location.pathname === "/analytics/"
                       : location.pathname === item.url || (item.url !== "/" && location.pathname.startsWith(item.url + "/"));
@@ -817,10 +818,10 @@ export function AppSidebar() {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="text-[12.5px] font-semibold text-[#17171A] truncate">
-                  {profile?.full_name || user?.email}
+                  {profile?.full_name === "Platform Master SSA" ? "Platform Super Admin" : (profile?.full_name || user?.email)}
                 </div>
                 <div className="text-[11px] text-[#8B8B92] capitalize truncate">
-                  {isSSA ? (platformRole?.replace("_", " ") || "Master SSA") : (profile?.designation || role || "User")}
+                  {isSSA ? (platformRole === "Master_SSA" ? "Platform Super Admin" : (platformRole?.replace("_", " ") || "Platform Super Admin")) : (profile?.designation || role || "User")}
                 </div>
               </div>
               <ChevronRight className="h-4 w-4 text-[#B0B0B6] shrink-0" />

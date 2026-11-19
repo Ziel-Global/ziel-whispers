@@ -1921,6 +1921,7 @@ export type Database = {
           remote_access_to: string | null
           remote_site_access: boolean
           reports_to: string | null
+          restrict_logs: boolean
           role: string
           shift_end: string
           shift_start: string
@@ -1958,6 +1959,7 @@ export type Database = {
           remote_access_to?: string | null
           remote_site_access?: boolean
           reports_to?: string | null
+          restrict_logs?: boolean
           role?: string
           shift_end?: string
           shift_start?: string
@@ -1995,6 +1997,7 @@ export type Database = {
           remote_access_to?: string | null
           remote_site_access?: boolean
           reports_to?: string | null
+          restrict_logs?: boolean
           role?: string
           shift_end?: string
           shift_start?: string

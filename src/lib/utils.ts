@@ -47,7 +47,7 @@ export function getAvatarUrl(path: string | null | undefined) {
 export const MISC_PROJECT_ID = "__misc__";
 
 export function getProjectName(log: any): string {
-  return log.projects?.name || "Miscellaneous";
+  return log.projects?.name || "—";
 }
 
 export function formatHours(h: number) {

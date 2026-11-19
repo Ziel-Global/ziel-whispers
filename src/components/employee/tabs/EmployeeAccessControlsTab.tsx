@@ -19,6 +19,8 @@ import { cn } from "@/lib/utils";
 export interface EmployeeAccessControlsTabProps {
   employeeRemoteAccess: boolean;
   setEmployeeRemoteAccess: (v: boolean) => void;
+  employeeRestrictLogs?: boolean;
+  setEmployeeRestrictLogs?: (v: boolean) => void;
   employeeRemoteAccessFrom: string;
   setEmployeeRemoteAccessFrom: (v: string) => void;
   employeeRemoteAccessTo: string;
@@ -94,6 +96,8 @@ function statusLabel(s?: string | null) {
 export function EmployeeAccessControlsTab({
   employeeRemoteAccess,
   setEmployeeRemoteAccess,
+  employeeRestrictLogs = true,
+  setEmployeeRestrictLogs,
   employeeRemoteAccessFrom,
   setEmployeeRemoteAccessFrom,
   employeeRemoteAccessTo,
@@ -220,6 +224,23 @@ export function EmployeeAccessControlsTab({
               )}
             </div>
 
+            {/* Restrict Logs — employees & managers only */}
+            {["employee", "project_manager", "hr_manager", "manager"].includes(employee?.role ?? "") && setEmployeeRestrictLogs && (
+              <div className="px-[15px] py-3.5 border-b border-black/[0.055] bg-white flex items-center justify-between gap-3.5">
+                <div className="min-w-0">
+                  <div className="text-[12px] font-semibold text-[#252529]">Restrict Logs</div>
+                  <div className="text-[10.5px] text-[#8B8B92] mt-0.5 leading-snug">
+                    On: project and task are required when adding logs. Off: logs can be added without selecting a project or task.
+                  </div>
+                </div>
+                <UdToggle
+                  on={employeeRestrictLogs}
+                  aria-label="Restrict logs"
+                  onClick={() => setEmployeeRestrictLogs(!employeeRestrictLogs)}
+                />
+              </div>
+            )}
+
             {/* Overtime — read-only */}
             <div className="px-[15px] py-3.5 border-b border-black/[0.055] bg-white flex items-center justify-between gap-3.5">
               <div className="min-w-0">
@@ -320,6 +341,14 @@ export function EmployeeAccessControlsTab({
                 {employeeRemoteAccess ? "Enabled" : "Disabled"}
               </span>
             </div>
+            {["employee", "project_manager", "hr_manager", "manager"].includes(employee?.role ?? "") && (
+              <div className="flex items-center justify-between gap-3 py-2.5 border-b border-black/[0.055]">
+                <span className="text-[11px] text-[#8B8B92]">Restrict logs</span>
+                <span className="text-[11.5px] font-semibold text-[#4B4B52]">
+                  {employeeRestrictLogs ? "Restricted" : "Unrestricted"}
+                </span>
+              </div>
+            )}
             <div className="flex items-center justify-between gap-3 py-2.5">
               <span className="text-[11px] text-[#8B8B92]">Leave override</span>
               <span className="text-[11.5px] font-semibold text-[#4B4B52]">

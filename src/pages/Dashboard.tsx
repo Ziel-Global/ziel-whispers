@@ -28,7 +28,7 @@ export default function DashboardPage() {
   const { profile, user, isSSA } = useAuth();
 
   if (isSSA) {
-    return <SSADashboard />;
+    return <Navigate to="/super-admin/dashboard" replace />;
   }
   const navigate = useNavigate();
   const queryClient = useQueryClient();

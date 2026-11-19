@@ -3,14 +3,11 @@
  *
  * IMPLEMENTED (persisted via system_settings upsert on Save All):
  *   - app_name
- *   - onsite_latitude, onsite_longitude, onsite_radius_meters, geofence_enabled
+ *   - onsite_ip, onsite_ip_enabled
  *   - session_timeout_hours, lockout_window_minutes, max_failed_login_attempts
  *
  * FRONTEND TEMPLATE ONLY (local state, not saved):
  *   - System Emails / Manager Digest notification toggles
- *
- * EXCLUDED FROM MOCK:
- *   - Office Geofence map preview (right-column first container)
  *
  * REMAINING FOR FUTURE WORK:
  *   - Persist notification prefs (e.g. system_emails_enabled, manager_digest_enabled)
@@ -24,7 +21,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Save, Settings2, MapPin, Shield, Bell, Check, Palette } from "lucide-react";
+import { Save, Settings2, Network, Shield, Bell, Check, Palette } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TenantBrandingSettingsTab } from "@/components/settings/TenantBrandingSettingsTab";
@@ -34,10 +31,8 @@ type SettingsMap = Record<string, string>;
 /** Keys that are upserted on Save All. Notification stubs are intentionally excluded. */
 const PERSISTED_KEYS = [
   "app_name",
-  "onsite_latitude",
-  "onsite_longitude",
-  "onsite_radius_meters",
-  "geofence_enabled",
+  "onsite_ip",
+  "onsite_ip_enabled",
   "session_timeout_hours",
   "lockout_window_minutes",
   "max_failed_login_attempts",
@@ -105,7 +100,7 @@ function FieldHelp({ children }: { children: React.ReactNode }) {
 }
 
 export default function SettingsPage() {
-  const { profile } = useAuth();
+  const { profile, isSSA } = useAuth();
   const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
 
@@ -139,17 +134,14 @@ export default function SettingsPage() {
   const val = (key: string, fallback = "") => form[key] ?? fallback;
   const set = (key: string, value: string) => setForm((prev) => ({ ...prev, [key]: value }));
 
-  const geofenceEnabled = val("geofence_enabled", "true") === "true";
+  const onsiteIpEnabled = val("onsite_ip_enabled", "true") === "true";
 
   const securityBaselineMet =
     Number(val("session_timeout_hours", "0")) > 0 &&
     Number(val("lockout_window_minutes", "0")) > 0 &&
     Number(val("max_failed_login_attempts", "0")) > 0;
 
-  const geofenceReady =
-    !!val("onsite_latitude", "33.712417").trim() &&
-    !!val("onsite_longitude", "73.039444").trim() &&
-    Number(val("onsite_radius_meters", "300")) > 0;
+  const onsiteIpReady = !!val("onsite_ip", "110.93.223.225").trim();
 
   const notificationsReady = systemEmailsOn || managerDigestOn;
 
@@ -196,7 +188,9 @@ export default function SettingsPage() {
         <div>
           <h1 className="text-[26px] font-bold tracking-[-0.55px] leading-[1.15] text-[#17171A]">Settings</h1>
           <p className="text-[12px] text-[#8B8B92] mt-[5px] leading-relaxed">
-            Configure organisation-wide attendance, security and application preferences
+            {isSSA
+              ? "Global platform security and session configuration."
+              : "Configure organisation-wide attendance, security and application preferences"}
           </p>
         </div>
         <Button
@@ -210,14 +204,16 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="general" className="w-full space-y-4">
-        <TabsList className="bg-white border p-1 rounded-xl">
-          <TabsTrigger value="general" className="gap-2 text-xs font-semibold">
-            <Settings2 className="w-3.5 h-3.5" /> General & Security
-          </TabsTrigger>
-          <TabsTrigger value="branding" className="gap-2 text-xs font-semibold">
-            <Palette className="w-3.5 h-3.5" /> Branding & White-Label
-          </TabsTrigger>
-        </TabsList>
+        {!isSSA && (
+          <TabsList className="bg-white border p-1 rounded-xl">
+            <TabsTrigger value="general" className="gap-2 text-xs font-semibold">
+              <Settings2 className="w-3.5 h-3.5" /> General & Security
+            </TabsTrigger>
+            <TabsTrigger value="branding" className="gap-2 text-xs font-semibold">
+              <Palette className="w-3.5 h-3.5" /> Branding & White-Label
+            </TabsTrigger>
+          </TabsList>
+        )}
 
         <TabsContent value="general">
           <div className="grid grid-cols-1 min-[1100px]:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)] gap-3.5">
@@ -242,66 +238,44 @@ export default function SettingsPage() {
             </div>
           </section>
 
-          <section className="bg-white border border-black/[0.075] rounded-[13px] p-[17px]">
-            <SectionHead
-              icon={MapPin}
-              title="Attendance Location & Geofencing"
-              sub="Control where onsite clock-ins are accepted."
-            />
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <FieldLabel>Onsite Latitude</FieldLabel>
-                <Input
-                  type="text"
-                  placeholder="e.g. 33.712417"
-                  value={val("onsite_latitude", "33.712417")}
-                  onChange={(e) => set("onsite_latitude", e.target.value)}
-                  className="h-9 text-[12px]"
-                />
-                <FieldHelp>Office latitude coordinate.</FieldHelp>
-              </div>
-              <div>
-                <FieldLabel>Onsite Longitude</FieldLabel>
-                <Input
-                  type="text"
-                  placeholder="e.g. 73.039444"
-                  value={val("onsite_longitude", "73.039444")}
-                  onChange={(e) => set("onsite_longitude", e.target.value)}
-                  className="h-9 text-[12px]"
-                />
-                <FieldHelp>Office longitude coordinate.</FieldHelp>
-              </div>
-              <div>
-                <FieldLabel>Geofence Radius (meters)</FieldLabel>
-                <Input
-                  type="number"
-                  min={10}
-                  max={5000}
-                  placeholder="e.g. 300"
-                  value={val("onsite_radius_meters", "300")}
-                  onChange={(e) => set("onsite_radius_meters", e.target.value)}
-                  className="h-9 text-[12px]"
-                />
-                <FieldHelp>Allowed distance from office for onsite clock-in.</FieldHelp>
-              </div>
-              <div>
-                <FieldLabel>Validation</FieldLabel>
-                <div className="flex items-center justify-between gap-3.5 py-[7px]">
-                  <div>
-                    <div className="text-[10px] font-semibold text-[#17171A]">Enforce Geofence</div>
-                    <div className="text-[8.3px] text-[#96969D] mt-0.5 leading-snug">
-                      {geofenceEnabled ? "Location check is enforced" : "Location check is bypassed"}
-                    </div>
-                  </div>
-                  <SettingsToggle
-                    on={geofenceEnabled}
-                    aria-label="Enforce geofence"
-                    onClick={() => set("geofence_enabled", geofenceEnabled ? "false" : "true")}
+          {!isSSA && (
+            <section className="bg-white border border-black/[0.075] rounded-[13px] p-[17px]">
+              <SectionHead
+                icon={Network}
+                title="Attendance Onsite Network (IP Restriction)"
+                sub="Control authorized public IP addresses for onsite clock-ins."
+              />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <FieldLabel>Allowed Office IP(s)</FieldLabel>
+                  <Input
+                    type="text"
+                    placeholder="e.g. 110.93.223.225"
+                    value={val("onsite_ip", "110.93.223.225")}
+                    onChange={(e) => set("onsite_ip", e.target.value)}
+                    className="h-9 text-[12px]"
                   />
+                  <FieldHelp>Comma-separated office public IPv4 addresses allowed for onsite clock-in.</FieldHelp>
+                </div>
+                <div>
+                  <FieldLabel>Validation</FieldLabel>
+                  <div className="flex items-center justify-between gap-3.5 py-[7px]">
+                    <div>
+                      <div className="text-[10px] font-semibold text-[#17171A]">Enforce IP Verification</div>
+                      <div className="text-[8.3px] text-[#96969D] mt-0.5 leading-snug">
+                        {onsiteIpEnabled ? "Office IP check is enforced" : "IP check is bypassed"}
+                      </div>
+                    </div>
+                    <SettingsToggle
+                      on={onsiteIpEnabled}
+                      aria-label="Enforce office IP verification"
+                      onClick={() => set("onsite_ip_enabled", onsiteIpEnabled ? "false" : "true")}
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
+          )}
 
           <section className="bg-white border border-black/[0.075] rounded-[13px] p-[17px]">
             <SectionHead
@@ -369,7 +343,6 @@ export default function SettingsPage() {
           {/*
             IMPLEMENTED: Notifications UI matching mock (System Emails, Manager Digest).
             REMAINING: Persist toggles to system_settings and connect email/digest delivery.
-            Office Geofence map preview from the mock is intentionally omitted.
           */}
           <section className="bg-white border border-black/[0.075] rounded-[13px] p-[17px]">
             <SectionHead
@@ -378,7 +351,12 @@ export default function SettingsPage() {
               sub="Default system communication preferences."
             />
             <div>
-              <div className="flex items-center justify-between gap-3.5 py-[11px] border-b border-black/[0.055]">
+              <div
+                className={cn(
+                  "flex items-center justify-between gap-3.5 py-[11px]",
+                  !isSSA && "border-b border-black/[0.055]"
+                )}
+              >
                 <div>
                   <div className="text-[10px] font-semibold text-[#17171A]">System Emails</div>
                   <div className="text-[8.3px] text-[#96969D] mt-0.5 leading-snug">
@@ -391,19 +369,21 @@ export default function SettingsPage() {
                   onClick={() => setSystemEmailsOn((v) => !v)}
                 />
               </div>
-              <div className="flex items-center justify-between gap-3.5 py-[11px]">
-                <div>
-                  <div className="text-[10px] font-semibold text-[#17171A]">Manager Digest</div>
-                  <div className="text-[8.3px] text-[#96969D] mt-0.5 leading-snug">
-                    Send managers a summary of missed logs and attendance exceptions.
+              {!isSSA && (
+                <div className="flex items-center justify-between gap-3.5 py-[11px]">
+                  <div>
+                    <div className="text-[10px] font-semibold text-[#17171A]">Manager Digest</div>
+                    <div className="text-[8.3px] text-[#96969D] mt-0.5 leading-snug">
+                      Send managers a summary of missed logs and attendance exceptions.
+                    </div>
                   </div>
+                  <SettingsToggle
+                    on={managerDigestOn}
+                    aria-label="Manager digest"
+                    onClick={() => setManagerDigestOn((v) => !v)}
+                  />
                 </div>
-                <SettingsToggle
-                  on={managerDigestOn}
-                  aria-label="Manager digest"
-                  onClick={() => setManagerDigestOn((v) => !v)}
-                />
-              </div>
+              )}
             </div>
           </section>
 
@@ -414,11 +394,13 @@ export default function SettingsPage() {
               sub="Current platform configuration status."
             />
             <div>
-              <HealthRow
-                title="Geofence"
-                copy="Location validation is configured."
-                ready={geofenceReady}
-              />
+              {!isSSA && (
+                <HealthRow
+                  title="Office Network"
+                  copy="Onsite IP verification is configured."
+                  ready={onsiteIpReady}
+                />
+              )}
               <HealthRow
                 title="Security"
                 copy="Session and lockout controls are set."
@@ -436,9 +418,11 @@ export default function SettingsPage() {
       </div>
     </TabsContent>
 
-    <TabsContent value="branding">
-      <TenantBrandingSettingsTab />
-    </TabsContent>
+    {!isSSA && (
+      <TabsContent value="branding">
+        <TenantBrandingSettingsTab />
+      </TabsContent>
+    )}
   </Tabs>
     </div>
   );
@@ -448,13 +432,9 @@ function defaultsFor(key: string): string {
   switch (key) {
     case "app_name":
       return "Ziel Logs";
-    case "onsite_latitude":
-      return "33.712417";
-    case "onsite_longitude":
-      return "73.039444";
-    case "onsite_radius_meters":
-      return "300";
-    case "geofence_enabled":
+    case "onsite_ip":
+      return "110.93.223.225";
+    case "onsite_ip_enabled":
       return "true";
     case "session_timeout_hours":
       return "8";

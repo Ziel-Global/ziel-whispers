@@ -12,6 +12,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Calendar } from "@/components/ui/calendar";
 import { cn, MISC_PROJECT_ID, getPlainTextLength } from "@/lib/utils";
 import { CATEGORIES, isWithinLogEditWindow } from "@/utils/logDateUtils";
+import { useAuth } from "@/contexts/AuthContext";
 import { PRIORITY_COLORS, getStatusDisplay, getStatusColor } from "@/lib/workflow";
 
 export interface LogSubmissionFormCardProps {
@@ -79,6 +80,8 @@ export function LogSubmissionFormCard({
   cancelEdit,
   navigate,
 }: LogSubmissionFormCardProps) {
+  const { profile } = useAuth();
+  const restrictLogs = profile?.restrict_logs !== false;
   const isFormDisabled = isLocked || isOnApprovedLeaveForSelectedDate;
 
   return (
@@ -101,15 +104,28 @@ export function LogSubmissionFormCard({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Project
+                    Project{!restrictLogs && " (Optional)"}
                   </FormLabel>
-                  <Select onValueChange={field.onChange} value={field.value} disabled={isFormDisabled}>
+                  <Select
+                    onValueChange={(val) => {
+                      const nextVal = val === "none" ? "" : val;
+                      field.onChange(nextVal);
+                      if (!nextVal) {
+                        form.setValue("task_id", null);
+                      }
+                    }}
+                    value={field.value || (!restrictLogs && field.value === "" ? "none" : "")}
+                    disabled={isFormDisabled}
+                  >
                     <FormControl>
                       <SelectTrigger className="bg-background">
                         <SelectValue placeholder="Select project" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
+                      {!restrictLogs && (
+                        <SelectItem value="none">No Project (—)</SelectItem>
+                      )}
                       {projects.map((p: any) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
@@ -235,11 +251,25 @@ export function LogSubmissionFormCard({
             />
           </div>
 
-          {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && (
+          {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && selectedProjectId !== "none" && (
             <div className="space-y-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                Task (Required) *
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                  Task {restrictLogs ? "(Required) *" : "(Optional)"}
+                </span>
+                {!restrictLogs && form.watch("task_id") && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      form.setValue("task_id", null, { shouldDirty: true, shouldValidate: true });
+                      setSelectedOutcomeStatusId("");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground underline"
+                  >
+                    Clear task
+                  </button>
+                )}
+              </div>
               <div className="space-y-1">
                 {tasksWithRemaining.map((t: any) => (
                   <div
@@ -432,7 +462,7 @@ export function LogSubmissionFormCard({
             </div>
           )}
 
-          {(selectedProjectId === MISC_PROJECT_ID || Boolean(form.watch("task_id"))) && (
+          {(!restrictLogs || selectedProjectId === MISC_PROJECT_ID || Boolean(form.watch("task_id"))) && (
             <>
               <FormField
                 control={form.control}

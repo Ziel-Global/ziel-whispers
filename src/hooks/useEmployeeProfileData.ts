@@ -72,6 +72,7 @@ export function useEmployeeProfileData(id: string | undefined) {
 
   // Feature 2 — Access Controls
   const [employeeRemoteAccess, setEmployeeRemoteAccess] = useState(false);
+  const [employeeRestrictLogs, setEmployeeRestrictLogs] = useState(true);
   const [employeeRemoteAccessFrom, setEmployeeRemoteAccessFrom] = useState("");
   const [employeeRemoteAccessTo, setEmployeeRemoteAccessTo] = useState("");
   const [employeeIsOnLeave, setEmployeeIsOnLeave] = useState(false);
@@ -403,6 +404,7 @@ export function useEmployeeProfileData(id: string | undefined) {
       });
       setLogEditDays(employee.log_edit_days ?? "");
       setEmployeeRemoteAccess(employee.remote_access ?? false);
+      setEmployeeRestrictLogs((employee as any).restrict_logs ?? true);
       setEmployeeRemoteAccessFrom(getPKTDateString());
       setEmployeeRemoteAccessTo(getPKTDateString());
       setEmployeeIsOnLeave(employee.is_on_leave ?? isOnLeaveToday);
@@ -729,6 +731,7 @@ export function useEmployeeProfileData(id: string | undefined) {
     try {
       const { error } = await supabase.from("users").update({
         remote_access: employeeRemoteAccess,
+        ...(["employee", "project_manager", "hr_manager", "manager"].includes(employee.role) ? { restrict_logs: employeeRestrictLogs } : {}),
         remote_access_from: employeeRemoteAccess ? employeeRemoteAccessFrom : null,
         remote_access_to: employeeRemoteAccess ? employeeRemoteAccessTo : null,
         remote_access_bulk: null,
@@ -894,6 +897,8 @@ export function useEmployeeProfileData(id: string | undefined) {
     handleSaveLogEditDays,
     employeeRemoteAccess,
     setEmployeeRemoteAccess,
+    employeeRestrictLogs,
+    setEmployeeRestrictLogs,
     employeeRemoteAccessFrom,
     setEmployeeRemoteAccessFrom,
     employeeRemoteAccessTo,

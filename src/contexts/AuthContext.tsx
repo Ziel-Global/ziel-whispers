@@ -32,6 +32,7 @@ export type UserProfile = {
   remote_access: boolean;
   remote_access_from: string | null;
   remote_access_to: string | null;
+  restrict_logs?: boolean;
 };
 
 type AuthContextType = {
@@ -159,7 +160,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // 2. Fetch User Profile
     const { data, error } = await supabase
       .from("users")
-      .select("id, tenant_id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days, overtime_enabled, remote_access, remote_access_from, remote_access_to")
+      .select("id, tenant_id, full_name, email, role, department, designation, avatar_url, status, must_change_password, join_date, created_at, working_days, overtime_enabled, remote_access, remote_access_from, remote_access_to, restrict_logs")
       .eq("id", userId)
       .maybeSingle();
 

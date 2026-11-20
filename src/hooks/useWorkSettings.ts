@@ -11,6 +11,10 @@ type WorkSettings = {
   workingDays: number;
   graceMinutes: number;
   expectedDailyHours: number;
+  onsiteLatitude: number;
+  onsiteLongitude: number;
+  geofenceRadiusMeters: number;
+  geofenceEnabled: boolean;
   onsiteIp: string;
   onsiteIpEnabled: boolean;
 };
@@ -35,6 +39,10 @@ export function useWorkSettings() {
           "timezone",
           "late_grace_minutes",
           "expected_daily_hours",
+          "onsite_latitude",
+          "onsite_longitude",
+          "onsite_radius_meters",
+          "geofence_enabled",
           "onsite_ip",
           "onsite_ip_enabled",
         ]);
@@ -73,6 +81,11 @@ export function useWorkSettings() {
   const timezone = "Asia/Karachi";
   const graceMinutes = Number(globalSettings?.late_grace_minutes ?? 15);
 
+  const onsiteLatitude = Number(globalSettings?.onsite_latitude ?? 33.712417);
+  const onsiteLongitude = Number(globalSettings?.onsite_longitude ?? 73.039444);
+  const geofenceRadiusMeters = Number(globalSettings?.onsite_radius_meters ?? 300);
+  const geofenceEnabled = globalSettings?.geofence_enabled !== "false";
+
   const onsiteIp = globalSettings?.onsite_ip ?? "110.93.223.225";
   const onsiteIpEnabled = globalSettings?.onsite_ip_enabled !== "false";
 
@@ -85,6 +98,10 @@ export function useWorkSettings() {
     workingDays: Number((userShift as any)?.working_days || 5),
     graceMinutes,
     expectedDailyHours: Number(globalSettings?.expected_daily_hours ?? 8),
+    onsiteLatitude,
+    onsiteLongitude,
+    geofenceRadiusMeters,
+    geofenceEnabled,
     onsiteIp,
     onsiteIpEnabled,
   };

@@ -33,18 +33,15 @@ export function SubmittedDateLogsHistory({
         {dateLogs.map((log: any) => (
           <Card
             key={log.id}
-            className={`p-4 border-none shadow-none ${
-              log.is_overtime ? "bg-purple-50 border-l-4 border-purple-400" : "bg-muted"
-            }`}
+            className={`p-4 border-none shadow-none ${log.is_overtime ? "bg-purple-50 border-l-4 border-purple-400" : "bg-muted"
+              }`}
           >
             <div className="flex items-start justify-between gap-4">
               <div className="space-y-2 flex-1">
                 <div className="flex flex-wrap gap-2 items-center">
-                  {log.projects?.name && (
-                    <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">
-                      {log.projects.name}
-                    </Badge>
-                  )}
+                  <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">
+                    {log.projects?.name || "—"}
+                  </Badge>
                   <Badge variant="secondary" className="text-sm tracking-tighter bg-primary">
                     {log.category}
                   </Badge>

@@ -137,8 +137,9 @@ export function useLogSubmitData() {
   const defaultDate = missedDate ?? today;
 
   // 5. Form schema
+  const restrictLogs = profile?.restrict_logs !== false;
   const schema = z.object({
-    project_id: z.string().min(1, "Please select a project"),
+    project_id: restrictLogs ? z.string().min(1, "Please select a project") : z.string().nullable().optional(),
     category: z.string().min(1, "Category is required"),
     hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
     description: z.string().refine((v) => getPlainTextLength(v) >= 20, "Min 20 characters"),
@@ -157,7 +158,8 @@ export function useLogSubmitData() {
     }, "This day already has the maximum hours logged"),
     task_id: z.string().nullable().optional(),
   }).refine((data) => {
-    if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
+    if (!restrictLogs) return true;
+    if (data.project_id && data.project_id !== MISC_PROJECT_ID && data.project_id !== "none") {
       return !!data.task_id;
     }
     return true;
@@ -506,11 +508,15 @@ export function useLogSubmitData() {
 
     try {
       const finalTaskId = isOther ? null : (data.task_id || null);
+      const cleanProjectId =
+        !data.project_id || data.project_id === MISC_PROJECT_ID || data.project_id === "none"
+          ? null
+          : data.project_id;
 
       if (editId) {
         const hoursStatusId = isOther ? (declaredTarget || null) : (selectedTask?.status_id || null);
         const { error } = await supabase.from("daily_logs").update({
-          project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
+          project_id: cleanProjectId,
           category: data.category,
           hours: data.hours,
           description: data.description,
@@ -527,7 +533,7 @@ export function useLogSubmitData() {
         const hoursStatusId = isOther ? (declaredTarget || null) : (selectedTask?.status_id || null);
         const { error } = await supabase.from("daily_logs").insert({
           user_id: user!.id,
-          project_id: data.project_id === MISC_PROJECT_ID ? null : data.project_id || null,
+          project_id: cleanProjectId,
           category: data.category,
           hours: data.hours,
           description: data.description,
@@ -554,7 +560,7 @@ export function useLogSubmitData() {
 
   const startEdit = (log: any) => {
     setEditId(log.id);
-    const isOtherLog = !log.task_id && log.project_id && log.project_id !== MISC_PROJECT_ID;
+    const isOtherLog = !log.task_id && log.project_id && log.project_id !== MISC_PROJECT_ID && (log.declared_outcome_status_id || log.declared_transition_to);
     setDeclareOutcome(isOtherLog ? false : !!log.declared_outcome_status_id);
     setSelectedOutcomeStatusId(log.declared_outcome_status_id || log.hours_status_id || "");
     form.reset({
@@ -637,7 +643,9 @@ export function useLogSubmitData() {
       }
 
       const createdOtherTasks: Record<string, { taskId: string; statusId: string | null }> = {};
-      const otherProjectLogs = pendingLogs.filter((l: any) => l.project_id && !l.task_id);
+      const otherProjectLogs = pendingLogs.filter(
+        (l: any) => l.project_id && !l.task_id && (l.declared_outcome_status_id || l.declared_transition_to)
+      );
       if (otherProjectLogs.length > 0) {
         await Promise.all(
           otherProjectLogs.map(async (log: any) => {

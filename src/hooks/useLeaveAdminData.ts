@@ -8,7 +8,7 @@ import { getPKTDateString } from "@/hooks/useWorkSettings";
 import { getLeaveTypeName, getCurrentLeaveYear, getLeaveYearRange } from "@/lib/utils";
 import { getAdminManagerIds } from "@/lib/notification-helpers";
 
-export const LEAVE_CATEGORIES = ["Sick Leave", "Casual Leave", "Hourly Leave", "Others"];
+export const LEAVE_CATEGORIES = ["Sick Leave", "Casual Leave", "Hourly Leave", "Late Arrival Penalty", "Others"];
 
 export function useLeaveAdminData() {
   const { user, profile } = useAuth();

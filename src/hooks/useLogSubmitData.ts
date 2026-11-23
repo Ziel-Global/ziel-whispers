@@ -284,25 +284,54 @@ export function useLogSubmitData() {
 
   const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "project_manager";
 
+  const editingLog = useMemo(() =>
+    editId ? allPendingLogs.find((l: any) => l.id === editId) : null,
+    [editId, allPendingLogs]
+  );
+  const editingTaskId = editingLog?.task_id || null;
+
   // 9. Available tasks query
   const { data: availableTasks = [] } = useQuery({
-    queryKey: ["my-project-tasks", selectedProjectId, user?.id, workflowStatuses],
+    queryKey: ["my-project-tasks", selectedProjectId, user?.id, workflowStatuses, editingTaskId],
     queryFn: async () => {
       const doneStatusIds = (workflowStatuses || [])
         .filter((s: any) => s.category === "done")
         .map((s: any) => s.id);
+
+      const inProgressStatusIds = new Set(
+        (workflowStatuses || [])
+          .filter((s: any) => s.category === "in_progress")
+          .map((s: any) => s.id)
+      );
+
+      // Check sprints for this project to find active sprint(s)
+      const { data: sprintsData, error: sprintsError } = await supabase
+        .from("sprints")
+        .select("id, status")
+        .eq("project_id", selectedProjectId!);
+
+      if (sprintsError) {
+        console.error("my-project-tasks sprints", sprintsError);
+      }
+
+      const activeSprintIds = new Set(
+        (sprintsData || [])
+          .filter((s: any) => s.status === "active")
+          .map((s: any) => s.id)
+      );
+      const hasActiveSprint = activeSprintIds.size > 0;
 
       // Do not embed parent via PostgREST (PGRST200 / schema-cache issues).
       // Fetch assigned tasks, then load parent titles in a second query (RLS allows
       // reading parents when the user is assigned to a child).
       let query = supabase
         .from("tasks")
-        .select("id, title, priority, estimated_hours, status, status_id, is_flagged, parent_id")
+        .select("id, title, priority, estimated_hours, status, status_id, is_flagged, parent_id, sprint_id")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
         .order("title");
 
-      if (doneStatusIds.length > 0) {
+      if (doneStatusIds.length > 0 && !editingTaskId) {
         query = query.not("status_id", "in", `(${doneStatusIds.join(",")})`);
       }
 
@@ -315,8 +344,23 @@ export function useLogSubmitData() {
       if (!tasks) return [];
 
       const filteredTasks = tasks.filter((t: any) => {
-        if (t.status_id && doneStatusIds.includes(t.status_id)) return false;
-        if (t.status && ["completed", "done"].includes(String(t.status).toLowerCase())) return false;
+        const isEditingThisTask = Boolean(editingTaskId && t.id === editingTaskId);
+        if (!isEditingThisTask) {
+          if (t.status_id && doneStatusIds.includes(t.status_id)) return false;
+          if (t.status && ["completed", "done"].includes(String(t.status).toLowerCase())) return false;
+        }
+
+        // If an active sprint exists for this project:
+        // Show tasks in the active sprint + any tasks in progress (Option B / Union)
+        if (hasActiveSprint) {
+          const inActiveSprint = t.sprint_id && activeSprintIds.has(t.sprint_id);
+          const inProgress = (t.status_id && inProgressStatusIds.has(t.status_id)) ||
+            String(t.status || "").toLowerCase() === "in_progress";
+
+          return inActiveSprint || inProgress || isEditingThisTask;
+        }
+
+        // When no active sprint exists: show all assigned tasks (non-done, plus editing task)
         return true;
       });
 

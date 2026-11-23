@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Admin user-detail — Access Controls tab (ud-* layout from zielAdmin mock).
  *
  * IMPLEMENTED (wired — existing save path):

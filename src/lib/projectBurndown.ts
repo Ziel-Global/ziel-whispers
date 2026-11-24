@@ -70,6 +70,15 @@ export function computeBurndownData({
       .map((s: any) => s.id)
   );
 
+  const todoStatusIds = new Set(
+    (workflowStatuses || [])
+      .filter((s: any) => s.category === "todo")
+      .map((s: any) => s.id)
+  );
+  const initialStatus =
+    (workflowStatuses || []).find((s: any) => s.is_initial && !s.retired) ||
+    (workflowStatuses || [])[0];
+
   const getTaskCompletionDate = (t: any): string | null => {
     if (t.completed_at) {
       return toDateStr(t.completed_at);
@@ -84,9 +93,22 @@ export function computeBurndownData({
     return null;
   };
 
+  const isCurrentBacklogTask = (t: any) => {
+    if (getTaskCompletionDate(t) !== null) return false;
+    if (t.status_id) return todoStatusIds.has(t.status_id);
+    return initialStatus ? initialStatus.category === "todo" : true;
+  };
+
+  const getTaskLeftBacklogDate = (t: any): string | null => {
+    if (isCurrentBacklogTask(t)) return null;
+    const cDate = getTaskCompletionDate(t);
+    if (cDate) return cDate;
+    return toDateStr(t.updated_at || t.created_at || new Date());
+  };
+
   const totalTasks = scopeTasks.length;
   const completedTasks = scopeTasks.filter((t: any) => getTaskCompletionDate(t) !== null).length;
-  const remainingTasks = Math.max(0, totalTasks - completedTasks);
+  const remainingTasks = scopeTasks.filter(isCurrentBacklogTask).length;
 
   if (totalTasks === 0) {
     return { error: "No tasks to show burndown." as const };
@@ -126,11 +148,11 @@ export function computeBurndownData({
 
     let actual: number | null = null;
     if (dayStr <= todayStr) {
-      const completedOnOrBefore = scopeTasks.filter((t: any) => {
-        const cDate = getTaskCompletionDate(t);
-        return cDate !== null && cDate <= dayStr;
+      const leftBacklogOnOrBefore = scopeTasks.filter((t: any) => {
+        const leftDate = getTaskLeftBacklogDate(t);
+        return leftDate !== null && leftDate <= dayStr;
       }).length;
-      actual = Math.max(0, totalTasks - completedOnOrBefore);
+      actual = Math.max(0, totalTasks - leftBacklogOnOrBefore);
     }
 
     return {

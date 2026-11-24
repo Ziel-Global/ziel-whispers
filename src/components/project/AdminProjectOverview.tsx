@@ -156,7 +156,7 @@ export function AdminProjectOverview({
       tab: "action-items",
     },
     {
-      label: `${openTasks.length} open task${openTasks.length === 1 ? "" : "s"}`,
+      label: `${backlogTasks.length} open task${backlogTasks.length === 1 ? "" : "s"}`,
       sub: `of ${list.length} total`,
       warn: false,
       tab: "tasks",
@@ -509,9 +509,6 @@ export function AdminProjectOverview({
             <div className="flex items-center gap-[26px] text-[12.5px] text-[#4B4B52] mb-[18px] flex-wrap">
               <span>
                 Total tasks: <b>{burndown.totalTasks}</b>
-              </span>
-              <span>
-                Completed: <b>{burndown.completedTasks}</b>
               </span>
               <span>
                 Remaining: <b>{burndown.remainingTasks}</b>

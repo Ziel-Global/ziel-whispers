@@ -125,9 +125,6 @@ function ClientDeliveryBurndown({
               Total tasks: <b>{burndown.totalTasks}</b>
             </span>
             <span>
-              Completed: <b>{burndown.completedTasks}</b>
-            </span>
-            <span>
               Remaining: <b>{burndown.remainingTasks}</b>
             </span>
           </div>

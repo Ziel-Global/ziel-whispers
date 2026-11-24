@@ -139,7 +139,7 @@ export function useLogSubmitData() {
   // 5. Form schema
   const restrictLogs = profile?.restrict_logs !== false;
   const schema = z.object({
-    project_id: restrictLogs ? z.string().min(1, "Please select a project") : z.string().nullable().optional(),
+    project_id: z.string().min(1, "Please select a project"),
     category: z.string().min(1, "Category is required"),
     hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
     description: z.string().refine((v) => getPlainTextLength(v) >= 20, "Min 20 characters"),
@@ -158,13 +158,16 @@ export function useLogSubmitData() {
     }, "This day already has the maximum hours logged"),
     task_id: z.string().nullable().optional(),
   }).refine((data) => {
-    if (!restrictLogs) return true;
-    if (data.project_id && data.project_id !== MISC_PROJECT_ID && data.project_id !== "none") {
+    if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
+      if (restrictLogs) {
+        // Require Assigned Tasks: must select an assigned task; 'other' is not allowed
+        return !!data.task_id && data.task_id !== "other";
+      }
       return !!data.task_id;
     }
     return true;
   }, {
-    message: "Please select a task (or 'Other')",
+    message: restrictLogs ? "Please select an assigned task" : "Please select a task (or 'Other')",
     path: ["task_id"],
   });
 
@@ -553,7 +556,7 @@ export function useLogSubmitData() {
     try {
       const finalTaskId = isOther ? null : (data.task_id || null);
       const cleanProjectId =
-        !data.project_id || data.project_id === MISC_PROJECT_ID || data.project_id === "none"
+        !data.project_id || data.project_id === MISC_PROJECT_ID
           ? null
           : data.project_id;
 

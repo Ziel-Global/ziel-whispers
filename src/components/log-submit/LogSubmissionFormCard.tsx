@@ -83,6 +83,7 @@ export function LogSubmissionFormCard({
   const { profile } = useAuth();
   const restrictLogs = profile?.restrict_logs !== false;
   const isFormDisabled = isLocked || isOnApprovedLeaveForSelectedDate;
+  const hasNoProjects = (!projects || projects.length === 0) && profile?.role !== "admin";
 
   return (
     <Card className="p-6 border-2 border-primary/5 shadow-lg bg-card/50 backdrop-blur-sm">
@@ -97,6 +98,15 @@ export function LogSubmissionFormCard({
 
       <Form {...form}>
         <form onSubmit={form.handleSubmit(onAddLog)} className="space-y-6">
+          {hasNoProjects && (
+            <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800 flex items-center gap-3 text-amber-800 dark:text-amber-200">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+              <p className="text-sm font-medium">
+                You are not assigned to any project, so you cannot submit logs.
+              </p>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <FormField
               control={form.control}
@@ -104,17 +114,16 @@ export function LogSubmissionFormCard({
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                    Project{!restrictLogs && " (Optional)"}
+                    Project (Required) *
                   </FormLabel>
                   <Select
                     onValueChange={(val) => {
-                      const nextVal = val === "none" ? "" : val;
-                      field.onChange(nextVal);
-                      if (!nextVal) {
+                      field.onChange(val);
+                      if (!val) {
                         form.setValue("task_id", null);
                       }
                     }}
-                    value={field.value || (!restrictLogs && field.value === "" ? "none" : "")}
+                    value={field.value || ""}
                     disabled={isFormDisabled}
                   >
                     <FormControl>
@@ -123,9 +132,6 @@ export function LogSubmissionFormCard({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {!restrictLogs && (
-                        <SelectItem value="none">No Project (—)</SelectItem>
-                      )}
                       {projects.map((p: any) => (
                         <SelectItem key={p.id} value={p.id}>
                           {p.name}
@@ -251,81 +257,83 @@ export function LogSubmissionFormCard({
             />
           </div>
 
-          {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && selectedProjectId !== "none" && (
+          {selectedProjectId && selectedProjectId !== MISC_PROJECT_ID && (
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
-                  Task {restrictLogs ? "(Required) *" : "(Optional)"}
+                  Task (Required) *
                 </span>
-                {!restrictLogs && form.watch("task_id") && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      form.setValue("task_id", null, { shouldDirty: true, shouldValidate: true });
-                      setSelectedOutcomeStatusId("");
-                    }}
-                    className="text-xs text-muted-foreground hover:text-foreground underline"
-                  >
-                    Clear task
-                  </button>
-                )}
               </div>
-              <div className="space-y-1">
-                {tasksWithRemaining.map((t: any) => (
-                  <div
-                    key={t.id}
-                    className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                      }`}
-                    onClick={() =>
-                      form.setValue(
-                        "task_id",
-                        form.watch("task_id") === t.id ? null : t.id,
-                        { shouldDirty: true, shouldValidate: true }
-                      )
-                    }
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
-                          }`}
-                      >
-                        {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-                      </div>
-                      <span className="text-sm font-medium truncate">
-                        {t.parent?.title ? `${t.parent.title} / ${t.title}` : t.title}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0 ml-2">
-                      {t.remaining_hours !== null && (
-                        <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>
-                      )}
-                      <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
-                    </div>
-                  </div>
-                ))}
-                <div
-                  key="other-task-option"
-                  className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === "other" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
-                    }`}
-                  onClick={() =>
-                    form.setValue(
-                      "task_id",
-                      form.watch("task_id") === "other" ? null : "other",
-                      { shouldDirty: true, shouldValidate: true }
-                    )
-                  }
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div
-                      className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === "other" ? "border-primary" : "border-muted-foreground"
-                        }`}
-                    >
-                      {form.watch("task_id") === "other" && <div className="w-2 h-2 rounded-full bg-primary" />}
-                    </div>
-                    <span className="text-sm font-medium truncate">Other</span>
-                  </div>
+
+              {restrictLogs && tasksWithRemaining.length === 0 ? (
+                <div className="bg-amber-50 dark:bg-amber-950/20 p-4 rounded-xl border border-amber-200 dark:border-amber-800 flex items-center gap-3 text-amber-800 dark:text-amber-200">
+                  <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                  <p className="text-sm font-medium">
+                    You cannot submit logs until you are assigned a task.
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="space-y-1">
+                  {tasksWithRemaining.map((t: any) => (
+                    <div
+                      key={t.id}
+                      className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === t.id ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                        }`}
+                      onClick={() =>
+                        form.setValue(
+                          "task_id",
+                          form.watch("task_id") === t.id ? null : t.id,
+                          { shouldDirty: true, shouldValidate: true }
+                        )
+                      }
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === t.id ? "border-primary" : "border-muted-foreground"
+                            }`}
+                        >
+                          {form.watch("task_id") === t.id && <div className="w-2 h-2 rounded-full bg-primary" />}
+                        </div>
+                        <span className="text-sm font-medium truncate">
+                          {t.parent?.title ? `${t.parent.title} / ${t.title}` : t.title}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0 ml-2">
+                        {t.remaining_hours !== null && (
+                          <span className="text-xs text-muted-foreground">{t.remaining_hours}h left</span>
+                        )}
+                        <Badge className={PRIORITY_COLORS[t.priority] || ""}>{t.priority}</Badge>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Other task option — only available when Require Assigned Tasks is disabled */}
+                  {!restrictLogs && (
+                    <div
+                      key="other-task-option"
+                      className={`flex items-center justify-between p-2.5 border rounded-md cursor-pointer transition-colors ${form.watch("task_id") === "other" ? "border-primary bg-primary/5" : "hover:bg-muted/50"
+                        }`}
+                      onClick={() =>
+                        form.setValue(
+                          "task_id",
+                          form.watch("task_id") === "other" ? null : "other",
+                          { shouldDirty: true, shouldValidate: true }
+                        )
+                      }
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div
+                          className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${form.watch("task_id") === "other" ? "border-primary" : "border-muted-foreground"
+                            }`}
+                        >
+                          {form.watch("task_id") === "other" && <div className="w-2 h-2 rounded-full bg-primary" />}
+                        </div>
+                        <span className="text-sm font-medium truncate">Other</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
               {form.formState.errors.task_id && (
                 <p className="text-xs font-medium text-destructive mt-1">
                   {form.formState.errors.task_id.message as string}
@@ -462,7 +470,7 @@ export function LogSubmissionFormCard({
             </div>
           )}
 
-          {(!restrictLogs || selectedProjectId === MISC_PROJECT_ID || Boolean(form.watch("task_id"))) && (
+          {(selectedProjectId === MISC_PROJECT_ID || Boolean(form.watch("task_id"))) && (
             <>
               <FormField
                 control={form.control}

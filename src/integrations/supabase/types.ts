@@ -131,6 +131,10 @@ export type Database = {
           hours_late: number
           id: string
           is_late: boolean
+          is_late_waived?: boolean
+          late_waived_by?: string | null
+          late_waived_reason?: string | null
+          late_waived_at?: string | null
           log_reminder_sent: boolean
           log_reminder_time: string | null
           minutes_late: number
@@ -149,6 +153,10 @@ export type Database = {
           hours_late?: number
           id?: string
           is_late?: boolean
+          is_late_waived?: boolean
+          late_waived_by?: string | null
+          late_waived_reason?: string | null
+          late_waived_at?: string | null
           log_reminder_sent?: boolean
           log_reminder_time?: string | null
           minutes_late?: number
@@ -167,6 +175,10 @@ export type Database = {
           hours_late?: number
           id?: string
           is_late?: boolean
+          is_late_waived?: boolean
+          late_waived_by?: string | null
+          late_waived_reason?: string | null
+          late_waived_at?: string | null
           log_reminder_sent?: boolean
           log_reminder_time?: string | null
           minutes_late?: number

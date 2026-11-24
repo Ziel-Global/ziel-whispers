@@ -76,6 +76,8 @@ END;
 $function$;
 
 -- Ensure Personal Leave type exists for historical data mapping
-INSERT INTO public.leave_types (name, days_per_year, is_paid)
+INSERT INTO public.leave_types (tenant_id, name, days_per_year, is_paid)
+SELECT '00000000-0000-0000-0000-000000000001'::uuid, 'Personal Leave', 12, true
+WHERE NOT EXISTS (SELECT 1 FROM public.leave_types WHERE name = 'Personal Leave' AND tenant_id = '00000000-0000-0000-0000-000000000001'::uuid);
 SELECT 'Personal Leave', 12, true
 WHERE NOT EXISTS (SELECT 1 FROM public.leave_types WHERE name = 'Personal Leave');

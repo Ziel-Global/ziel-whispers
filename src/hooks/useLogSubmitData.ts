@@ -139,7 +139,7 @@ export function useLogSubmitData() {
   // 5. Form schema
   const restrictLogs = profile?.restrict_logs !== false;
   const schema = z.object({
-    project_id: restrictLogs ? z.string().min(1, "Please select a project") : z.string().nullable().optional(),
+    project_id: z.string().min(1, "Please select a project"),
     category: z.string().min(1, "Category is required"),
     hours: z.number().min(0.25, "Min 0.25 hours").max(24, "Max 24 hours"),
     description: z.string().refine((v) => getPlainTextLength(v) >= 20, "Min 20 characters"),
@@ -158,13 +158,16 @@ export function useLogSubmitData() {
     }, "This day already has the maximum hours logged"),
     task_id: z.string().nullable().optional(),
   }).refine((data) => {
-    if (!restrictLogs) return true;
-    if (data.project_id && data.project_id !== MISC_PROJECT_ID && data.project_id !== "none") {
+    if (data.project_id && data.project_id !== MISC_PROJECT_ID) {
+      if (restrictLogs) {
+        // Require Assigned Tasks: must select an assigned task; 'other' is not allowed
+        return !!data.task_id && data.task_id !== "other";
+      }
       return !!data.task_id;
     }
     return true;
   }, {
-    message: "Please select a task (or 'Other')",
+    message: restrictLogs ? "Please select an assigned task" : "Please select a task (or 'Other')",
     path: ["task_id"],
   });
 
@@ -284,25 +287,54 @@ export function useLogSubmitData() {
 
   const isLogSubmitSystemAdmin = profile?.role === "admin" || profile?.role === "project_manager";
 
+  const editingLog = useMemo(() =>
+    editId ? allPendingLogs.find((l: any) => l.id === editId) : null,
+    [editId, allPendingLogs]
+  );
+  const editingTaskId = editingLog?.task_id || null;
+
   // 9. Available tasks query
   const { data: availableTasks = [] } = useQuery({
-    queryKey: ["my-project-tasks", selectedProjectId, user?.id, workflowStatuses],
+    queryKey: ["my-project-tasks", selectedProjectId, user?.id, workflowStatuses, editingTaskId],
     queryFn: async () => {
       const doneStatusIds = (workflowStatuses || [])
         .filter((s: any) => s.category === "done")
         .map((s: any) => s.id);
+
+      const inProgressStatusIds = new Set(
+        (workflowStatuses || [])
+          .filter((s: any) => s.category === "in_progress")
+          .map((s: any) => s.id)
+      );
+
+      // Check sprints for this project to find active sprint(s)
+      const { data: sprintsData, error: sprintsError } = await supabase
+        .from("sprints")
+        .select("id, status")
+        .eq("project_id", selectedProjectId!);
+
+      if (sprintsError) {
+        console.error("my-project-tasks sprints", sprintsError);
+      }
+
+      const activeSprintIds = new Set(
+        (sprintsData || [])
+          .filter((s: any) => s.status === "active")
+          .map((s: any) => s.id)
+      );
+      const hasActiveSprint = activeSprintIds.size > 0;
 
       // Do not embed parent via PostgREST (PGRST200 / schema-cache issues).
       // Fetch assigned tasks, then load parent titles in a second query (RLS allows
       // reading parents when the user is assigned to a child).
       let query = supabase
         .from("tasks")
-        .select("id, title, priority, estimated_hours, status, status_id, is_flagged, parent_id")
+        .select("id, title, priority, estimated_hours, status, status_id, is_flagged, parent_id, sprint_id")
         .eq("project_id", selectedProjectId!)
         .eq("assigned_to", user!.id)
         .order("title");
 
-      if (doneStatusIds.length > 0) {
+      if (doneStatusIds.length > 0 && !editingTaskId) {
         query = query.not("status_id", "in", `(${doneStatusIds.join(",")})`);
       }
 
@@ -315,8 +347,23 @@ export function useLogSubmitData() {
       if (!tasks) return [];
 
       const filteredTasks = tasks.filter((t: any) => {
-        if (t.status_id && doneStatusIds.includes(t.status_id)) return false;
-        if (t.status && ["completed", "done"].includes(String(t.status).toLowerCase())) return false;
+        const isEditingThisTask = Boolean(editingTaskId && t.id === editingTaskId);
+        if (!isEditingThisTask) {
+          if (t.status_id && doneStatusIds.includes(t.status_id)) return false;
+          if (t.status && ["completed", "done"].includes(String(t.status).toLowerCase())) return false;
+        }
+
+        // If an active sprint exists for this project:
+        // Show tasks in the active sprint + any tasks in progress (Option B / Union)
+        if (hasActiveSprint) {
+          const inActiveSprint = t.sprint_id && activeSprintIds.has(t.sprint_id);
+          const inProgress = (t.status_id && inProgressStatusIds.has(t.status_id)) ||
+            String(t.status || "").toLowerCase() === "in_progress";
+
+          return inActiveSprint || inProgress || isEditingThisTask;
+        }
+
+        // When no active sprint exists: show all assigned tasks (non-done, plus editing task)
         return true;
       });
 
@@ -509,7 +556,7 @@ export function useLogSubmitData() {
     try {
       const finalTaskId = isOther ? null : (data.task_id || null);
       const cleanProjectId =
-        !data.project_id || data.project_id === MISC_PROJECT_ID || data.project_id === "none"
+        !data.project_id || data.project_id === MISC_PROJECT_ID
           ? null
           : data.project_id;
 

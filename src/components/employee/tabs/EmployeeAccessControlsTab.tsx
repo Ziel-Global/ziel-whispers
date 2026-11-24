@@ -224,18 +224,18 @@ export function EmployeeAccessControlsTab({
               )}
             </div>
 
-            {/* Restrict Logs — employees & managers only */}
+            {/* Require Assigned Tasks — employees & managers only */}
             {["employee", "project_manager", "hr_manager", "manager"].includes(employee?.role ?? "") && setEmployeeRestrictLogs && (
               <div className="px-[15px] py-3.5 border-b border-black/[0.055] bg-white flex items-center justify-between gap-3.5">
                 <div className="min-w-0">
-                  <div className="text-[12px] font-semibold text-[#252529]">Restrict Logs</div>
+                  <div className="text-[12px] font-semibold text-[#252529]">Require Assigned Tasks</div>
                   <div className="text-[10.5px] text-[#8B8B92] mt-0.5 leading-snug">
-                    On: project and task are required when adding logs. Off: logs can be added without selecting a project or task.
+                    When enabled, the user must log against an assigned task and cannot choose &ldquo;Other&rdquo;. When disabled, they can log against &ldquo;Other&rdquo; if no task is assigned.
                   </div>
                 </div>
                 <UdToggle
                   on={employeeRestrictLogs}
-                  aria-label="Restrict logs"
+                  aria-label="Require Assigned Tasks"
                   onClick={() => setEmployeeRestrictLogs(!employeeRestrictLogs)}
                 />
               </div>
@@ -343,9 +343,9 @@ export function EmployeeAccessControlsTab({
             </div>
             {["employee", "project_manager", "hr_manager", "manager"].includes(employee?.role ?? "") && (
               <div className="flex items-center justify-between gap-3 py-2.5 border-b border-black/[0.055]">
-                <span className="text-[11px] text-[#8B8B92]">Restrict logs</span>
+                <span className="text-[11px] text-[#8B8B92]">Require assigned tasks</span>
                 <span className="text-[11.5px] font-semibold text-[#4B4B52]">
-                  {employeeRestrictLogs ? "Restricted" : "Unrestricted"}
+                  {employeeRestrictLogs ? "Enabled" : "Disabled"}
                 </span>
               </div>
             )}

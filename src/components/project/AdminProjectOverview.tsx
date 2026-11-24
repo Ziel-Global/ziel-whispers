@@ -109,6 +109,18 @@ export function AdminProjectOverview({
   );
   const isDone = (t: any) => !!t.completed_at || (t.status_id && doneIds.has(t.status_id));
   const openTasks = list.filter((t) => !isDone(t));
+  const todoIds = new Set(
+    (workflowStatuses || []).filter((s: any) => s.category === "todo").map((s: any) => s.id)
+  );
+  const initialStatus =
+    (workflowStatuses || []).find((s: any) => s.is_initial && !s.retired) ||
+    (workflowStatuses || [])[0];
+  const isTodo = (t: any) => {
+    if (isDone(t)) return false;
+    if (t.status_id) return todoIds.has(t.status_id);
+    return initialStatus ? initialStatus.category === "todo" : true;
+  };
+  const backlogTasks = list.filter(isTodo);
   const overdueTasks = openTasks.filter(
     (t) => t.due_date && isBefore(startOfDay(new Date(t.due_date)), today)
   );
@@ -144,7 +156,7 @@ export function AdminProjectOverview({
       tab: "action-items",
     },
     {
-      label: `${openTasks.length} open task${openTasks.length === 1 ? "" : "s"}`,
+      label: `${backlogTasks.length} open task${backlogTasks.length === 1 ? "" : "s"}`,
       sub: `of ${list.length} total`,
       warn: false,
       tab: "tasks",
@@ -261,7 +273,7 @@ export function AdminProjectOverview({
           className="bg-white border border-black/[0.08] rounded-[14px] p-[18px] min-w-0 text-left hover:border-[#EB5A1E]/40 transition-colors"
         >
           <div className="text-[12px] text-[#8B8B92] font-semibold whitespace-nowrap">Open Tasks</div>
-          <div className="text-2xl font-bold mt-2 text-[#17171A]">{openTasks.length}</div>
+          <div className="text-2xl font-bold mt-2 text-[#17171A]">{backlogTasks.length}</div>
           <div className="text-[11.5px] text-[#8B8B92] mt-2.5 whitespace-nowrap">
             of {list.length} shown
           </div>
@@ -497,9 +509,6 @@ export function AdminProjectOverview({
             <div className="flex items-center gap-[26px] text-[12.5px] text-[#4B4B52] mb-[18px] flex-wrap">
               <span>
                 Total tasks: <b>{burndown.totalTasks}</b>
-              </span>
-              <span>
-                Completed: <b>{burndown.completedTasks}</b>
               </span>
               <span>
                 Remaining: <b>{burndown.remainingTasks}</b>

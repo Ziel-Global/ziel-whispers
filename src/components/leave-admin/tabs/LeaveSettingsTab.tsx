@@ -61,6 +61,18 @@ export function LeaveSettingsTab({
             Total annual leave days each employee is entitled to per year. All leave types draw from this single pool.
           </p>
         </div>
+
+        <div className="border-t border-black/[0.06] pt-4 max-w-[560px] space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="text-[13px] font-semibold text-[#17171A]">Late Arrival Policy</span>
+            <span className="text-[11px] font-semibold bg-[#FDF3E3] text-[#A9720B] px-2 py-0.5 rounded-full">
+              Automated (9h = 1 Day)
+            </span>
+          </div>
+          <p className="text-[12px] text-[#8B8B92] leading-relaxed">
+            Arrivals beyond the 15-minute grace period accumulate late minutes across the leave year (June 1 – May 31). Once an employee accumulates 540 minutes (9 hours), 1 day is automatically deducted as a <strong>Late Arrival Penalty</strong> until their leave balance reaches 0. Admins can waive specific late clock-ins in Attendance Admin to refund minutes and penalties.
+          </p>
+        </div>
       </div>
 
       {/* Bulk Remote Work Management */}

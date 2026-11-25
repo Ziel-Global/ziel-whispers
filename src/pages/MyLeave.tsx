@@ -18,7 +18,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Plus, X, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { useWorkSettings, getPKTDateString, getPKTISOString } from "@/hooks/useWorkSettings";
-import { getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions } from "@/lib/utils";
+import { getCurrentLeaveYear, getLeaveYearRange, getLeaveYearOptions, getLeaveTypeName } from "@/lib/utils";
 import { createNotification, getLeaveAdminIds } from "@/lib/notification-helpers";
 
 const LEAVE_CATEGORIES = [
@@ -248,6 +248,8 @@ export default function MyLeavePage() {
     enabled: !!user?.id,
   });
 
+
+
   const filteredRequests = useMemo(() => {
     const yearRange = getLeaveYearRange(historyYear);
     return requests.filter((r: any) => {
@@ -413,23 +415,30 @@ export default function MyLeavePage() {
             </Button>
           </div>
 
-          <Card className="p-4">
-        <p className="text-sm font-medium">Annual Leaves</p>
-        <p className="text-xs text-muted-foreground mt-0.5">{currentLeaveYear.label}</p>
-        <div className="flex items-baseline gap-2 mt-1">
-          <span className={`text-2xl font-bold ${remainingDays <= 2 ? "text-destructive" : "text-foreground"}`}>{remainingDays}</span>
-          <span className="text-sm text-muted-foreground">/ {totalDays} days remaining</span>
-        </div>
-        <p className="text-xs text-muted-foreground mt-1">{usedDays} used</p>
-        {halfDayHours > 0 && (
-          <p className="text-xs text-muted-foreground mt-1">{halfDayHours} hour{halfDayHours !== 1 ? "s" : ""} of half day leave used this year</p>
-        )}
-        {usedDays >= totalDays && (
-          <p className="text-sm text-destructive mt-2 font-medium">
-            Your leave limit for this leave year has been reached. Please contact the admin.
-          </p>
-        )}
-      </Card>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-4 flex flex-col justify-between">
+              <div>
+                <p className="text-sm font-medium">Annual Leaves</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{currentLeaveYear.label}</p>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className={`text-2xl font-bold ${remainingDays <= 2 ? "text-destructive" : "text-foreground"}`}>{remainingDays}</span>
+                  <span className="text-sm text-muted-foreground">/ {totalDays} days remaining</span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">{usedDays} used</p>
+                {halfDayHours > 0 && (
+                  <p className="text-xs text-muted-foreground mt-1">{halfDayHours} hour{halfDayHours !== 1 ? "s" : ""} of half day leave used this year</p>
+                )}
+                {usedDays >= totalDays && (
+                  <p className="text-sm text-destructive mt-2 font-medium">
+                    Your leave limit for this leave year has been reached. Please contact the admin.
+                  </p>
+                )}
+              </div>
+            </Card>
+
+
+
+          </div>
 
       <div className="flex gap-3 flex-wrap">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -469,9 +478,7 @@ export default function MyLeavePage() {
             <DataRow key={r.id} gridCols="1fr 112px 112px 80px 96px 112px 80px">
               <div className="min-w-0">
                 <RowPrimary>
-                  {r.hours
-                    ? `Hourly Leave — ${r.hours} hours`
-                    : (r.reason?.split(":")[0]?.split(" - ")[0] || r.leave_types?.name || "Annual")}
+                  {getLeaveTypeName(r)}
                 </RowPrimary>
                 {r.reason ? (
                   <TooltipProvider delayDuration={200}>

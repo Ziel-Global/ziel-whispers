@@ -287,7 +287,7 @@ export function LeaveRequestsTab({
                             <ChevronRight className="h-3.5 w-3.5 text-[#B0B0B6] shrink-0" />
                           )}
                         </div>
-                        <span className="inline-block bg-[#F6F5F3] text-[#4B4B52] text-[10.5px] font-bold px-2 py-0.5 rounded-full capitalize mt-0.5">
+                        <span className={`inline-block ${getLeaveTypeName(r) === "Late Arrival Penalty" ? "bg-[#FDF3E3] text-[#A9720B] border border-[#F5D8A0]" : "bg-[#F6F5F3] text-[#4B4B52]"} text-[10.5px] font-bold px-2 py-0.5 rounded-full capitalize mt-0.5`}>
                           {getLeaveTypeName(r)}
                         </span>
                       </div>
@@ -396,7 +396,7 @@ export function LeaveRequestsTab({
                           <ChevronRight className="h-3.5 w-3.5 text-[#B0B0B6] shrink-0" />
                         )}
                       </div>
-                      <span className="inline-block bg-[#F6F5F3] text-[#4B4B52] text-[10.5px] font-bold px-2 py-0.5 rounded-full capitalize mt-0.5">
+                      <span className={`inline-block ${getLeaveTypeName(r) === "Late Arrival Penalty" ? "bg-[#FDF3E3] text-[#A9720B] border border-[#F5D8A0]" : "bg-[#F6F5F3] text-[#4B4B52]"} text-[10.5px] font-bold px-2 py-0.5 rounded-full capitalize mt-0.5`}>
                         {getLeaveTypeName(r)}
                       </span>
                     </div>

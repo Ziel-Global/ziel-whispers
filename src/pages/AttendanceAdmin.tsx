@@ -23,6 +23,7 @@ import { sortPresentFirst } from "@/lib/attendance";
 export default function AttendanceAdminPage() {
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === "admin";
+  const isPrivileged = profile?.role === "admin" || profile?.role === "hr_manager";
   const queryClient = useQueryClient();
   const [selectedDate, setSelectedDate] = useState(getPKTDateString());
   const [statusFilter, setStatusFilter] = useState("present");
@@ -34,6 +35,7 @@ export default function AttendanceAdminPage() {
   const [editNotes, setEditNotes] = useState("");
   const [editWorkMode, setEditWorkMode] = useState("");
   const [saving, setSaving] = useState(false);
+
 
   const ALLOWED_ATTENDANCE_ROLES = ["employee", "hr_manager", "project_manager"];
 
@@ -377,13 +379,15 @@ export default function AttendanceAdminPage() {
                   ) : !r.clock_out ? (
                     <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Active</Badge>
                   ) : r.is_late ? (
-                    <Badge className="bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">Late</Badge>
+                    <Badge className="bg-[#FDF3E3] text-[#A9720B] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">
+                      Late ({r.minutes_late ?? 0}m)
+                    </Badge>
                   ) : (
                     <Badge className="bg-[#DFF6E4] text-[#1B8A46] font-bold text-[11.5px] px-2.5 py-0.5 rounded-full border-0 shadow-none">On Time</Badge>
                   )}
                 </RowBadgeItem>
-                <RowActions className="justify-self-end flex items-center justify-end">
-                  {isAdmin && (
+                <RowActions className="justify-self-end flex items-center justify-end gap-1.5">
+                  {isPrivileged && (
                     <button
                       type="button"
                       onClick={() => openEdit(r)}
@@ -438,6 +442,8 @@ export default function AttendanceAdminPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+
     </div>
   );
 }

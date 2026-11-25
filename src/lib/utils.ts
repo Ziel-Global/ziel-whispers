@@ -66,6 +66,9 @@ export function formatDecimal(n: number) {
 
 export function getLeaveTypeName(r: any) {
   if (!r) return "";
+  if (r.leave_types?.name === "Late Arrival Penalty" || (typeof r.reason === "string" && r.reason.startsWith("Late Arrival Penalty"))) {
+    return "Late Arrival Penalty";
+  }
   if (r.hours) {
     return `Hourly Leave — ${r.hours} hours`;
   }
